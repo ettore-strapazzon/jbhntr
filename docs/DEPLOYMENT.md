@@ -43,27 +43,21 @@ The web service is now live at a `*.up.railway.app` URL.
 
 ## 2. Scheduled jobs (the ingestion engine)
 
-Add **four cron services** in the same project. In Railway: **New → Empty
-Service → connect the same repo**, then set **Settings → Cron Schedule** and
-**Settings → Custom Start Command**. Each runs then exits. Give each the **same
-environment variables** as the web service (Railway "shared variables" is the
-easy way), so they see the same `DATABASE_URL`, keys, and `EMBEDDING_*`.
+Add **one** cron service. In Railway: **New → GitHub Repo → same repo**, then in
+its **Settings** set:
 
-| Service | Cron (UTC) | Start command |
-|---|---|---|
-| `reaper` | `0 2 * * *` | `python -c "from web.app.services.reaper import run; print(run())"` |
-| `discover` | `0 3 * * 1` | `python -m web.app.services.ingest --cadence discover` |
-| `ingest-weekly` | `0 4 * * 1` | `python -m web.app.services.ingest --cadence weekly` |
-| `ingest-daily` | `0 5 * * *` | `python -m web.app.services.ingest --cadence daily` |
+- **Custom Start Command:** `python -m web.app.services.cron`
+- **Cron Schedule:** `0 3 * * *`  (03:00 UTC nightly)
 
-Order/timing rationale: reaper prunes dead jobs first; weekly discovery grows
-the company registry (accumulates ~a few companies/run toward 100/user); the
-daily ingest then fetches all lanes (incl. the freshly-discovered companies) and
-embeds new jobs. Metered sources (Jooble, JSearch, Findwork) only run weekly,
-see INGESTION_ENGINE.md §11b.
+Give it the **same environment variables** as the web service (incl. a
+`DATABASE_URL` reference to the Postgres service). `web/app/services/cron.py`
+does the rest: every night it reaps dead jobs and runs the daily ingest; on
+Mondays it also refreshes discovery and pulls the weekly metered sources
+(Jooble/JSearch/Findwork). One service, one schedule, one set of vars.
 
-**First run:** trigger `ingest-daily` and `discover` manually (Railway "Run
-now") so the corpus fills before you test searches.
+**First run:** hit **Run now** on the cron service once so the corpus fills
+before you test searches. (On a non-Monday this skips the weekly sources; that's
+fine — the daily lanes already fill most of the corpus.)
 
 **Embeddings:** with `EMBEDDING_BASE_URL=local`, the ingest service downloads
 the fastembed model (~150 MB) on first run and embeds on-device, no key, no

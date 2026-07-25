@@ -570,6 +570,27 @@ def test_discover_for_user_upserts_verified_companies(monkeypatch):
         db.commit(); db.close()
 
 
+# -------------------------------- cron ------------------------------------ #
+def test_nightly_runs_daily_always_and_weekly_on_monday(monkeypatch):
+    import datetime
+
+    from web.app.services import cron
+
+    calls = []
+    monkeypatch.setattr(cron, "reaper_run", lambda: calls.append("reaper") or {})
+    monkeypatch.setattr(cron, "ingest_run", lambda cadence: calls.append(cadence) or {})
+
+    # A Tuesday: daily only.
+    calls.clear()
+    cron.nightly(today=datetime.date(2026, 7, 28))
+    assert calls == ["reaper", "daily"]
+
+    # A Monday: discover + weekly + daily.
+    calls.clear()
+    cron.nightly(today=datetime.date(2026, 7, 27))
+    assert calls == ["reaper", "discover", "weekly", "daily"]
+
+
 # ------------------------------ ingestion --------------------------------- #
 def test_corpus_terms_and_countries_prioritise_users_then_defaults():
     from web.app.db import SessionLocal, init_db

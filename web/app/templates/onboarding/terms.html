@@ -1,7 +1,8 @@
 {% extends "onboarding/_step.html" %}
 {% block step %}
-<p class="muted">Last one. These are sent as literal queries to job sites, so list the
-  job <b>titles</b> you'd be hired under — not your skills.</p>
+<p class="muted">Last one, and optional. Add the job <b>titles</b> you'd be hired under
+  (not skills). We use them to search job sites and to sharpen your matches, so
+  it's a good place to add roles you'd take that your CV doesn't spell out.</p>
 <form method="post" action="/onboarding/save/terms">
   <label for="search_terms">Job titles — one per line</label>
   <textarea id="search_terms" name="search_terms"

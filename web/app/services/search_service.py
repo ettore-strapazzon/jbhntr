@@ -252,14 +252,20 @@ def _job_to_posting(row) -> object:
 
 
 def _candidate_query_text(profile, candidate) -> str:
-    """The text we embed to represent what this candidate wants."""
+    """The text we embed to represent what this candidate wants.
+
+    Includes the user's own search terms (their favourite job titles) as well as
+    the roles derived from the CV, so titles they add explicitly genuinely
+    influence the semantic match, not only which postings get fetched.
+    """
     parts = [
         profile.objective or "",
         getattr(candidate, "headline", "") or "",
-        " ".join(candidate.target_roles or []),
+        " ".join(profile.search_terms or []),        # user's stated titles
+        " ".join(candidate.target_roles or []),      # titles derived from the CV
         " ".join(candidate.skills or []),
     ]
-    return " — ".join(p for p in parts if p) or "job"
+    return ". ".join(p for p in parts if p) or "job"
 
 
 def _corpus_candidates(db, profile, candidate, settings, terms):
