@@ -1,0 +1,10 @@
+<div id="progress" hx-get="/search/{{ search.id }}/status"
+     hx-trigger="every 3s" hx-swap="outerHTML">
+  <div class="notice ok">
+    <b>Search running…</b> {{ search.stage or "Starting" }}
+    {% if search.raw_count %}<span class="small muted"> · {{ search.raw_count }} postings collected</span>{% endif %}
+    <div class="small muted" style="margin-top:6px">
+      This usually takes 2–5 minutes. You can leave this page and come back.
+    </div>
+  </div>
+</div>

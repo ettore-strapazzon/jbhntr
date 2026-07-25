@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Profile — JBHNTR{% endblock %}
+{% block content %}
+<h1>Your profile</h1>
+{% if saved %}<div class="notice ok">Saved.</div>{% endif %}
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <b>{{ state.score }}% complete</b>
+    {% if not state.can_search %}
+      <span class="small" style="color:var(--warn)">Search locked — {{ state.missing_required|join(", ") }}</span>
+    {% elif state.should_improve %}
+      <span class="small muted">More detail = better matches. Missing: {{ state.missing_optional|join(", ") }}</span>
+    {% else %}<span class="small" style="color:var(--accent)">Ready to search</span>{% endif %}
+  </div>
+  <div class="steps" style="margin-top:10px">
+    <i class="{% if state.score > 0 %}on{% endif %}" style="flex:{{ state.score }}"></i>
+    <i style="flex:{{ 100 - state.score }}"></i>
+  </div>
+</div>
+
+{# ---- documents ---- #}
+<div class="card">
+  <h2>Documents</h2>
+  <p class="small muted">Max 1 MB each. PDF, DOCX, TXT or MD. Stored encrypted.</p>
+  {% for m in materials %}
+    <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding:8px 0">
+      <span>{{ m.filename }} <span class="muted small">({{ m.kind.replace("_"," ") }},
+        {{ (m.size_bytes/1024)|round|int }} KB)</span></span>
+      <form method="post" action="/onboarding/material/{{ m.id }}/delete">
+        <input type="hidden" name="step" value="cv">
+        <button class="ghost small" type="submit">Remove</button>
+      </form>
+    </div>
+  {% else %}<p class="small muted">No documents yet.</p>{% endfor %}
+
+  <form method="post" action="/onboarding/upload" enctype="multipart/form-data" class="row"
+        style="margin-top:12px">
+    <input type="hidden" name="step" value="cv">
+    <select name="kind" style="max-width:190px">
+      <option value="cv">CV</option>
+      <option value="cover_letter">Cover letter</option>
+      <option value="linkedin">LinkedIn export</option>
+    </select>
+    <input type="file" name="file" required accept=".pdf,.docx,.txt,.md" style="flex:1">
+    <button type="submit">Upload</button>
+  </form>
+</div>
+
+{# ---- everything else ---- #}
+<form method="post" action="/profile">
+  <div class="card">
+    <h2>What you want</h2>
+    <label for="objective">Your objective <span class="muted small">(required)</span></label>
+    <textarea id="objective" name="objective" required>{{ profile.objective }}</textarea>
+
+    <label for="about_me">About you <span class="muted small">(required)</span></label>
+    <textarea id="about_me" name="about_me" required>{{ profile.about_me }}</textarea>
+    <p class="small muted">Your story, strengths, working style, constraints — anything a CV can't show.</p>
+  </div>
+
+  <div class="card">
+    <h2>Role</h2>
+    <label>Seniority <span class="muted small">(required)</span></label>
+    <div class="checks">
+      {% for o in seniority_options %}
+        <label><input type="checkbox" name="seniority" value="{{ o }}"
+          {% if o in profile.seniority %}checked{% endif %}> {{ o }}</label>
+      {% endfor %}
+    </div>
+
+    <label>Job type <span class="muted small">(required)</span></label>
+    <div class="checks">
+      {% for o in jobtype_options %}
+        <label><input type="checkbox" name="job_type" value="{{ o }}"
+          {% if o in profile.job_type %}checked{% endif %}> {{ o }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Company</h2>
+    <label>Company type <span class="muted small">(required)</span></label>
+    <div class="checks">
+      {% for o in company_options %}
+        <label><input type="checkbox" name="company_type" value="{{ o }}"
+          {% if o in profile.company_type %}checked{% endif %}> {{ o }}</label>
+      {% endfor %}
+    </div>
+
+    <label>Sectors <span class="muted small">(required)</span></label>
+    <div class="checks">
+      {% for o in vertical_options %}
+        <label><input type="checkbox" name="verticals" value="{{ o }}"
+          {% if o in profile.verticals %}checked{% endif %}> {{ o }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Location &amp; pay</h2>
+    <label>How do you want to work? <span class="muted small">(required)</span></label>
+    <div class="checks">
+      {% for o in work_mode_options %}
+        <label><input type="checkbox" name="work_mode" value="{{ o }}"
+          {% if o in profile.work_modes %}checked{% endif %}> {{ o|capitalize }}</label>
+      {% endfor %}
+    </div>
+
+    <label for="countries">Countries <span class="muted small">(required)</span></label>
+    <select id="countries" name="countries" multiple size="8">
+      {% for c in country_options %}
+        <option value="{{ c }}" {% if c in profile.countries %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <p class="small muted">Ctrl/⌘ to pick more than one. Base for onsite/hybrid;
+      where you can work from for remote.</p>
+
+    <label class="single-check">
+      <input type="checkbox" name="remote_anywhere" value="1"
+        {% if "Remote-Anywhere" in profile.locations %}checked{% endif %}>
+      Also include fully-remote roles with no country restriction
+    </label>
+
+    <label for="salary_floor">Salary floor in EUR <span class="muted small">(optional)</span></label>
+    <input id="salary_floor" type="number" name="salary_floor" min="0" step="1000"
+           value="{{ profile.salary_floor_eur or '' }}">
+    <p class="small muted">Only counts against a job when a figure is stated and falls below this.</p>
+  </div>
+
+  <div class="card">
+    <h2>Optional — these sharpen the matching</h2>
+    <label for="search_terms">Job titles to search <span class="muted small">(one per line)</span></label>
+    <textarea id="search_terms" name="search_terms"
+      placeholder="product manager&#10;head of product">{{ profile.search_terms | join("\n") }}</textarea>
+
+    <label for="seeds">Companies you admire <span class="muted small">(one per line — websites work best)</span></label>
+    <textarea id="seeds" name="seeds"
+      placeholder="https://stripe.com&#10;notion.so">{{ seeds | map(attribute="value") | join("\n") }}</textarea>
+    <p class="small muted">Used to find similar companies and to judge whether an employer suits you.</p>
+  </div>
+
+  <p><button type="submit">Save profile</button></p>
+</form>
+{% endblock %}

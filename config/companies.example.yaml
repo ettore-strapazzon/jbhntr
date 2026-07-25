@@ -1,0 +1,20 @@
+# Copy to companies.yaml and edit. companies.yaml is gitignored (it's your real
+# target list). Only the personal CLI uses this file; the web app keeps a
+# per-user company registry in the database.
+
+# SEEDS — "find companies like these". Names or, better, domains. The discovery
+# tool searches the web for similar companies and verifies each has a live,
+# public ATS board before adding it.
+seeds: [Stripe, Notion, Linear, Ramp, Vercel, Supabase, Monzo, Revolut,
+        Wise, Personio, Pennylane, Qonto]
+
+# COMPANIES — specific ATS boards to poll directly (optional; discovery fills
+# this in). ats is one of: greenhouse | lever | ashby | workable | recruitee |
+# personio | smartrecruiters. token is the company's handle in its board URL.
+companies:
+  - name: Linear
+    ats: ashby
+    token: linear
+  - name: Ramp
+    ats: greenhouse
+    token: ramp

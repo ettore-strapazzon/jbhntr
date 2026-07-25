@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Terms of Service — JBHNTR{% endblock %}
+{% block content %}
+<h1>Terms of Service</h1>
+<p class="small muted">Last updated: {{ config.company_name }} — template version.
+  <b>These are a starting template, not legal advice.</b> Have a lawyer review them
+  before taking payment.</p>
+
+<div class="card">
+<h2>1. Who we are</h2>
+<p>{{ config.company_name }} ("we", "us") provides an automated job-matching service
+  (the "Service"). Contact: <a href="mailto:{{ config.support_email }}">{{ config.support_email }}</a>.</p>
+
+<h2>2. Eligibility</h2>
+<p>You must be at least 16 years old (or the minimum digital-consent age in your
+  country) and able to enter a binding contract.</p>
+
+<h2>3. Your account</h2>
+<p>Keep your credentials secure and tell us promptly of any unauthorised use. You are
+  responsible for activity under your account.</p>
+
+<h2>4. Acceptable use</h2>
+<p>You agree not to: upload content you have no right to share; upload another person's
+  CV or personal data without their consent; attempt to break, overload, scrape or
+  reverse-engineer the Service; use it for unlawful or discriminatory purposes; or
+  resell output as an automated job-application service.</p>
+
+<h2>5. Your content</h2>
+<p>You keep ownership of everything you upload. You grant us a limited licence to
+  process it solely to operate the Service — including sending relevant extracts to
+  our AI sub-processors (see the <a href="/privacy">Privacy Policy</a>). We do not sell
+  your data and do not use it to train third-party models.</p>
+<p><b>Do not upload special-category data</b> (health, religion, political opinions,
+  trade-union membership, biometric or sexual-orientation data). A normal CV should not
+  contain it.</p>
+
+<h2>6. The Service is informational — no guarantees</h2>
+<p>Job matches, scores and generated documents are produced automatically by AI models
+  and <b>may be inaccurate, incomplete or out of date</b>. Job listings come from third
+  parties and may have expired or changed. We do not guarantee interviews, employment,
+  or any particular result. <b>Always verify a listing with the employer before applying
+  or relying on it.</b> You are responsible for reviewing any CV or cover letter we
+  generate before you send it.</p>
+
+<h2>7. Free and paid plans</h2>
+<p>Free accounts include {{ config.free_searches }} searches and
+  {{ config.free_documents }} generated documents. Paid plans are described on the
+  pricing page and, where marked "unlimited", are subject to a fair-use limit of
+  {{ config.premium_searches_per_day }} searches per day to keep the service available
+  to everyone. We may change prices with notice; changes never apply to a period you
+  already paid for.</p>
+
+<h2>8. Cancellation and refunds</h2>
+<p>You may cancel at any time; access continues to the end of the paid period.
+  <b>EU/EEA consumers</b> have a 14-day right of withdrawal for digital services. By
+  starting to use a paid feature within that period you ask us to begin immediately and
+  acknowledge you lose the withdrawal right once the service is fully performed.</p>
+
+<h2>9. Limitation of liability</h2>
+<p>To the fullest extent permitted by law, we are not liable for indirect or
+  consequential loss, loss of profit, loss of opportunity, or lost job offers. Our total
+  liability for any claim is limited to the greater of (a) the amount you paid us in the
+  12 months before the claim, or (b) EUR 50.</p>
+<p><b>Nothing in these Terms excludes or limits liability that cannot lawfully be
+  excluded</b> — including liability for death or personal injury caused by negligence,
+  fraud, or your mandatory statutory rights as a consumer. If you are an EU/EEA
+  consumer, your statutory rights are unaffected.</p>
+
+<h2>10. Availability</h2>
+<p>The Service is provided "as is" and "as available". We may modify, suspend or
+  discontinue features. We aim for high availability but do not promise uninterrupted
+  service.</p>
+
+<h2>11. Termination</h2>
+<p>You may delete your account at any time from the Account page. We may suspend or
+  terminate accounts that breach these Terms, with notice where practicable.</p>
+
+<h2>12. Governing law</h2>
+<p>These Terms are governed by the laws of Italy, without prejudice to the mandatory
+  consumer-protection rules of your country of residence. EU consumers may also use the
+  European Commission's <a href="https://ec.europa.eu/consumers/odr" rel="nofollow noopener"
+  target="_blank">ODR platform</a>.</p>
+
+<h2>13. Changes</h2>
+<p>We will notify you of material changes by email or in-app before they take effect.
+  Continued use after that constitutes acceptance.</p>
+</div>
+{% endblock %}

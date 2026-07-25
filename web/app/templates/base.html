@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}JBHNTR{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+{% if config.plausible_domain %}
+<script defer data-domain="{{ config.plausible_domain }}" src="https://plausible.io/js/script.js"></script>
+{% endif %}
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="/">JBHNTR</a>
+  <nav>
+    {% if user %}
+      <a href="/search">Search</a>
+      <a href="/profile">Profile</a>
+      <a href="/premium" class="pill">{% if user.is_premium %}Premium{% else %}Go premium{% endif %}</a>
+      <a href="/account">Account</a>
+      <a href="/logout">Log out</a>
+    {% else %}
+      <a href="/login">Log in</a>
+      <a href="/signup" class="pill">Sign up</a>
+    {% endif %}
+  </nav>
+</header>
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<footer>
+  <span>© {{ config.company_name }}</span>
+  <a href="/terms">Terms</a>
+  <a href="/privacy">Privacy</a>
+  <a href="/cookies">Cookies</a>
+  <a href="mailto:{{ config.support_email }}">Support</a>
+</footer>
+
+<!-- Only a strictly-necessary session cookie is used, so this is an
+     informational notice rather than a consent gate. See /cookies. -->
+<div id="cookie-note" class="cookie-note" hidden>
+  <span>We use one essential cookie to keep you signed in, and cookieless analytics.
+    <a href="/cookies">Learn more</a>.</span>
+  <button type="button" id="cookie-note-dismiss">Got it</button>
+</div>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{% extends "onboarding/_step.html" %}
+{% block step %}
+<p class="muted">Last one. These are sent as literal queries to job sites, so list the
+  job <b>titles</b> you'd be hired under — not your skills.</p>
+<form method="post" action="/onboarding/save/terms">
+  <label for="search_terms">Job titles — one per line</label>
+  <textarea id="search_terms" name="search_terms"
+    placeholder="product manager&#10;senior product manager&#10;head of product">{{ profile.search_terms | join("\n") }}</textarea>
+  <p class="small muted">Leave blank and we'll infer them from your objective.</p>
+  <p><button type="submit">Finish →</button></p>
+</form>
+{% endblock %}

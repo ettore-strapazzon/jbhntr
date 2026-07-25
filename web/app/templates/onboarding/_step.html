@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ step_title }} — JBHNTR{% endblock %}
+{% block content %}
+
+<div class="steps">
+  {% for i in range(step_total) %}<i class="{% if i < step_no %}on{% endif %}"></i>{% endfor %}
+</div>
+<p class="small muted">Step {{ step_no }} of {{ step_total }}
+  · {% if required %}<b>required</b>{% else %}optional{% endif %}</p>
+
+{% if error %}<div class="notice err">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h1>{{ step_title }}</h1>
+  {% block step %}{% endblock %}
+</div>
+
+<div class="row" style="justify-content:space-between">
+  <a class="small muted" href="/search">Skip for now →</a>
+  {% if not state.can_search %}
+    <span class="small muted">Search unlocks once the required steps are done</span>
+  {% endif %}
+</div>
+{% endblock %}

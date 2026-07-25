@@ -1,0 +1,38 @@
+# Secrets & credentials
+.env
+service_account.json
+*.pem
+
+# User materials (private CVs, cover letters, LinkedIn export)
+config/materials/*
+!config/materials/.gitkeep
+!config/materials/about_me.example.md
+
+# Runtime data (incl. profiles derived from a user's CV — personal)
+data/*.sqlite
+data/*.jsonl
+data/*.json
+
+# Personal profile + target-company list (could name a former employer).
+# Ship the .example versions instead.
+config/profile.yaml
+config/companies.yaml
+
+# Editor / scratch backups
+*.bak
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Personal reference notes, not part of the project
+Job Aggregator & Board APIs.md
+Job Hunting Websites.md

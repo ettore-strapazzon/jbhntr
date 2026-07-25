@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy — JBHNTR{% endblock %}
+{% block content %}
+<h1>Privacy Policy</h1>
+<p class="small muted"><b>Template — not legal advice.</b> Have a lawyer review before launch.</p>
+
+<div class="card">
+<h2>1. Controller</h2>
+<p>{{ config.company_name }} is the data controller.
+  Contact: <a href="mailto:{{ config.support_email }}">{{ config.support_email }}</a>.</p>
+
+<h2>2. What we collect</h2>
+<table style="width:100%;font-size:14px">
+  <tr><th align="left">Data</th><th align="left">Why</th><th align="left">Lawful basis</th></tr>
+  <tr><td>Email, password hash</td><td>Your account</td><td>Contract</td></tr>
+  <tr><td>CV, cover letters, LinkedIn export</td><td>To match you to jobs and write documents</td><td>Contract</td></tr>
+  <tr><td>Profile answers (objective, sectors, locations…)</td><td>To filter and rank jobs</td><td>Contract</td></tr>
+  <tr><td>Search results and your feedback</td><td>To show results and improve matching</td><td>Contract / legitimate interest</td></tr>
+  <tr><td>Page views (URL, country, referrer — no IP, no cookie)</td><td>Basic usage statistics</td><td>Legitimate interest</td></tr>
+  <tr><td>Marketing preference</td><td>Product emails, only if you opt in</td><td>Consent</td></tr>
+</table>
+<p class="small muted">We do not ask for special-category data and ask you not to
+  include it. Please don't upload other people's personal data.</p>
+
+<h2>3. Who we share it with (sub-processors)</h2>
+<table style="width:100%;font-size:14px">
+  <tr><th align="left">Processor</th><th align="left">Purpose</th><th align="left">Location</th></tr>
+  <tr><td>Railway</td><td>Hosting and database</td><td>EU / US</td></tr>
+  <tr><td>OpenRouter and the AI model provider it routes to</td>
+      <td><b>Matching and document generation — this receives the text of your CV,
+      your about-me and job adverts</b></td><td>US</td></tr>
+  <tr><td>Cloudflare</td><td>DNS, TLS, security filtering</td><td>Global</td></tr>
+  <tr><td>Plausible Analytics</td><td>Cookieless page statistics</td><td>EU</td></tr>
+</table>
+<p><b>International transfers.</b> Sending your CV text to a US AI provider is a
+  transfer outside the EEA. It is covered by Standard Contractual Clauses and/or the
+  EU–US Data Privacy Framework. We never sell your data, and your content is not used
+  to train third-party models.</p>
+
+<h2>4. How long we keep it</h2>
+<ul>
+  <li><b>Account and profile</b> — until you delete your account.</li>
+  <li><b>Uploaded documents</b> — until you delete them or your account.</li>
+  <li><b>Searches and results</b> — 12 months, then deleted automatically.</li>
+  <li><b>Page views</b> — 24 months, aggregated.</li>
+</ul>
+
+<h2>5. How we protect it</h2>
+<p>Uploaded files are <b>encrypted at rest</b>. Passwords are hashed with bcrypt and are
+  never recoverable. All traffic is over HTTPS. Access is restricted and every query is
+  scoped to your own account.</p>
+
+<h2>6. Your rights</h2>
+<p>You can access, correct, export, restrict, object to, or erase your data, and
+  withdraw consent at any time.</p>
+<ul>
+  <li><b>Access / portability</b> — <a href="/account/export">download everything we hold</a></li>
+  <li><b>Erasure</b> — <a href="/account">delete your account</a>, which is a real deletion</li>
+  <li><b>Correction</b> — edit anything on your <a href="/profile">profile</a></li>
+</ul>
+<p>You may also complain to your data-protection authority (in Italy, the
+  <a href="https://www.garanteprivacy.it" target="_blank" rel="noopener nofollow">Garante</a>).</p>
+
+<h2>7. Cookies</h2>
+<p>One strictly-necessary cookie keeps you signed in. Analytics is cookieless.
+  See <a href="/cookies">Cookies</a>.</p>
+
+<h2>8. Automated decision-making</h2>
+<p>We score and rank jobs automatically. This produces <b>recommendations only</b> — it
+  has no legal or similarly significant effect on you, makes no hiring decision, and is
+  never shared with employers. You can ignore any result, and your feedback adjusts
+  future rankings.</p>
+
+<h2>9. Changes</h2>
+<p>We'll tell you about material changes by email or in-app before they take effect.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,150 @@
+"""The shared company registry and Lane C polling (Phase 2, step 2).
+
+- `seed_registry` puts the config seed companies into the DB (idempotent).
+- `discover_for_user` runs seeds -> ~100 similar companies (discover.py) and
+  upserts the readable ones, shared across all users.
+- `poll_all` fetches every registry company's public ATS board into the corpus.
+
+All ATS feeds are public JSON/XML APIs — no scraping, no keys, no ToS friction.
+See docs/INGESTION_ENGINE.md → Lane C / §4.
+"""
+
+from __future__ import annotations
+
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from sqlalchemy.orm import Session as DbSession
+
+from jobhunter.config import Settings, load_companies
+from jobhunter.models import JobPosting
+from jobhunter.sources.ats import FETCHERS
+
+from ..models import Company, User, utcnow
+
+log = logging.getLogger("jbhntr.companies")
+
+DISCOVER_TARGET = 100     # similar companies to accumulate per user, over time
+DISCOVER_MAX_ROUNDS = 2   # per call — keep a scheduled run short; accumulate across runs
+POLL_WORKERS = 12
+
+
+# --------------------------------------------------------------------------- #
+def upsert_company(db: DbSession, ats: str, token: str, name: str,
+                   source: str = "discovered", user_id: int | None = None) -> bool:
+    """Insert a company if new. Returns True if inserted. Deduped on (ats, token)."""
+    ats = (ats or "").strip().lower()
+    token = (token or "").strip()
+    if not (ats and token and ats in FETCHERS):
+        return False
+    row = (db.query(Company)
+             .filter(Company.ats == ats, Company.ats_token == token).first())
+    if row:
+        if not row.name and name:
+            row.name = name[:200]
+        return False
+    db.add(Company(ats=ats, ats_token=token, name=(name or token)[:200],
+                   source=source, discovered_for=user_id))
+    return True
+
+
+def seed_registry(db: DbSession) -> int:
+    """Ensure the config seed companies are in the registry. Idempotent."""
+    added = 0
+    for entry in load_companies():
+        ats = (entry.get("ats") or "").lower()
+        token = entry.get("token") or ""
+        if upsert_company(db, ats, token, entry.get("name", ""), source="seed"):
+            added += 1
+    if added:
+        db.commit()
+    return added
+
+
+# --------------------------------------------------------------------------- #
+def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) -> dict:
+    """Find companies similar to a user's seeds and add readable ones to the
+    registry. Pricey (LLM + web search), so call on a slow cadence, not per
+    search. Returns counts. Never raises.
+    """
+    from jobhunter import discover as discover_mod
+    from .profile_service import build_engine_profile, seed_values
+
+    try:
+        seeds = seed_values(db, user)
+        if not seeds:
+            return {"discovered": 0, "added": 0, "reason": "no seeds"}
+        profile = build_engine_profile(db, user)
+        settings = Settings.from_env()
+        # Exclude companies already in the shared registry so each short run
+        # finds NEW ones; results accumulate toward `target` across scheduled
+        # runs rather than blocking for minutes in one pass.
+        already = [c.name for c in db.query(Company).all() if c.name]
+        remaining = max(0, target - db.query(Company)
+                        .filter(Company.discovered_for == user.id).count())
+        if remaining == 0:
+            return {"discovered": 0, "added": 0, "reason": "target reached"}
+        verified, _rejected = discover_mod.discover(
+            profile, settings, target=remaining, seeds=seeds,
+            max_rounds=DISCOVER_MAX_ROUNDS, exclude=already)
+
+        added = 0
+        for c in verified:
+            if upsert_company(db, c.get("ats", ""), c.get("token", ""),
+                              c.get("name", ""), source="discovered", user_id=user.id):
+                added += 1
+        db.commit()
+        result = {"discovered": len(verified), "added": added}
+        log.info("Discovery for user %s: %s", user.id, result)
+        return result
+    except Exception as exc:
+        log.warning("Discovery for user %s failed: %s", user.id, exc)
+        db.rollback()
+        return {"error": str(exc)}
+
+
+def discover_all_active(db: DbSession) -> dict:
+    """Run discovery for every user with a completed profile (scheduled refresh)."""
+    totals = {"users": 0, "added": 0}
+    for user in db.query(User).all():
+        if not user.profile:
+            continue
+        res = discover_for_user(db, user)
+        totals["users"] += 1
+        totals["added"] += res.get("added", 0)
+    return totals
+
+
+# --------------------------------------------------------------------------- #
+def poll_all(db: DbSession, settings: Settings | None = None) -> list[JobPosting]:
+    """Lane C: fetch every registry company's public ATS board, concurrently.
+
+    Updates jobs_count / last_polled_at as a side effect. Returns all postings
+    for the caller to write through to the corpus.
+    """
+    seed_registry(db)
+    companies = db.query(Company).all()
+    if not companies:
+        return []
+
+    def _one(c: Company):
+        fn = FETCHERS.get(c.ats)
+        if not fn:
+            return c.id, []
+        try:
+            return c.id, fn(c.name, c.ats_token)
+        except Exception as exc:
+            log.debug("Poll %s:%s failed: %s", c.ats, c.ats_token, exc)
+            return c.id, []
+
+    postings: list[JobPosting] = []
+    now = utcnow()
+    by_id = {c.id: c for c in companies}
+    with ThreadPoolExecutor(max_workers=POLL_WORKERS) as pool:
+        for cid, jobs in pool.map(_one, companies):
+            by_id[cid].jobs_count = len(jobs)
+            by_id[cid].last_polled_at = now
+            postings.extend(jobs)
+    db.commit()
+    log.info("Lane C: polled %d companies -> %d postings", len(companies), len(postings))
+    return postings

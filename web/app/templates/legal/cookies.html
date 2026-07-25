@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Cookies — JBHNTR{% endblock %}
+{% block content %}
+<h1>Cookies</h1>
+<div class="card">
+  <p>We use <b>one</b> cookie.</p>
+  <table style="width:100%;font-size:14px">
+    <tr><th align="left">Name</th><th align="left">Purpose</th><th align="left">Duration</th><th align="left">Type</th></tr>
+    <tr><td><code>jbhntr_session</code></td><td>Keeps you signed in</td>
+        <td>{{ config.session_days }} days</td><td>Strictly necessary</td></tr>
+  </table>
+  <p class="small muted">It is <code>HttpOnly</code>, <code>Secure</code> and
+    <code>SameSite=Lax</code>, so it can't be read by scripts or sent from other sites.</p>
+
+  <h2>Why there's no "accept cookies" pop-up</h2>
+  <p>Under the EU ePrivacy Directive, cookies that are strictly necessary to deliver a
+    service the user asked for don't require consent. Ours only keeps you logged in, and
+    our analytics (Plausible) sets <b>no cookies</b> and collects no personal data or IP
+    addresses. So we show a short notice instead of a consent gate — there's nothing to
+    consent to.</p>
+  <p>We also store one item in your browser's local storage (<code>cookie-note-seen</code>)
+    purely to stop that notice reappearing.</p>
+  <p>If we ever add advertising or profiling cookies, we'll ask for proper opt-in consent
+    first.</p>
+</div>
+{% endblock %}

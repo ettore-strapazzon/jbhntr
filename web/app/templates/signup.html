@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Sign up — JBHNTR{% endblock %}
+{% block content %}
+<div class="card" style="max-width:460px;margin:0 auto">
+  <h1>Create your account</h1>
+  {% for e in errors or [] %}<div class="notice err">{{ e }}</div>{% endfor %}
+
+  <form method="post" action="/signup">
+    <label for="email">Email</label>
+    <input id="email" type="email" name="email" required value="{{ email or '' }}"
+           autocomplete="email">
+
+    <label for="password">Password</label>
+    <input id="password" type="password" name="password" required minlength="10"
+           autocomplete="new-password">
+    <p class="small muted">At least 10 characters, mixing letters with numbers or symbols.</p>
+
+    <label style="font-weight:400;display:flex;gap:8px;align-items:flex-start">
+      <input type="checkbox" name="accept_tos" value="1" required>
+      <span class="small">I agree to the <a href="/terms" target="_blank">Terms</a> and
+        <a href="/privacy" target="_blank">Privacy Policy</a>.</span>
+    </label>
+    <label style="font-weight:400;display:flex;gap:8px;align-items:flex-start">
+      <input type="checkbox" name="marketing" value="1">
+      <span class="small">Email me occasional product updates (optional).</span>
+    </label>
+
+    <p><button type="submit">Create account</button></p>
+  </form>
+
+  {% if config.google_client_id %}
+    <p class="small muted">or</p>
+    <p><a class="btn ghost" href="/auth/google">Continue with Google</a></p>
+  {% endif %}
+  <p class="small">Already have an account? <a href="/login">Log in</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JBHNTR · AI job hunting</title>
+  <meta name="description" content="JBHNTR finds the jobs worth your time. AI-matched roles from across the web, ranked to your profile. Early access coming soon.">
+  <style>
+    :root{
+      --bg:#f7f7f5; --card:#ffffff; --ink:#141414; --muted:#6b6b6b;
+      --accent:#1f6f4a; --line:#e6e6e2;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{--bg:#0f1210;--card:#171b18;--ink:#f2f3f1;--muted:#9aa39d;--accent:#4fbe8b;--line:#242a26}
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%}
+    body{
+      background:var(--bg);color:var(--ink);
+      font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      display:flex;align-items:center;justify-content:center;padding:24px;
+    }
+    .card{
+      background:var(--card);border:1px solid var(--line);border-radius:16px;
+      max-width:560px;width:100%;padding:44px 40px;
+      box-shadow:0 1px 3px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.05);
+    }
+    .brand{font-weight:800;letter-spacing:.14em;font-size:15px;color:var(--accent)}
+    h1{font-size:30px;line-height:1.2;margin:18px 0 12px}
+    p{color:var(--muted);margin:0 0 14px}
+    ul{color:var(--muted);margin:0 0 22px;padding-left:20px}
+    li{margin:6px 0}
+    .pill{
+      display:inline-block;margin-top:6px;padding:8px 14px;border-radius:999px;
+      background:color-mix(in srgb, var(--accent) 12%, transparent);
+      color:var(--accent);font-weight:600;font-size:14px;
+    }
+    a{color:var(--accent)}
+    .foot{margin-top:26px;font-size:13px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">JBHNTR</div>
+    <h1>The jobs worth your time, found for you.</h1>
+    <p>JBHNTR scans job boards, aggregators and company career pages across the
+      web, then uses AI to rank each role against your actual profile, so you
+      read the handful that fit instead of the hundreds that don't.</p>
+    <ul>
+      <li>Your CV and goals in, ranked matches out</li>
+      <li>Aware of location, seniority and company fit</li>
+      <li>No endless scrolling, no keyword guessing</li>
+    </ul>
+    <span class="pill">Early access, coming soon</span>
+    <p class="foot">Questions? <a href="mailto:hello@jbhntr.app">hello@jbhntr.app</a></p>
+  </main>
+</body>
+</html>

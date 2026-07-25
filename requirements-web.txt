@@ -1,0 +1,25 @@
+-r requirements.txt
+
+# Web
+fastapi>=0.110
+uvicorn[standard]>=0.29
+jinja2>=3.1
+python-multipart>=0.0.9      # form + file uploads
+itsdangerous>=2.1            # signed session middleware (OAuth state)
+
+# Database
+sqlalchemy>=2.0
+psycopg2-binary>=2.9         # Postgres on Railway
+
+# Security
+passlib[bcrypt]>=1.7
+bcrypt>=4.0,<5
+cryptography>=42.0           # Fernet encryption for uploads
+
+# Auth
+authlib>=1.3                 # Google OAuth
+httpx>=0.27
+
+# Embeddings — on-device, free, no key/quota (jobhunter/embeddings.py "local").
+# ONNX-based (no PyTorch); downloads a ~150MB model on first use.
+fastembed>=0.3

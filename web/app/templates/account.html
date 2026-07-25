@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Account — JBHNTR{% endblock %}
+{% block content %}
+<h1>Account</h1>
+{% if error %}<div class="notice err">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <p><b>{{ user.email }}</b></p>
+  <p class="small muted">Plan: {{ "Premium" if user.is_premium else "Free" }} ·
+    Searches used: {{ user.searches_used }} · Documents generated: {{ user.documents_used }}</p>
+</div>
+
+<div class="card">
+  <h2>Your data</h2>
+  <p class="small muted">Download everything we hold about you, including the text
+    extracted from your uploads (GDPR Article 15).</p>
+  <p><a class="btn ghost" href="/account/export">Download my data (JSON)</a></p>
+</div>
+
+<div class="card">
+  <h2>Delete your account</h2>
+  <p class="small muted">This permanently removes your profile, uploaded documents,
+    searches, results and generated files. It cannot be undone and it is a real
+    deletion, not a hidden flag (GDPR Article 17).</p>
+  <form method="post" action="/account/delete" class="row">
+    <input type="text" name="confirm" placeholder="Type DELETE to confirm"
+           style="max-width:240px" required>
+    <button type="submit" style="background:var(--err);border-color:var(--err)">
+      Delete permanently</button>
+  </form>
+</div>
+{% endblock %}

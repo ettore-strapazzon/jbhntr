@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Premium — JBHNTR{% endblock %}
+{% block content %}
+<h1>Go premium</h1>
+
+{% if user.is_premium %}
+  <div class="notice ok">You're on premium
+    {% if user.premium_until %}until {{ user.premium_until.strftime("%d %b %Y") }}{% endif %}.</div>
+{% endif %}
+
+<div class="card">
+  <h2>What you get</h2>
+  <ul>
+    <li><b>Unlimited searches</b> — fair use {{ config.premium_searches_per_day }}/day
+      (free accounts get {{ config.free_searches }} in total)</li>
+    <li><b>Unlimited tailored CVs and cover letters</b>, downloaded instantly
+      (free accounts get {{ config.free_documents }})</li>
+    <li><b>Higher-quality matching model</b> for sharper scoring</li>
+  </ul>
+</div>
+
+<div class="row" style="align-items:stretch">
+  {% for plan in config.plans %}
+    <div class="card" style="flex:1;min-width:190px;text-align:center">
+      <h2 style="margin-bottom:2px">${{ plan.usd }}</h2>
+      <p class="muted small">{{ plan.label }}{% if plan.note %} · {{ plan.note }}{% endif %}</p>
+      {% if config.payments_enabled %}
+        <form method="post" action="/premium/checkout">
+          <input type="hidden" name="months" value="{{ plan.months }}">
+          <button type="submit">Choose</button>
+        </form>
+      {% else %}
+        <button disabled>Coming soon</button>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+{% if not config.payments_enabled %}
+  <div class="notice warn">
+    <b>Payments are coming soon.</b> We're finishing checkout — in the meantime
+    every account keeps its free allowance. Want early access?
+    <a href="mailto:{{ config.support_email }}">Email us</a> and we'll turn premium
+    on for you manually.
+  </div>
+{% endif %}
+{% endblock %}

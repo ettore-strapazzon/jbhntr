@@ -1,0 +1,54 @@
+# Copy this to profile.yaml and edit. profile.yaml is gitignored (it holds your
+# real objective / about-me). This example is safe to commit.
+#
+# The public web app builds a profile from the database instead — this file is
+# only for the personal CLI (`python -m jobhunter.run`).
+
+# What you want, in your own words. The single strongest matching signal.
+objective: >
+  A strategy / operations leadership role close to the CEO at a
+  post-product-market-fit startup or scaleup — owning cross-functional
+  initiatives, special projects and new-business launches.
+
+# Free-text; carries nuance the CV can't. Or keep it in config/materials/about_me.md
+# about_me: >
+#   ...
+
+seniority: [head, director, chief]
+company_type: [startup, scaleup]
+verticals: [fintech, saas, marketplace]
+
+# City names and/or Remote-<region>. Remote-EU = a remote job doable from the EU.
+locations: [Milan, Turin, Remote-EU, Remote-Italy]
+job_type: [full-time]
+
+# Optional. keywords_must is a HARD filter — leave empty; it's false-negative prone.
+keywords_nice: []
+keywords_must: []
+salary_floor_eur: null
+
+# Ranking / behaviour knobs (sensible defaults shown).
+top_n_tailored: 5
+keep_tier_max: 3
+criteria_count: 20
+discovery_min_must: 1
+discovery_min_nice: 1
+two_stage_triage: true
+discovery_web_search: true
+
+sources:
+  # Broad, keyword-driven aggregators (Adzuna needs a free key in .env).
+  aggregators: [adzuna, remotive, remoteok, arbeitnow]
+  # Free no-key boards from jobhunter/sources/boards.py.
+  boards: [weworkremotely, jobicy, themuse, arbeitsagentur, cryptocurrencyjobs,
+           landingjobs, workingnomads, fourdayweek, realworkfromanywhere,
+           himalayas, nodesk]
+  # Job titles to query keyword sources with. Left empty, they're derived from
+  # your CV.
+  search_terms: [Chief of Staff, Head of Strategy, Head of Operations,
+                 Business Operations]
+  # LinkedIn is intentionally unused in the public product (legal); the CLI can
+  # add search URLs here if you accept the ToS risk for personal use.
+  linkedin_search_urls: []
+  custom_rss: []
+  custom_sites: []

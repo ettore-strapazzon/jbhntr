@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Stop scrolling job boards.</h1>
+  <p class="muted">JBHNTR reads your CV, learns what you actually want, then searches
+    dozens of job sources and company career pages for you — and explains why each
+    match fits, or doesn't.</p>
+  <p><a class="btn" href="/signup">Start free</a>
+     <a class="btn ghost" href="/login">Log in</a></p>
+  <p class="small muted">{{ config.free_searches }} free searches. No card needed.</p>
+</div>
+
+<div class="card">
+  <h2>How it works</h2>
+  <ol>
+    <li><b>Tell it about you</b> — upload a CV and describe the role you want.</li>
+    <li><b>Run a search</b> — it collects thousands of postings from aggregators,
+        niche boards and company career pages.</li>
+    <li><b>Read the shortlist</b> — every job is scored 1–100 and tagged, with a
+        plain-English reason for and against.</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2>Why it beats a job alert</h2>
+  <ul>
+    <li>It matches on <b>meaning</b>, not keywords, so "Growth Marketer"
+        still surfaces when you asked for "Marketing Manager".</li>
+    <li>It watches <b>company career pages</b> directly, where roles appear first.</li>
+    <li>It <b>learns</b>: thumbs-up or down a result and the next search is sharper.</li>
+  </ul>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "onboarding/_step.html" %}
+{% block step %}
+<p class="muted">Upload your CV. Everything the matcher knows about you starts here,
+  so this one is required.</p>
+<p class="small muted">PDF, DOCX, TXT or MD · max 1 MB · stored encrypted ·
+  deletable at any time.</p>
+
+{% for m in materials if m.kind == "cv" %}
+  <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding:8px 0">
+    <span>✓ {{ m.filename }} <span class="muted small">({{ (m.size_bytes/1024)|round|int }} KB)</span></span>
+    <form method="post" action="/onboarding/material/{{ m.id }}/delete">
+      <input type="hidden" name="step" value="cv">
+      <button class="ghost small" type="submit">Remove</button>
+    </form>
+  </div>
+{% endfor %}
+
+<form method="post" action="/onboarding/upload" enctype="multipart/form-data" class="row"
+      style="margin-top:12px">
+  <input type="hidden" name="kind" value="cv">
+  <input type="hidden" name="step" value="cv">
+  <input type="file" name="file" required accept=".pdf,.docx,.txt,.md" style="flex:1">
+  <button type="submit">Upload CV</button>
+</form>
+
+<p style="margin-top:18px"><a class="btn" href="/onboarding/{{ next_step }}">Continue →</a></p>
+{% endblock %}

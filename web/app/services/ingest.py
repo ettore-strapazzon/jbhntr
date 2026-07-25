@@ -1,0 +1,231 @@
+"""Scheduled ingestion — fill the shared corpus for everyone, on a schedule.
+
+Step 1 of the ingestion engine (docs/INGESTION_ENGINE.md): Lanes A + B.
+Company ATS discovery (Lane C) and the search rewire come later.
+
+This is WRITE-ONLY: it fetches broadly and upserts into the `jobs` corpus via
+the same write-through used by live search. It does not touch the search path,
+so it cannot change any user's results — exactly the risk profile of slice 1.
+
+Run from cron:
+    python -m web.app.services.ingest --cadence daily    # Lane A + daily Lane-B
+    python -m web.app.services.ingest --cadence weekly    # metered (Jooble, JSearch)
+
+Cadence exists to fit metered free quotas (see INGESTION_ENGINE.md §11b): the
+two binding sources, Jooble (500/mo) and JSearch (~200/mo), run weekly; the rest
+run daily.
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+from collections import Counter
+
+from jobhunter import geo
+from jobhunter.config import Profile, Settings
+from jobhunter.sources import AGGREGATORS, boards, keyed
+
+from ..db import SessionLocal
+from ..models import Profile as ProfileRow
+from .corpus_service import upsert_jobs
+from .profile_service import COUNTRIES as PICKER_COUNTRIES
+
+log = logging.getLogger("jbhntr.ingest")
+
+# No-key sources that return broadly (Lane A). Boards are added in full below.
+LANE_A_AGGREGATORS = ["adzuna", "remotive", "remoteok", "arbeitnow"]
+
+# Lane B — metered/keyed sources: name -> (settings attr that enables it, fn).
+# SerpApi is intentionally excluded (EU-empty, disabled).
+KEYED_SOURCES = {
+    "careerjet": ("careerjet_affid", keyed._careerjet),
+    "jooble": ("jooble_key", keyed._jooble),
+    "reed": ("reed_key", keyed._reed),
+    "findwork": ("findwork_key", keyed._findwork),
+    "web3career": ("web3career_key", keyed._web3career),
+    "usajobs": ("usajobs_key", keyed._usajobs),
+    "jsearch": ("jsearch_key", keyed._jsearch),
+}
+
+# The metered ceilings run weekly; everything else daily (§11b). Findwork's
+# free tier 429s under any real term load, so it's weekly too (low value —
+# tech-only — so not worth chasing a higher limit).
+SOURCE_CADENCE = {
+    "careerjet": "daily", "jooble": "weekly", "reed": "daily",
+    "findwork": "weekly", "web3career": "daily", "usajobs": "daily",
+    "jsearch": "weekly",
+}
+
+# Single-country sources ignore the active-user country set.
+SOURCE_COUNTRIES = {
+    "reed": ["United Kingdom"],
+    "usajobs": ["United States"],
+    "jsearch": ["United States"],
+}
+
+# Fallbacks so a cold corpus (or a user who typed no terms) still ingests
+# something broad. User-derived terms/countries take priority over these.
+DEFAULT_TERMS = [
+    "chief of staff", "business operations", "operations manager",
+    "head of operations", "strategy", "project manager", "product manager",
+    "program manager", "general manager", "founders associate",
+]
+DEFAULT_COUNTRIES = ["United States", "United Kingdom", "Italy", "Germany", "France"]
+
+TERMS_CAP = 25
+COUNTRIES_CAP = 6
+
+# code -> display name, built from the picker list so provider locations resolve.
+_CODE_TO_NAME: dict[str, str] = {}
+for _nm in PICKER_COUNTRIES:
+    _c = geo.country_of(_nm)
+    if _c:
+        _CODE_TO_NAME.setdefault(_c, _nm)
+
+
+def _chunks(seq: list, n: int):
+    for i in range(0, len(seq), n):
+        yield seq[i : i + n]
+
+
+def corpus_terms(db, cap: int = TERMS_CAP) -> list[str]:
+    """Union of users' typed search terms (by demand) + broad defaults."""
+    counter: Counter[str] = Counter()
+    for p in db.query(ProfileRow):
+        for t in (p.search_terms or []):
+            t = (t or "").strip()
+            if t:
+                counter[t] += 1
+    out: list[str] = [t for t, _ in counter.most_common()]
+    for d in DEFAULT_TERMS:
+        if d not in out:
+            out.append(d)
+    return out[:cap]
+
+
+def corpus_countries(db, cap: int = COUNTRIES_CAP) -> list[str]:
+    """Country display names implied by users' locations + broad defaults."""
+    out: list[str] = []
+    for p in db.query(ProfileRow):
+        for loc in (p.locations or []):
+            code = geo.country_of(loc)
+            name = _CODE_TO_NAME.get(code)
+            if name and name not in out:
+                out.append(name)
+    for d in DEFAULT_COUNTRIES:
+        if d not in out:
+            out.append(d)
+    return out[:cap]
+
+
+def _fetch(label: str, fn, *args) -> list:
+    """Call one source, fail soft — a bad source never aborts the cycle."""
+    try:
+        jobs = fn(*args)
+        log.info("ingest %s: %d postings", label, len(jobs))
+        return jobs
+    except Exception as exc:
+        log.warning("ingest %s failed: %s", label, exc)
+        return []
+
+
+def _lane_a(settings: Settings, terms: list[str], countries: list[str]) -> list:
+    """Global feeds + broad no-key aggregators."""
+    postings: list = []
+    prof = Profile(raw={
+        "locations": countries,
+        "sources": {
+            "boards": list(boards.BOARDS),
+            "aggregators": LANE_A_AGGREGATORS,
+            "search_terms": terms,
+        },
+    })
+    postings += _fetch("boards", boards.fetch, prof, settings)
+    for name in LANE_A_AGGREGATORS:
+        fn = AGGREGATORS.get(name)
+        if fn:
+            postings += _fetch(name, fn, prof, settings)
+    return postings
+
+
+def _lane_b(settings: Settings, terms: list[str], countries: list[str], cadence: str) -> list:
+    """Metered/keyed sources whose cadence matches this run."""
+    postings: list = []
+    for name, (attr, fn) in KEYED_SOURCES.items():
+        if SOURCE_CADENCE.get(name) != cadence:
+            continue
+        if not getattr(settings, attr, ""):
+            continue  # no key configured
+        src_countries = SOURCE_COUNTRIES.get(name, countries)
+        for country in src_countries:
+            # Providers cap terms at keyed.MAX_TERMS internally, so batch to
+            # cover the full corpus term set without exceeding per-call limits.
+            for batch in _chunks(terms, keyed.MAX_TERMS):
+                prof = Profile(raw={
+                    "locations": [country],
+                    "sources": {"search_terms": batch},
+                })
+                postings += _fetch(f"{name}/{country}", fn, prof, settings)
+    return postings
+
+
+def _lane_c(db, settings: Settings) -> list:
+    """Company ATS boards from the shared registry (public feeds, unmetered)."""
+    from .companies_service import poll_all
+    return _fetch("companies", poll_all, db, settings)
+
+
+def run(cadence: str = "daily") -> dict:
+    """One ingestion cycle. Owns its DB session. Never raises."""
+    db = SessionLocal()
+    try:
+        settings = Settings.from_env()
+        terms = corpus_terms(db)
+        countries = corpus_countries(db)
+        log.info("ingest %s: %d terms x %d countries", cadence, len(terms), len(countries))
+
+        # 'discover' is a registry-refresh only (pricey LLM+web-search); it
+        # writes companies, not jobs, so daily Lane C then polls them.
+        if cadence == "discover":
+            from .companies_service import discover_all_active
+            res = discover_all_active(db)
+            log.info("ingest discover: %s", res)
+            return {"cadence": "discover", **res}
+
+        postings: list = []
+        if cadence == "daily":
+            postings += _lane_a(settings, terms, countries)          # Lane A daily only
+            postings += _lane_b(settings, terms, countries, "daily")
+            postings += _lane_c(db, settings)                        # ATS boards (unmetered)
+        elif cadence == "weekly":
+            postings += _lane_b(settings, terms, countries, "weekly")
+        else:
+            raise ValueError(f"unknown cadence {cadence!r}")
+
+        added, updated = upsert_jobs(db, postings)
+        # Embed freshly-added corpus jobs (no-op unless embeddings configured).
+        from .corpus_service import embed_new_jobs
+        embedded = embed_new_jobs(db, settings)
+        result = {"cadence": cadence, "fetched": len(postings),
+                  "added": added, "updated": updated, "embedded": embedded}
+        log.info("ingest done: %s", result)
+        return result
+    except Exception as exc:
+        log.exception("ingest cycle failed")
+        return {"error": str(exc)}
+    finally:
+        db.close()
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    ap = argparse.ArgumentParser(description="JBHNTR scheduled corpus ingestion")
+    ap.add_argument("--cadence", choices=["daily", "weekly", "discover"], default="daily")
+    args = ap.parse_args()
+    print(run(args.cadence))
+
+
+if __name__ == "__main__":
+    main()

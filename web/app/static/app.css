@@ -1,0 +1,89 @@
+:root{
+  --bg:#faf9f7; --card:#fff; --ink:#1c1b19; --muted:#6b6862; --line:#e5e2dc;
+  --accent:#1f5f4b; --accent-ink:#fff; --warn:#8a6d00; --warn-bg:#fdf6e3;
+  --err:#8b2020; --err-bg:#fdeaea; --ok-bg:#eef6f1;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent)}
+main{max-width:960px;margin:0 auto;padding:28px 20px 80px}
+
+/* header */
+.bar{display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:14px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+.brand{font-weight:800;letter-spacing:.14em;text-decoration:none;color:var(--ink)}
+.bar nav{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.bar nav a{text-decoration:none;color:var(--muted);font-size:14px}
+.bar nav a:hover{color:var(--ink)}
+.pill{background:var(--accent);color:var(--accent-ink)!important;padding:6px 12px;border-radius:99px}
+
+/* blocks */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:20px;margin-bottom:16px}
+h1{font-size:28px;margin:0 0 6px} h2{font-size:20px;margin:0 0 10px}
+.muted{color:var(--muted)} .small{font-size:13px}
+.notice{padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:14px}
+.notice.warn{background:var(--warn-bg);color:var(--warn);border:1px solid #efe0b0}
+.notice.err{background:var(--err-bg);color:var(--err);border:1px solid #f3c9c9}
+.notice.ok{background:var(--ok-bg);color:var(--accent);border:1px solid #c9e3d6}
+
+/* forms */
+label{display:block;font-weight:600;font-size:14px;margin:14px 0 6px}
+input[type=text],input[type=email],input[type=password],input[type=number],textarea,select{
+  width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+  font:inherit;background:#fff}
+textarea{min-height:120px;resize:vertical}
+select[multiple]{padding:4px;height:auto}
+select[multiple] option{padding:5px 8px;border-radius:5px}
+.single-check{display:flex;align-items:center;gap:8px;font-weight:400;margin-top:10px;cursor:pointer}
+.single-check input{width:auto;margin:0}
+.longshots{margin-top:20px;border-top:1px dashed var(--line);padding-top:8px}
+.longshots>summary{cursor:pointer;color:var(--muted);padding:10px 2px;font-size:15px}
+.longshots[open]>summary{margin-bottom:8px}
+button,.btn{display:inline-block;padding:10px 16px;border-radius:8px;border:1px solid var(--accent);
+  background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
+button.ghost,.btn.ghost{background:#fff;color:var(--accent)}
+button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed}
+.checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.checks label{display:inline-flex;align-items:center;gap:6px;font-weight:400;margin:0;
+  border:1px solid var(--line);padding:7px 11px;border-radius:99px;background:#fff;cursor:pointer}
+.checks input{margin:0}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* progress */
+.steps{display:flex;gap:6px;margin-bottom:18px}
+.steps i{flex:1;height:4px;border-radius:2px;background:var(--line)}
+.steps i.on{background:var(--accent)}
+
+/* job results */
+.job{border:1px solid var(--line);border-radius:12px;background:var(--card);
+  padding:16px;margin-bottom:14px}
+.job-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.num{font-weight:700;color:var(--muted);min-width:28px}
+.score{font-weight:800;font-size:18px}
+.tier{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  padding:3px 9px;border-radius:99px;color:#fff}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.tag{font-size:11px;background:#f0efec;border:1px solid var(--line);
+  padding:2px 8px;border-radius:99px;color:var(--muted)}
+.why{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.why div{padding:10px 12px;border-radius:8px;font-size:14px}
+.why .good{background:var(--ok-bg)} .why .bad{background:var(--warn-bg)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+details.desc{margin-top:10px} details.desc summary{cursor:pointer;font-size:14px;color:var(--muted)}
+details.desc p{font-size:14px;white-space:pre-wrap}
+
+footer{max-width:960px;margin:0 auto;padding:20px;display:flex;gap:16px;
+  color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
+footer a{color:var(--muted)}
+
+.cookie-note{position:fixed;left:16px;right:16px;bottom:16px;max-width:640px;margin:0 auto;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;
+  display:flex;gap:12px;align-items:center;justify-content:space-between;font-size:13px;
+  box-shadow:0 6px 24px rgba(0,0,0,.08)}
+/* Element-level display:flex above beats the UA [hidden] rule, so the notice
+   never hid on "Got it". Make the attribute win. */
+.cookie-note[hidden]{display:none}
+
+@media (max-width:640px){ .why{grid-template-columns:1fr} }
