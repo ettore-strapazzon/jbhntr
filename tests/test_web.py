@@ -105,6 +105,14 @@ def test_f11_skip_link_and_focus_style_present(client):
     assert ":focus-visible" in client.get("/static/app.css").text
 
 
+def test_phase_b_landing_hero_and_tier_tokens(client):
+    page = client.get("/").text
+    assert 'class="hero"' in page and "mini t1" in page       # card-stack hero (F-01)
+    css = client.get("/static/app.css").text
+    assert "--tier-1:" in css and ".tier-1{" in css           # tier colours owned by CSS (F-14)
+    assert "--mono:" in css                                    # monospace token
+
+
 # ------------------------------- public ---------------------------------- #
 def test_landing_page_is_public(client):
     r = client.get("/")

@@ -2,6 +2,12 @@
   --bg:#faf9f7; --card:#fff; --ink:#1c1b19; --muted:#6b6862; --line:#e5e2dc;
   --accent:#1f5f4b; --accent-ink:#fff; --warn:#8a6d00; --warn-bg:#fdf6e3;
   --err:#8b2020; --err-bg:#fdeaea; --ok-bg:#eef6f1;
+  /* §6 visual-system tokens */
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r-ctrl:8px; --r-card:12px; --r-chip:99px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-6:24px; --sp-8:40px;
+  /* tier fills: white text, each ≥4.5:1 (owned here, not injected inline) */
+  --tier-1:#14663f; --tier-2:#2f6f2b; --tier-3:#8a6d00; --tier-4:#9a5b00; --tier-5:#8b2020;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -71,15 +77,31 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .steps{display:flex;gap:6px;margin-bottom:18px}
 .steps i{flex:1;height:4px;border-radius:2px;background:var(--line)}
 .steps i.on{background:var(--accent)}
+.stage-rail{display:flex;gap:14px;flex-wrap:wrap}
+.stage{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.stage i{width:9px;height:9px;border-radius:99px;background:var(--line);flex:0 0 9px}
+.stage.done{color:var(--ink)} .stage.done i{background:var(--accent)}
+.stage.on{color:var(--ink);font-weight:600} .stage.on i{background:var(--accent);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
 
 /* job results */
-.job{border:1px solid var(--line);border-radius:12px;background:var(--card);
-  padding:16px;margin-bottom:14px}
+.job{border:1px solid var(--line);border-left:4px solid var(--line);
+  border-radius:var(--r-card);background:var(--card);padding:16px;margin-bottom:14px}
+.job.t1{border-left-color:var(--tier-1)} .job.t2{border-left-color:var(--tier-2)}
+.job.t3{border-left-color:var(--tier-3)} .job.t4{border-left-color:var(--tier-4)}
+.job.t5{border-left-color:var(--tier-5)}
+.scorebar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:10px 0 4px}
+.scorebar>div{height:6px;background:var(--accent)}
+.breakdown>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:6px 0}
+.breakdown[open]>summary{margin-bottom:6px}
 .job-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
-.num{font-weight:700;color:var(--muted);min-width:28px}
-.score{font-weight:800;font-size:18px}
-.tier{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
-  padding:3px 9px;border-radius:99px;color:#fff}
+.num{font-weight:700;color:var(--muted);min-width:28px;font-family:var(--mono)}
+.score{font-weight:800;font-size:22px;font-family:var(--mono);line-height:1}
+.tier{font-family:var(--mono);font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;padding:4px 9px;border-radius:var(--r-chip);color:#fff}
+/* fixed, contrast-checked tier fills — replaces the inline background */
+.tier-1{background:var(--tier-1)} .tier-2{background:var(--tier-2)}
+.tier-3{background:var(--tier-3)} .tier-4{background:var(--tier-4)} .tier-5{background:var(--tier-5)}
 .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .tag{font-size:11px;background:#f0efec;border:1px solid var(--line);
   padding:2px 8px;border-radius:99px;color:var(--muted)}
@@ -102,4 +124,21 @@ footer a{color:var(--muted)}
    never hid on "Got it". Make the attribute win. */
 .cookie-note[hidden]{display:none}
 
-@media (max-width:640px){ .why{grid-template-columns:1fr} }
+/* landing hero: copy + a stacked shortlist preview (F-01 / §5.6) */
+.hero{display:flex;gap:var(--sp-8);align-items:center;flex-wrap:wrap;margin:8px 0 40px}
+.hero-copy{flex:1 1 320px}
+.hero-copy h1{font-size:34px;line-height:1.12;letter-spacing:-.01em}
+.hero-cards{flex:1 1 340px;min-width:270px}
+.mini{border:1px solid var(--line);border-left:4px solid var(--line);
+  border-radius:var(--r-card);background:var(--card);padding:12px 14px;
+  box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.mini.t1{border-left-color:var(--tier-1)} .mini.t2{border-left-color:var(--tier-2)}
+.mini.t3{border-left-color:var(--tier-3)}
+.mini-head{display:flex;gap:10px;align-items:center;margin-bottom:4px}
+.mini-title{font-weight:600;line-height:1.3}
+.mini.behind1{margin:8px 16px 0;opacity:.6}
+.mini.behind2{margin:6px 30px 0;opacity:.32}
+.section{border-top:1px solid var(--line);padding:22px 0 4px;margin-top:8px}
+.section h2{font-size:20px}
+
+@media (max-width:640px){ .why{grid-template-columns:1fr} .hero-copy h1{font-size:28px} }

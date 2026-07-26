@@ -69,14 +69,12 @@
 {% set shots = results | selectattr("tier", "equalto", 4) | list %}
 
 {% macro job_card(r) %}
-  <article class="job">
+  <article class="job t{{ r.tier }}">
     {# ---------- row 1 ---------- #}
     <div class="job-head">
       <span class="num">#{{ r.position }}</span>
       <span class="score">{{ r.score }}<span class="muted small">/100</span></span>
-      <span class="tier" style="background:{{ TIER_COLOURS.get(r.tier, '#666') }}">
-        {{ r.tier_label }}
-      </span>
+      <span class="tier tier-{{ r.tier }}">{{ r.tier_label }}</span>
       <div style="flex:1;min-width:240px">
         <div>
           {% if r.company_url %}
@@ -89,8 +87,15 @@
       </div>
     </div>
 
+    {# single match bar (F-07 presentation; the two-directional split needs the
+       matcher to emit two sub-scores — see the design notes, deferred) #}
+    <div class="scorebar" aria-hidden="true"><div style="width:{{ r.score }}%"></div></div>
+
     {% if r.tags %}
-      <div class="tags">{% for t in r.tags %}<span class="tag">{{ t }}</span>{% endfor %}</div>
+      <details class="breakdown">
+        <summary>See the breakdown</summary>
+        <div class="tags">{% for t in r.tags %}<span class="tag">{{ t }}</span>{% endfor %}</div>
+      </details>
     {% endif %}
 
     {% if r.description %}

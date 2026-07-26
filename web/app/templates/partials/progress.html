@@ -1,9 +1,19 @@
+{% set s = (search.stage or '') | lower %}
+{% set active = 3 if 'scor' in s else (2 if ('rank' in s or 'shortlist' in s) else
+                (1 if ('collect' in s or 'corpus' in s or 'found' in s or 'filter' in s) else 0)) %}
 <div id="progress" hx-get="/search/{{ search.id }}/status"
      hx-trigger="every 3s" hx-swap="outerHTML" aria-live="polite" aria-busy="true">
   <div class="notice ok">
     <b>Search running…</b> {{ search.stage or "Starting" }}
     {% if search.raw_count %}<span class="small muted"> · {{ search.raw_count }} postings reviewed</span>{% endif %}
-    <div class="small muted" style="margin-top:6px">
+    <div class="stage-rail" style="margin-top:10px">
+      {% for label in ["Collecting", "Filtering by location", "Ranking by meaning", "Scoring the shortlist"] %}
+        <div class="stage {% if loop.index0 < active %}done{% elif loop.index0 == active %}on{% endif %}">
+          <i></i><span>{{ label }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="small muted" style="margin-top:8px">
       Usually about a minute. You can leave this page and come back.
     </div>
   </div>

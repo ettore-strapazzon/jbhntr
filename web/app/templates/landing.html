@@ -1,33 +1,59 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <h1>Stop scrolling job boards.</h1>
-  <p class="muted">JBHNTR reads your CV, learns what you actually want, then searches
-    dozens of job sources and company career pages for you — and explains why each
-    match fits, or doesn't.</p>
-  <p><a class="btn" href="/signup">Start free</a>
-     <a class="btn ghost" href="/login">Log in</a></p>
-  <p class="small muted">{{ config.free_searches }} free searches. No card needed.</p>
-</div>
 
-<div class="card">
+{# HERO. NOTE (yours to own): the card stack below uses EXAMPLE data. Before
+   launch, swap in one real, anonymised shortlist from your own account — invented
+   data reads as invented (§5.6). The headline/subhead copy is also placeholder. #}
+<section class="hero">
+  <div class="hero-copy">
+    <h1>Stop scrolling job boards.</h1>
+    <p class="muted">Every morning, a ranked shortlist of the roles worth your time —
+      each one scored against your CV, with the reasoning attached.</p>
+    <p><a class="btn" href="/signup">Start free</a>
+       <a class="btn ghost" href="/login">Log in</a></p>
+    <p class="small muted">{{ config.free_searches }} free searches. No card needed.</p>
+  </div>
+
+  <div class="hero-cards" aria-hidden="true">
+    <div class="mini t1">
+      <div class="mini-head">
+        <span class="score">88</span><span class="tier tier-1">Excellent</span>
+      </div>
+      <div class="mini-title">Senior Product Manager, Payments</div>
+      <div class="muted small">Example Fintech · Milan (hybrid)</div>
+      <div class="scorebar"><div style="width:88%"></div></div>
+      <div class="small"><b>Why it fits.</b> Payments depth and B2B SaaS line up with
+        the core of the role.</div>
+    </div>
+    <div class="mini t2 behind1">
+      <div class="mini-head"><span class="score">81</span><span class="tier tier-2">Strong</span></div>
+      <div class="mini-title">Group PM, Risk · Example Bank</div>
+    </div>
+    <div class="mini t3 behind2">
+      <div class="mini-head"><span class="score">74</span><span class="tier tier-3">Possible</span></div>
+      <div class="mini-title">Lead PM, Platform · Example Co</div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
   <h2>How it works</h2>
-  <ol>
+  <ol class="muted">
     <li><b>Tell it about you</b> — upload a CV and describe the role you want.</li>
-    <li><b>Run a search</b> — it collects thousands of postings from aggregators,
+    <li><b>Run a search</b> — it reads thousands of postings from aggregators,
         niche boards and company career pages.</li>
-    <li><b>Read the shortlist</b> — every job is scored 1–100 and tagged, with a
+    <li><b>Read the shortlist</b> — every job scored 1–100 and tagged, with a
         plain-English reason for and against.</li>
   </ol>
-</div>
+</section>
 
-<div class="card">
+<section class="section">
   <h2>Why it beats a job alert</h2>
-  <ul>
+  <ul class="muted">
     <li>It matches on <b>meaning</b>, not keywords, so a role titled "Backend
         Developer" still surfaces when you searched for "Software Engineer".</li>
     <li>It watches <b>company career pages</b> directly, where roles appear first.</li>
     <li>It <b>learns</b>: thumbs-up or down a result and the next search is sharper.</li>
   </ul>
-</div>
+</section>
 {% endblock %}
