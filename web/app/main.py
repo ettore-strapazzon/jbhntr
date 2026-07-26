@@ -13,7 +13,7 @@ from .config import ROOT, config
 from .db import SessionLocal, init_db
 from .models import PageView
 from .routes import (
-    account, applications, auth_routes, fields, job, legal, matches,
+    account, applications, auth_routes, documents, fields, job, legal, matches,
     onboarding, profile, search,
 )
 from .templating import templates
@@ -92,6 +92,7 @@ app.include_router(fields.router)
 app.include_router(profile.router)
 app.include_router(matches.router)
 app.include_router(applications.router)
+app.include_router(documents.router)
 app.include_router(search.router)
 app.include_router(job.router)
 app.include_router(account.router)

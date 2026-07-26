@@ -79,6 +79,18 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .or-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:13px}
 .or-divider::before,.or-divider::after{content:"";flex:1;height:1px;background:var(--line)}
 
+/* tailored document view (§11.8) */
+.docview{display:grid;grid-template-columns:1fr 240px;gap:20px;align-items:start;margin-top:12px}
+.doc-main{min-width:0}
+.sheet{width:100%;min-height:600px;background:#fff;border:1px solid var(--line);border-radius:var(--r-card);
+  padding:32px 36px;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  box-shadow:0 4px 20px rgba(0,0,0,.05);resize:vertical}
+.doc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.doc-rail{display:flex;flex-direction:column;gap:14px}
+.rail-box{border:1px solid var(--line);border-radius:var(--r-card);padding:14px 16px}
+.thin-nudge{background:var(--warn-bg);border-color:#efe0b0}
+@media(max-width:720px){.docview{grid-template-columns:1fr}}
+
 /* applications table (§11.10) */
 .tablewrap{overflow-x:auto}
 .apptable{width:100%;border-collapse:collapse;font-size:14px;margin-top:12px}

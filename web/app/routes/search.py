@@ -137,25 +137,5 @@ def generate(result_id: int, kind: str, request: Request,
     if not user.is_premium:
         user.documents_used += 1
     db.commit()
+    # The document view (routes/documents.py) renders it, editable, with exports.
     return RedirectResponse(f"/document/{result.id}/{kind}", status_code=303)
-
-
-@router.get("/document/{result_id}/{kind}")
-def download(result_id: int, kind: str, user: User = Depends(require_user),
-             db: DbSession = Depends(get_session)):
-    doc = (db.query(Document)
-             .filter(Document.job_result_id == result_id,
-                     Document.kind == kind,
-                     Document.user_id == user.id)      # ownership
-             .order_by(Document.created_at.desc())
-             .first())
-    if not doc:
-        return RedirectResponse("/matches", status_code=303)
-
-    result = db.get(JobResult, result_id)
-    stem = "CV" if kind == "cv" else "CoverLetter"
-    safe = "".join(c for c in (result.company or "job") if c.isalnum() or c in " -_")[:40]
-    return PlainTextResponse(
-        doc.content,
-        headers={"Content-Disposition": f'attachment; filename="{stem}-{safe}.txt"'},
-    )
