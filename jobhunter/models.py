@@ -99,6 +99,10 @@ class MatchResult(BaseModel):
 
     tier: MatchTier = Field(description="1 excellent … 5 no")
     score: int = Field(ge=0, le=100, description="0-100 fit score within the tier")
+    # Two-directional score (F-07): how well the job fits what you want, and how
+    # well you fit what the job asks for. Default to `score` for older cached rows.
+    fit_role: int = Field(default=0, ge=0, le=100)
+    fit_candidate: int = Field(default=0, ge=0, le=100)
     reasons: str = Field(description="1-3 sentences: why this tier/score")
     # Structured fields the matcher extracts for the output sheet.
     role: str = ""

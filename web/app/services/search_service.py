@@ -176,6 +176,7 @@ def _run_search(search_id: int, user_id: int) -> None:
                 search_id=search.id, user_id=user.id, position=i,
                 short_id=job.short_id(), tier=match.tier,
                 tier_label=match.tier_label, score=match.score,
+                fit_role=match.fit_role, fit_candidate=match.fit_candidate,
                 title=match.role or job.title,
                 company=match.company or job.company,
                 company_url=_company_url(job),

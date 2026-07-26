@@ -87,9 +87,22 @@
       </div>
     </div>
 
-    {# single match bar (F-07 presentation; the two-directional split needs the
-       matcher to emit two sub-scores — see the design notes, deferred) #}
-    <div class="scorebar" aria-hidden="true"><div style="width:{{ r.score }}%"></div></div>
+    {# two-directional score (F-07): how well the job fits you, and how well you
+       fit the job. Falls back to one bar for older results scored before this. #}
+    {% if r.fit_role or r.fit_candidate %}
+      <div class="fitbars">
+        <div class="fitbar">
+          <span class="fitbar-label">Fits what you want</span>
+          <div class="scorebar" aria-hidden="true"><div style="width:{{ r.fit_role }}%"></div></div>
+        </div>
+        <div class="fitbar">
+          <span class="fitbar-label">You fit their requirements</span>
+          <div class="scorebar" aria-hidden="true"><div style="width:{{ r.fit_candidate }}%"></div></div>
+        </div>
+      </div>
+    {% else %}
+      <div class="scorebar" aria-hidden="true"><div style="width:{{ r.score }}%"></div></div>
+    {% endif %}
 
     {% if r.tags %}
       <details class="breakdown">

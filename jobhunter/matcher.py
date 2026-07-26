@@ -32,6 +32,18 @@ MATCH_SCHEMA = {
                            "provided list; omit any that don't apply.",
         },
         "score": {"type": "integer"},
+        "fit_role": {
+            "type": "integer",
+            "description": "0-100: how well the JOB matches what the candidate "
+                           "wants (objective, seniority, company shape, sector, "
+                           "location). Ignores whether they're qualified.",
+        },
+        "fit_candidate": {
+            "type": "integer",
+            "description": "0-100: how well the CANDIDATE meets what the job "
+                           "asks for (the required skills and experience). "
+                           "Ignores whether they'd want it.",
+        },
         "reasons": {"type": "string"},
         "role": {"type": "string"},
         "company": {"type": "string"},
@@ -44,6 +56,8 @@ MATCH_SCHEMA = {
         "tier",
         "tags",
         "score",
+        "fit_role",
+        "fit_candidate",
         "reasons",
         "role",
         "company",
@@ -72,7 +86,7 @@ SCORE_WORKERS = 6
 # Bump whenever the scoring PROMPT or MatchResult schema changes. It is part of
 # the score-cache key, so a bump cleanly invalidates every cached score — the
 # guard that lets matching keep being refined while caching is on.
-PROMPT_VERSION = 4
+PROMPT_VERSION = 5
 
 TRIAGE_SCHEMA = {
     "type": "object",
@@ -208,8 +222,19 @@ def _system_prompt(
         "as a conflict.",
         "State any blocker explicitly in your reasons — never write 'no "
         "significant concerns' when one exists.",
-        "Also give a 0-100 score for finer ranking within tiers, a 1-3 sentence "
-        "reason, and extract role/company/location/vertical/seniority/remote.",
+        "Give THREE numbers, each 0-100:",
+        "- `fit_role`: how well the JOB matches what the candidate wants "
+        "(objective, seniority, company shape, sector, location). Judge desire, "
+        "not qualification — a dream role they're underqualified for still "
+        "scores high here.",
+        "- `fit_candidate`: how well the CANDIDATE meets what the job asks for "
+        "(the required skills and experience). Judge qualification, not desire — "
+        "a job they'd hate but could clearly do scores high here.",
+        "- `score`: overall, for ranking within a tier. It should broadly track "
+        "the WEAKER of the two above — a role is only as good as its limiting "
+        "side — but use judgement.",
+        "Then a 1-3 sentence reason, and extract "
+        "role/company/location/vertical/seniority/remote.",
         "",
         "## Candidate objective",
         profile.objective or "(not specified)",

@@ -61,7 +61,9 @@ def get_many(db: DbSession, hashes: list[str]) -> dict[str, MatchResult]:
         for row in db.query(ScoreCache).filter(
                 ScoreCache.input_hash.in_(hashes[i : i + _IN_CHUNK])):
             out[row.input_hash] = MatchResult(
-                tier=row.tier, score=row.score, reasons=row.reasons,
+                tier=row.tier, score=row.score,
+                fit_role=row.fit_role, fit_candidate=row.fit_candidate,
+                reasons=row.reasons,
                 role=row.role, company=row.company, location=row.location,
                 vertical=row.vertical, seniority=row.seniority, remote=row.remote,
                 tags=list(row.tags or []),
@@ -86,7 +88,9 @@ def put_many(db: DbSession, items: list[tuple[str, JobPosting, MatchResult, str]
             have.add(h)
             db.add(ScoreCache(
                 input_hash=h, dedup_key=job.dedup_key(),
-                tier=m.tier, score=m.score, reasons=m.reasons,
+                tier=m.tier, score=m.score,
+                fit_role=m.fit_role, fit_candidate=m.fit_candidate,
+                reasons=m.reasons,
                 role=m.role, company=m.company, location=m.location,
                 vertical=m.vertical, seniority=m.seniority, remote=m.remote,
                 tags=list(m.tags), model=model,

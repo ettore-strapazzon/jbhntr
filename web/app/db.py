@@ -49,6 +49,10 @@ def _add_missing_columns() -> None:
                  "embedding": ("TEXT", ""),
                  "embedding_model": ("TEXT", "DEFAULT ''")},
         "users": {"premium_requested_at": ("TIMESTAMP", "")},
+        "job_results": {"fit_role": ("INTEGER", "DEFAULT 0"),
+                        "fit_candidate": ("INTEGER", "DEFAULT 0")},
+        "score_cache": {"fit_role": ("INTEGER", "DEFAULT 0"),
+                        "fit_candidate": ("INTEGER", "DEFAULT 0")},
     }
     insp = inspect(engine)
     tables = set(insp.get_table_names())

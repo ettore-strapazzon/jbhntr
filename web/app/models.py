@@ -157,6 +157,8 @@ class JobResult(Base):
     tier: Mapped[int] = mapped_column(Integer, default=5)
     tier_label: Mapped[str] = mapped_column(String(16), default="")
     score: Mapped[int] = mapped_column(Integer, default=0)
+    fit_role: Mapped[int] = mapped_column(Integer, default=0)        # job fits what you want
+    fit_candidate: Mapped[int] = mapped_column(Integer, default=0)   # you fit what they ask
 
     title: Mapped[str] = mapped_column(String(300), default="")
     company: Mapped[str] = mapped_column(String(200), default="")
@@ -253,6 +255,8 @@ class ScoreCache(Base):
 
     tier: Mapped[int] = mapped_column(Integer, default=5)
     score: Mapped[int] = mapped_column(Integer, default=0)
+    fit_role: Mapped[int] = mapped_column(Integer, default=0)
+    fit_candidate: Mapped[int] = mapped_column(Integer, default=0)
     reasons: Mapped[str] = mapped_column(Text, default="")
     role: Mapped[str] = mapped_column(String(200), default="")
     company: Mapped[str] = mapped_column(String(200), default="")

@@ -3,6 +3,16 @@
 from jobhunter.models import JobPosting, MatchResult, RankedJob
 
 
+def test_two_directional_score_fields():
+    from jobhunter.matcher import MATCH_SCHEMA
+    req = MATCH_SCHEMA["required"]
+    assert "fit_role" in req and "fit_candidate" in req
+    m = MatchResult(tier=1, score=90, fit_role=95, fit_candidate=88, reasons="x")
+    assert m.fit_role == 95 and m.fit_candidate == 88
+    # older cached/LLM output without them defaults to 0 (falls back to one bar)
+    assert MatchResult(tier=3, score=50, reasons="x").fit_role == 0
+
+
 def test_null_string_fields_are_coerced_not_rejected():
     """A feed sending an explicit null (Findwork's `role`) must not crash."""
     j = JobPosting(source="api:findwork", title=None, company=None,
