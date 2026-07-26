@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}JBHNTR{% endblock %}</title>
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/app.css?v={{ asset_v }}">
 <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
 {% if config.plausible_domain %}
 <script defer data-domain="{{ config.plausible_domain }}" src="https://plausible.io/js/script.js"></script>
@@ -47,6 +47,6 @@
     <a href="/cookies">Learn more</a>.</span>
   <button type="button" id="cookie-note-dismiss">Got it</button>
 </div>
-<script src="/static/app.js" defer></script>
+<script src="/static/app.js?v={{ asset_v }}" defer></script>
 </body>
 </html>
