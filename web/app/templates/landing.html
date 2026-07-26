@@ -1,59 +1,140 @@
 {% extends "base.html" %}
 {% block content %}
 
-{# HERO. NOTE (yours to own): the card stack below uses EXAMPLE data. Before
-   launch, swap in one real, anonymised shortlist from your own account — invented
-   data reads as invented (§5.6). The headline/subhead copy is also placeholder. #}
+{# ============================ 10.1 HERO ============================ #}
+{# NOTE (yours): the card below uses EXAMPLE data. Swap in one real, anonymised
+   shortlist from your own account before launch — invented scores read as
+   invented. Copy is from the design audit §10. #}
 <section class="hero">
-  <div class="hero-copy">
-    <h1>Stop scrolling job boards.</h1>
-    <p class="muted">Every morning, a ranked shortlist of the roles worth your time —
-      each one scored against your CV, with the reasoning attached.</p>
-    <p><a class="btn" href="/signup">Start free</a>
-       <a class="btn ghost" href="/login">Log in</a></p>
-    <p class="small muted">{{ config.free_searches }} free searches. No card needed.</p>
-  </div>
+  <h1>A shortlist, not a search box.</h1>
+  <p class="lede">JBHNTR reads your CV, learns what you actually want, then goes
+    through thousands of postings from 25+ boards and company career pages. You get
+    ten or twenty roles worth your evening — each scored, each with the reasoning
+    attached.</p>
+  <p class="cta">
+    <a class="btn" href="/signup">Start free</a>
+    <a class="btn ghost" href="/login">Log in</a>
+  </p>
+  <p class="small muted">{{ config.free_searches }} free searches. No card, no trial countdown.</p>
 
-  <div class="hero-cards" aria-hidden="true">
-    <div class="mini t1">
-      <div class="mini-head">
-        <span class="score">88</span><span class="tier tier-1">Excellent</span>
+  <div class="hero-stack" aria-hidden="true">
+    <article class="job t1 demo">
+      <div class="job-head">
+        <span class="score">88</span>
+        <span class="tier tier-1">Apply now</span>
+        <span class="muted small">posted 2 days ago · Greenhouse</span>
       </div>
-      <div class="mini-title">Senior Product Manager, Payments</div>
-      <div class="muted small">Example Fintech · Milan (hybrid)</div>
-      <div class="scorebar"><div style="width:88%"></div></div>
-      <div class="small"><b>Why it fits.</b> Payments depth and B2B SaaS line up with
-        the core of the role.</div>
+      <div style="font-weight:600;font-size:16px">Senior Product Manager, Payments</div>
+      <div class="muted small" style="margin-bottom:4px">Example Fintech · Milan (hybrid) · Series B, 140 people</div>
+      <div class="fitbars">
+        <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
+          <div class="scorebar"><div style="width:92%"></div></div></div>
+        <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
+          <div class="scorebar"><div style="width:78%"></div></div></div>
+      </div>
+      <div class="small" style="margin:8px 0 10px">
+        <b>Why it fits.</b> Payments depth and B2B SaaS line up with the core of the role.
+        <span class="muted"><b>Watch out.</b> They ask for team leadership at scale; your last role was an IC.</span>
+      </div>
+      <div class="demo-actions">
+        <span class="btn">Apply</span><span class="btn ghost">Tailor my CV</span>
+        <span class="btn ghost">Save</span><span class="btn ghost">Not for me</span>
+      </div>
+    </article>
+    <div class="mini t2 behind1"><span class="score">81</span>
+      <span class="tier tier-2">Strong</span> Group PM, Risk · Example Bank</div>
+    <div class="mini t3 behind2"><span class="score">74</span>
+      <span class="tier tier-3">Possible</span> Lead PM, Platform · Example Co</div>
+  </div>
+  <p class="small muted caption">A real shortlist, anonymised. Scores are the
+    model's, not a marketing mock-up.</p>
+</section>
+
+{# ======================= 10.2 HOW IT WORKS ======================= #}
+<section class="section" id="how">
+  <h2>How it works</h2>
+  <div class="frames">
+    <div class="frame">
+      <h3>1. Give it your CV and five minutes</h3>
+      <p class="muted">Drop in your CV, say where you'll work and what you're after in
+        your own words. That's the whole setup. The more you tell it — a second CV,
+        an old cover letter, what you <i>don't</i> want — the sharper everything
+        downstream gets.</p>
     </div>
-    <div class="mini t2 behind1">
-      <div class="mini-head"><span class="score">81</span><span class="tier tier-2">Strong</span></div>
-      <div class="mini-title">Group PM, Risk · Example Bank</div>
+    <div class="frame">
+      <h3>2. It reads the market while you do something else</h3>
+      <p class="muted">One search pulls from 25+ sources — broad engines, niche remote
+        boards, and companies' own career pages, where roles appear first. It filters
+        to your locations, ranks by meaning rather than keywords, then scores the
+        shortlist properly. Takes a minute or two.</p>
     </div>
-    <div class="mini t3 behind2">
-      <div class="mini-head"><span class="score">74</span><span class="tier tier-3">Possible</span></div>
-      <div class="mini-title">Lead PM, Platform · Example Co</div>
+    <div class="frame">
+      <h3>3. Read twenty jobs instead of two hundred</h3>
+      <p class="muted">Every role gets two scores — how well it fits what you want, and
+        how well you fit what they asked for — plus a plain-English case for and
+        against. Sorted into apply-now, strong, possible and long shots, so you know
+        where to spend the evening.</p>
     </div>
   </div>
 </section>
 
+{# ==================== 10.3 WHY IT BEATS A JOB ALERT ==================== #}
 <section class="section">
-  <h2>How it works</h2>
-  <ol class="muted">
-    <li><b>Tell it about you</b> — upload a CV and describe the role you want.</li>
-    <li><b>Run a search</b> — it reads thousands of postings from aggregators,
-        niche boards and company career pages.</li>
-    <li><b>Read the shortlist</b> — every job scored 1–100 and tagged, with a
-        plain-English reason for and against.</li>
-  </ol>
+  <h2>Job alerts send you everything. This sends you three things worth reading.</h2>
+  <ul class="reasons">
+    <li><b>It matches on meaning.</b> A role called "Backend Developer" still reaches
+      you when you searched for "Software Engineer" — and one called "Product Manager"
+      won't, if it's really a project management job.</li>
+    <li><b>It reads the requirements too.</b> Most tools tell you a job matches your
+      search. This one also tells you where you fall short of it, before you spend an
+      hour on the application.</li>
+    <li><b>It watches career pages directly.</b> Greenhouse, Lever, Ashby and friends —
+      where roles are posted days before they reach the aggregators, and sometimes
+      never do.</li>
+    <li><b>It gets better because you correct it.</b> Thumbs-down a bad match, say why
+      in a line, and the next run reflects it.</li>
+  </ul>
 </section>
 
+{# ==================== 10.4 TAILORED APPLICATIONS ==================== #}
 <section class="section">
-  <h2>Why it beats a job alert</h2>
-  <ul class="muted">
-    <li>It matches on <b>meaning</b>, not keywords, so a role titled "Backend
-        Developer" still surfaces when you searched for "Software Engineer".</li>
-    <li>It watches <b>company career pages</b> directly, where roles appear first.</li>
-    <li>It <b>learns</b>: thumbs-up or down a result and the next search is sharper.</li>
-  </ul>
+  <h2>And when you find one, it writes the first draft.</h2>
+  <p class="muted" style="max-width:44em">One click on a role gives you a CV rewritten
+    for that specific posting and a cover letter in your own register — because it
+    learned it from the ones you wrote. Download, edit, send. It's a first draft, not
+    a ghostwriter: read it before you send it.</p>
+</section>
+
+{# ========================= 10.5 YOUR DATA ========================= #}
+<section class="section">
+  <h2>Your CV is yours.</h2>
+  <p class="muted" style="max-width:44em">Uploads are encrypted at rest. Nothing is
+    ever shown to employers or recruiters — no one is paying us for your profile.
+    Export everything as JSON whenever you like, and if you delete your account, it's
+    actually deleted: rows gone, not a hidden flag.</p>
+  <p class="small"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
+    · <a href="/cookies">What we store and why</a></p>
+</section>
+
+{# ==================== 10.6 PRICE AND HONESTY ==================== #}
+<section class="section" id="pricing">
+  <h2>Free to try, cheap to keep.</h2>
+  <p class="muted" style="max-width:44em">Three full searches free — real ones, with
+    the real model. After that, premium runs a fresh search whenever you want one,
+    unlimited tailored documents, and the better matching model. Checkout is nearly
+    finished; until it is, ask us and we'll turn premium on for your account.</p>
+  <div class="honesty">
+    <b>What it isn't.</b> It won't mass-apply for you. It doesn't scrape LinkedIn. It
+    won't find roles nobody has posted. And it's early: the borderline matches are
+    still the weakest part, which is why the thumbs-down button matters.
+  </div>
+</section>
+
+{# ==================== 10.7 CLOSING CTA ==================== #}
+<section class="section closing">
+  <h2>See your own shortlist tonight.</h2>
+  <p class="muted">Upload a CV, run one search, decide for yourself.</p>
+  <p class="cta"><a class="btn" href="/signup">Start free</a></p>
+  <p class="small muted">{{ config.free_searches }} free searches. No card needed.</p>
 </section>
 {% endblock %}

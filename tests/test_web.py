@@ -105,9 +105,11 @@ def test_f11_skip_link_and_focus_style_present(client):
     assert ":focus-visible" in client.get("/static/app.css").text
 
 
-def test_phase_b_landing_hero_and_tier_tokens(client):
+def test_landing_hero_and_tier_tokens(client):
     page = client.get("/").text
-    assert 'class="hero"' in page and "mini t1" in page       # card-stack hero (F-01)
+    assert "A shortlist, not a search box" in page            # §10 hero copy
+    assert "Fits what you want" in page                        # real two-bar card (F-07)
+    assert "What it isn" in page and "scrape LinkedIn" in page  # honesty block (§10.6)
     css = client.get("/static/app.css").text
     assert "--tier-1:" in css and ".tier-1{" in css           # tier colours owned by CSS (F-14)
     assert "--mono:" in css                                    # monospace token

@@ -58,6 +58,9 @@ class WebConfig:
     plausible_domain: str = os.environ.get("PLAUSIBLE_DOMAIN", "")
     support_email: str = os.environ.get("SUPPORT_EMAIL", "support@jbhntr.app")
     company_name: str = os.environ.get("COMPANY_NAME", "JBHNTR")
+    # Public repo, linked in the footer ("built in the open"). Correct the handle
+    # if it differs; blank hides the link.
+    repo_url: str = os.environ.get("REPO_URL", "https://github.com/ettore-strapazzon/jbhntr")
 
     # Premium pricing (display only until payments are switched on).
     plans: tuple[dict, ...] = field(default_factory=lambda: (

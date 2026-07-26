@@ -22,8 +22,10 @@
       <a href="/account">Account</a>
       <a href="/logout">Log out</a>
     {% else %}
+      <a href="/#how">How it works</a>
+      <a href="/#pricing">Pricing</a>
       <a href="/login">Log in</a>
-      <a href="/signup" class="pill">Sign up</a>
+      <a href="/signup" class="pill">Start free</a>
     {% endif %}
   </nav>
 </header>
@@ -38,6 +40,7 @@
   <a href="/privacy">Privacy</a>
   <a href="/cookies">Cookies</a>
   <a href="mailto:{{ config.support_email }}">Support</a>
+  {% if config.repo_url %}<a href="{{ config.repo_url }}" target="_blank" rel="noopener">Built in the open</a>{% endif %}
 </footer>
 
 <!-- Only a strictly-necessary session cookie is used, so this is an
