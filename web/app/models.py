@@ -154,6 +154,10 @@ class JobResult(Base):
 
     position: Mapped[int] = mapped_column(Integer, default=0)  # 1-based row number
     short_id: Mapped[str] = mapped_column(String(16), index=True)
+    # Stable posting identity across runs (engine's job.dedup_key()). Lets a
+    # result seen in run 2 map to the same match a user saved in run 1 — the
+    # backbone of the accumulating Matches surface and per-user job state.
+    dedup_key: Mapped[str] = mapped_column(String(120), default="", index=True)
     tier: Mapped[int] = mapped_column(Integer, default=5)
     tier_label: Mapped[str] = mapped_column(String(16), default="")
     score: Mapped[int] = mapped_column(Integer, default=0)
@@ -280,6 +284,33 @@ class Feedback(Base):
     vote: Mapped[str] = mapped_column(String(8))  # up | down
     note: Mapped[str] = mapped_column(String(300), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class JobState(Base):
+    """Per-user, per-posting state that outlives any single search run.
+
+    Keyed by (user, dedup_key) so save / dismiss / applied stick to a posting
+    even as new runs re-surface it. This is the state the Matches surface reads
+    to draw a card as saved, hide a dismissed one, or move an applied one to
+    Applications.
+    """
+    __tablename__ = "job_states"
+    __table_args__ = (UniqueConstraint("user_id", "dedup_key", name="uq_jobstate"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    dedup_key: Mapped[str] = mapped_column(String(120), index=True)
+
+    saved: Mapped[bool] = mapped_column(Boolean, default=False)
+    dismissed: Mapped[bool] = mapped_column(Boolean, default=False)
+    dismiss_reason: Mapped[str] = mapped_column(String(40), default="")
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Applied | Replied | Interviewing | Rejected | Offer | Withdrawn
+    application_status: Mapped[str] = mapped_column(String(16), default="")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow,
+                                                 onupdate=utcnow)
 
 
 class Document(Base):

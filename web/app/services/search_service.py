@@ -174,7 +174,7 @@ def _run_search(search_id: int, user_id: int) -> None:
             good, bad = _split_reasons(match.reasons)
             db.add(JobResult(
                 search_id=search.id, user_id=user.id, position=i,
-                short_id=job.short_id(), tier=match.tier,
+                short_id=job.short_id(), dedup_key=job.dedup_key(), tier=match.tier,
                 tier_label=match.tier_label, score=match.score,
                 fit_role=match.fit_role, fit_candidate=match.fit_candidate,
                 title=match.role or job.title,

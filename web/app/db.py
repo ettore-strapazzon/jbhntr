@@ -50,7 +50,8 @@ def _add_missing_columns() -> None:
                  "embedding_model": ("TEXT", "DEFAULT ''")},
         "users": {"premium_requested_at": ("TIMESTAMP", "")},
         "job_results": {"fit_role": ("INTEGER", "DEFAULT 0"),
-                        "fit_candidate": ("INTEGER", "DEFAULT 0")},
+                        "fit_candidate": ("INTEGER", "DEFAULT 0"),
+                        "dedup_key": ("TEXT", "DEFAULT ''")},
         "score_cache": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0")},
     }

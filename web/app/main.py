@@ -12,7 +12,9 @@ from fastapi.staticfiles import StaticFiles
 from .config import ROOT, config
 from .db import SessionLocal, init_db
 from .models import PageView
-from .routes import account, auth_routes, fields, legal, onboarding, profile, search
+from .routes import (
+    account, auth_routes, fields, job, legal, onboarding, profile, search,
+)
 from .templating import templates
 
 logging.basicConfig(
@@ -88,6 +90,7 @@ app.include_router(onboarding.router)
 app.include_router(fields.router)
 app.include_router(profile.router)
 app.include_router(search.router)
+app.include_router(job.router)
 app.include_router(account.router)
 app.include_router(legal.router)
 
