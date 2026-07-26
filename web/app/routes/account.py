@@ -33,6 +33,8 @@ def premium_notify(user: User = Depends(require_user),
     if not user.premium_requested_at:
         user.premium_requested_at = utcnow()
         db.commit()
+        from ..services.email import send_premium_confirmation
+        send_premium_confirmation(user.email)
     return RedirectResponse("/premium?requested=1", status_code=303)
 
 

@@ -261,6 +261,53 @@ def test_search_url_redirects_to_matches(client):
     assert r.headers["location"] == "/matches"
 
 
+def test_document_export_pdf_and_docx(client):
+    from web.app.db import SessionLocal
+    from web.app.models import Document, JobResult, User
+    signup(client, "doc@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="doc@example.com").first()
+    _seed_run(db, u.id, [("dk", 1, 90, "PM Role")])
+    rid = db.query(JobResult).filter_by(dedup_key="dk").first().id
+    db.add(Document(user_id=u.id, job_result_id=rid, kind="cv", content="Jane Doe — PM")); db.commit()
+    assert "sheet" in client.get(f"/document/{rid}/cv").text          # editable view
+    pdf = client.post(f"/document/{rid}/cv/export/pdf", data={"content": "Edited — draft"})
+    assert pdf.status_code == 200 and pdf.content[:5] == b"%PDF-"
+    docx = client.post(f"/document/{rid}/cv/export/docx", data={"content": "x"})
+    assert docx.status_code == 200 and docx.content[:2] == b"PK"
+
+
+def test_password_reset_flow(client):
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services import email as mail
+    signup(client, "pw@example.com")
+    client.get("/logout")
+    assert "Forgot your password" in client.get("/login").text
+    # Enumeration-safe: same message whether or not the account exists.
+    a = client.post("/forgot", data={"email": "pw@example.com"}).text
+    b = client.post("/forgot", data={"email": "nobody@example.com"}).text
+    assert "has an account" in a and "has an account" in b
+    db = SessionLocal()
+    uid = db.query(User).filter_by(email="pw@example.com").first().id
+    token = mail.make_reset_token(uid)
+    r = client.post("/reset", data={"token": token, "password": "brandnew99xy"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    client.get("/logout")
+    ok = client.post("/login", data={"email": "pw@example.com", "password": "brandnew99xy"},
+                     follow_redirects=False)
+    assert ok.status_code == 303                       # new password works
+    assert "invalid or has expired" in client.get("/reset?token=garbage").text
+
+
+def test_email_sender_is_safe_noop_when_unconfigured():
+    from web.app.services import email as mail
+    # No SMTP in the test env — send() must not raise and must report not-sent.
+    assert mail.is_configured() is False
+    assert mail.send("x@example.com", "hi", "body") is False
+
+
 # ------------------------------- public ---------------------------------- #
 def test_landing_page_is_public(client):
     r = client.get("/")

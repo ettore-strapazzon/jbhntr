@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Set a new password — JBHNTR{% endblock %}
+{% block content %}
+<div class="card authcard">
+  <h1>Set a new password</h1>
+  {% for e in errors or [] %}<div class="notice err" role="alert">{{ e }}</div>{% endfor %}
+  {% if token %}
+    <form method="post" action="/reset">
+      <input type="hidden" name="token" value="{{ token }}">
+      <label for="password">New password</label>
+      <input id="password" type="password" name="password" required minlength="10"
+             autocomplete="new-password" aria-describedby="pw-hint">
+      <span id="pw-hint" class="hint">At least 10 characters. Mix in a number or symbol.</span>
+      <p><button type="submit">Set password and sign in</button></p>
+    </form>
+  {% else %}
+    <p><a href="/forgot">Request a new reset link</a></p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -16,6 +16,12 @@ def _b(key: str, default: str = "false") -> bool:
     return os.environ.get(key, default).strip().lower() in ("1", "true", "yes")
 
 
+def _int(key: str, default: int) -> int:
+    """Env int that tolerates unset or empty ('SMTP_PORT=' in a .env)."""
+    raw = (os.environ.get(key) or "").strip()
+    return int(raw) if raw.isdigit() else default
+
+
 @dataclass
 class WebConfig:
     # --- core ---
@@ -52,6 +58,15 @@ class WebConfig:
         "company_type", "verticals", "locations", "job_type",
     )
     quality_threshold: int = 70  # below this we nudge "improve your profile"
+
+    # --- email (provider-agnostic SMTP; unset = a safe no-op) ---
+    smtp_host: str = os.environ.get("SMTP_HOST", "")
+    smtp_port: int = _int("SMTP_PORT", 587)
+    smtp_user: str = os.environ.get("SMTP_USER", "")
+    smtp_password: str = os.environ.get("SMTP_PASSWORD", "")
+    smtp_from: str = os.environ.get("SMTP_FROM", "") or os.environ.get("SUPPORT_EMAIL", "")
+    smtp_tls: bool = _b("SMTP_TLS", "true")
+    reset_token_minutes: int = _int("RESET_TOKEN_MINUTES", 60)
 
     # --- product ---
     payments_enabled: bool = _b("PAYMENTS_ENABLED", "false")

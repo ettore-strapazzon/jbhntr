@@ -174,3 +174,70 @@ async def google_callback(request: Request, db: DbSession = Depends(get_session)
     response = RedirectResponse(destination, status_code=303)
     set_cookie(response, session.token)
     return response
+
+
+# --------------------------------------------------------------------------- #
+# Password reset (§11.13). Tokens are signed (no table); emails go through the
+# provider-agnostic sender, so this works once SMTP is configured and is a
+# safe no-op — with the link logged — before then.
+# --------------------------------------------------------------------------- #
+RESET_SENT = ("If that email has an account, we've sent a reset link. "
+              "Check your inbox.")
+
+
+@router.get("/forgot", response_class=HTMLResponse)
+def forgot_form(request: Request):
+    return _render(request, "forgot.html")
+
+
+@router.post("/forgot", response_class=HTMLResponse)
+def forgot(request: Request, email: str = Form(...),
+           db: DbSession = Depends(get_session)):
+    from ..services import email as mail
+
+    user = db.query(User).filter(User.email == email.strip().lower()).first()
+    # Only send to real password accounts, but always show the same message so
+    # the response can't be used to enumerate accounts.
+    if user and user.password_hash:
+        mail.send_password_reset(user.email, mail.make_reset_token(user.id))
+    return _render(request, "forgot.html", sent=RESET_SENT)
+
+
+@router.get("/reset", response_class=HTMLResponse)
+def reset_form(request: Request, token: str = ""):
+    from ..services.email import read_reset_token
+
+    if read_reset_token(token) is None:
+        return _render(request, "reset.html",
+                       errors=["That reset link is invalid or has expired."])
+    return _render(request, "reset.html", token=token)
+
+
+@router.post("/reset", response_class=HTMLResponse)
+def reset(request: Request, token: str = Form(...), password: str = Form(...),
+          db: DbSession = Depends(get_session)):
+    from ..security import hash_password
+    from ..services.email import read_reset_token
+
+    uid = read_reset_token(token)
+    if uid is None:
+        return _render(request, "reset.html",
+                       errors=["That reset link is invalid or has expired."])
+    problems = password_problems(password)
+    if problems:
+        return _render(request, "reset.html", token=token, errors=problems)
+
+    user = db.get(User, uid)
+    if not user:
+        return _render(request, "reset.html",
+                       errors=["That account no longer exists."])
+    user.password_hash = hash_password(password)
+    # Invalidate existing sessions so a leaked session can't outlive the reset.
+    from ..models import Session as DbSess
+    db.query(DbSess).filter(DbSess.user_id == user.id).delete()
+    db.commit()
+
+    session = login(db, user)
+    response = RedirectResponse("/matches", status_code=303)
+    set_cookie(response, session.token)
+    return response

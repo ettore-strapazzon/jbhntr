@@ -39,6 +39,17 @@ def run_search(request: Request, user: User = Depends(require_user),
     return RedirectResponse("/matches", status_code=303)
 
 
+@router.post("/search/{search_id}/notify", response_class=HTMLResponse)
+def notify_when_ready(search_id: int, request: Request,
+                      user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    """'Email me when it's ready' (§11.6). Sets the flag the worker checks."""
+    search = db.get(Search, search_id)
+    if search and search.user_id == user.id and search.status in ("queued", "running"):
+        search.notify_email = True
+        db.commit()
+    return HTMLResponse('<span class="small muted">We\'ll email you when it\'s ready.</span>')
+
+
 @router.get("/search/{search_id}/status", response_class=HTMLResponse)
 def status(search_id: int, request: Request, user: User = Depends(require_user),
            db: DbSession = Depends(get_session)):

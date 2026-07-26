@@ -49,6 +49,7 @@ def _add_missing_columns() -> None:
                  "embedding": ("TEXT", ""),
                  "embedding_model": ("TEXT", "DEFAULT ''")},
         "users": {"premium_requested_at": ("TIMESTAMP", "")},
+        "searches": {"notify_email": ("BOOLEAN", "DEFAULT 0")},
         "job_results": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0"),
                         "dedup_key": ("TEXT", "DEFAULT ''")},

@@ -139,6 +139,8 @@ class Search(Base):
     raw_count: Mapped[int] = mapped_column(Integer, default=0)
     scored_count: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str] = mapped_column(Text, default="")
+    # "Email me when it's ready" (§11.6) — the worker emails on completion if set.
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
