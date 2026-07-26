@@ -18,7 +18,7 @@
     {% if user %}
       <a href="/search">Search</a>
       <a href="/profile">Profile</a>
-      <a href="/premium" class="pill">{% if user.is_premium %}Premium{% else %}Go premium{% endif %}</a>
+      <a href="/premium" class="pill">{% if user.is_premium %}Premium{% else %}{{ user.searches_remaining(config.free_searches) }} searches left{% endif %}</a>
       <a href="/account">Account</a>
       <a href="/logout">Log out</a>
     {% else %}
@@ -40,7 +40,7 @@
   <a href="/privacy">Privacy</a>
   <a href="/cookies">Cookies</a>
   <a href="mailto:{{ config.support_email }}">Support</a>
-  {% if config.repo_url %}<a href="{{ config.repo_url }}" target="_blank" rel="noopener">Built in the open</a>{% endif %}
+  {% if config.repo_url %}<a href="{{ config.repo_url }}" target="_blank" rel="noopener">Built by one person, in the open</a>{% endif %}
 </footer>
 
 <!-- Only a strictly-necessary session cookie is used, so this is an

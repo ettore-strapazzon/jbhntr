@@ -115,6 +115,82 @@ def test_landing_hero_and_tier_tokens(client):
     assert "--mono:" in css                                    # monospace token
 
 
+# --------------------------- design phase C ------------------------------- #
+def test_onboarding_is_three_labelled_steps(client):
+    signup(client, "ob3@example.com")
+    for step, marker in (("upload", "Your CV stays yours"),      # trust block (F-15)
+                         ("aim", "country-field"),               # token field (F-03)
+                         ("words", "depth-objective")):          # depth meter (§5.5)
+        page = client.get(f"/onboarding/{step}").text
+        assert marker in page, step
+    # Honest skip copy, no "Skip for now".
+    assert "Save and finish later" in client.get("/onboarding/upload").text
+
+
+def test_country_token_field_add_remove_preset(client):
+    signup(client, "tok3@example.com")
+    assert "Italy" in client.post("/fields/countries/add", data={"country": "italy"}).text
+    assert "Germany" in client.post("/fields/countries/preset", data={"preset": "eu"}).text
+    assert "anywhere" in client.post("/fields/countries/preset", data={"preset": "remote"}).text
+    gone = client.post("/fields/countries/remove", data={"country": "Italy"}).text
+    assert ">Italy\n" not in gone and "Italy<" not in gone
+
+
+def test_depth_meter_reflects_length(client):
+    signup(client, "depth@example.com")
+    short = client.post("/fields/depth", data={"field": "objective", "objective": "hi"}).text
+    deep = client.post("/fields/depth", data={"field": "objective", "objective": "x" * 400}).text
+    assert "lvl0" in short and "Too short" in short
+    assert "lvl3" in deep and "personal" in deep
+
+
+def test_profile_strength_bands():
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Material, Profile, User
+    from web.app.services.profile_service import strength
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="strength@example.com", password_hash="x")
+        db.add(u); db.flush()
+        # Nothing yet: search locked -> thin, no nudge.
+        assert strength(db, u).band == "thin"
+        db.add(Profile(user_id=u.id, objective="x" * 60, about_me="y" * 60,
+                       seniority=["senior"], company_type=["startup"],
+                       verticals=["fintech"], locations=["Italy"],
+                       work_modes=["remote"], countries=["Italy"], job_type=["full-time"]))
+        db.add(Material(user_id=u.id, kind="cv", filename="cv.txt", mime="text/plain",
+                        size_bytes=10, ciphertext=b"x", text="cv"))
+        db.flush()
+        db.refresh(u)   # the first strength() call cached u.profile as None
+        s = strength(db, u)
+        assert s.can_search and s.band in ("basic", "good")     # searchable, not yet strong
+        assert s.nudge is not None                              # always a next step below strong
+    finally:
+        db.close()
+
+
+def test_profile_sections_save_independently(client):
+    signup(client, "sect@example.com")
+    # Saving "you" must not wipe targets, and vice versa.
+    client.post("/profile", data={"_section": "targets", "seniority": "senior",
+                                  "work_mode": "remote", "job_type": "full-time"})
+    client.post("/profile", data={"_section": "you", "objective": "x" * 60,
+                                  "about_me": "y" * 60})
+    page = client.get("/profile").text
+    assert "senior" in page                                     # targets survived the "you" save
+    assert "x" * 60 in page                                     # objective saved
+
+
+def test_signup_puts_google_above_email(client):
+    # When Google is configured, SSO sits above the email form (§11.12).
+    from web.app.config import config
+    if not config.google_client_id:
+        pytest.skip("Google SSO not configured in this env")
+    page = client.get("/signup").text
+    assert page.index("Continue with Google") < page.index('name="email"')
+
+
 # ------------------------------- public ---------------------------------- #
 def test_landing_page_is_public(client):
     r = client.get("/")

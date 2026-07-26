@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Log in — JBHNTR{% endblock %}
 {% block content %}
-<div class="card" style="max-width:460px;margin:0 auto">
+<div class="card authcard">
   <h1>Log in</h1>
-  {% for e in errors or [] %}<div class="notice err">{{ e }}</div>{% endfor %}
+  {% for e in errors or [] %}<div class="notice err" role="alert">{{ e }}</div>{% endfor %}
+
+  {% if google_enabled %}
+    <p class="authgoogle"><a class="btn ghost block" href="/auth/google">Continue with Google</a></p>
+    <div class="or-divider"><span>or use email</span></div>
+  {% endif %}
 
   <form method="post" action="/login">
     <label for="email">Email</label>
@@ -14,10 +19,6 @@
     <p><button type="submit">Log in</button></p>
   </form>
 
-  {% if google_enabled %}
-    <p class="small muted">or</p>
-    <p><a class="btn ghost" href="/auth/google">Continue with Google</a></p>
-  {% endif %}
   <p class="small">No account? <a href="/signup">Sign up free</a></p>
 </div>
 {% endblock %}

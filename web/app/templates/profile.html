@@ -5,40 +5,65 @@
 {% if saved %}<div class="notice ok" role="status">Saved.</div>{% endif %}
 {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
 
-<div class="card">
-  <div class="row" style="justify-content:space-between">
-    <b>{{ state.score }}% complete</b>
-    {% if not state.can_search %}
-      <span class="small" style="color:var(--warn)">Search locked — {{ state.missing_required|join(", ") }}</span>
-    {% elif state.should_improve %}
-      <span class="small muted">More detail = better matches. Missing: {{ state.missing_optional|join(", ") }}</span>
-    {% else %}<span class="small" style="color:var(--accent)">Ready to search</span>{% endif %}
+{# ---- strength block (§5.5 / §11.9) ---- #}
+<section class="strength band-{{ strength.band }}">
+  <div class="bandbar" aria-hidden="true">
+    <span class="seg s-thin"></span><span class="seg s-basic"></span>
+    <span class="seg s-good"></span><span class="seg s-strong"></span>
   </div>
-  <div class="steps" style="margin-top:10px">
-    <i class="{% if state.score > 0 %}on{% endif %}" style="flex:{{ state.score }}"></i>
-    <i style="flex:{{ 100 - state.score }}"></i>
-  </div>
-</div>
+  <p class="band-head">
+    <b>{{ strength.headline }}</b> {{ strength.consequence }}
+    {% if strength.band == "thin" and state.missing_required %}
+      Still needed: {{ state.missing_required | join(", ") }}.
+    {% endif %}
+  </p>
+  {% if strength.nudge %}
+    <p class="band-next">
+      <a class="btn" href="{{ strength.nudge.href }}">Add {{ strength.nudge.signal }}</a>
+      <span class="small muted">{{ strength.nudge.payoff }}.</span>
+    </p>
+  {% endif %}
+  <details class="signals">
+    <summary>What sharpens your matches</summary>
+    <ul>
+      {% for s in strength.signals %}
+        <li class="sig lvl{{ s.level }}">
+          <span class="sig-dot" aria-hidden="true"></span>
+          <span class="sig-label">{{ s.label }}</span>
+          <span class="sig-val">{{ s.value_label }}</span>
+          <span class="sig-improves small muted">{{ s.improves }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </details>
+</section>
+
+<nav class="subtabs" aria-label="Profile sections">
+  <a href="#documents">Documents</a>
+  <a href="#you">In your words</a>
+  <a href="#targets">Targets</a>
+</nav>
 
 {# ---- documents ---- #}
-<div class="card">
-  <h2>Documents</h2>
-  <p class="small muted">Max 1 MB each. PDF, DOCX, TXT or MD. Stored encrypted.</p>
+<section id="documents" class="psection">
+  <h2>Your documents</h2>
+  <p class="small muted">Two or three CVs written for different kinds of role, and a
+    couple of your own cover letters, is the sweet spot. Max 1 MB each · PDF, DOCX,
+    TXT or MD · stored encrypted.</p>
   {% for m in materials %}
-    <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding:8px 0">
-      <span>{{ m.filename }} <span class="muted small">({{ m.kind.replace("_"," ") }},
-        {{ (m.size_bytes/1024)|round|int }} KB)</span></span>
+    <div class="parsed">
+      <span>{{ m.filename }} <span class="muted small">({{ m.kind.replace("_", " ") }},
+        {{ (m.size_bytes / 1024) | round | int }} KB)</span></span>
       <form method="post" action="/onboarding/material/{{ m.id }}/delete">
-        <input type="hidden" name="step" value="cv">
-        <button class="ghost small" type="submit">Remove</button>
+        <input type="hidden" name="step" value="upload">
+        <button class="linklike" type="submit">Remove</button>
       </form>
     </div>
   {% else %}<p class="small muted">No documents yet.</p>{% endfor %}
 
-  <form method="post" action="/onboarding/upload" enctype="multipart/form-data" class="row"
-        style="margin-top:12px">
-    <input type="hidden" name="step" value="cv">
-    <select name="kind" style="max-width:190px">
+  <form method="post" action="/onboarding/upload" enctype="multipart/form-data" class="row" style="margin-top:12px">
+    <input type="hidden" name="step" value="upload">
+    <select name="kind" aria-label="Document type" style="max-width:190px">
       <option value="cv">CV</option>
       <option value="cover_letter">Cover letter</option>
       <option value="linkedin">LinkedIn export</option>
@@ -46,105 +71,123 @@
     <input type="file" name="file" required accept=".pdf,.docx,.txt,.md" style="flex:1">
     <button type="submit">Upload</button>
   </form>
-</div>
+</section>
 
-{# ---- everything else ---- #}
-<form method="post" action="/profile">
-  <div class="card">
-    <h2>What you want</h2>
-    <label for="objective">Your objective <span class="muted small">(required)</span></label>
-    <textarea id="objective" name="objective" required minlength="30"
-      aria-describedby="p-objective-hint">{{ profile.objective }}</textarea>
-    <span id="p-objective-hint" class="hint">A sentence or two — {{ min_text or 30 }} characters minimum.</span>
+{# ---- in your words ---- #}
+<section id="you" class="psection">
+  <h2>In your words</h2>
+  <form method="post" action="/profile">
+    <input type="hidden" name="_section" value="you">
+    <label for="objective">What you're looking for</label>
+    <textarea id="objective" name="objective" minlength="30" style="min-height:150px"
+      aria-describedby="p-objective-hint"
+      hx-post="/fields/depth" hx-trigger="input changed delay:400ms"
+      hx-target="#depth-objective" hx-swap="innerHTML"
+      hx-vals='{"field": "objective"}' hx-include="this">{{ profile.objective }}</textarea>
+    <div id="depth-objective" class="depth-meter">
+      {% with level = objective_depth, label = depth_labels[objective_depth] %}
+        {% include "partials/depth_meter.html" %}
+      {% endwith %}
+    </div>
+    <span id="p-objective-hint" class="hint">A few sentences. {{ min_text }} characters
+      minimum, but a paragraph works far better. Include what you don't want.</span>
 
-    <label for="about_me">About you <span class="muted small">(required)</span></label>
-    <textarea id="about_me" name="about_me" required minlength="30"
-      aria-describedby="p-about-hint">{{ profile.about_me }}</textarea>
-    <span id="p-about-hint" class="hint">A few honest paragraphs — {{ min_text or 30 }} characters minimum.</span>
-    <p class="small muted">Your story, strengths, working style, constraints — anything a CV can't show.</p>
+    <label for="about_me">And a bit about you</label>
+    <textarea id="about_me" name="about_me" minlength="30" style="min-height:200px"
+      aria-describedby="p-about-hint"
+      hx-post="/fields/depth" hx-trigger="input changed delay:400ms"
+      hx-target="#depth-about" hx-swap="innerHTML"
+      hx-vals='{"field": "about_me"}' hx-include="this">{{ profile.about_me }}</textarea>
+    <div id="depth-about" class="depth-meter">
+      {% with level = about_depth, label = depth_labels[about_depth] %}
+        {% include "partials/depth_meter.html" %}
+      {% endwith %}
+    </div>
+    <span id="p-about-hint" class="hint">Your story, strengths, working style,
+      constraints — anything a CV can't show.</span>
+    <p style="margin-top:14px"><button type="submit">Save</button></p>
+  </form>
+</section>
+
+{# ---- targets ---- #}
+<section id="targets" class="psection">
+  <h2>What you're aiming at</h2>
+
+  <div class="field">
+    <label>Countries</label>
+    {% include "partials/country_field.html" %}
   </div>
 
-  <div class="card">
-    <h2>Role</h2>
-    <label>Seniority <span class="muted small">(required)</span></label>
-    <div class="checks">
-      {% for o in seniority_options %}
-        <label><input type="checkbox" name="seniority" value="{{ o }}"
-          {% if o in profile.seniority %}checked{% endif %}> {{ o }}</label>
-      {% endfor %}
+  <form method="post" action="/profile">
+    <input type="hidden" name="_section" value="targets">
+
+    <div class="field">
+      <label>How do you want to work?</label>
+      <div class="checks">
+        {% for o in work_mode_options %}
+          <label><input type="checkbox" name="work_mode" value="{{ o }}"
+            {% if o in profile.work_modes %}checked{% endif %}> {{ o|capitalize }}</label>
+        {% endfor %}
+      </div>
     </div>
 
-    <label>Job type <span class="muted small">(required)</span></label>
-    <div class="checks">
-      {% for o in jobtype_options %}
-        <label><input type="checkbox" name="job_type" value="{{ o }}"
-          {% if o in profile.job_type %}checked{% endif %}> {{ o }}</label>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Company</h2>
-    <label>Company type <span class="muted small">(required)</span></label>
-    <div class="checks">
-      {% for o in company_options %}
-        <label><input type="checkbox" name="company_type" value="{{ o }}"
-          {% if o in profile.company_type %}checked{% endif %}> {{ o }}</label>
-      {% endfor %}
+    <div class="field">
+      <label>Levels you'd genuinely consider</label>
+      <div class="checks">
+        {% for o in seniority_options %}
+          <label><input type="checkbox" name="seniority" value="{{ o }}"
+            {% if o in profile.seniority %}checked{% endif %}> {{ o }}</label>
+        {% endfor %}
+      </div>
     </div>
 
-    <label>Sectors <span class="muted small">(required)</span></label>
-    <div class="checks">
-      {% for o in vertical_options %}
-        <label><input type="checkbox" name="verticals" value="{{ o }}"
-          {% if o in profile.verticals %}checked{% endif %}> {{ o }}</label>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Location &amp; pay</h2>
-    <label>How do you want to work? <span class="muted small">(required)</span></label>
-    <div class="checks">
-      {% for o in work_mode_options %}
-        <label><input type="checkbox" name="work_mode" value="{{ o }}"
-          {% if o in profile.work_modes %}checked{% endif %}> {{ o|capitalize }}</label>
-      {% endfor %}
+    <div class="field">
+      <label>Contract types you'd take</label>
+      <div class="checks">
+        {% for o in jobtype_options %}
+          <label><input type="checkbox" name="job_type" value="{{ o }}"
+            {% if o in profile.job_type %}checked{% endif %}> {{ o }}</label>
+        {% endfor %}
+      </div>
     </div>
 
-    <label for="countries">Countries <span class="muted small">(required)</span></label>
-    <select id="countries" name="countries" multiple size="8">
-      {% for c in country_options %}
-        <option value="{{ c }}" {% if c in profile.countries %}selected{% endif %}>{{ c }}</option>
-      {% endfor %}
-    </select>
-    <p class="small muted">Ctrl/⌘ to pick more than one. Base for onsite/hybrid;
-      where you can work from for remote.</p>
+    <div class="field">
+      <label>Sectors and company type</label>
+      <div class="checks">
+        {% for o in vertical_options %}
+          <label><input type="checkbox" name="verticals" value="{{ o }}"
+            {% if o in profile.verticals %}checked{% endif %}> {{ o }}</label>
+        {% endfor %}
+      </div>
+      <div class="checks" style="margin-top:8px">
+        {% for o in company_options %}
+          <label><input type="checkbox" name="company_type" value="{{ o }}"
+            {% if o in profile.company_type %}checked{% endif %}> {{ o }}</label>
+        {% endfor %}
+      </div>
+    </div>
 
-    <label class="single-check">
-      <input type="checkbox" name="remote_anywhere" value="1"
-        {% if "Remote-Anywhere" in profile.locations %}checked{% endif %}>
-      Also include fully-remote roles with no country restriction
-    </label>
+    <div class="field">
+      <label for="salary_floor">Salary floor in EUR <span class="muted small">(optional)</span></label>
+      <input id="salary_floor" type="number" name="salary_floor" min="0" step="1000"
+             value="{{ profile.salary_floor_eur or '' }}" style="max-width:220px">
+      <span class="hint">Only counts against a job when a figure is stated and falls below this.</span>
+    </div>
 
-    <label for="salary_floor">Salary floor in EUR <span class="muted small">(optional)</span></label>
-    <input id="salary_floor" type="number" name="salary_floor" min="0" step="1000"
-           value="{{ profile.salary_floor_eur or '' }}">
-    <p class="small muted">Only counts against a job when a figure is stated and falls below this.</p>
-  </div>
+    <div class="field">
+      <label for="search_terms">Job titles to search <span class="muted small">(one per line)</span></label>
+      <textarea id="search_terms" name="search_terms" style="min-height:90px"
+        placeholder="product manager&#10;head of product">{{ profile.search_terms | join("\n") }}</textarea>
+    </div>
 
-  <div class="card">
-    <h2>Optional — these sharpen the matching</h2>
-    <label for="search_terms">Job titles to search <span class="muted small">(one per line)</span></label>
-    <textarea id="search_terms" name="search_terms"
-      placeholder="product manager&#10;head of product">{{ profile.search_terms | join("\n") }}</textarea>
+    <div class="field">
+      <label for="seeds">Companies you admire <span class="muted small">(one per line — a website works best)</span></label>
+      <textarea id="seeds" name="seeds" style="min-height:90px"
+        placeholder="https://stripe.com&#10;notion.so">{{ seeds | map(attribute="value") | join("\n") }}</textarea>
+      <span class="hint">Used to find similar companies and to judge whether an employer suits you.</span>
+    </div>
 
-    <label for="seeds">Companies you admire <span class="muted small">(one per line — websites work best)</span></label>
-    <textarea id="seeds" name="seeds"
-      placeholder="https://stripe.com&#10;notion.so">{{ seeds | map(attribute="value") | join("\n") }}</textarea>
-    <p class="small muted">Used to find similar companies and to judge whether an employer suits you.</p>
-  </div>
-
-  <p><button type="submit">Save profile</button></p>
-</form>
+    <p><button type="submit">Save</button></p>
+  </form>
+</section>
 {% endblock %}
