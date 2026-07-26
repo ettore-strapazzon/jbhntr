@@ -1,0 +1,3 @@
+{# Depth meter for one long-text field (§5.5). Band colour by level 0-3. #}
+<div class="depth-rail lvl{{ level }}"><i style="width:{{ (level / 3 * 100) | round | int }}%"></i></div>
+<span class="depth-label small">{{ label }}</span>

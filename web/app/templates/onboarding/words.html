@@ -1,0 +1,61 @@
+{% extends "onboarding/_step.html" %}
+{% block step %}
+<p class="lede muted">Two paragraphs. They do more for your matches than every
+  checkbox before them, and they're what the CV and cover-letter writing draws on.</p>
+
+<form method="post" action="/onboarding/save/words">
+  <div class="field words-field">
+    <div class="words-main">
+      <label for="objective">What are you looking for?</label>
+      <textarea id="objective" name="objective" minlength="30" style="min-height:160px"
+        aria-describedby="objective-hint"
+        hx-post="/fields/depth" hx-trigger="input changed delay:400ms"
+        hx-target="#depth-objective" hx-swap="innerHTML"
+        hx-vals='{"field": "objective"}' hx-include="this"
+        placeholder="A few sentences in your own words…">{{ values.get("objective") or profile.objective }}</textarea>
+      <div id="depth-objective" class="depth-meter">
+        {% with level = objective_depth, label = depth_labels[objective_depth] %}
+          {% include "partials/depth_meter.html" %}
+        {% endwith %}
+      </div>
+      <span id="objective-hint" class="hint">A few sentences. 30 characters minimum,
+        but a paragraph works far better.</span>
+    </div>
+    <ul class="prompts small muted" aria-hidden="true">
+      <li>What would make you leave your current role?</li>
+      <li>What kind of problem do you want to be working on?</li>
+      <li>What would you rather not do again?</li>
+    </ul>
+  </div>
+
+  <div class="field words-field">
+    <div class="words-main">
+      <label for="about_me">And a bit about you</label>
+      <textarea id="about_me" name="about_me" minlength="30" style="min-height:220px"
+        aria-describedby="about-hint"
+        hx-post="/fields/depth" hx-trigger="input changed delay:400ms"
+        hx-target="#depth-about" hx-swap="innerHTML"
+        hx-vals='{"field": "about_me"}' hx-include="this"
+        placeholder="Your story, strengths, working style, constraints…">{{ values.get("about_me") or profile.about_me }}</textarea>
+      <div id="depth-about" class="depth-meter">
+        {% with level = about_depth, label = depth_labels[about_depth] %}
+          {% include "partials/depth_meter.html" %}
+        {% endwith %}
+      </div>
+      <span id="about-hint" class="hint">Your story, strengths, working style,
+        constraints — anything a CV can't show.</span>
+    </div>
+    <ul class="prompts small muted" aria-hidden="true">
+      <li>What are you unusually good at?</li>
+      <li>What did you do that you're proud of, and why was it hard?</li>
+      <li>Anything non-negotiable — hours, travel, notice period, visa?</li>
+    </ul>
+  </div>
+
+  <div class="onboard-actions">
+    <button class="btn" type="submit">Save and run my first search</button>
+    <a class="small muted" href="/onboarding/aim">Back</a>
+    <a class="small muted finish" href="/search">Save and finish later</a>
+  </div>
+</form>
+{% endblock %}

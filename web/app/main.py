@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import ROOT, config
 from .db import SessionLocal, init_db
 from .models import PageView
-from .routes import account, auth_routes, legal, onboarding, profile, search
+from .routes import account, auth_routes, fields, legal, onboarding, profile, search
 from .templating import templates
 
 logging.basicConfig(
@@ -85,6 +85,7 @@ async def security_and_analytics(request: Request, call_next):
 # --------------------------------------------------------------------------- #
 app.include_router(auth_routes.router)
 app.include_router(onboarding.router)
+app.include_router(fields.router)
 app.include_router(profile.router)
 app.include_router(search.router)
 app.include_router(account.router)

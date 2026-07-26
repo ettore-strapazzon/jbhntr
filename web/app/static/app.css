@@ -73,6 +73,72 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .checks input{margin:0}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 
+/* onboarding (§11.2-11.4): centred 640 column, labelled 3-step rail */
+.onboard{max-width:640px;margin:0 auto}
+.onboard h1{font-size:28px;margin-bottom:6px}
+.onboard .lede{font-size:16px;margin-bottom:20px}
+.steprail{max-width:640px;margin:0 auto 22px}
+.steprail ol{list-style:none;display:flex;gap:8px;padding:0;margin:0}
+.steprail li{flex:1;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);
+  border-top:3px solid var(--line);padding-top:8px}
+.steprail li.done,.steprail li.current{color:var(--ink)}
+.steprail li.done{border-top-color:var(--accent)}
+.steprail li.current{border-top-color:var(--ink);font-weight:600}
+.steprail-n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+  border-radius:99px;background:var(--line);color:var(--ink);font:700 11px/1 var(--mono);flex:0 0 20px}
+.steprail li.done .steprail-n,.steprail li.current .steprail-n{background:var(--accent);color:#fff}
+@media(max-width:560px){.steprail-t{display:none}.steprail li{justify-content:center}}
+
+.onboard .field{margin:0 0 22px}
+.onboard-actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:24px;
+  border-top:1px solid var(--line);padding-top:16px}
+.onboard-actions .finish{margin-left:auto}
+
+/* step 1: upload */
+.upload-row{display:flex;gap:16px;align-items:flex-start}
+.upload-main{flex:1}
+.dropzone{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
+  border:1px dashed var(--line);border-radius:var(--r-card);padding:32px 20px;background:#fff}
+.dz-label{display:flex;flex-direction:column;gap:6px;align-items:center;font-weight:600;cursor:pointer}
+.dz-label input[type=file]{font-weight:400;width:auto}
+.trust{flex:0 0 240px;border:1px solid var(--line);border-radius:var(--r-card);padding:14px 16px;font-size:13px}
+.trust ul{margin:8px 0 0;padding-left:18px;color:var(--muted)}
+.trust li{margin-bottom:4px}
+.parsed{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding:10px 0}
+.linklike{min-height:auto;padding:0;border:none;background:none;color:var(--accent);
+  font:inherit;font-size:13px;text-decoration:underline;cursor:pointer}
+@media(max-width:560px){.upload-row{flex-direction:column}.trust{flex:1;width:100%}}
+
+/* step 3: depth meters + prompts */
+.words-field{display:grid;grid-template-columns:1fr 220px;gap:18px;align-items:start}
+.words-main{min-width:0}
+.depth-meter{margin:8px 0 2px}
+.depth-rail{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.depth-rail>i{display:block;height:4px;background:var(--muted);transition:width .2s}
+.depth-rail.lvl1>i{background:var(--warn)} .depth-rail.lvl2>i{background:var(--tier-2)}
+.depth-rail.lvl3>i{background:var(--accent)}
+.depth-label{color:var(--muted)}
+.prompts{border-left:2px solid var(--line);padding:2px 0 2px 14px;margin:26px 0 0;list-style:none}
+.prompts li{margin-bottom:8px}
+@media(max-width:560px){.words-field{grid-template-columns:1fr}.prompts{margin-top:4px}}
+
+/* country token field (F-03) */
+.tokenfield{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:44px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;
+  background:var(--ok-bg);border:1px solid #c9e3d6;color:var(--accent);
+  padding:8px 8px 8px 12px;border-radius:var(--r-chip);line-height:1}
+.chip-remote{background:#eef2ff;border-color:#c9d4f3;color:#2b3b7a}
+.chip-x{min-height:auto;min-width:28px;height:28px;padding:0;border-radius:99px;
+  border:none;background:transparent;color:inherit;font-size:18px;line-height:1;cursor:pointer}
+.chip-x:hover{background:rgba(0,0,0,.08)}
+.token-add{display:flex;gap:8px;align-items:stretch}
+.token-add input{flex:1;min-height:44px}
+.presets{display:flex;flex-wrap:wrap;gap:8px}
+.preset{min-height:40px;padding:8px 14px;font-size:13px;font-weight:600;
+  background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:var(--r-chip);cursor:pointer}
+.preset:hover{border-color:var(--accent);color:var(--accent)}
+
 /* progress */
 .steps{display:flex;gap:6px;margin-bottom:18px}
 .steps i{flex:1;height:4px;border-radius:2px;background:var(--line)}

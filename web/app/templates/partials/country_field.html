@@ -1,0 +1,46 @@
+{# Country token field (F-03). Self-contained and auto-saving: every add /
+   remove / preset is an HTMX POST that swaps this whole block, so it needs no
+   inline script and works outside any surrounding <form>. Geography (countries
+   + fully-remote) is owned here, not by the page form. #}
+<div id="country-field" class="tokenfield">
+  <div class="chips" aria-live="polite">
+    {% if remote_anywhere %}
+      <span class="chip chip-remote">Remote — anywhere
+        <button type="button" class="chip-x" aria-label="Remove fully-remote"
+                hx-post="/fields/countries/preset" hx-vals='{"preset": "remote-off"}'
+                hx-target="#country-field" hx-swap="outerHTML">×</button>
+      </span>
+    {% endif %}
+    {% for c in profile.countries %}
+      <span class="chip">{{ c }}
+        <button type="button" class="chip-x" aria-label="Remove {{ c }}"
+                hx-post="/fields/countries/remove" hx-vals='{"country": "{{ c }}"}'
+                hx-target="#country-field" hx-swap="outerHTML">×</button>
+      </span>
+    {% endfor %}
+    {% if not remote_anywhere and not profile.countries %}
+      <span class="chips-empty small muted">No countries yet — type one below, or pick a preset.</span>
+    {% endif %}
+  </div>
+
+  <form class="token-add" hx-post="/fields/countries/add"
+        hx-target="#country-field" hx-swap="outerHTML" autocomplete="off">
+    <input name="country" list="country-list" placeholder="Type a country…"
+           aria-label="Add a country" autocomplete="off">
+    <button type="submit" class="btn ghost">Add</button>
+    <datalist id="country-list">
+      {% for c in country_options %}{% if c not in profile.countries %}<option value="{{ c }}">{% endif %}{% endfor %}
+    </datalist>
+  </form>
+
+  <div class="presets" role="group" aria-label="Quick country presets">
+    <button type="button" class="preset" hx-post="/fields/countries/preset"
+            hx-vals='{"preset": "remote"}' hx-target="#country-field" hx-swap="outerHTML">Remote anywhere</button>
+    <button type="button" class="preset" hx-post="/fields/countries/preset"
+            hx-vals='{"preset": "eu"}' hx-target="#country-field" hx-swap="outerHTML">EU</button>
+    <button type="button" class="preset" hx-post="/fields/countries/preset"
+            hx-vals='{"preset": "uk-ie"}' hx-target="#country-field" hx-swap="outerHTML">UK &amp; Ireland</button>
+    <button type="button" class="preset" hx-post="/fields/countries/preset"
+            hx-vals='{"preset": "north-america"}' hx-target="#country-field" hx-swap="outerHTML">North America</button>
+  </div>
+</div>

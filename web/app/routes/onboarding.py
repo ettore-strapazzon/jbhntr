@@ -1,4 +1,12 @@
-"""Step-by-step onboarding. Every step is skippable; the search gate isn't."""
+"""Onboarding in three steps (§5.1 / §11.2-11.4).
+
+The nine linear steps collapsed to the smallest set of things only the user can
+give: a CV, where and how they want to work, and what they're after in their own
+words. Everything else (extra documents, seed companies, search terms) moved out
+of the funnel and became post-first-search refinements on Profile. Required
+steps still come first so a user who stops early keeps the minimum to search;
+the search gate is the real guard, not the step order.
+"""
 
 from __future__ import annotations
 
@@ -7,32 +15,26 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session as DbSession
 
 from ..auth import require_user
-from ..config import config
 from ..db import get_session
-from ..models import Material, Profile, SeedCompany, User
+from ..models import Material, Profile, User
 from ..security import UploadError, encrypt_bytes, extract_text, validate_upload
 from ..services.profile_service import (
-    COUNTRIES, MIN_TEXT, WORK_MODES, build_location_tokens, completeness,
-    split_list, text_too_short,
+    ABOUT_TARGET, COUNTRIES, DEPTH_LABELS, MIN_TEXT, OBJECTIVE_TARGET,
+    WORK_MODES, completeness, rebuild_locations, remote_anywhere_on,
+    text_depth, text_too_short,
 )
 from ..templating import templates
 
 router = APIRouter(prefix="/onboarding")
 
-# Order matters: required steps first, so a user who quits early still has the
-# minimum needed to search.
+# Three steps, all required before the first search. Labels drive the rail.
 STEPS = [
-    ("cv",           "Your CV",              True),
-    ("about",        "About you",            True),
-    ("objective",    "What you want",        True),
-    ("role",         "Role & seniority",     True),
-    ("company",      "Company & sectors",    True),
-    ("location",     "Location & job type",  True),
-    ("extras",       "Extra documents",      False),
-    ("seeds",        "Companies you admire", False),
-    ("terms",        "Job titles to search", False),
+    ("upload", "Start with your CV",          True),
+    ("aim",    "Where and how you'll work",   True),
+    ("words",  "Now the part only you can write", True),
 ]
 STEP_IDS = [s[0] for s in STEPS]
+STEP_LABELS = ["Your CV", "Where and how", "In your words"]
 
 SENIORITY = ["junior", "mid", "senior", "lead", "head", "director", "chief", "vp"]
 COMPANY_TYPES = ["startup", "scaleup", "enterprise", "agency", "non-profit", "public sector"]
@@ -58,43 +60,48 @@ def _next_step(current: str) -> str:
 
 def _render(request: Request, step: str, db: DbSession, user: User, **extra):
     idx = STEP_IDS.index(step)
-    return templates.TemplateResponse(request, f"onboarding/{step}.html",
-        {
-            "request": request, "user": user, "profile": _profile(db, user),
-            "step": step, "step_no": idx + 1, "step_total": len(STEPS),
-            "step_title": STEPS[idx][1], "required": STEPS[idx][2],
-            "next_step": _next_step(step),
-            "seniority_options": SENIORITY, "company_options": COMPANY_TYPES,
-            "vertical_options": VERTICALS, "jobtype_options": JOB_TYPES,
-            "work_mode_options": WORK_MODES, "country_options": COUNTRIES,
-            "materials": db.query(Material).filter(Material.user_id == user.id).all(),
-            "seeds": db.query(SeedCompany).filter(SeedCompany.user_id == user.id).all(),
-            "state": completeness(db, user),
-            **extra,
-        },
-    )
+    p = _profile(db, user)
+    ctx = {
+        "request": request, "user": user, "profile": p,
+        "step": step, "step_no": idx + 1, "step_total": len(STEPS),
+        "step_title": STEPS[idx][1], "step_labels": STEP_LABELS,
+        "required": STEPS[idx][2], "next_step": _next_step(step),
+        "seniority_options": SENIORITY, "company_options": COMPANY_TYPES,
+        "vertical_options": VERTICALS, "jobtype_options": JOB_TYPES,
+        "work_mode_options": WORK_MODES, "country_options": COUNTRIES,
+        "remote_anywhere": remote_anywhere_on(p),
+        "materials": db.query(Material).filter(Material.user_id == user.id).all(),
+        "state": completeness(db, user),
+        "objective_target": OBJECTIVE_TARGET, "about_target": ABOUT_TARGET,
+        "objective_depth": text_depth(p.objective or "", OBJECTIVE_TARGET),
+        "about_depth": text_depth(p.about_me or "", ABOUT_TARGET),
+        "depth_labels": DEPTH_LABELS,
+        "values": {},
+    }
+    ctx.update(extra)
+    return templates.TemplateResponse(request, f"onboarding/{step}.html", ctx)
 
 
 @router.get("", response_class=HTMLResponse)
 def start(request: Request, user: User = Depends(require_user),
           db: DbSession = Depends(get_session)):
-    return RedirectResponse("/onboarding/cv", status_code=303)
+    return RedirectResponse("/onboarding/upload", status_code=303)
 
 
 @router.get("/{step}", response_class=HTMLResponse)
 def show_step(step: str, request: Request, user: User = Depends(require_user),
               db: DbSession = Depends(get_session)):
     if step not in STEP_IDS:
-        return RedirectResponse("/onboarding/cv", status_code=303)
+        return RedirectResponse("/onboarding/upload", status_code=303)
     return _render(request, step, db, user)
 
 
-# --------------------------------------------------------------------------- #
+# ----------------------------- uploads (step 1) ---------------------------- #
 @router.post("/upload")
 async def upload(
     request: Request,
     kind: str = Form(...),
-    step: str = Form(...),
+    step: str = Form(default="upload"),
     file: UploadFile = File(...),
     user: User = Depends(require_user),
     db: DbSession = Depends(get_session),
@@ -111,8 +118,8 @@ async def upload(
     text = extract_text(ext, raw)
     if not text.strip():
         return _render(request, step, db, user,
-                       error="We couldn't read any text from that file. "
-                             "If it's a scanned PDF, please upload a text-based one.")
+                       error="We couldn't read any text in that file. "
+                             "If it's a scan, upload a text-based version.")
 
     db.add(Material(
         user_id=user.id, kind=kind, filename=(file.filename or "upload")[:255],
@@ -125,7 +132,7 @@ async def upload(
 
 
 @router.post("/material/{material_id}/delete")
-def delete_material(material_id: int, step: str = Form(default="cv"),
+def delete_material(material_id: int, step: str = Form(default="upload"),
                     user: User = Depends(require_user),
                     db: DbSession = Depends(get_session)):
     (db.query(Material)
@@ -135,67 +142,43 @@ def delete_material(material_id: int, step: str = Form(default="cv"),
     return RedirectResponse(f"/onboarding/{step}", status_code=303)
 
 
-# --------------------------------------------------------------------------- #
-@router.post("/save/{step}")
-def save_step(
-    step: str,
+# --------------------------- where & how (step 2) -------------------------- #
+@router.post("/save/aim")
+async def save_aim(request: Request, user: User = Depends(require_user),
+                   db: DbSession = Depends(get_session)):
+    """Work mode, seniority, sectors, company type, job type. Countries are
+    owned by the token field and already saved; we just rebuild the engine
+    location tokens from the (possibly new) work modes."""
+    form = await request.form()
+    p = _profile(db, user)
+    p.work_modes = [v for v in form.getlist("work_mode") if v in WORK_MODES]
+    p.seniority = [v for v in form.getlist("seniority") if v in SENIORITY]
+    p.company_type = [v for v in form.getlist("company_type") if v in COMPANY_TYPES]
+    p.verticals = [v for v in form.getlist("verticals") if v in VERTICALS]
+    p.job_type = [v for v in form.getlist("job_type") if v in JOB_TYPES]
+    rebuild_locations(p)
+    db.commit()
+    return RedirectResponse("/onboarding/words", status_code=303)
+
+
+# --------------------------- in your words (step 3) ------------------------ #
+@router.post("/save/words")
+async def save_words(
     request: Request,
     user: User = Depends(require_user),
     db: DbSession = Depends(get_session),
-    about_me: str = Form(default=""),
     objective: str = Form(default=""),
-    salary_floor: str = Form(default=""),
-    seed_values: str = Form(default=""),
-    search_terms: str = Form(default=""),
+    about_me: str = Form(default=""),
 ):
     p = _profile(db, user)
-
-    if step == "about":
-        if text_too_short(about_me):
-            return _render(request, "about", db, user,
-                           error=f"A sentence or two, please — at least {MIN_TEXT} characters.")
-        p.about_me = about_me.strip()[:20_000]
-    elif step == "objective":
-        if text_too_short(objective):
-            return _render(request, "objective", db, user,
-                           error=f"A sentence or two, please — at least {MIN_TEXT} characters.")
-        p.objective = objective.strip()[:10_000]
-    elif step == "terms":
-        p.search_terms = [t.strip() for t in search_terms.splitlines() if t.strip()][:15]
-    elif step == "seeds":
-        db.query(SeedCompany).filter(SeedCompany.user_id == user.id).delete()
-        for value in [v.strip() for v in seed_values.splitlines() if v.strip()][:100]:
-            db.add(SeedCompany(user_id=user.id, value=value[:255]))
-    if salary_floor.strip().isdigit():
-        p.salary_floor_eur = int(salary_floor.strip())
-
+    values = {"objective": objective, "about_me": about_me}
+    if text_too_short(objective):
+        return _render(request, "words", db, user, values=values,
+                       error=f"What you're looking for needs at least {MIN_TEXT} characters.")
+    if text_too_short(about_me):
+        return _render(request, "words", db, user, values=values,
+                       error=f"A bit about you needs at least {MIN_TEXT} characters.")
+    p.objective = objective.strip()[:10_000]
+    p.about_me = about_me.strip()[:20_000]
     db.commit()
-    nxt = _next_step(step)
-    return RedirectResponse(f"/onboarding/{nxt}" if nxt else "/search", status_code=303)
-
-
-@router.post("/save-lists/{step}")
-async def save_lists(step: str, request: Request,
-                     user: User = Depends(require_user),
-                     db: DbSession = Depends(get_session)):
-    """Steps whose fields are multi-select checkboxes."""
-    form = await request.form()
-    p = _profile(db, user)
-
-    if step == "role":
-        p.seniority = [v for v in form.getlist("seniority") if v in SENIORITY]
-    elif step == "company":
-        p.company_type = [v for v in form.getlist("company_type") if v in COMPANY_TYPES]
-        p.verticals = [v for v in form.getlist("verticals") if v in VERTICALS]
-    elif step == "location":
-        p.work_modes = [v for v in form.getlist("work_mode") if v in WORK_MODES]
-        p.countries = [c for c in form.getlist("countries") if c in COUNTRIES]
-        p.locations = build_location_tokens(
-            p.work_modes, p.countries,
-            remote_anywhere=bool(form.get("remote_anywhere")),
-        )
-        p.job_type = [v for v in form.getlist("job_type") if v in JOB_TYPES]
-
-    db.commit()
-    nxt = _next_step(step)
-    return RedirectResponse(f"/onboarding/{nxt}" if nxt else "/search", status_code=303)
+    return RedirectResponse("/search", status_code=303)

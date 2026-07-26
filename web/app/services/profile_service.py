@@ -7,15 +7,17 @@ unchanged for web users. This is the only real coupling between the two halves.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from jobhunter.config import Materials as EngineMaterials
 from jobhunter.config import Profile as EngineProfile
 
 from ..config import config
-from ..models import Material, Profile, SeedCompany, User
+from ..models import Feedback, Material, Profile, SeedCompany, User
 
 # A long-text answer must reach this length to count as filled — a token reply
 # ("PM roles") carries no signal. The rule is now stated in the UI and enforced
@@ -110,6 +112,167 @@ def completeness(db: Session, user: User) -> Completeness:
     return Completeness(missing_req, missing_opt, score)
 
 
+# --------------------------------------------------------------------------- #
+# Profile strength (§5.5): the binary "ready to search" gate tells a user
+# nothing once they clear it, but matching, CV tailoring and cover letters all
+# keep improving well past that point. This models a four-band strength that
+# keeps asking, honestly, and always states the payoff in *output* terms — never
+# "you are 68% done". Bands: thin (search locked) < basic < good < strong.
+
+# Character targets for a long-text field to count as "full" depth.
+OBJECTIVE_TARGET = 400
+ABOUT_TARGET = 600
+
+# Four depth labels for a single long-text field, low → high (§11.4).
+DEPTH_LABELS = [
+    "Too short to be useful",
+    "Enough to search with",
+    "Good — the matcher has something to work with",
+    "Strong — this is what makes matches personal",
+]
+
+
+def text_depth(value: str, target: int) -> int:
+    """0-3 depth level for one long-text answer, by length against its target."""
+    n = len((value or "").strip())
+    if n < MIN_TEXT:
+        return 0
+    if n < target * 0.4:
+        return 1
+    if n < target * 0.85:
+        return 2
+    return 3
+
+
+# Per-band headline + one-line consequence, shown on Profile (§11.9).
+BAND_COPY = {
+    "thin":   ("Not enough to search yet.",
+               "Add what's still missing and your first search unlocks."),
+    "basic":  ("Enough to search with.",
+               "Matches will be broad, and tailored documents will sound generic."),
+    "good":   ("Solid.",
+               "Matching is reliable. A second CV or a cover letter is what improves the writing."),
+    "strong": ("Strong.",
+               "Matching and writing both have your own material to work from. "
+               "Keep voting on results and it keeps sharpening."),
+}
+BAND_ORDER = ["thin", "basic", "good", "strong"]
+
+
+@dataclass
+class Signal:
+    """One thing the user can add, with where it lands on its own target."""
+    label: str          # "CVs"
+    value_label: str    # "1 of 3"
+    improves: str       # "Matching · CV writing"
+    level: int          # 0 none · 1 partial · 2 full
+
+
+@dataclass
+class Nudge:
+    """The single highest-impact next step, phrased as an outcome."""
+    signal: str         # short label of what's thin, e.g. "your 'about you'"
+    payoff: str         # what adding it buys, in output terms
+    href: str           # where to go and fix it
+
+
+@dataclass
+class Strength:
+    band: str                       # thin | basic | good | strong
+    headline: str                   # bold sentence for the band
+    consequence: str                # the one-line output consequence
+    signals: list[Signal] = field(default_factory=list)
+    nudge: Optional[Nudge] = None   # None at strong, or when search is locked
+
+    @property
+    def can_search(self) -> bool:
+        return self.band != "thin"
+
+    @property
+    def index(self) -> int:
+        return BAND_ORDER.index(self.band)
+
+    @property
+    def below_good(self) -> bool:
+        return self.index < BAND_ORDER.index("good")
+
+
+def strength(db: Session, user: User) -> Strength:
+    profile = user.profile
+    obj = (profile.objective if profile else "") or ""
+    about = (profile.about_me if profile else "") or ""
+
+    counts = dict(
+        db.query(Material.kind, func.count())
+          .filter(Material.user_id == user.id)
+          .group_by(Material.kind)
+          .all()
+    )
+    cv_n = counts.get("cv", 0)
+    cl_n = counts.get("cover_letter", 0)
+    linkedin = counts.get("linkedin", 0) > 0
+    seeds_n = db.query(SeedCompany).filter(SeedCompany.user_id == user.id).count()
+    votes_n = db.query(Feedback).filter(Feedback.user_id == user.id).count()
+
+    obj_d, about_d = text_depth(obj, OBJECTIVE_TARGET), text_depth(about, ABOUT_TARGET)
+
+    can_search = completeness(db, user).can_search
+    good = can_search and obj_d >= 2 and about_d >= 2 and cv_n >= 1
+    strong = (good and obj_d >= 3 and about_d >= 3
+              and (cv_n >= 2 or cl_n >= 1)
+              and (linkedin or seeds_n >= 5 or votes_n >= 10))
+    band = "strong" if strong else "good" if good else "basic" if can_search else "thin"
+
+    def lvl(n: int, partial: int, full: int) -> int:
+        return 2 if n >= full else 1 if n >= partial else 0
+
+    signals = [
+        Signal("CVs", f"{cv_n} of 3", "Matching · CV writing", lvl(cv_n, 1, 2)),
+        Signal("Cover letters", f"{cl_n} of 3", "Cover-letter writing", lvl(cl_n, 1, 2)),
+        Signal("Objective", DEPTH_LABELS[obj_d], "Matching", 2 if obj_d >= 3 else 1 if obj_d >= 1 else 0),
+        Signal("About you", DEPTH_LABELS[about_d], "Matching · CV · cover letters",
+               2 if about_d >= 3 else 1 if about_d >= 1 else 0),
+        Signal("LinkedIn export", "Yes" if linkedin else "No", "Matching", 2 if linkedin else 0),
+        Signal("Companies you admire", str(seeds_n), "Matching · reach", lvl(seeds_n, 1, 5)),
+        Signal("Feedback given", str(votes_n), "Matching", lvl(votes_n, 1, 10)),
+    ]
+
+    # One nudge at a time, chosen by expected impact — highest-value field first.
+    nudge = None
+    if band != "thin":
+        if about_d < 3:
+            nudge = Nudge("your ‘about you’",
+                          "it's the biggest lever on match quality, and it's the voice your tailored CVs borrow",
+                          "/profile#you")
+        elif obj_d < 3:
+            nudge = Nudge("what you're looking for",
+                          "spell out what you don't want too, and borderline matches get sorted correctly",
+                          "/profile#you")
+        elif cv_n < 2:
+            nudge = Nudge("a second CV",
+                          "one framed for a different kind of role makes tailoring noticeably sharper",
+                          "/profile#documents")
+        elif cl_n < 1:
+            nudge = Nudge("a cover letter of your own",
+                          "add one and generated letters start to read like you wrote them",
+                          "/profile#documents")
+        elif not linkedin:
+            nudge = Nudge("your LinkedIn export",
+                          "it fills in history a one-page CV usually trims",
+                          "/profile#documents")
+        elif seeds_n < 5:
+            nudge = Nudge("companies you admire",
+                          "a few names pulls in roles from places like them",
+                          "/profile#targets")
+        elif votes_n < 10:
+            nudge = Nudge("your feedback",
+                          "thumbs-down the weak matches and the next run reflects it",
+                          "/search")
+
+    headline, consequence = BAND_COPY[band]
+    return Strength(band, headline, consequence, signals, nudge)
+
+
 # How the user wants to work. Drives which location tokens we generate.
 WORK_MODES = ["onsite", "hybrid", "remote"]
 
@@ -191,6 +354,41 @@ def build_location_tokens(
             seen.add(t.lower())
             out.append(t)
     return out
+
+
+# Preset groups for the country token field (F-03). Names must match COUNTRIES.
+COUNTRY_PRESETS: dict[str, list[str]] = {
+    "eu": ["Ireland", "Italy", "Germany", "France", "Spain", "Portugal",
+           "Netherlands", "Belgium", "Austria", "Poland", "Sweden", "Denmark",
+           "Finland", "Greece", "Romania", "Czechia"],
+    "uk-ie": ["United Kingdom", "Ireland"],
+    "north-america": ["United States", "Canada", "Mexico"],
+}
+
+
+def remote_anywhere_on(profile: Profile | None) -> bool:
+    return bool(profile and "Remote-Anywhere" in (profile.locations or []))
+
+
+def rebuild_locations(profile: Profile, remote_anywhere: bool | None = None) -> None:
+    """Recompute the engine location tokens from the structured fields.
+
+    The country token field owns geography and auto-saves via HTMX, so it must
+    keep `locations` in step on every change — completeness reads `locations`,
+    not `countries`. When `remote_anywhere` is left None we preserve whatever
+    the current tokens imply.
+    """
+    if remote_anywhere is None:
+        remote_anywhere = remote_anywhere_on(profile)
+    profile.locations = build_location_tokens(
+        profile.work_modes or [], profile.countries or [], remote_anywhere)
+
+
+def set_countries(profile: Profile, countries: list[str],
+                  remote_anywhere: bool | None = None) -> None:
+    """Replace the country list (validated, de-duplicated) and rebuild tokens."""
+    profile.countries = [c for c in dict.fromkeys(countries) if c in COUNTRIES]
+    rebuild_locations(profile, remote_anywhere)
 
 
 # --------------------------------------------------------------------------- #

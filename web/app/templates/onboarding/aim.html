@@ -1,0 +1,68 @@
+{% extends "onboarding/_step.html" %}
+{% block step %}
+<p class="lede muted">This is the one filter applied before any AI runs, so it's
+  worth getting right.</p>
+
+{# Countries own their own geography and auto-save, so the token field lives
+   outside the step form (a nested <form> would be invalid HTML). #}
+<div class="field">
+  <label id="countries-label">Countries</label>
+  <p class="small muted">Onsite and hybrid use these as your base. Remote uses them
+    as where you can legally work from.</p>
+  {% include "partials/country_field.html" %}
+</div>
+
+<form method="post" action="/onboarding/save/aim">
+  <div class="field">
+    <label>How do you want to work?</label>
+    <div class="checks">
+      {% for o in work_mode_options %}
+        <label><input type="checkbox" name="work_mode" value="{{ o }}"
+          {% if o in profile.work_modes %}checked{% endif %}> {{ o|capitalize }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Levels you'd genuinely consider</label>
+    <div class="checks">
+      {% for o in seniority_options %}
+        <label><input type="checkbox" name="seniority" value="{{ o }}"
+          {% if o in profile.seniority %}checked{% endif %}> {{ o }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Contract types you'd take</label>
+    <div class="checks">
+      {% for o in jobtype_options %}
+        <label><input type="checkbox" name="job_type" value="{{ o }}"
+          {% if o in profile.job_type %}checked{% endif %}> {{ o }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Sectors and company type <span class="muted small">— tap any that fit</span></label>
+    <div class="checks">
+      {% for o in vertical_options %}
+        <label><input type="checkbox" name="verticals" value="{{ o }}"
+          {% if o in profile.verticals %}checked{% endif %}> {{ o }}</label>
+      {% endfor %}
+    </div>
+    <div class="checks" style="margin-top:8px">
+      {% for o in company_options %}
+        <label><input type="checkbox" name="company_type" value="{{ o }}"
+          {% if o in profile.company_type %}checked{% endif %}> {{ o }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="onboard-actions">
+    <button class="btn" type="submit">Continue</button>
+    <a class="small muted" href="/onboarding/upload">Back</a>
+    <a class="small muted finish" href="/search">Save and finish later</a>
+  </div>
+</form>
+{% endblock %}
