@@ -11,9 +11,10 @@
 {% endif %}
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 <header class="bar">
   <a class="brand" href="/">JBHNTR</a>
-  <nav>
+  <nav aria-label="Main">
     {% if user %}
       <a href="/search">Search</a>
       <a href="/profile">Profile</a>
@@ -27,7 +28,7 @@
   </nav>
 </header>
 
-<main>
+<main id="main">
 {% block content %}{% endblock %}
 </main>
 

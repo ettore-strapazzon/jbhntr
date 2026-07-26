@@ -1,0 +1,19 @@
+{# Inline feedback control. Swapped in place by HTMX so a vote never reloads the
+   page or loses scroll position (F-09). The route returns this same partial for
+   HX requests. Needs: r (the JobResult), fb (the Feedback or None), config. #}
+<div id="vote-{{ r.id }}">
+  <form class="vote" method="post" action="/feedback/{{ r.id }}"
+        hx-post="/feedback/{{ r.id }}" hx-target="#vote-{{ r.id }}" hx-swap="outerHTML">
+    <span class="small muted">Good match?</span>
+    <button type="submit" name="vote" value="up" aria-label="Good match"
+      aria-pressed="{{ 'true' if fb and fb.vote == 'up' else 'false' }}"><span aria-hidden="true">👍</span> Good</button>
+    <button type="submit" name="vote" value="down" aria-label="Poor match"
+      aria-pressed="{{ 'true' if fb and fb.vote == 'down' else 'false' }}"><span aria-hidden="true">👎</span> Poor</button>
+    {% if fb %}
+      <input type="text" name="note" value="{{ fb.note or '' }}"
+        placeholder="Why? (optional, helps future searches)"
+        maxlength="{{ config.max_feedback_chars }}" style="flex:1;min-width:180px">
+      <span class="thanks" role="status">Saved — future searches will weigh this.</span>
+    {% endif %}
+  </form>
+</div>

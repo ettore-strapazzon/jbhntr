@@ -48,6 +48,7 @@ def _add_missing_columns() -> None:
         "jobs": {"last_checked_at": ("TIMESTAMP", ""),
                  "embedding": ("TEXT", ""),
                  "embedding_model": ("TEXT", "DEFAULT ''")},
+        "users": {"premium_requested_at": ("TIMESTAMP", "")},
     }
     insp = inspect(engine)
     tables = set(insp.get_table_names())

@@ -10,7 +10,8 @@ from ..auth import require_user
 from ..db import get_session
 from ..models import Material, Profile, SeedCompany, User
 from ..services.profile_service import (
-    COUNTRIES, WORK_MODES, build_location_tokens, completeness, split_list,
+    COUNTRIES, MIN_TEXT, WORK_MODES, build_location_tokens, completeness,
+    split_list, text_too_short,
 )
 from ..templating import templates
 from .onboarding import COMPANY_TYPES, JOB_TYPES, SENIORITY, VERTICALS
@@ -20,7 +21,7 @@ router = APIRouter()
 
 @router.get("/profile", response_class=HTMLResponse)
 def profile_page(request: Request, user: User = Depends(require_user),
-                 db: DbSession = Depends(get_session), saved: str = ""):
+                 db: DbSession = Depends(get_session), saved: str = "", error: str = ""):
     return templates.TemplateResponse(request, "profile.html", {
         "request": request, "user": user,
         "profile": user.profile or Profile(user_id=user.id),
@@ -30,7 +31,7 @@ def profile_page(request: Request, user: User = Depends(require_user),
         "seniority_options": SENIORITY, "company_options": COMPANY_TYPES,
         "vertical_options": VERTICALS, "jobtype_options": JOB_TYPES,
         "work_mode_options": WORK_MODES, "country_options": COUNTRIES,
-        "saved": saved,
+        "min_text": MIN_TEXT, "saved": saved, "error": error,
     })
 
 
@@ -38,6 +39,15 @@ def profile_page(request: Request, user: User = Depends(require_user),
 async def save_profile(request: Request, user: User = Depends(require_user),
                        db: DbSession = Depends(get_session)):
     form = await request.form()
+
+    # Don't save a too-short long-text answer silently — name the field (F-04).
+    for field in ("objective", "about_me"):
+        if text_too_short(form.get(field) or ""):
+            label = "What you're looking for" if field == "objective" else "About you"
+            return RedirectResponse(
+                f"/profile?error={label}+needs+at+least+{MIN_TEXT}+characters",
+                status_code=303)
+
     p = user.profile
     if p is None:
         p = Profile(user_id=user.id)

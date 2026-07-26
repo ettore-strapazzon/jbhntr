@@ -84,13 +84,14 @@ def status(search_id: int, request: Request, user: User = Depends(require_user),
 
 # --------------------------------------------------------------------------- #
 @router.post("/feedback/{result_id}")
-def feedback(result_id: int, vote: str = Form(...), note: str = Form(default=""),
+def feedback(result_id: int, request: Request,
+             vote: str = Form(...), note: str = Form(default=""),
              user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    is_htmx = request.headers.get("HX-Request") == "true"
     result = db.get(JobResult, result_id)
-    if not result or result.user_id != user.id:
-        return RedirectResponse("/search", status_code=303)
-    if vote not in ("up", "down"):
-        return RedirectResponse("/search", status_code=303)
+    if not result or result.user_id != user.id or vote not in ("up", "down"):
+        return HTMLResponse("", status_code=400) if is_htmx \
+            else RedirectResponse("/search", status_code=303)
 
     existing = (db.query(Feedback)
                   .filter(Feedback.user_id == user.id,
@@ -99,9 +100,16 @@ def feedback(result_id: int, vote: str = Form(...), note: str = Form(default="")
     note = (note or "")[: config.max_feedback_chars]
     if existing:
         existing.vote, existing.note = vote, note
+        fb = existing
     else:
-        db.add(Feedback(user_id=user.id, job_result_id=result_id, vote=vote, note=note))
+        fb = Feedback(user_id=user.id, job_result_id=result_id, vote=vote, note=note)
+        db.add(fb)
     db.commit()
+
+    # HTMX: swap just this card's vote control in place — no reload, no scroll loss.
+    if is_htmx:
+        return templates.TemplateResponse(request, "partials/vote.html",
+            {"request": request, "r": result, "fb": fb, "config": config})
     return RedirectResponse("/search", status_code=303)
 
 

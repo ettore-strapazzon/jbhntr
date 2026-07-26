@@ -51,6 +51,9 @@ class User(Base):
 
     tos_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     marketing_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Set when a free user asks for premium while checkout is "coming soon" —
+    # the flag the operator upgrades from manually (F-13).
+    premium_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 

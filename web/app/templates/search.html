@@ -2,7 +2,7 @@
 {% block title %}Search — JBHNTR{% endblock %}
 {% block content %}
 
-{% if error %}<div class="notice err">{{ error }}</div>{% endif %}
+{% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
 
 <div class="card">
   <h1>Job search</h1>
@@ -51,13 +51,15 @@
       </button>
     </form>
     {% if search and search.status == "failed" %}
-      <div class="notice err" style="margin-top:12px">
-        That search failed: {{ search.error }} — please try again.
+      <div class="notice err" role="alert" style="margin-top:12px">
+        <b>That search didn't finish.</b> This is usually temporary — try again.
+        {% if search.error %}
+          <details style="margin-top:6px"><summary class="small muted">Technical detail</summary>
+            <span class="small muted">{{ search.error }}</span></details>
+        {% endif %}
       </div>
     {% elif search and search.status == "done" and search.error %}
-      <div class="notice err" style="margin-top:12px">
-        {{ search.error }}
-      </div>
+      <div class="notice err" role="alert" style="margin-top:12px">{{ search.error }}</div>
     {% endif %}
   {% endif %}
 </div>
@@ -124,17 +126,24 @@
       {% endfor %}
     </div>
 
-    {# ---------- feedback ---------- #}
-    <form method="post" action="/feedback/{{ r.id }}" class="actions">
-      {% set fb = voted.get(r.id) %}
-      <button class="ghost" type="submit" name="vote" value="up"
-        {% if fb and fb.vote == 'up' %}style="background:var(--ok-bg)"{% endif %}>👍</button>
-      <button class="ghost" type="submit" name="vote" value="down"
-        {% if fb and fb.vote == 'down' %}style="background:var(--warn-bg)"{% endif %}>👎</button>
-      <input type="text" name="note" maxlength="{{ config.max_feedback_chars }}"
-             placeholder="Why? (optional, helps future searches)"
-             value="{{ fb.note if fb else '' }}" style="flex:1;min-width:200px">
-    </form>
+    {# ---------- feedback (inline, HTMX-swapped — see partials/vote.html) ---------- #}
+    {% set fb = voted.get(r.id) %}
+    <div id="vote-{{ r.id }}">
+      <form class="vote" method="post" action="/feedback/{{ r.id }}"
+            hx-post="/feedback/{{ r.id }}" hx-target="#vote-{{ r.id }}" hx-swap="outerHTML">
+        <span class="small muted">Good match?</span>
+        <button type="submit" name="vote" value="up" aria-label="Good match"
+          aria-pressed="{{ 'true' if fb and fb.vote == 'up' else 'false' }}"><span aria-hidden="true">👍</span> Good</button>
+        <button type="submit" name="vote" value="down" aria-label="Poor match"
+          aria-pressed="{{ 'true' if fb and fb.vote == 'down' else 'false' }}"><span aria-hidden="true">👎</span> Poor</button>
+        {% if fb %}
+          <input type="text" name="note" value="{{ fb.note or '' }}"
+            placeholder="Why? (optional, helps future searches)"
+            maxlength="{{ config.max_feedback_chars }}" style="flex:1;min-width:180px">
+          <span class="thanks" role="status">Saved — future searches will weigh this.</span>
+        {% endif %}
+      </form>
+    </div>
   </article>
 {% endmacro %}
 
@@ -155,11 +164,44 @@
 {% elif search and search.status == "done" %}
   <div class="card">
     {% if search.error %}
-      <p>No results to show — the search did not complete. See the message above.</p>
+      <p>No results to show — the search didn't finish. See the message above.</p>
     {% else %}
-      <p>No matches cleared the bar this time. Try widening your locations or
-        sectors on your <a href="/profile">profile</a>.</p>
+      <h2>No matches cleared the bar this time</h2>
+      <p class="muted">Nothing scored high enough to show. The usual causes, in order:</p>
+      <ul class="muted">
+        <li>Your <b>locations</b> are narrow — add a country or "remote".</li>
+        <li>A <b>salary floor</b> is excluding roles that don't state pay.</li>
+        <li>Your <b>sectors or seniority</b> are tighter than the market.</li>
+      </ul>
+      <div class="row" style="margin-top:12px">
+        <a class="btn ghost" href="/profile">Adjust my targets</a>
+        <form method="post" action="/search" style="margin:0">
+          <button type="submit" {% if searches_left is not none and searches_left <= 0 %}disabled{% endif %}>Try another search</button>
+        </form>
+      </div>
     {% endif %}
+  </div>
+
+{% elif not search and state.can_search %}
+  {# First run: profile is ready but no search has run yet — show what's coming. #}
+  <div class="card">
+    <h2>Your shortlist will look like this</h2>
+    <p class="muted">Each role scored against your profile, with the reasoning attached —
+      apply to the few worth it, skip the rest. Hit <b>Start a new search</b> above.</p>
+    <div class="job" aria-hidden="true" style="opacity:.75">
+      <div class="job-head">
+        <span class="score">88</span>
+        <span class="tier" style="background:var(--accent)">Excellent</span>
+        <div style="flex:1;min-width:240px">
+          <div><b>Example Company</b> <span class="muted small">· Milan (hybrid)</span></div>
+          <div><b>Senior Product Manager, Payments</b></div>
+        </div>
+      </div>
+      <div class="why">
+        <div class="good"><b>Why it fits</b><br>Payments depth and B2B SaaS line up with the core of the role.</div>
+        <div class="bad"><b>Why it might not</b><br>They ask for team leadership at scale; your last role was an IC.</div>
+      </div>
+    </div>
   </div>
 {% endif %}
 {% endblock %}

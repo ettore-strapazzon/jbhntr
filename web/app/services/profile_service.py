@@ -17,6 +17,20 @@ from jobhunter.config import Profile as EngineProfile
 from ..config import config
 from ..models import Material, Profile, SeedCompany, User
 
+# A long-text answer must reach this length to count as filled — a token reply
+# ("PM roles") carries no signal. The rule is now stated in the UI and enforced
+# by `minlength`; this constant is the single source of truth (F-04).
+MIN_TEXT = 30
+
+
+def text_too_short(value: str) -> bool:
+    """True if a non-empty long-text answer is below the minimum. Empty is not
+    'too short' — that's just an unfilled optional/required field handled by
+    completeness; this catches the silent 'saved but doesn't count' case."""
+    v = (value or "").strip()
+    return 0 < len(v) < MIN_TEXT
+
+
 # Field → (label shown to the user, is it required?)
 FIELDS: dict[str, tuple[str, bool]] = {
     "cv":           ("At least one CV",            True),
@@ -59,7 +73,7 @@ def _present(db: Session, user: User) -> dict[str, bool]:
     def filled(attr: str) -> bool:
         val = getattr(profile, attr, None) if profile else None
         if isinstance(val, str):
-            return len(val.strip()) >= 30  # a token answer isn't an answer
+            return len(val.strip()) >= MIN_TEXT  # a token answer isn't an answer
         return bool(val)
 
     return {

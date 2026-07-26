@@ -4,9 +4,10 @@
   and to write in your voice — it's the difference between generic and sharp matching.</p>
 <form method="post" action="/onboarding/save/about">
   <label for="about_me">About you</label>
-  <textarea id="about_me" name="about_me" required style="min-height:220px"
+  <textarea id="about_me" name="about_me" required minlength="30" style="min-height:220px"
+    aria-describedby="about-hint"
     placeholder="Your story so far. What you're proud of. How you like to work. What you want more of, and less of. Anything a CV can't show — a career change, a gap, languages, visa situation.">{{ profile.about_me }}</textarea>
-  <p class="small muted">A few honest paragraphs beat a polished one-liner.</p>
+  <span id="about-hint" class="hint">A few honest paragraphs beat a polished one-liner — 30 characters minimum.</span>
   <p><button type="submit">Save &amp; continue →</button></p>
 </form>
 {% endblock %}

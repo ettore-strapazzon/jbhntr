@@ -10,12 +10,13 @@
 
 <div class="card">
   <h2>What you get</h2>
+  {# COPY: outcome-framed — rewrite in your own voice before launch. #}
   <ul>
-    <li><b>Unlimited searches</b> — fair use {{ config.premium_searches_per_day }}/day
-      (free accounts get {{ config.free_searches }} in total)</li>
-    <li><b>Unlimited tailored CVs and cover letters</b>, downloaded instantly
-      (free accounts get {{ config.free_documents }})</li>
-    <li><b>Higher-quality matching model</b> for sharper scoring</li>
+    <li><b>A fresh shortlist every morning</b>, not {{ config.free_searches }} searches and then a wall
+      (fair use {{ config.premium_searches_per_day }}/day)</li>
+    <li><b>A tailored CV and cover letter in seconds</b>, for every role worth it —
+      free accounts get {{ config.free_documents }} in total</li>
+    <li><b>Sharper matching</b>, so the top of your list is worth your time</li>
   </ul>
 </div>
 
@@ -29,19 +30,26 @@
           <input type="hidden" name="months" value="{{ plan.months }}">
           <button type="submit">Choose</button>
         </form>
+      {% elif user.premium_requested_at %}
+        <button class="ghost" disabled>Requested ✓</button>
       {% else %}
-        <button disabled>Coming soon</button>
+        <form method="post" action="/premium/notify">
+          <button type="submit">Notify me — and turn it on now</button>
+        </form>
       {% endif %}
     </div>
   {% endfor %}
 </div>
 
-{% if not config.payments_enabled %}
+{% if requested or user.premium_requested_at %}
+  <div class="notice ok" role="status">
+    <b>Got it.</b> Checkout is still being finished, but we've flagged your account —
+    we'll turn premium on for you and let you know. Thanks for the nudge.
+  </div>
+{% elif not config.payments_enabled %}
   <div class="notice warn">
-    <b>Payments are coming soon.</b> We're finishing checkout — in the meantime
-    every account keeps its free allowance. Want early access?
-    <a href="mailto:{{ config.support_email }}">Email us</a> and we'll turn premium
-    on for you manually.
+    <b>Checkout is coming soon.</b> Tap <b>Notify me</b> above and we'll turn premium
+    on for you manually in the meantime — no card needed yet.
   </div>
 {% endif %}
 {% endblock %}

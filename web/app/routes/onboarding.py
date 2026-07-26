@@ -12,7 +12,8 @@ from ..db import get_session
 from ..models import Material, Profile, SeedCompany, User
 from ..security import UploadError, encrypt_bytes, extract_text, validate_upload
 from ..services.profile_service import (
-    COUNTRIES, WORK_MODES, build_location_tokens, completeness, split_list,
+    COUNTRIES, MIN_TEXT, WORK_MODES, build_location_tokens, completeness,
+    split_list, text_too_short,
 )
 from ..templating import templates
 
@@ -150,8 +151,14 @@ def save_step(
     p = _profile(db, user)
 
     if step == "about":
+        if text_too_short(about_me):
+            return _render(request, "about", db, user,
+                           error=f"A sentence or two, please — at least {MIN_TEXT} characters.")
         p.about_me = about_me.strip()[:20_000]
     elif step == "objective":
+        if text_too_short(objective):
+            return _render(request, "objective", db, user,
+                           error=f"A sentence or two, please — at least {MIN_TEXT} characters.")
         p.objective = objective.strip()[:10_000]
     elif step == "terms":
         p.search_terms = [t.strip() for t in search_terms.splitlines() if t.strip()][:15]

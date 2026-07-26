@@ -19,8 +19,21 @@ router = APIRouter()
 
 
 @router.get("/premium", response_class=HTMLResponse)
-def premium(request: Request, user: User = Depends(require_user)):
-    return templates.TemplateResponse(request, "premium.html", {"request": request, "user": user})
+def premium(request: Request, user: User = Depends(require_user), requested: str = ""):
+    return templates.TemplateResponse(request, "premium.html",
+        {"request": request, "user": user, "requested": requested})
+
+
+@router.post("/premium/notify")
+def premium_notify(user: User = Depends(require_user),
+                   db: DbSession = Depends(get_session)):
+    """Capture premium intent while checkout is 'coming soon' (F-13). Records a
+    flag the operator can upgrade from manually, instead of a dead-end button."""
+    from ..models import utcnow
+    if not user.premium_requested_at:
+        user.premium_requested_at = utcnow()
+        db.commit()
+    return RedirectResponse("/premium?requested=1", status_code=303)
 
 
 # --------------------------------------------------------------------------- #

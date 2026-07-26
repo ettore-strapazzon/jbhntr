@@ -2,7 +2,8 @@
 {% block title %}Profile — JBHNTR{% endblock %}
 {% block content %}
 <h1>Your profile</h1>
-{% if saved %}<div class="notice ok">Saved.</div>{% endif %}
+{% if saved %}<div class="notice ok" role="status">Saved.</div>{% endif %}
+{% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
 
 <div class="card">
   <div class="row" style="justify-content:space-between">
@@ -52,10 +53,14 @@
   <div class="card">
     <h2>What you want</h2>
     <label for="objective">Your objective <span class="muted small">(required)</span></label>
-    <textarea id="objective" name="objective" required>{{ profile.objective }}</textarea>
+    <textarea id="objective" name="objective" required minlength="30"
+      aria-describedby="p-objective-hint">{{ profile.objective }}</textarea>
+    <span id="p-objective-hint" class="hint">A sentence or two — {{ min_text or 30 }} characters minimum.</span>
 
     <label for="about_me">About you <span class="muted small">(required)</span></label>
-    <textarea id="about_me" name="about_me" required>{{ profile.about_me }}</textarea>
+    <textarea id="about_me" name="about_me" required minlength="30"
+      aria-describedby="p-about-hint">{{ profile.about_me }}</textarea>
+    <span id="p-about-hint" class="hint">A few honest paragraphs — {{ min_text or 30 }} characters minimum.</span>
     <p class="small muted">Your story, strengths, working style, constraints — anything a CV can't show.</p>
   </div>
 

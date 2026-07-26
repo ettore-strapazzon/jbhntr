@@ -39,6 +39,72 @@ def signup(client, email="a@example.com", password="Sup3rSecret!x"):
     }, follow_redirects=False)
 
 
+# --------------------------- design phase A ------------------------------- #
+def test_text_too_short_helper():
+    from web.app.services.profile_service import MIN_TEXT, text_too_short
+    assert text_too_short("x" * (MIN_TEXT - 1)) is True
+    assert text_too_short("x" * MIN_TEXT) is False
+    assert text_too_short("") is False          # empty isn't "too short"
+    assert text_too_short("   ") is False
+
+
+def test_f04_short_objective_is_rejected_not_saved_silently(client):
+    signup(client, email="f04@example.com")
+    r = client.post("/profile", data={"objective": "x" * 29, "about_me": "y" * 40},
+                    follow_redirects=False)
+    assert r.status_code == 303 and "error=" in r.headers["location"]
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="f04@example.com").one()
+        assert not (u.profile and u.profile.objective)   # never saved
+    finally:
+        db.close()
+
+
+def test_f09_feedback_htmx_returns_partial_else_redirects(client):
+    signup(client, email="f09@example.com")
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, Search, User
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="f09@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="z",
+                       tier=2, title="Role", company="Co")
+        db.add(jr); db.commit(); rid = jr.id
+    finally:
+        db.close()
+
+    r = client.post(f"/feedback/{rid}", data={"vote": "up"},
+                    headers={"HX-Request": "true"}, follow_redirects=False)
+    assert r.status_code == 200
+    assert f"vote-{rid}" in r.text and 'value="up" aria-label="Good match"' in r.text
+    assert 'aria-pressed="true"' in r.text       # the vote is reflected
+
+    r2 = client.post(f"/feedback/{rid}", data={"vote": "down"}, follow_redirects=False)
+    assert r2.status_code == 303                 # non-HTMX keeps the redirect
+
+
+def test_f13_premium_notify_records_intent(client):
+    signup(client, email="f13@example.com")
+    r = client.post("/premium/notify", follow_redirects=False)
+    assert r.status_code == 303 and "requested=1" in r.headers["location"]
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    db = SessionLocal()
+    try:
+        assert db.query(User).filter_by(email="f13@example.com").one().premium_requested_at
+    finally:
+        db.close()
+
+
+def test_f11_skip_link_and_focus_style_present(client):
+    assert 'class="skip-link"' in client.get("/").text
+    assert ":focus-visible" in client.get("/static/app.css").text
+
+
 # ------------------------------- public ---------------------------------- #
 def test_landing_page_is_public(client):
     r = client.get("/")
@@ -132,8 +198,9 @@ def test_user_text_is_html_escaped(client):
     """Autoescaping must neutralise script tags typed into a form."""
     signup(client, "xss@example.com")
     client.post("/profile", data={
-        "objective": "<script>alert(1)</script>", "about_me": "x" * 40,
-        "locations": "Milan",
+        # ≥30 chars (passes the F-04 minimum) and carries the payload.
+        "objective": "<script>alert(1)</script> a role in fintech operations",
+        "about_me": "x" * 40, "locations": "Milan",
     })
     page = client.get("/profile").text
     assert "<script>alert(1)</script>" not in page
