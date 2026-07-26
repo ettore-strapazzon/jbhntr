@@ -16,7 +16,8 @@
   <a class="brand" href="/">JBHNTR</a>
   <nav aria-label="Main">
     {% if user %}
-      <a href="/search">Search</a>
+      <a href="/matches">Matches</a>
+      <a href="/applications">Applications</a>
       <a href="/profile">Profile</a>
       <a href="/premium" class="pill">{% if user.is_premium %}Premium{% else %}{{ user.searches_remaining(config.free_searches) }} searches left{% endif %}</a>
       <a href="/account">Account</a>

@@ -13,7 +13,8 @@ from .config import ROOT, config
 from .db import SessionLocal, init_db
 from .models import PageView
 from .routes import (
-    account, auth_routes, fields, job, legal, onboarding, profile, search,
+    account, applications, auth_routes, fields, job, legal, matches,
+    onboarding, profile, search,
 )
 from .templating import templates
 
@@ -89,6 +90,8 @@ app.include_router(auth_routes.router)
 app.include_router(onboarding.router)
 app.include_router(fields.router)
 app.include_router(profile.router)
+app.include_router(matches.router)
+app.include_router(applications.router)
 app.include_router(search.router)
 app.include_router(job.router)
 app.include_router(account.router)
@@ -104,7 +107,7 @@ def home(request: Request):
     try:
         user = current_user(request, db)
         if user:
-            return RedirectResponse("/search", status_code=303)
+            return RedirectResponse("/matches", status_code=303)
         return templates.TemplateResponse(request, "landing.html", {"request": request, "config": config})
     finally:
         db.close()

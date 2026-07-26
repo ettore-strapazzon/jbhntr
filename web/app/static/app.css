@@ -79,6 +79,40 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .or-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:13px}
 .or-divider::before,.or-divider::after{content:"";flex:1;height:1px;background:var(--line)}
 
+/* applications table (§11.10) */
+.tablewrap{overflow-x:auto}
+.apptable{width:100%;border-collapse:collapse;font-size:14px;margin-top:12px}
+.apptable th{text-align:left;font:700 10px/1.4 var(--mono);letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);border-bottom:1.5px solid var(--ink);padding:8px 10px 8px 0}
+.apptable td{border-bottom:1px solid var(--line);padding:12px 10px 12px 0;vertical-align:top}
+.statusform{display:flex;gap:6px;align-items:center;margin:0}
+.statusform select{width:auto;min-height:40px;padding:6px 8px}
+
+/* matches surface (§11.5) */
+.matches-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.matches-head h1{margin-bottom:2px}
+.matches-run{display:flex;flex-direction:column;align-items:flex-end;gap:6px;text-align:right}
+.strengthline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;
+  border:1px solid var(--line);border-radius:var(--r-card);padding:10px 14px;margin:14px 0}
+.strengthline .dot{width:10px;height:10px;border-radius:99px;background:var(--warn);flex:0 0 10px}
+.strengthline.band-thin .dot{background:var(--err)} .strengthline.band-basic .dot{background:#b05a00}
+.filterbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;
+  position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
+  padding:10px 0;margin:14px 0}
+.filter-facets,.filter-sort{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filter-sort select,.filterbar select{min-height:40px;width:auto;padding:6px 10px}
+.fchip{display:inline-flex;align-items:center;gap:6px;font-weight:400;margin:0;min-height:40px;
+  border:1px solid var(--line);padding:6px 12px;border-radius:var(--r-chip);background:#fff;cursor:pointer;font-size:13px}
+.fchip input{width:auto;margin:0}
+.grouplabel{font:700 12px/1.4 var(--mono);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:6px;margin:24px 0 12px;
+  position:sticky;top:52px;background:var(--bg);z-index:4}
+.emptybox{border:1px solid var(--line);border-radius:var(--r-card);padding:24px;margin-top:16px;text-align:center}
+.emptybox .job{text-align:left;max-width:520px;margin:16px auto 0}
+.runselect{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:24px;
+  border-top:1px solid var(--line);padding-top:14px}
+.runselect select{width:auto;min-height:40px;padding:6px 10px}
+
 /* profile strength block (§5.5 / §11.9) */
 .strength{border:1px solid var(--line);border-radius:var(--r-card);padding:16px 18px;margin-bottom:18px}
 .bandbar{display:flex;gap:4px;margin-bottom:10px}
@@ -218,6 +252,7 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .statebadge{font:700 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;
   padding:5px 8px;border-radius:var(--r-chip);align-self:center}
 .statebadge.saved{background:var(--ok-bg);color:var(--accent);border:1px solid #c9e3d6}
+.statebadge.new{background:var(--ink);color:#fff}
 .statebadge.applied{background:#eef2ff;color:#2b3b7a;border:1px solid #c9d4f3}
 .job.is-applied{opacity:.85}
 .btn.on,button.on,.btn.ghost.on{background:var(--ok-bg);border-color:#c9e3d6;color:var(--accent)}

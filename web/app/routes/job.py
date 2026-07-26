@@ -96,3 +96,13 @@ def unapplied(result_id: int, request: Request, user: User = Depends(require_use
               db: DbSession = Depends(get_session)):
     return _act(request, db, user, result_id,
                 lambda r: job_state.set_applied(db, user.id, r.dedup_key, False))
+
+
+@router.post("/{result_id}/status")
+def set_status(result_id: int, status: str = Form(...),
+               user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    """Update the application status from the Applications table (§11.10)."""
+    r = _result(db, user, result_id)
+    if r:
+        job_state.set_application_status(db, user.id, r.dedup_key, status)
+    return RedirectResponse("/applications", status_code=303)

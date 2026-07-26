@@ -181,4 +181,4 @@ async def save_words(
     p.objective = objective.strip()[:10_000]
     p.about_me = about_me.strip()[:20_000]
     db.commit()
-    return RedirectResponse("/search", status_code=303)
+    return RedirectResponse("/matches", status_code=303)

@@ -97,7 +97,7 @@ def do_login(
 
     clear_attempts(key)
     session = login(db, user)
-    response = RedirectResponse("/search", status_code=303)
+    response = RedirectResponse("/matches", status_code=303)
     set_cookie(response, session.token)
     return response
 
@@ -170,7 +170,7 @@ async def google_callback(request: Request, db: DbSession = Depends(get_session)
             user = create_user(db, email, google_sub=sub)
 
     session = login(db, user)
-    destination = "/search" if user.profile and user.profile.objective else "/onboarding"
+    destination = "/matches" if user.profile and user.profile.objective else "/onboarding"
     response = RedirectResponse(destination, status_code=303)
     set_cookie(response, session.token)
     return response

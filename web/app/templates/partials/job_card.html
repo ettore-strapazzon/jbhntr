@@ -24,6 +24,7 @@
     <div class="job-head">
       <span class="score">{{ r.score }}<span class="muted small">/100</span></span>
       <span class="tier tier-{{ r.tier }}">{{ r.tier_label }}</span>
+      {% if is_new %}<span class="statebadge new">New</span>{% endif %}
       {% if applied %}<span class="statebadge applied">Applied{% if st.applied_at %} {{ st.applied_at.strftime("%d %b") }}{% endif %}</span>{% endif %}
       {% if saved %}<span class="statebadge saved">Saved</span>{% endif %}
       <div style="flex:1;min-width:240px">

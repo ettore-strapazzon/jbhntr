@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Applications — JBHNTR{% endblock %}
+{% block content %}
+<h1>Applications</h1>
+<p class="muted">Everything you marked as applied, with the documents you sent.</p>
+
+{% if not rows %}
+  <section class="emptybox">
+    <p class="muted">Nothing yet. Mark a match as applied and it lands here with its
+      CV and cover letter attached.</p>
+    <p><a class="btn ghost" href="/matches">Back to your shortlist</a></p>
+  </section>
+{% else %}
+  <div class="tablewrap">
+    <table class="apptable">
+      <thead>
+        <tr><th>Role</th><th>Applied</th><th>Status</th><th>Documents</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>
+              <b>{{ row.r.title }}</b><br>
+              <span class="muted small">{{ row.r.company }}{% if row.r.location %} · {{ row.r.location }}{% endif %}</span>
+            </td>
+            <td class="small">{{ row.st.applied_at.strftime("%d %b %Y") }}</td>
+            <td>
+              <form method="post" action="/job/{{ row.r.id }}/status" class="statusform">
+                <select name="status" aria-label="Application status">
+                  {% for s in statuses %}
+                    <option value="{{ s }}" {% if s == row.st.application_status %}selected{% endif %}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+                <button class="ghost" type="submit">Update</button>
+              </form>
+            </td>
+            <td class="small">
+              {% if "cv" in row.docs %}<a href="/document/{{ row.r.id }}/cv">CV</a>{% endif %}
+              {% if "cv" in row.docs and "cl" in row.docs %} · {% endif %}
+              {% if "cl" in row.docs %}<a href="/document/{{ row.r.id }}/cl">Cover letter</a>{% endif %}
+              {% if not row.docs %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="small">
+              {% if row.r.apply_url %}<a href="{{ row.r.apply_url }}" target="_blank" rel="noopener noreferrer">Open</a>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+{% endblock %}

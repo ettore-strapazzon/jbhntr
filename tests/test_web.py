@@ -191,6 +191,76 @@ def test_signup_puts_google_above_email(client):
     assert page.index("Continue with Google") < page.index('name="email"')
 
 
+# --------------------------- design phase D ------------------------------- #
+def _seed_run(db, user_id, results, hours_ago=0):
+    """results: list of (dedup_key, tier, score, title). Runs are staggered by
+    an explicit timestamp so the "new since" cutoff is unambiguous (real runs
+    are minutes/hours apart; SQLite's second resolution isn't)."""
+    from datetime import timedelta
+    from web.app.models import JobResult, Search, utcnow
+    when = utcnow() - timedelta(hours=hours_ago)
+    s = Search(user_id=user_id, status="done", raw_count=1000,
+               scored_count=len(results), started_at=when, finished_at=when)
+    db.add(s); db.flush()
+    for i, (key, tier, score, title) in enumerate(results, 1):
+        db.add(JobResult(search_id=s.id, user_id=user_id, position=i, short_id=key[:8],
+                         dedup_key=key, tier=tier, tier_label="t", score=score,
+                         title=title, company="Co", source="greenhouse", created_at=when))
+    db.commit()
+    return s
+
+
+def test_matches_accumulate_across_runs(client):
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    signup(client, "acc@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="acc@example.com").first()
+    _seed_run(db, u.id, [("jobA", 1, 90, "Role A")], hours_ago=2)
+    _seed_run(db, u.id, [("jobA", 1, 91, "Role A"), ("jobB", 2, 84, "Role B")], hours_ago=0)
+    page = client.get("/matches").text
+    assert "Role A" in page and "Role B" in page          # run 1's job survived run 2
+    assert page.count(">New<") == 1                        # only jobB is new this run
+
+
+def test_saved_and_dismissed_change_the_matches_list(client):
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, User
+    signup(client, "state@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="state@example.com").first()
+    _seed_run(db, u.id, [("d1", 1, 90, "Keeper"), ("d2", 2, 80, "Gone")])
+    keeper = db.query(JobResult).filter_by(dedup_key="d1").first().id
+    rid = db.query(JobResult).filter_by(dedup_key="d2").first().id
+    client.post(f"/job/{rid}/dismiss", headers={"HX-Request": "true"})
+    assert "Gone" not in client.get("/matches").text       # dismissed drops out
+    assert "Keeper" in client.get("/matches").text         # the other stays
+    client.post(f"/job/{keeper}/save", headers={"HX-Request": "true"})
+    assert "Keeper" in client.get("/matches?saved=1").text  # saved-only shows saved
+
+
+def test_applied_appears_in_applications(client):
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, User
+    signup(client, "app@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="app@example.com").first()
+    _seed_run(db, u.id, [("ap1", 1, 90, "Applied Role")])
+    rid = db.query(JobResult).filter_by(dedup_key="ap1").first().id
+    client.post(f"/job/{rid}/applied", headers={"HX-Request": "true"})
+    assert "Applied Role" in client.get("/applications").text
+    assert "Applied Role" not in client.get("/matches").text   # moved out of Matches
+    client.post(f"/job/{rid}/status", data={"status": "Interviewing"})
+    assert 'value="Interviewing" selected' in client.get("/applications").text
+
+
+def test_search_url_redirects_to_matches(client):
+    signup(client, "redir@example.com")
+    r = client.get("/search", follow_redirects=False)
+    assert r.status_code in (302, 307)
+    assert r.headers["location"] == "/matches"
+
+
 # ------------------------------- public ---------------------------------- #
 def test_landing_page_is_public(client):
     r = client.get("/")
@@ -294,7 +364,7 @@ def test_user_text_is_html_escaped(client):
 
 
 def test_protected_pages_redirect_when_logged_out(client):
-    for path in ("/search", "/profile", "/account", "/onboarding"):
+    for path in ("/matches", "/profile", "/account", "/onboarding"):
         r = client.get(path, follow_redirects=False)
         assert r.status_code in (303, 307), path
         assert "/login" in r.headers.get("location", "")

@@ -20,42 +20,13 @@ log = logging.getLogger("jbhntr.search")
 router = APIRouter()
 
 
-def _latest(db: DbSession, user: User) -> Search | None:
-    return (db.query(Search)
-              .filter(Search.user_id == user.id)
-              .order_by(Search.started_at.desc())
-              .first())
+from urllib.parse import quote
 
 
-@router.get("/search", response_class=HTMLResponse)
-def search_page(request: Request, user: User = Depends(require_user),
-                db: DbSession = Depends(get_session), error: str = ""):
-    state = completeness(db, user)
-    search = _latest(db, user)
-    results = []
-    if search and search.status == "done":
-        results = (db.query(JobResult)
-                     .filter(JobResult.search_id == search.id)
-                     .order_by(JobResult.position)
-                     .all())
-
-    voted = {
-        f.job_result_id: f
-        for f in db.query(Feedback).filter(Feedback.user_id == user.id)
-    }
-    docs = {
-        (d.job_result_id, d.kind)
-        for d in db.query(Document).filter(Document.user_id == user.id)
-    }
-
-    return templates.TemplateResponse(request, "search.html", {
-        "request": request, "user": user, "state": state,
-        "search": search, "results": results, "voted": voted, "docs": docs,
-        "searches_left": user.searches_remaining(config.free_searches),
-        "docs_left": None if user.is_premium
-                     else max(0, config.free_documents - user.documents_used),
-        "error": error,
-    })
+@router.get("/search")
+def search_redirect():
+    """The page moved to /matches; keep the old URL working."""
+    return RedirectResponse("/matches", status_code=307)
 
 
 @router.post("/search")
@@ -64,8 +35,8 @@ def run_search(request: Request, user: User = Depends(require_user),
     try:
         start_search(db, user)
     except QuotaError as exc:
-        return search_page(request, user, db, error=str(exc))
-    return RedirectResponse("/search", status_code=303)
+        return RedirectResponse(f"/matches?error={quote(str(exc))}", status_code=303)
+    return RedirectResponse("/matches", status_code=303)
 
 
 @router.get("/search/{search_id}/status", response_class=HTMLResponse)
@@ -77,7 +48,7 @@ def status(search_id: int, request: Request, user: User = Depends(require_user),
         return HTMLResponse("", status_code=404)
     if search.status in ("done", "failed"):
         # Tell HTMX to reload the page so results render.
-        return HTMLResponse('<div hx-get="/search" hx-target="body" hx-trigger="load"></div>')
+        return HTMLResponse('<div hx-get="/matches" hx-target="body" hx-trigger="load"></div>')
     return templates.TemplateResponse(request, "partials/progress.html", {"request": request, "search": search}
     )
 
@@ -91,7 +62,7 @@ def feedback(result_id: int, request: Request,
     result = db.get(JobResult, result_id)
     if not result or result.user_id != user.id or vote not in ("up", "down"):
         return HTMLResponse("", status_code=400) if is_htmx \
-            else RedirectResponse("/search", status_code=303)
+            else RedirectResponse("/matches", status_code=303)
 
     existing = (db.query(Feedback)
                   .filter(Feedback.user_id == user.id,
@@ -119,16 +90,17 @@ def generate(result_id: int, kind: str, request: Request,
              user: User = Depends(require_user), db: DbSession = Depends(get_session)):
     """Write a tailored CV or cover letter for one job."""
     if kind not in ("cv", "cl"):
-        return RedirectResponse("/search", status_code=303)
+        return RedirectResponse("/matches", status_code=303)
 
     result = db.get(JobResult, result_id)
     if not result or result.user_id != user.id:
-        return RedirectResponse("/search", status_code=303)
+        return RedirectResponse("/matches", status_code=303)
 
     # Free allowance is checked server-side; the greyed-out button is only a hint.
     if not user.is_premium and user.documents_used >= config.free_documents:
-        return search_page(request, user, db,
-                           error="You've used your free documents. Upgrade for unlimited.")
+        return RedirectResponse(
+            "/matches?error=" + quote("You've used your free documents. Premium is unlimited."),
+            status_code=303)
 
     from jobhunter.config import Settings as EngineSettings
     from jobhunter.generator import Generator
@@ -150,13 +122,16 @@ def generate(result_id: int, kind: str, request: Request,
         )
     except Exception as exc:
         log.exception("Document generation failed")
-        return search_page(request, user, db,
-                           error=f"Couldn't generate that document: {exc}")
+        return RedirectResponse(
+            "/matches?error=" + quote(f"Couldn't generate that document: {exc}"),
+            status_code=303)
 
     docs = ranked[0].documents or {}
     content = docs.get("cv" if kind == "cv" else "cover_letter", "")
     if not content:
-        return search_page(request, user, db, error="Generation returned nothing. Try again.")
+        return RedirectResponse(
+            "/matches?error=" + quote("Generation returned nothing. Try again."),
+            status_code=303)
 
     db.add(Document(user_id=user.id, job_result_id=result.id, kind=kind, content=content))
     if not user.is_premium:
@@ -175,7 +150,7 @@ def download(result_id: int, kind: str, user: User = Depends(require_user),
              .order_by(Document.created_at.desc())
              .first())
     if not doc:
-        return RedirectResponse("/search", status_code=303)
+        return RedirectResponse("/matches", status_code=303)
 
     result = db.get(JobResult, result_id)
     stem = "CV" if kind == "cv" else "CoverLetter"

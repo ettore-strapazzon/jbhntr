@@ -267,7 +267,7 @@ def strength(db: Session, user: User) -> Strength:
         elif votes_n < 10:
             nudge = Nudge("your feedback",
                           "thumbs-down the weak matches and the next run reflects it",
-                          "/search")
+                          "/matches")
 
     headline, consequence = BAND_COPY[band]
     return Strength(band, headline, consequence, signals, nudge)
