@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .config import ROOT, config
 from .db import SessionLocal, init_db
@@ -39,6 +40,12 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="JBHNTR", docs_url=None, redoc_url=None, openapi_url=None,
               lifespan=lifespan)
+
+# Behind Cloudflare + Railway the request reaches us over http; trust the
+# X-Forwarded-Proto/For headers so request.url is https. Without this, the OAuth
+# callback reconstructs an http:// redirect_uri and Google rejects the token
+# exchange ("redirect_uri mismatch"), and secure cookies misbehave.
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Needed by Authlib to hold the OAuth `state` across the Google round-trip.
 # Separate from our own login cookie; short-lived and lax so the cookie survives
