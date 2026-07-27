@@ -136,7 +136,9 @@ class Search(Base):
     status: Mapped[str] = mapped_column(String(16), default="queued")
     # queued | running | done | failed
     stage: Mapped[str] = mapped_column(String(64), default="")  # human-readable progress
-    raw_count: Mapped[int] = mapped_column(Integer, default=0)
+    raw_count: Mapped[int] = mapped_column(Integer, default=0)       # postings collected
+    located_count: Mapped[int] = mapped_column(Integer, default=0)   # in your countries
+    ranked_count: Mapped[int] = mapped_column(Integer, default=0)    # shortlisted to score
     scored_count: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str] = mapped_column(Text, default="")
     # "Email me when it's ready" (§11.6) — the worker emails on completion if set.

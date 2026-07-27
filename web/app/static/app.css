@@ -228,6 +228,8 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .stage i{width:9px;height:9px;border-radius:99px;background:var(--line);flex:0 0 9px}
 .stage.done{color:var(--ink)} .stage.done i{background:var(--accent)}
 .stage.on{color:var(--ink);font-weight:600} .stage.on i{background:var(--accent);animation:pulse 1s infinite}
+.stage-n{font:600 11px/1 var(--mono);color:var(--muted);letter-spacing:.02em}
+.stage.done .stage-n,.stage.on .stage-n{color:var(--ink)}
 @keyframes pulse{50%{opacity:.35}}
 
 /* job results */

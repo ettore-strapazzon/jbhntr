@@ -6,10 +6,15 @@
   <div class="notice ok">
     <b>Search running…</b> {{ search.stage or "Starting" }}
     {% if search.raw_count %}<span class="small muted"> · {{ search.raw_count }} postings reviewed</span>{% endif %}
+    {% set counts = [search.raw_count, search.located_count, search.ranked_count, search.ranked_count] %}
+    {% set units = ["postings", "in your countries", "shortlisted", "to score"] %}
     <div class="stage-rail" style="margin-top:10px">
       {% for label in ["Collecting", "Filtering by location", "Ranking by meaning", "Scoring the shortlist"] %}
         <div class="stage {% if loop.index0 < active %}done{% elif loop.index0 == active %}on{% endif %}">
           <i></i><span>{{ label }}</span>
+          {% if counts[loop.index0] and loop.index0 <= active %}
+            <span class="stage-n">{{ "{:,}".format(counts[loop.index0]) }} {{ units[loop.index0] }}</span>
+          {% endif %}
         </div>
       {% endfor %}
     </div>

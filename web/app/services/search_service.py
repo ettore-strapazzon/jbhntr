@@ -145,15 +145,19 @@ def _run_search(search_id: int, user_id: int) -> None:
             for job in raw:
                 if prefilter(job, profile):
                     unique.setdefault(job.dedup_key(), job)
+            located = len(unique)
+            _set(db, search, raw_count=scanned, located_count=located,
+                 stage=f"Filtering {located} jobs to your locations…")
             jobs = cap_per_company(list(unique.values()), terms=terms)
             if len(jobs) > 40:
                 _set(db, search, stage=f"Shortlisting {len(jobs)} jobs…")
                 jobs = matcher.triage(jobs, profile, candidate, company_profile)
         else:
+            located = len(jobs)   # the corpus already filtered by location
             log.info("Search %s: corpus mode (%d scanned -> %d to score)",
                      search.id, scanned, len(jobs))
 
-        _set(db, search, raw_count=scanned)
+        _set(db, search, raw_count=scanned, located_count=located, ranked_count=len(jobs))
 
         _set(db, search, stage=f"Scoring {len(jobs)} jobs in detail…")
         _enrich(jobs)
