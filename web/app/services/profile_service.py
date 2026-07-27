@@ -123,23 +123,24 @@ def completeness(db: Session, user: User) -> Completeness:
 OBJECTIVE_TARGET = 400
 ABOUT_TARGET = 600
 
-# Four depth labels for a single long-text field, low → high (§11.4).
-DEPTH_LABELS = [
-    "Too short to be useful",
-    "Enough to search with",
-    "Good — the matcher has something to work with",
-    "Strong — this is what makes matches personal",
-]
+# Depth labels for one long-text field. Level 0 (empty) says nothing at all,
+# so an untouched field is never scolded (R5.5).
+DEPTH_LABELS = {
+    0: "",
+    1: "A start. Two or three paragraphs is where this gets useful.",
+    2: "Good. More detail here still improves the matching.",
+    3: "Strong. This is enough for the model to work with.",
+}
 
 
 def text_depth(value: str, target: int) -> int:
-    """0-3 depth level for one long-text answer, by length against its target."""
+    """0-3 depth level for one long-text answer. 0 is empty, not 'too short'."""
     n = len((value or "").strip())
-    if n < MIN_TEXT:
+    if n == 0:
         return 0
-    if n < target * 0.4:
+    if n < target * 0.34:
         return 1
-    if n < target * 0.85:
+    if n < target * 0.75:
         return 2
     return 3
 

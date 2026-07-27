@@ -30,6 +30,21 @@ log = logging.getLogger("jobhunter.llm")
 SCORING = "scoring"        # cheap, high-volume (triage, match scoring)
 GENERATION = "generation"  # stronger (CV/cover letters, company research)
 
+# Appended to every system prompt so scored reasons and generated documents
+# read like a person wrote them (R2). Kept here, at the one point every model
+# call passes through.
+STYLE_RULES = (
+    "Write like a person, not a marketing department. Never use em dashes or "
+    "en dashes. Never use the construction 'it is not X, it is Y'. Avoid the "
+    "words seamless, effortless, unlock, leverage, empower, elevate, robust, "
+    "delve, landscape, journey. No exclamation marks. No emoji. Short "
+    "sentences. British spelling."
+)
+
+
+def _styled(system: str) -> str:
+    return f"{system}\n\n{STYLE_RULES}"
+
 
 class LLMError(RuntimeError):
     pass
@@ -88,6 +103,7 @@ class AnthropicClient(BaseClient):
 
     def json(self, *, system, user, schema, tier=SCORING, max_tokens=2000,
              cache_system=True) -> dict:
+        system = _styled(system)
         system_blocks: list[dict[str, Any]] = [{"type": "text", "text": system}]
         if cache_system:
             system_blocks[0]["cache_control"] = {"type": "ephemeral"}
@@ -164,6 +180,7 @@ class OpenAICompatibleClient(BaseClient):
 
     def json(self, *, system, user, schema, tier=SCORING, max_tokens=2000,
              cache_system=True) -> dict:
+        system = _styled(system)
         model = self._model(tier)
         # The scoring system prompt is identical across every job in a search,
         # so mark it cacheable: on Anthropic (via OpenRouter) this caches the

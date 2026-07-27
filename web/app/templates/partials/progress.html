@@ -19,15 +19,7 @@
       {% endfor %}
     </div>
     <div class="small muted" style="margin-top:8px">
-      Usually about a minute. You can leave this page and come back.
-    </div>
-    <div style="margin-top:8px">
-      {% if search.notify_email %}
-        <span class="small muted">We'll email you when it's ready.</span>
-      {% else %}
-        <button class="ghost" type="button" hx-post="/search/{{ search.id }}/notify"
-                hx-swap="outerHTML">Email me when it's ready</button>
-      {% endif %}
+      This keeps running if you close the tab. Come back to /matches whenever.
     </div>
   </div>
 </div>

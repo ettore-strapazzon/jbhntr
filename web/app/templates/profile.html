@@ -51,18 +51,14 @@
     couple of your own cover letters, is the sweet spot. Max 1 MB each · PDF, DOCX,
     TXT or MD · stored encrypted.</p>
   {% for m in materials %}
-    <div class="parsed">
-      <span>{{ m.filename }} <span class="muted small">({{ m.kind.replace("_", " ") }},
-        {{ (m.size_bytes / 1024) | round | int }} KB)</span></span>
-      <form method="post" action="/onboarding/material/{{ m.id }}/delete">
-        <input type="hidden" name="step" value="upload">
-        <button class="linklike" type="submit">Remove</button>
-      </form>
-    </div>
+    {% set sub = m.kind.replace("_", " ") ~ ", " ~ ((m.size_bytes / 1024) | round | int) ~ " KB" %}
+    {% set return_to = "profile" %}
+    {% include "partials/material_row.html" %}
   {% else %}<p class="small muted">No documents yet.</p>{% endfor %}
 
   <form method="post" action="/onboarding/upload" enctype="multipart/form-data" class="row" style="margin-top:12px">
     <input type="hidden" name="step" value="upload">
+    <input type="hidden" name="return_to" value="profile">
     <select name="kind" aria-label="Document type" style="max-width:190px">
       <option value="cv">CV</option>
       <option value="cover_letter">Cover letter</option>

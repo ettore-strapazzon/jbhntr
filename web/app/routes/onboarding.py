@@ -96,29 +96,44 @@ def show_step(step: str, request: Request, user: User = Depends(require_user),
     return _render(request, step, db, user)
 
 
+# Where an upload/delete returns to. An allow-list, so `return_to` from a form
+# can never become an open redirect. Fixes the bug where uploading from Profile
+# dumped the user back into onboarding step one (R6).
+RETURN_TO = {"upload": "/onboarding/upload", "profile": "/profile#documents"}
+
+
+def _return_error(request, db, user, step, return_to, error):
+    if return_to == "profile":
+        from .profile import profile_page   # lazy: profile imports from us
+        return profile_page(request, user=user, db=db, error=error)
+    return _render(request, step, db, user, error=error)
+
+
 # ----------------------------- uploads (step 1) ---------------------------- #
 @router.post("/upload")
 async def upload(
     request: Request,
     kind: str = Form(...),
     step: str = Form(default="upload"),
+    return_to: str = Form(default="upload"),
     file: UploadFile = File(...),
     user: User = Depends(require_user),
     db: DbSession = Depends(get_session),
 ):
+    dest = RETURN_TO.get(return_to, "/onboarding/upload")
     if kind not in ("cv", "cover_letter", "linkedin"):
-        return RedirectResponse(f"/onboarding/{step}", status_code=303)
+        return RedirectResponse(dest, status_code=303)
 
     raw = await file.read()
     try:
         ext, mime = validate_upload(file.filename or "", raw)
     except UploadError as exc:
-        return _render(request, step, db, user, error=str(exc))
+        return _return_error(request, db, user, step, return_to, str(exc))
 
     text = extract_text(ext, raw)
     if not text.strip():
-        return _render(request, step, db, user,
-                       error="We couldn't read any text in that file. "
+        return _return_error(request, db, user, step, return_to,
+                             "We couldn't read any text in that file. "
                              "If it's a scan, upload a text-based version.")
 
     db.add(Material(
@@ -128,18 +143,23 @@ async def upload(
         text=text[:200_000],
     ))
     db.commit()
-    return RedirectResponse(f"/onboarding/{step}", status_code=303)
+    return RedirectResponse(dest, status_code=303)
 
 
 @router.post("/material/{material_id}/delete")
-def delete_material(material_id: int, step: str = Form(default="upload"),
+def delete_material(material_id: int, request: Request,
+                    step: str = Form(default="upload"),
+                    return_to: str = Form(default="upload"),
                     user: User = Depends(require_user),
                     db: DbSession = Depends(get_session)):
     (db.query(Material)
        .filter(Material.id == material_id, Material.user_id == user.id)  # ownership
        .delete())
     db.commit()
-    return RedirectResponse(f"/onboarding/{step}", status_code=303)
+    # The delete control swaps just its own row out (R5.2); reply empty for HTMX.
+    if request.headers.get("HX-Request") == "true":
+        return HTMLResponse("")
+    return RedirectResponse(RETURN_TO.get(return_to, "/onboarding/upload"), status_code=303)
 
 
 # --------------------------- where & how (step 2) -------------------------- #

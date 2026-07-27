@@ -39,17 +39,6 @@ def run_search(request: Request, user: User = Depends(require_user),
     return RedirectResponse("/matches", status_code=303)
 
 
-@router.post("/search/{search_id}/notify", response_class=HTMLResponse)
-def notify_when_ready(search_id: int, request: Request,
-                      user: User = Depends(require_user), db: DbSession = Depends(get_session)):
-    """'Email me when it's ready' (§11.6). Sets the flag the worker checks."""
-    search = db.get(Search, search_id)
-    if search and search.user_id == user.id and search.status in ("queued", "running"):
-        search.notify_email = True
-        db.commit()
-    return HTMLResponse('<span class="small muted">We\'ll email you when it\'s ready.</span>')
-
-
 @router.get("/search/{search_id}/status", response_class=HTMLResponse)
 def status(search_id: int, request: Request, user: User = Depends(require_user),
            db: DbSession = Depends(get_session)):
@@ -164,11 +153,11 @@ def generate(result_id: int, kind: str, request: Request,
             "/matches?error=" + quote("Generation returned nothing. Try again."),
             status_code=303)
 
-    # Belt-and-suspenders on the "no em dashes" rule — strip any the model slips
-    # through, so the draft never reads as machine-written.
-    dedash = lambda t: (t or "").replace(" — ", ", ").replace("—", ", ").replace("–", "-")
+    # Strip any dashes the model slips through, so the draft never reads as
+    # machine-written (R2).
+    from ..services.text import humanise
     db.add(Document(user_id=user.id, job_result_id=result.id, kind=kind,
-                    content=dedash(content), note=dedash(note)))
+                    content=humanise(content), note=humanise(note)))
     if not user.is_premium:
         user.documents_used += 1
     db.commit()

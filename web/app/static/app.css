@@ -186,7 +186,13 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .trust{flex:0 0 240px;border:1px solid var(--line);border-radius:var(--r-card);padding:14px 16px;font-size:13px}
 .trust ul{margin:8px 0 0;padding-left:18px;color:var(--muted)}
 .trust li{margin-bottom:4px}
-.parsed{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding:10px 0}
+.parsed{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff}
+.parsed .parsed-name{min-width:0;overflow-wrap:anywhere}
+.parsed form{margin:0}
+.iconbtn{width:44px;height:44px;min-height:44px;display:grid;place-items:center;border-radius:8px;
+  border:1px solid transparent;background:none;color:var(--muted);font-size:15px;cursor:pointer;padding:0}
+.iconbtn.danger:hover,.iconbtn.danger:focus-visible{color:var(--err);background:var(--err-bg);border-color:#e8cfcf}
 .linklike{min-height:auto;padding:0;border:none;background:none;color:var(--accent);
   font:inherit;font-size:13px;text-decoration:underline;cursor:pointer}
 @media(max-width:560px){.upload-row{flex-direction:column}.trust{flex:1;width:100%}}

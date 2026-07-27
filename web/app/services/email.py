@@ -89,8 +89,3 @@ def send_premium_confirmation(email: str) -> bool:
                 "on for your account by hand — you'll hear from us within a day.")
 
 
-def send_search_complete(email: str, matches: int, reviewed: int) -> bool:
-    link = f"{config.base_url.rstrip('/')}/matches"
-    return send(email, f"Your shortlist is ready — {matches} matches",
-                f"Your search finished: {matches} matches from {reviewed} postings reviewed.\n\n"
-                f"See your shortlist:\n{link}")

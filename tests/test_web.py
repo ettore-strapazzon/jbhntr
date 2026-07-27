@@ -138,10 +138,31 @@ def test_country_token_field_add_remove_preset(client):
 
 def test_depth_meter_reflects_length(client):
     signup(client, "depth@example.com")
-    short = client.post("/fields/depth", data={"field": "objective", "objective": "hi"}).text
+    empty = client.post("/fields/depth", data={"field": "objective", "objective": ""}).text
+    some = client.post("/fields/depth", data={"field": "objective", "objective": "hi"}).text
     deep = client.post("/fields/depth", data={"field": "objective", "objective": "x" * 400}).text
-    assert "lvl0" in short and "Too short" in short
-    assert "lvl3" in deep and "personal" in deep
+    assert "depth-rail" not in empty       # empty says nothing, not "too short" (R5.5)
+    assert "lvl1" in some
+    assert "lvl3" in deep
+
+
+def test_profile_upload_returns_to_profile(client):
+    """R6: uploading a CV from Profile must not dump the user into onboarding."""
+    signup(client, "upret@example.com")
+    files = {"file": ("cv.txt", b"Senior PM, fintech payments, ten years.", "text/plain")}
+    r = client.post("/onboarding/upload",
+                    data={"kind": "cv", "step": "upload", "return_to": "profile"},
+                    files=files, follow_redirects=False)
+    assert r.headers["location"] == "/profile#documents"
+
+
+def test_profile_oversized_upload_shows_error_on_profile(client):
+    signup(client, "big@example.com")
+    big = {"file": ("cv.pdf", b"%PDF-1.4 " + b"x" * (1024 * 1024 + 10), "application/pdf")}
+    r = client.post("/onboarding/upload",
+                    data={"kind": "cv", "step": "upload", "return_to": "profile"}, files=big)
+    assert "Your documents" in r.text          # re-rendered Profile, not onboarding
+    assert "too large" in r.text.lower()
 
 
 def test_profile_strength_bands():

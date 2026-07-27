@@ -210,16 +210,6 @@ def _run_search(search_id: int, user_id: int) -> None:
              scored_count=len(ranked), finished_at=utcnow())
         log.info("Search %s finished: %d results", search.id, len(ranked))
 
-        # "Email me when it's ready" (§11.6) — no-op unless SMTP is configured.
-        if search.notify_email:
-            try:
-                from .email import send_search_complete
-                owner = db.get(User, user_id)
-                if owner:
-                    send_search_complete(owner.email, len(ranked), search.raw_count)
-            except Exception:
-                log.exception("Search %s: completion email failed", search.id)
-
     except Exception as exc:  # never leave a search stuck in 'running'
         log.exception("Search %s failed", search_id)
         try:

@@ -1,3 +1,6 @@
-{# Depth meter for one long-text field (§5.5). Band colour by level 0-3. #}
+{# Depth meter for one long-text field (§5.5). Empty (level 0) shows nothing,
+   so an untouched field is never scolded (R5.5). #}
+{% if level > 0 %}
 <div class="depth-rail lvl{{ level }}"><i style="width:{{ (level / 3 * 100) | round | int }}%"></i></div>
 <span class="depth-label small">{{ label }}</span>
+{% endif %}

@@ -1,0 +1,15 @@
+{# One uploaded-document row with a destructive icon-button delete (R5.2).
+   Expects: m (Material), and optionally `sub` (label), `step`, `return_to`.
+   The delete swaps just this row out via HTMX; the plain POST still works. #}
+<div class="parsed">
+  <span class="parsed-name">{{ m.filename }}
+    <span class="muted small">{{ sub | default((m.size_bytes / 1024) | round | int ~ ' KB read') }}</span></span>
+  <form method="post" action="/onboarding/material/{{ m.id }}/delete"
+        hx-post="/onboarding/material/{{ m.id }}/delete"
+        hx-target="closest .parsed" hx-swap="outerHTML">
+    <input type="hidden" name="step" value="{{ step | default('upload') }}">
+    <input type="hidden" name="return_to" value="{{ return_to | default('upload') }}">
+    <button type="submit" class="iconbtn danger" title="Remove"
+            aria-label="Remove {{ m.filename }}"><span aria-hidden="true">&#10005;</span></button>
+  </form>
+</div>
