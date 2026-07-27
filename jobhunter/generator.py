@@ -86,7 +86,11 @@ class Generator:
             "- CV: keep it truthful, ATS-friendly, and concise. Lead with the most "
             "relevant experience for this role.\n"
             "- Cover letter: specific to the company and role, 3-4 short paragraphs, "
-            "no clichés, confident but not boastful.\n\n"
+            "no clichés, confident but not boastful.\n"
+            "- Write like a person, not an AI. Plain, direct language. Do NOT use em "
+            "dashes (—) or en dashes (–) — use commas, full stops or parentheses. "
+            "Avoid buzzwords, filler, and stock AI phrasing (\"leverage\", "
+            "\"passionate about\", \"in today's fast-paced world\").\n\n"
             "## Candidate materials\n" + (materials.combined_context() or "(none)")
         )
 
@@ -104,7 +108,10 @@ class Generator:
                 user=user,
                 schema=DOC_SCHEMA,
                 tier=llm.GENERATION,
-                max_tokens=4000,
+                # A full CV + cover letter in one JSON response overran 4000 and
+                # truncated (invalid JSON -> "returned nothing"), which hit the
+                # longer CV more than the letter.
+                max_tokens=8000,
             )
         except Exception as exc:
             log.warning("Generation failed for %r: %s", job.title, exc)

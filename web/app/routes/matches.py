@@ -11,7 +11,7 @@ from ..auth import require_user
 from ..config import config
 from ..db import get_session
 from ..models import Document, Feedback, JobResult, Search, User
-from ..services import matches_service
+from ..services import doc_quota, matches_service
 from ..services.job_state import DISMISS_REASONS
 from ..services.profile_service import completeness, strength
 from ..templating import templates
@@ -46,7 +46,7 @@ def matches_page(request: Request, user: User = Depends(require_user),
         "running": running, "last_failed": latest_any if (latest_any and latest_any.status == "failed") else None,
         "voted": voted, "docs": docs, "dismiss_reasons": DISMISS_REASONS,
         "searches_left": user.searches_remaining(config.free_searches),
-        "docs_left": None if user.is_premium else max(0, config.free_documents - user.documents_used),
+        "allow": doc_quota.allowance(db, user),
         # current filter state, for building links
         "f_tier": set(tier), "f_source": source, "f_sort": sort,
         "f_saved": bool(saved), "f_run": run,

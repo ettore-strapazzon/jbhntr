@@ -1,6 +1,6 @@
 {# One result card, state-aware (§11.7). Swapped in place by /job/{id}/* and
    /feedback/{id}. Expects: r, st (JobState|None), fb (Feedback|None), docs
-   (set of (id,kind)), user, config, docs_left, dismiss_reasons. #}
+   (set of (id,kind)), user, config, allow (per-type doc allowance), dismiss_reasons. #}
 {% set saved = st and st.saved %}
 {% set dismissed = st and st.dismissed %}
 {% set applied = st and st.applied_at %}
@@ -70,7 +70,7 @@
       {% else %}
         <form method="post" action="/generate/{{ r.id }}/cv" style="display:inline">
           <button class="ghost" type="submit"
-            {% if not (user.is_premium or docs_left > 0) %}disabled title="Included in premium"{% endif %}>Tailor my CV</button>
+            {% if not (user.is_premium or (allow.cv or 0) > 0) %}disabled title="Included in premium"{% endif %}>Tailor my CV</button>
         </form>
       {% endif %}
 
@@ -112,7 +112,7 @@
         {% else %}
           <form method="post" action="/generate/{{ r.id }}/cl" style="display:inline">
             <button class="ghost" type="submit"
-              {% if not (user.is_premium or docs_left > 0) %}disabled title="Included in premium"{% endif %}>Write a cover letter</button>
+              {% if not (user.is_premium or (allow.cl or 0) > 0) %}disabled title="Included in premium"{% endif %}>Write a cover letter</button>
           </form>
         {% endif %}
       </div>

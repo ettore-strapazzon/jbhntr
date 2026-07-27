@@ -38,7 +38,11 @@ class WebConfig:
 
     # --- limits (the levers that protect the AI bill) ---
     free_searches: int = int(os.environ.get("FREE_SEARCHES", "3"))
-    free_documents: int = int(os.environ.get("FREE_DOCUMENTS", "2"))
+    # Per-type free document allowance: a free user gets 2 tailored CVs and 1
+    # cover letter (counted per distinct job, so regenerating one is free).
+    free_cvs: int = _int("FREE_CVS", 2)
+    free_cover_letters: int = _int("FREE_COVER_LETTERS", 1)
+    free_documents: int = int(os.environ.get("FREE_DOCUMENTS", "2"))  # legacy copy only
     premium_searches_per_day: int = int(os.environ.get("PREMIUM_SEARCHES_PER_DAY", "2"))
     max_upload_bytes: int = 1024 * 1024          # 1 MB, per the spec
     max_feedback_chars: int = 300

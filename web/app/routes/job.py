@@ -14,7 +14,7 @@ from ..auth import require_user
 from ..config import config
 from ..db import get_session
 from ..models import Document, Feedback, JobResult, JobState, User
-from ..services import job_state
+from ..services import doc_quota, job_state
 from ..templating import templates
 
 router = APIRouter(prefix="/job")
@@ -38,8 +38,7 @@ def _render_card(request: Request, db: DbSession, user: User, r: JobResult) -> H
     return templates.TemplateResponse(request, "partials/job_card.html", {
         "request": request, "user": user, "config": config,
         "r": r, "st": st, "fb": fb, "docs": docs,
-        "docs_left": None if user.is_premium
-                     else max(0, config.free_documents - user.documents_used),
+        "allow": doc_quota.allowance(db, user),
         "dismiss_reasons": job_state.DISMISS_REASONS,
     })
 

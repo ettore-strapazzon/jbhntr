@@ -107,10 +107,16 @@ def generate(result_id: int, kind: str, request: Request,
     if not result or result.user_id != user.id:
         return RedirectResponse("/matches", status_code=303)
 
-    # Free allowance is checked server-side; the greyed-out button is only a hint.
-    if not user.is_premium and user.documents_used >= config.free_documents:
+    # Per-type free allowance, checked server-side (the greyed button is a hint).
+    # Regenerating a doc this job already has is always free.
+    from ..services import doc_quota
+    already = (db.query(Document)
+                 .filter(Document.job_result_id == result.id,
+                         Document.kind == kind, Document.user_id == user.id).first())
+    if not user.is_premium and not already and doc_quota.left(db, user, kind) == 0:
+        label = "tailored CVs" if kind == "cv" else "cover letters"
         return RedirectResponse(
-            "/matches?error=" + quote("You've used your free documents. Premium is unlimited."),
+            "/matches?error=" + quote(f"You've used your free {label}. Premium is unlimited."),
             status_code=303)
 
     from jobhunter.config import Settings as EngineSettings
@@ -150,6 +156,10 @@ def generate(result_id: int, kind: str, request: Request,
         return RedirectResponse(
             "/matches?error=" + quote("Generation returned nothing. Try again."),
             status_code=303)
+
+    # Belt-and-suspenders on the "no em dashes" rule — strip any the model slips
+    # through, so the draft never reads as machine-written.
+    content = content.replace(" — ", ", ").replace("—", ", ").replace("–", "-")
 
     db.add(Document(user_id=user.id, job_result_id=result.id, kind=kind, content=content))
     if not user.is_premium:
