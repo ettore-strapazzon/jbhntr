@@ -322,6 +322,20 @@ footer a{color:var(--muted)}
 @media (max-width:640px){ .why{grid-template-columns:1fr} .frames{grid-template-columns:1fr}
   .hero h1{font-size:28px} }
 
+/* mobile bottom-bar nav (§11.1) — logged-in, under 720px only */
+.bottombar{display:none}
+@media (max-width:720px){
+  body.authed .bar nav{display:none}          /* header links move to the bottom bar */
+  .bottombar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;
+    background:var(--card);border-top:1px solid var(--line)}
+  .bottombar a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;min-height:56px;font-size:11px;font-weight:600;color:var(--muted);text-decoration:none}
+  .bottombar a:hover,.bottombar a:focus-visible{color:var(--ink)}
+  .bb-i{font-size:17px;line-height:1}
+  body.authed main{padding-bottom:76px}       /* clear the fixed bar */
+  body.authed .cookie-note{bottom:72px}        /* sit above the bar */
+}
+
 /* mobile-first refinements (F-12): comfortable targets, non-wrapping chrome */
 .bar nav a{min-height:44px;display:inline-flex;align-items:center}
 .checks label{min-height:44px}

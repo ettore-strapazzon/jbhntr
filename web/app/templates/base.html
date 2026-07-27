@@ -10,7 +10,7 @@
 <script defer data-domain="{{ config.plausible_domain }}" src="https://plausible.io/js/script.js"></script>
 {% endif %}
 </head>
-<body>
+<body{% if user %} class="authed"{% endif %}>
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="bar">
   <a class="brand" href="/">JBHNTR</a>
@@ -34,6 +34,17 @@
 <main id="main">
 {% block content %}{% endblock %}
 </main>
+
+{% if user %}
+{# Mobile primary nav (§11.1): a fixed bottom bar under 720px, 44px+ targets.
+   Hidden on desktop, where the header nav is used instead. #}
+<nav class="bottombar" aria-label="Primary">
+  <a href="/matches"><span class="bb-i" aria-hidden="true">★</span>Matches</a>
+  <a href="/applications"><span class="bb-i" aria-hidden="true">▤</span>Applications</a>
+  <a href="/profile"><span class="bb-i" aria-hidden="true">◑</span>Profile</a>
+  <a href="/account"><span class="bb-i" aria-hidden="true">⚙</span>Account</a>
+</nav>
+{% endif %}
 
 <footer>
   <span>© {{ config.company_name }}</span>
