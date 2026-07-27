@@ -41,7 +41,7 @@
 
 {% if running %}
   <div id="progress" hx-get="/search/{{ running.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
-    {% include "partials/progress.html" with context %}
+    {% with search = running %}{% include "partials/progress.html" %}{% endwith %}
   </div>
 {% elif last_failed %}
   <div class="notice err" role="alert">

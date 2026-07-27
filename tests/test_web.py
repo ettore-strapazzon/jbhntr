@@ -308,6 +308,30 @@ def test_email_sender_is_safe_noop_when_unconfigured():
     assert mail.send("x@example.com", "hi", "body") is False
 
 
+def test_matches_renders_while_a_search_is_running(client):
+    """Regression: the progress rail on /matches referenced an undefined
+    'search' var, so any running search 500'd the page (first-search crash)."""
+    from web.app.db import SessionLocal
+    from web.app.models import Search, User
+    signup(client, "run@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="run@example.com").first()
+    db.add(Search(user_id=u.id, status="running", stage="Scoring the shortlist",
+                  raw_count=1200))
+    db.commit()
+    r = client.get("/matches")
+    assert r.status_code == 200
+    assert "Scoring the shortlist" in r.text          # progress rail rendered
+
+
+def test_welcome_email_on_signup(client, monkeypatch):
+    from web.app.services import email as mail
+    sent = []
+    monkeypatch.setattr(mail, "send", lambda to, subject, body: sent.append(subject) or True)
+    signup(client, "welcome@example.com")
+    assert any("Welcome" in s for s in sent)
+
+
 # ------------------------------- public ---------------------------------- #
 def test_landing_page_is_public(client):
     r = client.get("/")

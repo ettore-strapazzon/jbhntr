@@ -73,6 +73,16 @@ def send_password_reset(email: str, token: str) -> bool:
                 "If it wasn't you, ignore this email — nothing changes.")
 
 
+def send_welcome(email: str) -> bool:
+    link = f"{config.base_url.rstrip('/')}/matches"
+    return send(email, "Welcome to JBHNTR",
+                "Welcome — you're in.\n\n"
+                f"You've got {config.free_searches} free searches to start. Upload your CV, "
+                "say what you're after in your own words, and JBHNTR builds you a scored "
+                "shortlist with the reasoning attached.\n\n"
+                f"Start here:\n{link}")
+
+
 def send_premium_confirmation(email: str) -> bool:
     return send(email, "We'll turn on JBHNTR premium for you",
                 "Thanks for asking. Checkout isn't live yet, so we'll switch premium "
