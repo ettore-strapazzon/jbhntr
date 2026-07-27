@@ -120,6 +120,13 @@ def generate(result_id: int, kind: str, request: Request,
     from ..services.profile_service import build_engine_materials, build_engine_profile
 
     settings = EngineSettings.from_env()
+    # Search overrides only the scoring model; generation uses its own tier and
+    # was left unconfigured, so tailoring raised "no generation model" and got
+    # swallowed to "returned nothing". Point generation at the same model search
+    # uses, which we know works with the configured key.
+    model = config.premium_scoring_model if user.is_premium else config.free_scoring_model
+    settings.scoring_model = model
+    settings.generation_model = model
     posting = JobPosting(
         source=result.source, title=result.title, company=result.company,
         location=result.location, description=result.description, url=result.apply_url,
