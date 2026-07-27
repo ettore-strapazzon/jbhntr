@@ -137,21 +137,28 @@ def generate(result_id: int, kind: str, request: Request,
         source=result.source, title=result.title, company=result.company,
         location=result.location, description=result.description, url=result.apply_url,
     )
-    ranked = [RankedJob(job=posting,
-                        match=MatchResult(tier=result.tier, score=result.score,
-                                          reasons=result.why_good))]
+    gen = Generator(settings, drive=None)
+    eng_profile = build_engine_profile(db, user)
+    eng_materials = build_engine_materials(db, user)
+    note = ""
     try:
-        Generator(settings, drive=None).tailor_top(
-            ranked, build_engine_profile(db, user), build_engine_materials(db, user), limit=1
-        )
+        if kind == "cl":
+            # Cover letters get a company-tone read plus a short note explaining it.
+            out = gen.cover_letter(eng_profile, eng_materials, posting)
+            content = (out or {}).get("cover_letter", "")
+            note = (out or {}).get("tone_note", "")
+        else:
+            ranked = [RankedJob(job=posting,
+                                match=MatchResult(tier=result.tier, score=result.score,
+                                                  reasons=result.why_good))]
+            gen.tailor_top(ranked, eng_profile, eng_materials, limit=1)
+            content = (ranked[0].documents or {}).get("cv", "")
     except Exception as exc:
         log.exception("Document generation failed")
         return RedirectResponse(
             "/matches?error=" + quote(f"Couldn't generate that document: {exc}"),
             status_code=303)
 
-    docs = ranked[0].documents or {}
-    content = docs.get("cv" if kind == "cv" else "cover_letter", "")
     if not content:
         return RedirectResponse(
             "/matches?error=" + quote("Generation returned nothing. Try again."),
@@ -159,9 +166,9 @@ def generate(result_id: int, kind: str, request: Request,
 
     # Belt-and-suspenders on the "no em dashes" rule — strip any the model slips
     # through, so the draft never reads as machine-written.
-    content = content.replace(" — ", ", ").replace("—", ", ").replace("–", "-")
-
-    db.add(Document(user_id=user.id, job_result_id=result.id, kind=kind, content=content))
+    dedash = lambda t: (t or "").replace(" — ", ", ").replace("—", ", ").replace("–", "-")
+    db.add(Document(user_id=user.id, job_result_id=result.id, kind=kind,
+                    content=dedash(content), note=dedash(note)))
     if not user.is_premium:
         user.documents_used += 1
     db.commit()

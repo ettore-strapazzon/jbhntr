@@ -6,6 +6,10 @@
 <p class="muted">A first draft, not a final one. Read it before you send it.</p>
 {% if saved %}<div class="notice ok" role="status">Saved.</div>{% endif %}
 
+{% if doc.note %}
+  <div class="tone-note"><b>On the tone.</b> {{ doc.note }}</div>
+{% endif %}
+
 <div class="docview">
   <form method="post" action="/document/{{ r.id }}/{{ kind }}/save" class="doc-main">
     <textarea name="content" class="sheet" aria-label="Document text">{{ doc.content }}</textarea>

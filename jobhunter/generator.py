@@ -28,6 +28,19 @@ DOC_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Cover letter on its own, with a short note on the tone chosen for this company.
+COVER_LETTER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "cover_letter": {"type": "string", "description": "Full cover letter in plain text"},
+        "tone_note": {"type": "string", "description": "2-3 sentences: the tone this "
+                      "company likely responds to, and how the letter matches it to the "
+                      "candidate's own voice"},
+    },
+    "required": ["cover_letter", "tone_note"],
+    "additionalProperties": False,
+}
+
 
 class Generator:
     def __init__(self, settings: Settings, drive: Optional[Drive] = None):
@@ -115,4 +128,45 @@ class Generator:
             )
         except Exception as exc:
             log.warning("Generation failed for %r: %s", job.title, exc)
+            return None
+
+    def cover_letter(self, profile: Profile, materials: Materials, job) -> Optional[dict]:
+        """A cover letter tuned to the company's likely tone, plus a short note
+        explaining that tone choice. Returns {cover_letter, tone_note} or None.
+
+        "Research" is grounded in the posting itself (mission, product, culture
+        cues) rather than a live web call, so it stays reliable and keyless; the
+        candidate's own voice comes from their materials.
+        """
+        system = (
+            "You are an expert cover-letter writer. Work in two steps.\n"
+            "1. Read the job posting and infer what kind of company this is and "
+            "the tone it would respond best to — formal or warm, technical or "
+            "mission-led, buttoned-up or scrappy — using the mission, product, "
+            "language and culture cues in the posting.\n"
+            "2. Write a cover letter that blends the candidate's authentic voice "
+            "(from their materials below) with that tone.\n"
+            "Rules:\n"
+            "- Never invent experience, employers, dates or credentials. Use only "
+            "what the candidate's materials support.\n"
+            "- 3-4 short paragraphs, specific to this company and role, no clichés.\n"
+            "- Write like a person: plain, direct language. No em dashes (—) or en "
+            "dashes (–); no stock AI phrasing (\"leverage\", \"passionate about\").\n"
+            "- Also return tone_note: 2-3 sentences on the tone you judged this "
+            "company wants and how you matched it to the candidate.\n\n"
+            "## Candidate materials\n" + (materials.combined_context() or "(none)")
+        )
+        user = (
+            "Write the cover letter for this job.\n\n"
+            f"Title: {job.title}\nCompany: {job.company}\n"
+            f"Location: {job.location}\n"
+            f"Description:\n{(job.description or '')[:6000] or '(no description available)'}"
+        )
+        try:
+            return self.client.json(
+                system=system, user=user, schema=COVER_LETTER_SCHEMA,
+                tier=llm.GENERATION, max_tokens=4000,
+            )
+        except Exception as exc:
+            log.warning("Cover-letter generation failed for %r: %s", job.title, exc)
             return None

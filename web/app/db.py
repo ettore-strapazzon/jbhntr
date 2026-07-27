@@ -57,6 +57,7 @@ def _add_missing_columns() -> None:
                         "dedup_key": ("TEXT", "DEFAULT ''")},
         "score_cache": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0")},
+        "documents": {"note": ("TEXT", "DEFAULT ''")},
     }
     import logging
 

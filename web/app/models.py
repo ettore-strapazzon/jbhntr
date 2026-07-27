@@ -327,6 +327,8 @@ class Document(Base):
     job_result_id: Mapped[int] = mapped_column(ForeignKey("job_results.id", ondelete="CASCADE"))
     kind: Mapped[str] = mapped_column(String(8))  # cv | cl
     content: Mapped[str] = mapped_column(Text)
+    # For cover letters: a short "why this tone" note shown above the draft.
+    note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
