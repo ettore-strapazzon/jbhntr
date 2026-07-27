@@ -23,7 +23,7 @@ log = logging.getLogger("jbhntr.corpus")
 
 _DESC_CAP = 8000
 _IN_CHUNK = 400          # keep SQLite's 999-variable IN() limit clear
-_EMBED_CHUNK = 320       # commit embeddings this often so progress survives stalls
+_EMBED_CHUNK = 64        # small batches: lower peak memory + granular progress logs
 
 
 def _chunks(seq: list, n: int):
@@ -113,12 +113,20 @@ def embed_new_jobs(db: DbSession, settings, limit: int = 1000) -> int:
               .limit(limit).all())
     if not rows:
         return 0
-    # Commit in chunks so a mid-run rate-limit stall keeps the progress made and
-    # the next call resumes where this left off (rows without a current vector).
+    # Commit in chunks so a mid-run stall keeps the progress made and the next
+    # call resumes where this left off (rows without a current vector). Logged
+    # per chunk: local embedding is otherwise a silent multi-minute black box,
+    # which makes a crash here impossible to tell from a slow run.
+    log.info("Embedding %d new corpus jobs (%s)…", len(rows), model)
     done = 0
     for i in range(0, len(rows), _EMBED_CHUNK):
         chunk = rows[i : i + _EMBED_CHUNK]
-        vectors = embeddings.embed([job_embed_text(r) for r in chunk], settings)
+        try:
+            vectors = embeddings.embed([job_embed_text(r) for r in chunk], settings)
+        except Exception:
+            log.exception("Embedding failed at %d/%d — corpus keeps the jobs, "
+                          "just without vectors this run", done, len(rows))
+            break
         if len(vectors) != len(chunk):
             log.warning("Embedding stopped at %d/%d (provider limit?)", done, len(rows))
             break
@@ -127,8 +135,8 @@ def embed_new_jobs(db: DbSession, settings, limit: int = 1000) -> int:
             row.embedding_model = model
         db.commit()
         done += len(chunk)
-    if done:
-        log.info("Embedded %d corpus jobs (%s)", done, model)
+        log.info("  embedded %d/%d", done, len(rows))
+    log.info("Embedded %d corpus jobs (%s)", done, model)
     return done
 
 
