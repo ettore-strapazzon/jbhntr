@@ -10,6 +10,9 @@
   <p class="small muted">Onsite and hybrid use these as your base. Remote uses them
     as where you can legally work from.</p>
   {% include "partials/country_field.html" %}
+  <p id="corpus-count" class="small corpus-count" aria-live="polite"
+     hx-get="/fields/corpus-count" hx-trigger="load, countries-changed from:body"
+     hx-swap="innerHTML"></p>
 </div>
 
 <form method="post" action="/onboarding/save/aim">

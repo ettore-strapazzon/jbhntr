@@ -215,6 +215,8 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .token-add{display:flex;gap:8px;align-items:stretch}
 .token-add input{flex:1;min-height:44px}
 .presets{display:flex;flex-wrap:wrap;gap:8px}
+.corpus-count{margin-top:10px;min-height:20px}
+.corpus-count .muted{display:block;margin-top:2px}
 .preset{min-height:44px;padding:10px 14px;font-size:13px;font-weight:600;
   background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:var(--r-chip);cursor:pointer}
 .preset:hover{border-color:var(--accent);color:var(--accent)}

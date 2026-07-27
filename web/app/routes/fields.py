@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session as DbSession
 from ..auth import require_user
 from ..db import get_session
 from ..models import Profile, User
+from ..services import corpus_service
 from ..services.profile_service import (
     ABOUT_TARGET, COUNTRIES, COUNTRY_PRESETS, DEPTH_LABELS, OBJECTIVE_TARGET,
     remote_anywhere_on, set_countries, text_depth,
@@ -36,9 +37,22 @@ def _profile(db: DbSession, user: User) -> Profile:
 
 def _render(request: Request, db: DbSession, user: User) -> HTMLResponse:
     p = _profile(db, user)
-    return templates.TemplateResponse(request, "partials/country_field.html", {
+    resp = templates.TemplateResponse(request, "partials/country_field.html", {
         "request": request, "profile": p, "country_options": COUNTRIES,
         "remote_anywhere": remote_anywhere_on(p),
+    })
+    # Tell the corpus counter (and anything else) that geography changed, so it
+    # refetches without coupling the two partials.
+    resp.headers["HX-Trigger"] = "countries-changed"
+    return resp
+
+
+@router.get("/corpus-count", response_class=HTMLResponse)
+def corpus_count(request: Request, user: User = Depends(require_user),
+                 db: DbSession = Depends(get_session)):
+    p = _profile(db, user)
+    return templates.TemplateResponse(request, "partials/corpus_count.html", {
+        "request": request, "n": corpus_service.count_matching(db, p),
     })
 
 

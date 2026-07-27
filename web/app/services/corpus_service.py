@@ -17,9 +17,41 @@ from sqlalchemy.orm import Session as DbSession
 from jobhunter.models import JobPosting
 from jobhunter.tags import deterministic_tags
 
-from ..models import Job, utcnow
+from ..models import Job, aware, utcnow
 
 log = logging.getLogger("jbhntr.corpus")
+
+_FRESH_DAYS = 30   # match the search-time freshness window
+
+
+def count_matching(db: DbSession, profile) -> int:
+    """How many fresh corpus postings match this profile's geography (§11.3).
+
+    Counts jobs in any selected country, plus fully-remote roles when
+    'Remote-Anywhere' is on. A signal, not a guarantee — it reads the shared
+    corpus, which grows nightly. Bounded to fresh rows and scanned in Python so
+    it stays dialect-agnostic (JSON overlap isn't portable SQL); revisit if the
+    corpus outgrows that.
+    """
+    from datetime import timedelta
+
+    from jobhunter import geo
+
+    codes = {c for c in (geo._country_of(n) for n in (profile.countries or [])) if c}
+    remote_any = "Remote-Anywhere" in (profile.locations or [])
+    if not codes and not remote_any:
+        return 0
+
+    cutoff = utcnow() - timedelta(days=_FRESH_DAYS)
+    rows = (db.query(Job.countries, Job.remote_mode)
+              .filter(Job.last_seen_at >= aware(cutoff)).all())
+    n = 0
+    for countries, remote_mode in rows:
+        if codes and countries and codes.intersection(countries):
+            n += 1
+        elif remote_any and remote_mode == "remote":
+            n += 1
+    return n
 
 _DESC_CAP = 8000
 _IN_CHUNK = 400          # keep SQLite's 999-variable IN() limit clear

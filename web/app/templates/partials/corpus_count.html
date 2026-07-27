@@ -1,0 +1,8 @@
+{# Live corpus counter for onboarding step 2 (§11.3). Refetched on load and
+   whenever the country token field fires "countries-changed". #}
+{% if n %}
+  About {{ "{:,}".format(n) }} postings in our database match these filters right now.
+  {% if n < 200 %}<span class="muted">That's a narrow field — adding a country or a work mode will widen it a lot.</span>{% endif %}
+{% else %}
+  <span class="muted">Pick a country (or “remote anywhere”) to see how many postings match.</span>
+{% endif %}
