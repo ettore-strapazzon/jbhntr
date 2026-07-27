@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from .config import ROOT, config
 from .db import SessionLocal, init_db
@@ -38,6 +39,17 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="JBHNTR", docs_url=None, redoc_url=None, openapi_url=None,
               lifespan=lifespan)
+
+# Needed by Authlib to hold the OAuth `state` across the Google round-trip.
+# Separate from our own login cookie; short-lived and lax so the cookie survives
+# the top-level redirect back from Google.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=config.secret_key or "insecure-dev-only",
+    https_only=not config.debug,
+    same_site="lax",
+    max_age=3600,
+)
 
 static_dir = ROOT / "web" / "app" / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
