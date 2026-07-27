@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -48,14 +49,23 @@ app = FastAPI(title="JBHNTR", docs_url=None, redoc_url=None, openapi_url=None,
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Needed by Authlib to hold the OAuth `state` across the Google round-trip.
-# Separate from our own login cookie; short-lived and lax so the cookie survives
-# the top-level redirect back from Google.
+# Separate from our own login cookie; short-lived and lax so it survives the
+# top-level redirect back from Google. Scope the cookie to the registrable
+# domain (".jbhntr.app") so the state survives even if the flow crosses between
+# the apex and www — otherwise a host-only cookie is stranded and the callback
+# fails with a state mismatch.
+_host = urlparse(config.base_url).hostname or ""
+_cookie_domain = None
+if "." in _host and _host != "localhost" and not _host.replace(".", "").isdigit():
+    _cookie_domain = "." + (_host[4:] if _host.startswith("www.") else _host)
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=config.secret_key or "insecure-dev-only",
     https_only=not config.debug,
     same_site="lax",
     max_age=3600,
+    domain=_cookie_domain,
 )
 
 static_dir = ROOT / "web" / "app" / "static"
