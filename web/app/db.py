@@ -49,25 +49,35 @@ def _add_missing_columns() -> None:
                  "embedding": ("TEXT", ""),
                  "embedding_model": ("TEXT", "DEFAULT ''")},
         "users": {"premium_requested_at": ("TIMESTAMP", "")},
-        "searches": {"notify_email": ("BOOLEAN", "DEFAULT 0")},
+        "searches": {"notify_email": ("BOOLEAN", "DEFAULT false")},
         "job_results": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0"),
                         "dedup_key": ("TEXT", "DEFAULT ''")},
         "score_cache": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0")},
     }
+    import logging
+
+    log = logging.getLogger("jbhntr.db")
     insp = inspect(engine)
     tables = set(insp.get_table_names())
-    with engine.begin() as conn:
-        for table, cols in wanted.items():
-            if table not in tables:
+    for table, cols in wanted.items():
+        if table not in tables:
+            continue
+        existing = {c["name"] for c in insp.get_columns(table)}
+        for name, (sqltype, default) in cols.items():
+            if name in existing:
                 continue
-            existing = {c["name"] for c in insp.get_columns(table)}
-            for name, (sqltype, default) in cols.items():
-                if name not in existing:
+            # One transaction per column: a single bad ALTER (e.g. a dialect
+            # quirk) must never abort the others or crash app startup — a
+            # crash here fails the Railway healthcheck with no results page.
+            try:
+                with engine.begin() as conn:
                     conn.execute(text(
                         f"ALTER TABLE {table} ADD COLUMN {name} {sqltype} {default}".strip()
                     ))
+            except Exception:
+                log.exception("skipping migration: ADD COLUMN %s.%s", table, name)
 
 
 def get_session() -> Iterator[Session]:
