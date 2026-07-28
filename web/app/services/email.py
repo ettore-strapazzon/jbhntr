@@ -48,8 +48,10 @@ def send(to: str, subject: str, text: str, html: str | None = None,
                 s.login(config.smtp_user, config.smtp_password)
             s.send_message(msg)
         return True
-    except Exception:
-        log.exception("email send to %s failed", to)
+    except Exception as exc:
+        # Put the SMTP server's rejection reason on one line (the useful bit),
+        # not buried in a stack trace.
+        log.error("email send to %s failed: %s", to, exc)
         return False
 
 
