@@ -38,6 +38,32 @@ def premium_notify(user: User = Depends(require_user),
     return RedirectResponse("/premium?requested=1", status_code=303)
 
 
+@router.post("/account/digest")
+def set_digest(frequency: str = Form(...), user: User = Depends(require_user),
+               db: DbSession = Depends(get_session)):
+    """The email-frequency control on Account (R13.4)."""
+    if frequency in ("daily", "weekly", "off"):
+        user.digest = frequency
+        db.commit()
+    return RedirectResponse("/account#email", status_code=303)
+
+
+@router.get("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe(request: Request, t: str = "", db: DbSession = Depends(get_session)):
+    """One-click digest off, works without logging in (signed token, R13.4)."""
+    from ..services.email import read_unsub_token
+    uid = read_unsub_token(t)
+    done = False
+    if uid:
+        u = db.get(User, uid)
+        if u:
+            u.digest = "off"
+            db.commit()
+            done = True
+    return templates.TemplateResponse(request, "unsubscribed.html",
+        {"request": request, "done": done})
+
+
 # --------------------------------------------------------------------------- #
 @router.get("/account", response_class=HTMLResponse)
 def account(request: Request, user: User = Depends(require_user)):

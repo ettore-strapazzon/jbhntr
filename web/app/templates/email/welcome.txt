@@ -1,0 +1,14 @@
+You are in.
+
+Your account is live and you have {{ free_searches }} full searches to spend,
+with the real scoring model, no card involved.
+
+Three things and it can start:
+1. Upload your CV
+2. Say where you will work
+3. Tell it what you actually want, in your own words
+
+Set up your profile: {{ base_url }}/onboarding
+
+Your CV is encrypted, never shown to employers, and deleted properly if you
+delete your account. If something is broken, reply to this email.

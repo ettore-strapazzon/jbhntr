@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Account — JBHNTR{% endblock %}
+{% block title %}Account · JBHNTR{% endblock %}
 {% block content %}
 <h1>Account</h1>
 {% if error %}<div class="notice err">{{ error }}</div>{% endif %}
@@ -8,6 +8,20 @@
   <p><b>{{ user.email }}</b></p>
   <p class="small muted">Plan: {{ "Premium" if user.is_premium else "Free" }} ·
     Searches used: {{ user.searches_used }} · Documents generated: {{ user.documents_used }}</p>
+</div>
+
+<div class="card" id="email">
+  <h2>Email</h2>
+  <p class="small muted" style="font-weight:600;margin-bottom:2px">New matches by email</p>
+  <form method="post" action="/account/digest" class="checks" style="margin:6px 0">
+    {% for value, label in [("daily","Every day"),("weekly","Once a week, Mondays"),("off","Never")] %}
+      <label><input type="radio" name="frequency" value="{{ value }}"
+        {% if user.digest == value %}checked{% endif %}> {{ label }}</label>
+    {% endfor %}
+    <button class="ghost" type="submit">Save</button>
+  </form>
+  <p class="small muted">We only send when there is something new. No email on the quiet days.
+    {% if not user.is_premium %}The daily digest is a premium feature.{% endif %}</p>
 </div>
 
 <div class="card">

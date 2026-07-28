@@ -40,6 +40,15 @@ def nightly(today: datetime.date | None = None) -> dict:
         out["ingest_weekly"] = ingest_run("weekly")
     out["ingest_daily"] = ingest_run("daily")
 
+    # Premium daily/weekly digest (R13.4). No-op unless SMTP is configured.
+    from ..db import SessionLocal
+    from .digest import run_digests
+    db = SessionLocal()
+    try:
+        out["digests"] = run_digests(db, is_weekly_day=is_weekly)
+    finally:
+        db.close()
+
     log.info("nightly done (weekly=%s): %s", is_weekly, out)
     return out
 

@@ -1,0 +1,7 @@
+Someone asked to reset the password for this JBHNTR account.
+
+If that was you, set a new one here:
+{{ base_url }}/reset?token={{ token }}
+
+The link stops working after {{ config.reset_token_minutes }} minutes and can
+only be used once. If it was not you, ignore this. Nothing has changed.

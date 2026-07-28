@@ -25,8 +25,9 @@ def is_configured() -> bool:
     return bool(config.smtp_host and config.smtp_from)
 
 
-def send(to: str, subject: str, body: str) -> bool:
-    """Send one plain-text email. Returns True if actually dispatched."""
+def send(to: str, subject: str, text: str, html: str | None = None,
+         headers: dict | None = None) -> bool:
+    """Send one email. Plain text is the fallback; html is the alternative."""
     if not is_configured():
         log.info("email not configured — would send to %s: %s", to, subject)
         return False
@@ -34,7 +35,11 @@ def send(to: str, subject: str, body: str) -> bool:
     msg["From"] = config.smtp_from
     msg["To"] = to
     msg["Subject"] = subject
-    msg.set_content(body)
+    for k, v in (headers or {}).items():
+        msg[k] = v
+    msg.set_content(text)                       # plain text is the fallback
+    if html:
+        msg.add_alternative(html, subtype="html")
     try:
         with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=15) as s:
             if config.smtp_tls:
@@ -46,6 +51,16 @@ def send(to: str, subject: str, body: str) -> bool:
     except Exception:
         log.exception("email send to %s failed", to)
         return False
+
+
+def render(name: str, ctx: dict) -> tuple[str, str]:
+    """(html, text) for templates/email/{name}.html and .txt (R13.1)."""
+    from ..templating import templates
+    env = templates.env
+    ctx = {**ctx, "base_url": config.base_url.rstrip("/"),
+           "support_email": config.support_email, "config": config}
+    return (env.get_template(f"email/{name}.html").render(**ctx),
+            env.get_template(f"email/{name}.txt").render(**ctx))
 
 
 # --- password-reset tokens (signed, no table needed) ---------------------- #
@@ -65,22 +80,44 @@ def read_reset_token(token: str) -> int | None:
         return None
 
 
+# --- unsubscribe tokens for the digest (signed, work without login) --------- #
+def _unsub_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(config.secret_key, salt="jbhntr-unsub")
+
+
+def make_unsub_token(user_id: int) -> str:
+    return _unsub_serializer().dumps({"uid": user_id})
+
+
+def read_unsub_token(token: str) -> int | None:
+    try:
+        return int(_unsub_serializer().loads(token, max_age=400 * 86400)["uid"])
+    except (BadData, KeyError, ValueError, TypeError):
+        return None
+
+
 def send_password_reset(email: str, token: str) -> bool:
-    link = f"{config.base_url.rstrip('/')}/reset?token={token}"
-    return send(email, "Reset your JBHNTR password",
-                "Someone asked to reset the password for this JBHNTR account.\n\n"
-                f"Set a new one here (the link lasts {config.reset_token_minutes} minutes):\n{link}\n\n"
-                "If it wasn't you, ignore this email — nothing changes.")
+    html, text = render("reset", {"token": token})
+    return send(email, "Reset your JBHNTR password", text, html)
 
 
 def send_welcome(email: str) -> bool:
-    link = f"{config.base_url.rstrip('/')}/matches"
-    return send(email, "Welcome to JBHNTR",
-                "Welcome — you're in.\n\n"
-                f"You've got {config.free_searches} free searches to start. Upload your CV, "
-                "say what you're after in your own words, and JBHNTR builds you a scored "
-                "shortlist with the reasoning attached.\n\n"
-                f"Start here:\n{link}")
+    html, text = render("welcome", {"free_searches": config.free_searches})
+    return send(email, "You are in. One upload and it starts hunting.", text, html)
+
+
+def send_digest(email: str, ctx: dict, unsub_token: str) -> bool:
+    """Premium daily/weekly digest (R13.4). Caller guarantees it is non-empty."""
+    html, text = render("digest", {**ctx, "token": unsub_token})
+    base = config.base_url.rstrip("/")
+    n = ctx.get("n", 0)
+    top = ctx.get("top_score", 0)
+    roles = "role" if n == 1 else "roles"
+    subject = f"{n} new {roles}, best is {top}/100"
+    return send(email, subject, text, html, headers={
+        "List-Unsubscribe": f"<{base}/unsubscribe?t={unsub_token}>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    })
 
 
 def send_premium_confirmation(email: str) -> bool:

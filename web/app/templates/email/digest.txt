@@ -1,0 +1,14 @@
+{{ n }} new role{{ "s" if n != 1 }} for you, best scored {{ top_score }}/100.
+
+Since yesterday it read {{ reviewed }} new postings.
+{% for j in jobs %}
+{{ j.score }}/100  {{ j.tier_label|upper }}
+{{ j.title }}
+{{ j.company }}{% if j.location %} · {{ j.location }}{% endif %}
+{% if j.good %}Fits: {{ j.good }}{% endif %}
+{% if j.bad %}Watch out: {{ j.bad }}{% endif %}
+{{ base_url }}/matches#card-{{ j.id }}
+{% endfor %}
+{% if remaining %}{{ remaining }} more are on your shortlist: {{ base_url }}/matches{% endif %}
+
+Turn this off: {{ base_url }}/unsubscribe?t={{ token }}

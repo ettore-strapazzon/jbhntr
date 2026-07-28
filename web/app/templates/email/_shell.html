@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block subject %}JBHNTR{% endblock %}</title></head>
+<body style="margin:0;padding:0;background:#f2efe9">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">{% block preheader %}{% endblock %}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#f2efe9;padding:28px 12px"><tr><td align="center">
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+         style="width:560px;max-width:100%;background:#ffffff;border:1px solid #e2ded6;
+                border-radius:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',
+                Helvetica,Arial,sans-serif;color:#1c1b19">
+    <tr><td style="padding:22px 28px 0">
+      <span style="font:700 15px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+                   letter-spacing:.12em;color:#174b3e">JBHNTR</span>
+    </td></tr>
+    <tr><td style="padding:18px 28px 26px;font-size:15px;line-height:1.6">
+      {% block body %}{% endblock %}
+    </td></tr>
+    <tr><td style="padding:16px 28px 22px;border-top:1px solid #eee9e1;
+                   font-size:12px;line-height:1.5;color:#6b6862">
+      {% block footer %}
+        <a href="{{ base_url }}/account" style="color:#174b3e">Email settings</a> ·
+        <a href="{{ base_url }}/privacy" style="color:#174b3e">Privacy</a> ·
+        <a href="mailto:{{ support_email }}" style="color:#174b3e">Reply to a human</a>
+      {% endblock %}
+    </td></tr>
+  </table>
+</td></tr></table></body></html>

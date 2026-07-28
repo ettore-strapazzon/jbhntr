@@ -333,6 +333,29 @@ def test_password_reset_flow(client):
     assert "invalid or has expired" in client.get("/reset?token=garbage").text
 
 
+def test_digest_skips_an_empty_day_and_never_repeats(client):
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services import digest
+    signup(client, "dig@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="dig@example.com").first()
+    u.plan = "premium"; db.commit()
+    assert digest.build_digest(db, u) is None          # no matches -> no email
+    _seed_run(db, u.id, [("dg1", 1, 90, "A role"), ("dg2", 2, 82, "B role")], hours_ago=0)
+    ctx = digest.build_digest(db, u)
+    assert ctx and ctx["n"] == 2                        # two new roles worth sending
+    assert digest.build_digest(db, u) is None          # already digested, never repeat
+
+
+def test_email_templates_render_html_and_text():
+    from web.app.services import email as mail
+    for name, ctx in [("welcome", {"free_searches": 3}), ("reset", {"token": "t"})]:
+        html, text = mail.render(name, ctx)
+        assert "<table" in html and len(text) > 20
+        assert "—" not in html and "—" not in text   # no em dashes (R2)
+
+
 def test_email_sender_is_safe_noop_when_unconfigured():
     from web.app.services import email as mail
     # No SMTP in the test env — send() must not raise and must report not-sent.
@@ -359,9 +382,10 @@ def test_matches_renders_while_a_search_is_running(client):
 def test_welcome_email_on_signup(client, monkeypatch):
     from web.app.services import email as mail
     sent = []
-    monkeypatch.setattr(mail, "send", lambda to, subject, body: sent.append(subject) or True)
+    monkeypatch.setattr(mail, "send",
+                        lambda to, subject, text, html=None, headers=None: sent.append(subject) or True)
     signup(client, "welcome@example.com")
-    assert any("Welcome" in s for s in sent)
+    assert any("One upload" in s for s in sent)   # R13.2 welcome subject
 
 
 # ------------------------------- public ---------------------------------- #

@@ -1,0 +1,22 @@
+{% extends "email/_shell.html" %}
+{% block subject %}Reset your JBHNTR password{% endblock %}
+{% block preheader %}The link works for {{ config.reset_token_minutes }} minutes.{% endblock %}
+{% block body %}
+{% set link = base_url ~ "/reset?token=" ~ token %}
+<p style="margin:0 0 12px">Someone asked to reset the password for this account. If that
+  was you, set a new one here.</p>
+<p style="margin:0 0 14px">
+  <a href="{{ link }}" style="display:inline-block;background:#174b3e;color:#ffffff;
+     text-decoration:none;padding:13px 20px;border-radius:8px;font-weight:600;
+     font-size:15px">Set a new password</a></p>
+<p style="margin:0 0 12px">The link stops working after {{ config.reset_token_minutes }}
+  minutes, and it can only be used once.</p>
+<p style="margin:0 0 12px">If it was not you, ignore this. Nothing has changed and your
+  password still works.</p>
+<p style="margin:0;font-size:13px;color:#6b6862">If the button does not work, paste this
+  into your browser: {{ link }}</p>
+{% endblock %}
+{% block footer %}
+Sent because a reset was requested for this address.
+<a href="mailto:{{ support_email }}" style="color:#174b3e">Contact support</a>.
+{% endblock %}

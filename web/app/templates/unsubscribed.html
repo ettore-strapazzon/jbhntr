@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Unsubscribed · JBHNTR{% endblock %}
+{% block content %}
+<div class="card authcard">
+  {% if done %}
+    <h1>Done. No more digests.</h1>
+    <p class="muted">You will not get the daily email any more. Your shortlist is still
+      at <a href="/matches">/matches</a> whenever you want it.</p>
+    <p class="small muted">Changed your mind? Turn it back on under
+      <a href="/account#email">email settings</a>.</p>
+  {% else %}
+    <h1>That link has expired.</h1>
+    <p class="muted">Manage the digest under <a href="/account#email">email settings</a>.</p>
+  {% endif %}
+</div>
+{% endblock %}

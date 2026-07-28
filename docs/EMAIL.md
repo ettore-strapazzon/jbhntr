@@ -85,11 +85,16 @@ If nothing arrives:
 
 | Email | Trigger | Code |
 | --- | --- | --- |
-| Password reset | `/forgot` for a real password account | `send_password_reset` |
-| Premium confirmation | user taps "Turn premium on for me" | `send_premium_confirmation` |
-| Search complete | user opted in via "Email me when it's ready" | `send_search_complete` |
+| Welcome (HTML + text) | successful signup (email or new Google account) | `send_welcome` |
+| Password reset (HTML + text) | `/forgot` for a real password account | `send_password_reset` |
+| Daily/weekly digest (HTML + text) | the nightly cron, premium users, non-empty days only | `send_digest` |
+| Premium waiting-list confirmation | user taps "Tell me when premium opens" | `send_premium_confirmation` |
 
-The **premium daily digest** is intentionally not built yet.
+Bodies live in `web/app/templates/email/` (`_shell.html` + one `.html` and
+`.txt` per email). The digest never sends on a zero-match day, caps at eight
+roles, never repeats one, honours each user's frequency (Account → Email), and
+carries a one-click unsubscribe (`/unsubscribe?t=...` + `List-Unsubscribe`
+headers).
 
 ## From-address and deliverability
 

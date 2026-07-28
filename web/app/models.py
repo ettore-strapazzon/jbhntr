@@ -51,6 +51,7 @@ class User(Base):
 
     tos_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     marketing_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
+    digest: Mapped[str] = mapped_column(String(8), default="daily")   # daily | weekly | off (R13.4)
     # Set when a free user asks for premium while checkout is "coming soon" —
     # the flag the operator upgrades from manually (F-13).
     premium_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
@@ -321,6 +322,8 @@ class JobState(Base):
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     # Applied | Replied | Interviewing | Rejected | Offer | Withdrawn
     application_status: Mapped[str] = mapped_column(String(16), default="")
+    # Set when a posting has been included in a digest, so it is never repeated.
+    digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow,
