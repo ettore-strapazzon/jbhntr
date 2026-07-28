@@ -84,8 +84,8 @@ def send_welcome(email: str) -> bool:
 
 
 def send_premium_confirmation(email: str) -> bool:
-    return send(email, "We'll turn on JBHNTR premium for you",
-                "Thanks for asking. Checkout isn't live yet, so we'll switch premium "
-                "on for your account by hand — you'll hear from us within a day.")
+    return send(email, "You're on the JBHNTR premium list",
+                "Thanks. Premium is not on sale yet. You will hear from us once, "
+                "when it opens, and nothing in between.")
 
 

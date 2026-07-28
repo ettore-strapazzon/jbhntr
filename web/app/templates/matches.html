@@ -24,6 +24,9 @@
     {% endif %}
     {% if user.is_premium %}
       <span class="small muted">Unlimited · fair use {{ config.premium_searches_per_day }}/day</span>
+    {% elif searches_left <= 0 %}
+      <span class="small muted">No free searches left. Your shortlist stays here.
+        <a href="/premium">See premium</a>.</span>
     {% else %}
       <span class="small muted">{{ searches_left }} of {{ config.free_searches }} free searches left</span>
     {% endif %}

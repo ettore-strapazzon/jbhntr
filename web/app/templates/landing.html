@@ -1,136 +1,163 @@
 {% extends "base.html" %}
 {% block content %}
 
-{# ============================ 10.1 HERO ============================ #}
-{# NOTE (yours): the card below uses EXAMPLE data. Swap in one real, anonymised
-   shortlist from your own account before launch — invented scores read as
-   invented. Copy is from the design audit §10. #}
+{# ============================ HERO (R3.1/R3.3/R3.5) ============================ #}
+{# NOTE (yours): the card uses example data with an invented company (Meridian
+   Pay). Swap in one real, anonymised shortlist before launch. #}
 <section class="hero">
-  <h1>A shortlist, not a search box.</h1>
-  <p class="lede">JBHNTR reads your CV, learns what you actually want, then goes
-    through thousands of postings from 25+ boards and company career pages. You get
-    ten or twenty roles worth your evening — each scored, each with the reasoning
-    attached.</p>
-  <p class="cta">
-    <a class="btn" href="/signup">Start free</a>
-    <a class="btn ghost" href="/login">Log in</a>
-  </p>
-  <p class="small muted">{{ config.free_searches }} free searches. No card, no trial countdown.</p>
+  <div class="hero-copy">
+    <h1>Stop scrolling job boards. Read a shortlist instead.</h1>
+    <p class="lede">JBHNTR is a job hunter that works while you do something else.
+      Give it your CV and tell it what you actually want. It reads thousands of new
+      postings across 25+ job boards and company career pages, then hands back the
+      few that fit, scored, with the reasoning written out.</p>
+    <p class="cta">
+      <a class="btn" href="/signup">Start free</a>
+      <a class="btn ghost" href="/login">Log in</a>
+    </p>
+    <p class="small muted">{{ config.free_searches }} free searches. No card, no countdown.</p>
+  </div>
 
   <div class="hero-stack" aria-hidden="true">
-    <article class="job t1 demo">
+    <article class="demo-card job t1">
       <div class="job-head">
         <span class="score">88</span>
         <span class="tier tier-1">Apply now</span>
-        <span class="muted small">posted 2 days ago · Greenhouse</span>
+        <span class="muted small">posted 2 days ago</span>
+        <div class="job-title">
+          <div class="jt">Senior Product Manager, Payments</div>
+          <div class="muted small">Meridian Pay · Milan, hybrid · Series B, 140 people</div>
+        </div>
       </div>
-      <div style="font-weight:600;font-size:16px">Senior Product Manager, Payments</div>
-      <div class="muted small" style="margin-bottom:4px">Example Fintech · Milan (hybrid) · Series B, 140 people</div>
       <div class="fitbars">
         <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
           <div class="scorebar"><div style="width:92%"></div></div></div>
         <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
           <div class="scorebar"><div style="width:78%"></div></div></div>
       </div>
-      <div class="small" style="margin:8px 0 10px">
-        <b>Why it fits.</b> Payments depth and B2B SaaS line up with the core of the role.
-        <span class="muted"><b>Watch out.</b> They ask for team leadership at scale; your last role was an IC.</span>
+      <div class="why">
+        <div class="why-col good"><p class="why-h">Fits</p>
+          <ul><li>Payments depth and B2B SaaS line up with the core of the role</li></ul></div>
+        <div class="why-col bad"><p class="why-h">Watch out</p>
+          <ul><li>They ask for team leadership at scale, your last role was an IC</li></ul></div>
       </div>
-      <div class="demo-actions">
-        <span class="btn">Apply</span><span class="btn ghost">Tailor my CV</span>
-        <span class="btn ghost">Save</span><span class="btn ghost">Not for me</span>
+      <div class="actions">
+        <div class="actiongroup primary"><span class="btn">Apply</span></div>
+        <div class="actiongroup make"><div class="row">
+          <span class="btn ghost">Tailor my CV</span>
+          <span class="btn ghost">Write a cover letter</span></div></div>
+        <div class="actiongroup triage">
+          <span class="btn ghost">Save</span><span class="btn ghost">I applied</span>
+          <span class="btn ghost">Not for me</span></div>
+      </div>
+      <div class="demo-rate">
+        <span class="small muted">How good a match is this?</span>
+        <span class="ratebtns"><b>1</b><b>2</b><b class="on">3</b><b>4</b><b>5</b></span>
+        <span class="small muted">Tell it why, in a line</span>
       </div>
     </article>
-    <div class="mini t2 behind1"><span class="score">81</span>
-      <span class="tier tier-2">Strong</span> Group PM, Risk · Example Bank</div>
-    <div class="mini t3 behind2"><span class="score">74</span>
-      <span class="tier tier-3">Possible</span> Lead PM, Platform · Example Co</div>
+
+    <article class="demo-card job t2 behind behind1">
+      <div class="job-head"><span class="score">81</span><span class="tier tier-2">Strong</span>
+        <div class="job-title"><div class="jt">Group PM, Risk</div>
+          <div class="muted small">Lombard Bank · Milan (hybrid)</div></div></div>
+      <div class="fitbars">
+        <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
+          <div class="scorebar"><div style="width:84%"></div></div></div>
+        <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
+          <div class="scorebar"><div style="width:72%"></div></div></div></div>
+    </article>
+    <article class="demo-card job t3 behind behind2">
+      <div class="job-head"><span class="score">74</span><span class="tier tier-3">Possible</span>
+        <div class="job-title"><div class="jt">Lead PM, Platform</div>
+          <div class="muted small">Corviale · Remote, EU</div></div></div>
+    </article>
   </div>
-  <p class="small muted caption">A real shortlist, anonymised. Scores are the
-    model's, not a marketing mock-up.</p>
 </section>
 
-{# ======================= 10.2 HOW IT WORKS ======================= #}
+{# ======================= HOW IT WORKS (R3.4) ======================= #}
 <section class="section" id="how">
   <h2>How it works</h2>
   <div class="frames">
     <div class="frame">
       <h3>1. Give it your CV and five minutes</h3>
-      <p class="muted">Drop in your CV, say where you'll work and what you're after in
-        your own words. That's the whole setup. The more you tell it — a second CV,
-        an old cover letter, what you <i>don't</i> want — the sharper everything
-        downstream gets.</p>
+      <p class="muted">Upload your CV, say where you will work, and describe what you
+        are after in your own words. That is the whole setup. The more you tell it,
+        a second CV, an old cover letter, the things you do not want, the sharper
+        everything after this gets.</p>
     </div>
     <div class="frame">
       <h3>2. It reads the market while you do something else</h3>
-      <p class="muted">One search pulls from 25+ sources — broad engines, niche remote
-        boards, and companies' own career pages, where roles appear first. It filters
-        to your locations, ranks by meaning rather than keywords, then scores the
-        shortlist properly. Takes a minute or two.</p>
+      <p class="muted">One search pulls from 25+ sources: the big engines, niche
+        remote boards, and companies' own career pages, where roles appear first.
+        It filters to your locations, ranks by meaning rather than keywords, then
+        scores what survives. Takes a minute or two.</p>
     </div>
     <div class="frame">
-      <h3>3. Read twenty jobs instead of two hundred</h3>
-      <p class="muted">Every role gets two scores — how well it fits what you want, and
-        how well you fit what they asked for — plus a plain-English case for and
-        against. Sorted into apply-now, strong, possible and long shots, so you know
-        where to spend the evening.</p>
+      <h3>3. Read the ones worth reading</h3>
+      <p class="muted">Every role gets two scores, how well it fits what you want and
+        how well you fit what they asked for, plus a plain case for and against.
+        Sorted into apply now, strong, possible and long shots, so you know where
+        the evening goes.</p>
     </div>
   </div>
 </section>
 
-{# ==================== 10.3 WHY IT BEATS A JOB ALERT ==================== #}
+{# ==================== WHY IT BEATS A JOB ALERT ==================== #}
 <section class="section">
-  <h2>Job alerts send you everything. This sends you three things worth reading.</h2>
+  <h2>Job alerts send you everything. This sends you the few things worth reading.</h2>
   <ul class="reasons">
     <li><b>It matches on meaning.</b> A role called "Backend Developer" still reaches
-      you when you searched for "Software Engineer" — and one called "Product Manager"
-      won't, if it's really a project management job.</li>
+      you when you searched for "Software Engineer", and one called "Product Manager"
+      will not, if it is really a project management job.</li>
     <li><b>It reads the requirements too.</b> Most tools tell you a job matches your
       search. This one also tells you where you fall short of it, before you spend an
       hour on the application.</li>
-    <li><b>It watches career pages directly.</b> Greenhouse, Lever, Ashby and friends —
-      where roles are posted days before they reach the aggregators, and sometimes
-      never do.</li>
-    <li><b>It gets better because you correct it.</b> Thumbs-down a bad match, say why
-      in a line, and the next run reflects it.</li>
+    <li><b>It watches career pages directly.</b> Greenhouse, Lever, Ashby and the
+      rest, where roles are posted days before they reach the aggregators, and
+      sometimes never do.</li>
+    <li><b>It gets better because you correct it.</b> Rate a match out of five, add a
+      line about why, and the next search weighs it. Twenty ratings is enough to
+      change what comes back.</li>
   </ul>
 </section>
 
-{# ==================== 10.4 TAILORED APPLICATIONS ==================== #}
+{# ==================== TAILORED APPLICATIONS ==================== #}
 <section class="section">
-  <h2>And when you find one, it writes the first draft.</h2>
-  <p class="muted" style="max-width:44em">One click on a role gives you a CV rewritten
-    for that specific posting and a cover letter in your own register — because it
-    learned it from the ones you wrote. Download, edit, send. It's a first draft, not
-    a ghostwriter: read it before you send it.</p>
+  <h2>When you find one, it writes the first draft.</h2>
+  <p class="muted" style="max-width:56ch">One click on a role gives you a CV rewritten
+    for that specific posting and a cover letter in your own register, because it
+    learned that from the ones you wrote. Download, edit, send. It is a first draft,
+    so read it before you send it.</p>
 </section>
 
-{# ========================= 10.5 YOUR DATA ========================= #}
+{# ========================= YOUR DATA ========================= #}
 <section class="section">
   <h2>Your CV is yours.</h2>
-  <p class="muted" style="max-width:44em">Uploads are encrypted at rest. Nothing is
-    ever shown to employers or recruiters — no one is paying us for your profile.
-    Export everything as JSON whenever you like, and if you delete your account, it's
-    actually deleted: rows gone, not a hidden flag.</p>
+  <p class="muted" style="max-width:56ch">Uploads are encrypted at rest. Nothing is
+    ever shown to employers or recruiters, and no one is paying us for your profile.
+    Export everything as JSON whenever you like, and if you delete your account it is
+    actually deleted, rows gone, not a hidden flag.</p>
   <p class="small"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
     · <a href="/cookies">What we store and why</a></p>
 </section>
 
-{# ==================== 10.6 PRICE AND HONESTY ==================== #}
+{# ==================== PRICE AND HONESTY (R3.6) ==================== #}
 <section class="section" id="pricing">
-  <h2>Free to try, cheap to keep.</h2>
-  <p class="muted" style="max-width:44em">Three full searches free — real ones, with
-    the real model. After that, premium runs a fresh search whenever you want one,
-    unlimited tailored documents, and the better matching model. Checkout is nearly
-    finished; until it is, ask us and we'll turn premium on for your account.</p>
+  <h2>Free to try. Cheap to keep, once we work out what cheap means.</h2>
+  <p class="muted" style="max-width:56ch">{{ config.free_searches }} full searches free,
+    with the real model, plus two tailored CVs and one cover letter. Premium adds a
+    fresh search whenever you want one, unlimited documents, a daily email, and the
+    stronger scoring model. It will not cost much. We are still working out the right
+    price, so nothing is on sale yet. <a href="/premium">Ask to be told when it is</a>.</p>
   <div class="honesty">
-    <b>What it isn't.</b> It won't mass-apply for you. It doesn't scrape LinkedIn. It
-    won't find roles nobody has posted. And it's early: the borderline matches are
-    still the weakest part, which is why the thumbs-down button matters.
+    <b>What it will not do.</b> It will not mass apply for you. It does not scrape
+    LinkedIn. It cannot find roles nobody has posted. And it is early, so the
+    borderline matches are the weak spot, which is why the rating buttons matter.
   </div>
 </section>
 
-{# ==================== 10.7 CLOSING CTA ==================== #}
+{# ==================== CLOSING CTA ==================== #}
 <section class="section closing">
   <h2>See your own shortlist tonight.</h2>
   <p class="muted">Upload a CV, run one search, decide for yourself.</p>

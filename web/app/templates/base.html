@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}JBHNTR{% endblock %}</title>
+<link rel="icon" href="/static/icon-16.svg" sizes="16x16" type="image/svg+xml">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="theme-color" content="#174b3e">
 <link rel="stylesheet" href="/static/app.css?v={{ asset_v }}">
 <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
 {% if config.plausible_domain %}
@@ -13,18 +17,21 @@
 <body{% if user %} class="authed"{% endif %}>
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="bar">
-  <a class="brand" href="/">JBHNTR</a>
+  <a class="brand" href="/">
+    <img src="/static/logo.svg" width="26" height="18" alt="" aria-hidden="true">
+    <span>JBHNTR</span>
+  </a>
   <nav aria-label="Main">
     {% if user %}
       <a href="/matches">Matches</a>
       <a href="/applications">Applications</a>
       <a href="/profile">Profile</a>
-      <a href="/premium" class="pill">{% if user.is_premium %}Premium{% else %}{{ user.searches_remaining(config.free_searches) }} searches left{% endif %}</a>
+      <a href="/premium" class="pill">{% if user.is_premium %}<span class="pill-dot" aria-hidden="true"></span>{% endif %}Premium</a>
       <a href="/account">Account</a>
       <a href="/logout">Log out</a>
     {% else %}
       <a href="/#how">How it works</a>
-      <a href="/#pricing">Pricing</a>
+      <a href="/#pricing">Premium</a>
       <a href="/login">Log in</a>
       <a href="/signup" class="pill">Start free</a>
     {% endif %}
