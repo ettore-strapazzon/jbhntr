@@ -63,7 +63,11 @@ class WebConfig:
     )
     quality_threshold: int = 70  # below this we nudge "improve your profile"
 
-    # --- email (provider-agnostic SMTP; unset = a safe no-op) ---
+    # --- email ---
+    # Resend HTTP API (port 443, works where cloud hosts block outbound SMTP).
+    # Preferred when set; otherwise falls back to SMTP below.
+    resend_api_key: str = os.environ.get("RESEND_API_KEY", "")
+    # Provider-agnostic SMTP; unset = a safe no-op.
     smtp_host: str = os.environ.get("SMTP_HOST", "")
     smtp_port: int = _int("SMTP_PORT", 587)
     smtp_user: str = os.environ.get("SMTP_USER", "")

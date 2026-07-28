@@ -22,7 +22,31 @@ log = logging.getLogger("jbhntr.email")
 
 
 def is_configured() -> bool:
-    return bool(config.smtp_host and config.smtp_from)
+    # A from-address plus either the HTTP API key or an SMTP host.
+    return bool(config.smtp_from and (config.resend_api_key or config.smtp_host))
+
+
+def _send_via_resend_api(to: str, subject: str, text: str,
+                         html: str | None, headers: dict | None) -> bool:
+    """POST to Resend over HTTPS (443). Used when RESEND_API_KEY is set, so it
+    works on hosts that block outbound SMTP ports."""
+    import httpx
+
+    payload: dict = {"from": config.smtp_from, "to": [to], "subject": subject, "text": text}
+    if html:
+        payload["html"] = html
+    if headers:
+        payload["headers"] = headers
+    try:
+        r = httpx.post("https://api.resend.com/emails", json=payload, timeout=15,
+                       headers={"Authorization": f"Bearer {config.resend_api_key}"})
+        if r.status_code >= 300:
+            log.error("resend api send to %s failed: %s %s", to, r.status_code, r.text[:300])
+            return False
+        return True
+    except Exception as exc:
+        log.error("resend api send to %s failed: %s", to, exc)
+        return False
 
 
 def send(to: str, subject: str, text: str, html: str | None = None,
@@ -31,6 +55,8 @@ def send(to: str, subject: str, text: str, html: str | None = None,
     if not is_configured():
         log.info("email not configured — would send to %s: %s", to, subject)
         return False
+    if config.resend_api_key:
+        return _send_via_resend_api(to, subject, text, html, headers)
     msg = EmailMessage()
     msg["From"] = config.smtp_from
     msg["To"] = to
