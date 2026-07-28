@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Operator · JBHNTR{% endblock %}
+{% block content %}
+<h1>Operator dashboard</h1>
+<p class="small muted">Snapshot at {{ now.strftime("%d %b %Y, %H:%M UTC") }}. Read-only,
+  aggregate figures. No IP addresses are stored anywhere.</p>
+
+{# ===== overview ===== #}
+<div class="admin-stats">
+  <div class="stat"><b>{{ total_users }}</b><span>users</span></div>
+  <div class="stat"><b>{{ google_users }}</b><span>via Google</span></div>
+  <div class="stat"><b>{{ premium_users }}</b><span>premium</span></div>
+  <div class="stat"><b>{{ waitlist|length }}</b><span>on the waiting list</span></div>
+</div>
+
+{# ===== premium waiting list ===== #}
+<div class="card">
+  <div class="admin-head">
+    <h2>Premium waiting list</h2>
+    <a class="btn ghost" href="/admin/waitlist.csv">Download CSV</a>
+  </div>
+  {% if waitlist %}
+    <table class="apptable">
+      <thead><tr><th>Email</th><th>Joined</th></tr></thead>
+      <tbody>
+        {% for email, when in waitlist %}
+          <tr><td>{{ email }}</td>
+            <td class="muted">{{ when.strftime("%d %b %Y, %H:%M") if when else "—" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted small">Nobody has asked for early access yet.</p>
+  {% endif %}
+</div>
+
+{# ===== searches ===== #}
+<div class="card">
+  <h2>Searches</h2>
+  <div class="admin-stats">
+    <div class="stat"><b>{{ total_searches }}</b><span>all time</span></div>
+    <div class="stat"><b>{{ searches_30d }}</b><span>last 30 days</span></div>
+    <div class="stat"><b>{{ searches_7d }}</b><span>last 7 days</span></div>
+    <div class="stat"><b>{% if avg_search_secs is not none %}{{ avg_search_secs }}s{% else %}—{% endif %}</b>
+      <span>avg run time</span></div>
+  </div>
+  <p class="small muted">By status:
+    {% for st, n in status_counts.items() %}{{ st }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}
+    {% if not status_counts %}no searches yet{% endif %}</p>
+
+  {% if per_user %}
+    <table class="apptable">
+      <thead><tr><th>Email</th><th>Searches</th><th>Last search</th></tr></thead>
+      <tbody>
+        {% for email, n, last in per_user %}
+          <tr><td>{{ email }}</td><td>{{ n }}</td>
+            <td class="muted">{{ last.strftime("%d %b %Y, %H:%M") if last else "—" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="small muted">Top {{ per_user|length }} users by search volume.</p>
+  {% endif %}
+</div>
+
+{# ===== feedback ratings ===== #}
+<div class="card">
+  <h2>Feedback ratings</h2>
+  <div class="admin-stats">
+    <div class="stat"><b>{% if avg_rating is not none %}{{ avg_rating }}{% else %}—{% endif %}</b>
+      <span>average (1–5)</span></div>
+    <div class="stat"><b>{{ ratings_count }}</b><span>ratings given</span></div>
+  </div>
+  <table class="apptable">
+    <tbody>
+      {% for stars, n in rating_dist %}
+        <tr><td style="width:60px">{{ stars }} ★</td><td>{{ n }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="small muted">Ratings are per matched role, not per whole search.</p>
+</div>
+
+{# ===== documents ===== #}
+<div class="card">
+  <h2>Documents generated</h2>
+  <div class="admin-stats">
+    <div class="stat"><b>{{ cv_count }}</b><span>tailored CVs</span></div>
+    <div class="stat"><b>{{ cl_count }}</b><span>cover letters</span></div>
+  </div>
+</div>
+
+{# ===== pageviews ===== #}
+<div class="card">
+  <h2>Pageviews <span class="muted small">(first-party, cookieless, no IP)</span></h2>
+  <div class="admin-stats">
+    <div class="stat"><b>{{ pv_30d }}</b><span>last 30 days</span></div>
+    <div class="stat"><b>{{ pv_7d }}</b><span>last 7 days</span></div>
+  </div>
+  <div class="admin-two">
+    <div>
+      <h3>Top countries <span class="muted small">(30d, Cloudflare)</span></h3>
+      <table class="apptable"><tbody>
+        {% for c, n in top_countries %}
+          <tr><td>{{ c or "—" }}</td><td>{{ n }}</td></tr>
+        {% else %}<tr><td class="muted">no data</td><td></td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+    <div>
+      <h3>Top pages <span class="muted small">(30d)</span></h3>
+      <table class="apptable"><tbody>
+        {% for p, n in top_paths %}
+          <tr><td>{{ p }}</td><td>{{ n }}</td></tr>
+        {% else %}<tr><td class="muted">no data</td><td></td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</div>
+{% endblock %}

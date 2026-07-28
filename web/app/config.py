@@ -77,6 +77,11 @@ class WebConfig:
     reset_token_minutes: int = _int("RESET_TOKEN_MINUTES", 60)
     postal_address: str = os.environ.get("POSTAL_ADDRESS", "")   # CAN-SPAM line in the email footer
 
+    # --- operator ---
+    # Password for the /admin dashboard (HTTP Basic, any username). Empty = the
+    # whole /admin surface 404s, so it is off unless you deliberately set it.
+    admin_token: str = os.environ.get("ADMIN_TOKEN", "")
+
     # --- product ---
     payments_enabled: bool = _b("PAYMENTS_ENABLED", "false")
     plausible_domain: str = os.environ.get("PLAUSIBLE_DOMAIN", "")

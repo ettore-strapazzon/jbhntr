@@ -126,6 +126,20 @@ button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed
 .thin-nudge{background:var(--warn-bg);border-color:#efe0b0}
 @media(max-width:720px){.docview{grid-template-columns:1fr}}
 
+/* operator dashboard (/admin) */
+.admin-stats{display:grid;gap:12px;margin:14px 0 4px;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+.admin-stats .stat{border:1px solid var(--line);border-radius:var(--r-card);
+  padding:14px 16px;background:var(--card)}
+.admin-stats .stat b{display:block;font:800 26px/1.05 var(--mono);color:var(--accent)}
+.admin-stats .stat span{font-size:13px;color:var(--muted)}
+.admin-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.admin-head .btn{min-height:auto;padding:8px 14px;font-size:13px}
+.admin-two{display:grid;gap:clamp(16px,3vw,32px);margin-top:8px;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+.admin-two h3{font-size:14px;margin:8px 0 0}
+.admin-two .apptable td{word-break:break-all}
+
 /* applications table (§11.10) */
 .tablewrap{overflow-x:auto}
 .apptable{width:100%;border-collapse:collapse;font-size:14px;margin-top:12px}

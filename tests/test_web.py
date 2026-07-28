@@ -1317,3 +1317,43 @@ def test_completeness_scores_and_gates():
         assert full.should_improve or full.score >= 70
     finally:
         db.close()
+
+
+# --------------------------- operator dashboard --------------------------- #
+def test_admin_404_when_token_unset(client, monkeypatch):
+    """The /admin surface is off unless ADMIN_TOKEN is set, so a fresh deploy
+    never exposes it."""
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "")   # simulate an unset token
+    assert client.get("/admin").status_code == 404
+    assert client.get("/admin/waitlist.csv").status_code == 404
+
+
+def test_admin_requires_basic_auth(client, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    assert client.get("/admin").status_code == 401                 # no creds
+    assert client.get("/admin", auth=("op", "wrong")).status_code == 401
+    r = client.get("/admin", auth=("op", "s3cret"))
+    assert r.status_code == 200 and "Operator dashboard" in r.text
+
+
+def test_admin_shows_waitlist_and_csv(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import User, utcnow
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    signup(client, email="wanter@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="wanter@example.com").one()
+    u.premium_requested_at = utcnow()
+    db.commit()
+    db.close()
+
+    r = client.get("/admin", auth=("op", "s3cret"))
+    assert r.status_code == 200 and "wanter@example.com" in r.text
+
+    csv = client.get("/admin/waitlist.csv", auth=("op", "s3cret"))
+    assert csv.status_code == 200
+    assert "text/csv" in csv.headers["content-type"]
+    assert "wanter@example.com" in csv.text and "email,requested_at" in csv.text
