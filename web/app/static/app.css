@@ -364,8 +364,39 @@ footer a{color:var(--muted)}
 .cookie-note[hidden]{display:none}
 
 /* premium feature list */
-.prem-features{margin:0;padding-left:20px}
-.prem-features li{margin-bottom:10px;max-width:60ch}
+/* ===== premium page (Round 3 Pass I — S-06) ===== */
+.soon-banner{display:flex;align-items:center;gap:9px;background:var(--accent);
+  color:#fff;font:700 11px/1 var(--mono);letter-spacing:.18em;
+  padding:9px 14px;margin:0 0 22px;border-radius:6px}
+.soon-sq{width:6px;height:6px;background:var(--brass);flex:none}  /* the one brass mark */
+
+.prem-head{display:grid;gap:clamp(18px,3vw,40px);align-items:start;margin:0 0 8px;
+  grid-template-columns:1fr}
+@media (min-width:820px){.prem-head{grid-template-columns:1.7fr 1fr}}
+.prem-head h1{font-size:var(--step-h2);line-height:1.15;letter-spacing:-.015em;
+  text-wrap:balance;margin:0 0 10px}
+.prem-head .lede{max-width:56ch;margin:0}
+.prem-head-cta{justify-self:start}
+@media (min-width:820px){.prem-head-cta{justify-self:end;text-align:right}}
+
+/* get-early-access CTA */
+.ea{margin:0}
+.ea form{margin:0}
+.ea p{margin:6px 0 0}
+.ea .btn{min-width:168px}
+.ea-done{background:#fff;color:var(--accent);border:1.5px solid var(--accent);cursor:default}
+.ea-done[disabled]{background:#fff;border-color:var(--accent);color:var(--accent);
+  cursor:default;opacity:1}
+.ea-ahead{display:inline-block;margin-left:10px}
+.prem-foot-cta{border-top:1px solid var(--line);margin-top:26px;padding-top:22px}
+
+/* six feature cards, three across on desktop, two on tablet, one on a phone */
+.prem-features{display:grid;list-style:none;margin:24px 0 0;padding:0;
+  gap:clamp(14px,1.8vw,22px);
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.prem-features li{margin:0;border:1px solid var(--line);border-radius:var(--r-card);
+  padding:16px 18px;background:var(--card)}
+.prem-features b{display:block;margin:0 0 4px}
 
 /* ===== landing width + fluid type (Round 3 Pass H — S-04/S-05/S-06) =====
    One clamp() per level, no font-size media queries anywhere. */

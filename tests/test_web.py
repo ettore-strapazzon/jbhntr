@@ -98,9 +98,9 @@ def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     assert r2.status_code == 303                  # non-HTMX keeps the redirect
 
 
-def test_f13_premium_notify_records_intent(client):
+def test_f13_premium_waitlist_records_intent(client):
     signup(client, email="f13@example.com")
-    r = client.post("/premium/notify", follow_redirects=False)
+    r = client.post("/premium/waitlist", follow_redirects=False)
     assert r.status_code == 303 and "requested=1" in r.headers["location"]
     from web.app.db import SessionLocal
     from web.app.models import User
@@ -109,6 +109,64 @@ def test_f13_premium_notify_records_intent(client):
         assert db.query(User).filter_by(email="f13@example.com").one().premium_requested_at
     finally:
         db.close()
+
+
+def test_premium_waitlist_htmx_swaps_button_and_sends_once(client, monkeypatch):
+    """S-06/S-07: an HTMX click returns the 'You are on the list' state without a
+    reload, and clicking twice sends exactly one waiting-list email."""
+    sent = []
+    from web.app.services import email as mail
+    # The route does `from ..services.email import send_premium_waitlist` at call
+    # time, so patching the module attribute intercepts the send.
+    monkeypatch.setattr(mail, "send_premium_waitlist",
+                        lambda *a, **k: sent.append(a) or True)
+    signup(client, email="wl@example.com")
+    r1 = client.post("/premium/waitlist", data={"region": "top"},
+                     headers={"HX-Request": "true"})
+    assert r1.status_code == 200 and "You are on the list" in r1.text
+    r2 = client.post("/premium/waitlist", data={"region": "top"},
+                     headers={"HX-Request": "true"})
+    assert r2.status_code == 200 and "You are on the list" in r2.text
+    assert len(sent) == 1                              # deduped: one email only
+
+
+def test_premium_page_has_banner_and_no_price(client):
+    """S-06: coming-soon banner present, no price anywhere on the page."""
+    signup(client, email="pp@example.com")
+    r = client.get("/premium")
+    assert r.status_code == 200
+    assert "COMING SOON" in r.text
+    assert "Get early access" in r.text
+    assert "$" not in r.text                           # no price is quoted
+
+
+def test_waitlist_email_renders_in_shell_and_carries_unsub():
+    from web.app.services import email as mail
+    html, text = mail.render("premium_waitlist", {
+        "first_name": "", "search_url": "http://x/matches",
+        "unsub_token": "TK", "unsub_url": "http://x/unsubscribe?t=TK&scope=waitlist"})
+    assert "#174b3e" in html and "Ettore" in html      # S4 pine shell, human signature
+    assert "You are on the list" in html
+    assert "scope=waitlist" in html and "scope=waitlist" in text
+    assert "Thanks." in text                            # empty first_name drops the name
+
+
+def test_unsubscribe_waitlist_scope_removes_intent(client):
+    from web.app.db import SessionLocal
+    from web.app.models import User, utcnow
+    from web.app.services.email import make_unsub_token
+    signup(client, email="uw@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="uw@example.com").one()
+    u.premium_requested_at = utcnow()
+    db.commit()
+    tok = make_unsub_token(u.id)
+    db.close()
+    client.get(f"/unsubscribe?t={tok}&scope=waitlist")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="uw@example.com").one()
+    assert u.premium_requested_at is None              # waiting-list row removed
+    db.close()
 
 
 def test_f11_skip_link_and_focus_style_present(client):

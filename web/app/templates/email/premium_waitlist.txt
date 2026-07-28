@@ -1,0 +1,29 @@
+You are on the list.
+
+Thanks{% if first_name %}, {{ first_name }}{% endif %}. Premium is not open yet, so
+there is nothing to pay and nothing to do. When it opens you will hear
+from us before anyone else, and the first stretch is free while we test it.
+
+What Premium adds, so you know what you are waiting for:
+
+- The hunt runs every day on its own, no searches to start and none to
+  count.
+- Tailored CVs and cover letters without a limit.
+- One digest, only on the days something worth reading turned up.
+
+Meanwhile your three free searches are still there, and the scoring is
+the same model Premium uses. Nothing is held back to make the paid
+version look better.
+
+Run a search now:
+{{ search_url }}
+
+One thing that would help. Reply to this email with the part of the hunt
+you would most like taken off your hands. We read every reply and it
+decides what gets built first.
+
+Ettore
+JBHNTR
+
+--
+Unsubscribe: {{ unsub_url }}

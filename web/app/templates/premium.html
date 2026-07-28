@@ -1,63 +1,56 @@
 {% extends "base.html" %}
 {% block title %}Premium · JBHNTR{% endblock %}
 {% block content %}
-<h1>Premium, when it is ready</h1>
-<p class="muted" style="max-width:56ch">Free accounts read the shortlist they already
-  have. Premium goes and looks again, every day, and writes as many drafts as you
-  need. It is not on sale yet.</p>
 
-{% if user.is_premium %}
-  <div class="notice ok" role="status">You are on premium{% if user.premium_until %}
-    until {{ user.premium_until.strftime("%d %b %Y") }}{% endif %}. Thank you, genuinely,
-    for being early.</div>
-{% endif %}
+{# ===== coming-soon banner (S-06): pine strip, brass mark, mono label ===== #}
+<div class="soon-banner"><span class="soon-sq" aria-hidden="true"></span>COMING SOON</div>
 
-<div class="card">
-  <ul class="prem-features">
-    <li><b>A fresh search whenever you want one.</b> Up to {{ config.premium_searches_per_day }}
-      a day, against the newest postings, not the ones you have already seen.</li>
-    <li><b>A daily email with what is new.</b> Only the roles that clear your bar,
-      scored, straight to your inbox. Nothing on the days there is nothing.</li>
-    <li><b>Unlimited tailored CVs and cover letters.</b> Free accounts get
-      {{ config.free_cvs }} CVs and {{ config.free_cover_letters }} cover letter in total.</li>
-    <li><b>Bring your own job description.</b> Paste a posting you found somewhere else
-      and get the same tailored CV and cover letter for it, plus a score against your
-      profile. <span class="muted small">(coming with premium)</span></li>
-    <li><b>More sources.</b> The premium run reaches further into company career pages
-      and the niche boards, where roles appear before the aggregators pick them up.</li>
-    <li><b>The stronger scoring model.</b> Noticeably better on the borderline cases,
-      which is where the free model is weakest.</li>
-  </ul>
-</div>
-
-{% if config.payments_enabled %}
-  {# Kept for later: switching payments on is one template block, not a rebuild. #}
-  <div class="row" style="align-items:stretch">
-    {% for plan in config.plans %}
-      <div class="card" style="flex:1;min-width:190px;text-align:center">
-        <h2 style="margin-bottom:2px">${{ plan.usd }}</h2>
-        <p class="muted small">{{ plan.label }}{% if plan.note %} · {{ plan.note }}{% endif %}</p>
-        <form method="post" action="/premium/checkout">
-          <input type="hidden" name="months" value="{{ plan.months }}">
-          <button type="submit">Choose</button>
-        </form>
-      </div>
-    {% endfor %}
+{# ===== header row: H1 + lede left, CTA top-right ===== #}
+<header class="prem-head">
+  <div class="prem-head-copy">
+    <h1>Premium runs the hunt every day, without you asking.</h1>
+    <p class="lede muted">The free version gives you three searches you start yourself.
+      Premium keeps looking in the background, unlimited searches, unlimited tailored CVs
+      and cover letters, and a digest only on days something worth reading turned up. It
+      is not open yet and there is no price to quote.</p>
   </div>
-{% else %}
-  <div class="card">
-    <h2>What it will cost</h2>
-    <p class="muted" style="max-width:56ch">Not much. We are still working out what the
-      right price is for the people using this, so there is nothing to buy today. Leave
-      your name and you will hear from us once, when it opens.</p>
-    {% if requested or user.premium_requested_at %}
-      <p class="notice ok" role="status">On the list. We will email you once, when
-        premium opens. Nothing else.</p>
+  <div class="prem-head-cta">
+    {% if user.is_premium %}
+      <div class="notice ok" role="status">You are on premium{% if user.premium_until %}
+        until {{ user.premium_until.strftime("%d %b %Y") }}{% endif %}. Thank you,
+        genuinely, for being early.</div>
     {% else %}
-      <form method="post" action="/premium/notify">
-        <button type="submit">Tell me when premium opens</button>
-      </form>
+      {% with region = "top", on_list = (user.premium_requested_at is not none) %}
+        {% include "_early_access.html" %}
+      {% endwith %}
     {% endif %}
+  </div>
+</header>
+
+{# ===== what premium adds: six cards, three across on desktop ===== #}
+<ul class="prem-features">
+  <li><b>The hunt runs every day.</b> A fresh search whenever you want one, up to
+    {{ config.premium_searches_per_day }} a day, against the newest postings, not the
+    ones you have already seen.</li>
+  <li><b>A digest on the days it matters.</b> Only the roles that clear your bar, scored,
+    straight to your inbox. Nothing on the days there is nothing.</li>
+  <li><b>Unlimited tailored CVs and cover letters.</b> Free accounts get
+    {{ config.free_cvs }} CVs and {{ config.free_cover_letters }} cover letter in total.</li>
+  <li><b>Bring your own job description.</b> Paste a posting you found somewhere else and
+    get the same tailored CV and cover letter for it, plus a score against your profile.
+    <span class="muted small">(coming with premium)</span></li>
+  <li><b>More sources.</b> The premium run reaches further into company career pages and
+    the niche boards, where roles appear before the aggregators pick them up.</li>
+  <li><b>The stronger scoring model.</b> Noticeably better on the borderline cases, which
+    is where the free model is weakest.</li>
+</ul>
+
+{# ===== second CTA, after the grid ===== #}
+{% if not user.is_premium %}
+  <div class="prem-foot-cta">
+    {% with region = "bottom", on_list = (user.premium_requested_at is not none) %}
+      {% include "_early_access.html" %}
+    {% endwith %}
   </div>
 {% endif %}
 {% endblock %}

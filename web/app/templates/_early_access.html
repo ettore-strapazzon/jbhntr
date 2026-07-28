@@ -1,0 +1,24 @@
+{# Get-early-access CTA region (S-06). Rendered inline on the premium page and
+   returned on its own to swap in place after the HTMX click.
+   region: "top" | "bottom".  on_list: already on the waiting list.
+   ahead: real waiting-list size (bottom variant renders it only above 50). #}
+<div id="ea-{{ region }}" class="ea ea-{{ region }}">
+{% if on_list %}
+  <button class="btn ea-done" type="button" disabled>You are on the list</button>
+  <p class="small muted">Check the email we just sent.</p>
+{% else %}
+  <form method="post" action="/premium/waitlist"
+        hx-post="/premium/waitlist" hx-target="#ea-{{ region }}" hx-swap="outerHTML">
+    <input type="hidden" name="region" value="{{ region }}">
+    {% if region == "bottom" and ahead and ahead > 50 %}
+      <button class="btn" type="submit">Get early access</button>
+      <span class="small muted ea-ahead">{{ ahead }} people ahead of you</span>
+    {% else %}
+      <button class="btn" type="submit">Get early access</button>
+      {% if region == "top" %}
+        <p class="small muted">Free while it is in testing. One email when it opens.</p>
+      {% endif %}
+    {% endif %}
+  </form>
+{% endif %}
+</div>

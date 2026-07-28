@@ -18,23 +18,39 @@ from ..templating import templates
 router = APIRouter()
 
 
+def _waitlist_ahead(db: DbSession) -> int:
+    """How many people are already on the waiting list. Real count only — the
+    template renders it (S-06) only when it clears 50, and never fakes it."""
+    return db.query(User).filter(User.premium_requested_at.isnot(None)).count()
+
+
 @router.get("/premium", response_class=HTMLResponse)
-def premium(request: Request, user: User = Depends(require_user), requested: str = ""):
+def premium(request: Request, user: User = Depends(require_user),
+            requested: str = "", db: DbSession = Depends(get_session)):
     return templates.TemplateResponse(request, "premium.html",
-        {"request": request, "user": user, "requested": requested})
+        {"request": request, "user": user, "requested": requested,
+         "ahead": _waitlist_ahead(db)})
 
 
-@router.post("/premium/notify")
-def premium_notify(user: User = Depends(require_user),
-                   db: DbSession = Depends(get_session)):
-    """Capture premium intent while checkout is 'coming soon' (F-13). Records a
-    flag the operator can upgrade from manually, instead of a dead-end button."""
+@router.post("/premium/waitlist")
+def premium_waitlist(request: Request, region: str = Form("top"),
+                     user: User = Depends(require_user),
+                     db: DbSession = Depends(get_session)):
+    """Get-early-access (S-06). Records premium intent once per user (the waiting
+    list), and sends the confirmation only on the first insert — a second click is
+    a no-op, never a second email. HTMX swaps the button in place; a no-JS POST
+    falls back to a full-page redirect."""
     from ..models import utcnow
     if not user.premium_requested_at:
         user.premium_requested_at = utcnow()
         db.commit()
-        from ..services.email import send_premium_confirmation
-        send_premium_confirmation(user.email)
+        from ..services.email import send_premium_waitlist
+        # first_name is not stored yet, so the greeting drops the name.
+        send_premium_waitlist(user.email, user.id, first_name="")
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(request, "_early_access.html",
+            {"request": request, "user": user, "on_list": True,
+             "region": region, "ahead": 0})
     return RedirectResponse("/premium?requested=1", status_code=303)
 
 
@@ -49,19 +65,27 @@ def set_digest(frequency: str = Form(...), user: User = Depends(require_user),
 
 
 @router.get("/unsubscribe", response_class=HTMLResponse)
-def unsubscribe(request: Request, t: str = "", db: DbSession = Depends(get_session)):
-    """One-click digest off, works without logging in (signed token, R13.4)."""
+def unsubscribe(request: Request, t: str = "", scope: str = "",
+                db: DbSession = Depends(get_session)):
+    """One-click opt-out, works without logging in (signed token, R13.4).
+
+    Default scope turns the digest off. scope=waitlist comes from the premium
+    waiting-list email (S-07) and also removes the waiting-list row.
+    """
     from ..services.email import read_unsub_token
     uid = read_unsub_token(t)
     done = False
     if uid:
         u = db.get(User, uid)
         if u:
-            u.digest = "off"
+            if scope == "waitlist":
+                u.premium_requested_at = None
+            else:
+                u.digest = "off"
             db.commit()
             done = True
     return templates.TemplateResponse(request, "unsubscribed.html",
-        {"request": request, "done": done})
+        {"request": request, "done": done, "scope": scope})
 
 
 # --------------------------------------------------------------------------- #
