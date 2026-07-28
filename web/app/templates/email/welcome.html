@@ -1,7 +1,7 @@
 {% extends "email/_shell.html" %}
 {% block subject %}You are in. One upload and the hunting starts.{% endblock %}
 {% block preheader %}{{ free_searches }} free searches are waiting. The first one needs your CV.{% endblock %}
-{% block body %}
+{% block content %}
 <p style="margin:0 0 12px">Welcome. Your account is live and you have {{ free_searches }}
   full searches to spend, with the real scoring model, no card involved.</p>
 <p style="margin:0 0 8px">Three things, then your first search can run:</p>
@@ -9,10 +9,11 @@
 <p style="margin:0 0 4px">2. Where you will work.</p>
 <p style="margin:0 0 14px">3. Describe, in your own words, the work you actually want. This
   is the part that matters. Two or three paragraphs beat every checkbox on the page.</p>
-<p style="margin:0 0 16px">
-  <a href="{{ base_url }}/onboarding" style="display:inline-block;background:#174b3e;
-     color:#ffffff;text-decoration:none;padding:13px 20px;border-radius:8px;font-weight:600;
-     font-size:15px">Set up my profile</a></p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0">
+  <tr><td style="background:#174b3e">
+    <a href="{{ base_url }}/onboarding" style="display:inline-block;padding:14px 22px;
+       font:600 15px/1 Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none">Set up my profile</a>
+  </td></tr></table>
 <p style="margin:0 0 12px">JBHNTR then reads a few thousand new postings across 25+
   boards and company career pages and returns a scored shortlist with the reasoning for
   each one. That takes a minute or two, so start the search and go do something else.</p>

@@ -75,6 +75,7 @@ class WebConfig:
     smtp_from: str = os.environ.get("SMTP_FROM", "") or os.environ.get("SUPPORT_EMAIL", "")
     smtp_tls: bool = _b("SMTP_TLS", "true")
     reset_token_minutes: int = _int("RESET_TOKEN_MINUTES", 60)
+    postal_address: str = os.environ.get("POSTAL_ADDRESS", "")   # CAN-SPAM line in the email footer
 
     # --- product ---
     payments_enabled: bool = _b("PAYMENTS_ENABLED", "false")

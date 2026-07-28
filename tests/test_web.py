@@ -356,6 +356,21 @@ def test_email_templates_render_html_and_text():
         assert "—" not in html and "—" not in text   # no em dashes (R2)
 
 
+def test_email_shell_brand_band_and_unsub_only_on_optin():
+    """S-03: shared shell wraps every email — pine brand band, 600px card.
+    Transactional mail (reset) shows no unsubscribe; opt-in mail (digest) does."""
+    from web.app.services import email as mail
+    reset_html, _ = mail.render("reset", {"token": "t"})
+    assert "#174b3e" in reset_html and "JBHNTR" in reset_html   # brand band
+    assert "/unsubscribe" not in reset_html                     # transactional: no unsub
+    digest_html, digest_txt = mail.render("digest", {
+        "n": 1, "top_score": 90, "top_title": "A", "top_company": "B",
+        "top_location": "C", "reviewed": 40, "jobs": [], "remaining": 0,
+        "closing": "ok", "email": "a@b.com", "unsub_token": "UNSUB"})
+    assert "/unsubscribe?t=UNSUB" in digest_html                # opt-in: unsub present
+    assert "UNSUB" in digest_txt
+
+
 def test_email_sender_is_safe_noop_when_unconfigured():
     from web.app.services import email as mail
     # No SMTP in the test env — send() must not raise and must report not-sent.

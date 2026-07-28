@@ -11,4 +11,4 @@ Since yesterday it read {{ reviewed }} new postings.
 {% endfor %}
 {% if remaining %}{{ remaining }} more are on your shortlist: {{ base_url }}/matches{% endif %}
 
-Turn this off: {{ base_url }}/unsubscribe?t={{ token }}
+Turn this off: {{ base_url }}/unsubscribe?t={{ unsub_token }}

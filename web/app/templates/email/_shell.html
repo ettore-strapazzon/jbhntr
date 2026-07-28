@@ -1,29 +1,50 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width">
+<meta name="color-scheme" content="light only">
 <title>{% block subject %}JBHNTR{% endblock %}</title></head>
-<body style="margin:0;padding:0;background:#f2efe9">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">{% block preheader %}{% endblock %}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-       style="background:#f2efe9;padding:28px 12px"><tr><td align="center">
-  <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
-         style="width:560px;max-width:100%;background:#ffffff;border:1px solid #e2ded6;
-                border-radius:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',
-                Helvetica,Arial,sans-serif;color:#1c1b19">
-    <tr><td style="padding:22px 28px 0">
-      <span style="font:700 15px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
-                   letter-spacing:.12em;color:#174b3e">JBHNTR</span>
-    </td></tr>
-    <tr><td style="padding:18px 28px 26px;font-size:15px;line-height:1.6">
-      {% block body %}{% endblock %}
-    </td></tr>
-    <tr><td style="padding:16px 28px 22px;border-top:1px solid #eee9e1;
-                   font-size:12px;line-height:1.5;color:#6b6862">
-      {% block footer %}
+<body style="margin:0;padding:0;background:#f6f4ef;-webkit-text-size-adjust:100%">
+
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0">{% block preheader %}{% endblock %}</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background:#f6f4ef">
+   <tr><td align="center" style="padding:32px 16px 40px">
+
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+           style="width:600px;max-width:100%;background:#ffffff;border:1px solid #e0ddd6">
+
+      <!-- brand band -->
+      <tr><td style="background:#174b3e;padding:18px 32px">
+        <span style="font:700 20px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+                     letter-spacing:.18em;color:#ffffff">JBHNTR</span>
+      </td></tr>
+
+      <!-- body -->
+      <tr><td style="padding:32px;font:400 16px/1.55 -apple-system,'Segoe UI',
+        Helvetica,Arial,sans-serif;color:#1c1b19">
+        {% block content %}{% endblock %}
+      </td></tr>
+
+      <!-- in-card links -->
+      <tr><td style="border-top:1px solid #ece9e3;padding:16px 32px;
+        font:400 13px/1.5 Helvetica,Arial,sans-serif">
         <a href="{{ base_url }}/account" style="color:#174b3e">Email settings</a> ·
         <a href="{{ base_url }}/privacy" style="color:#174b3e">Privacy</a> ·
         <a href="mailto:{{ support_email }}" style="color:#174b3e">Reply to a human</a>
-      {% endblock %}
-    </td></tr>
+      </td></tr>
+    </table>
+
+    <!-- outside the card -->
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+           style="width:600px;max-width:100%">
+     <tr><td style="padding:16px 8px 0;text-align:center;
+       font:400 12px/1.5 Helvetica,Arial,sans-serif;color:#8a8780">
+       JBHNTR{% if config.postal_address %} · {{ config.postal_address }}{% endif %}
+       {% if unsub_url %}<br><a href="{{ unsub_url }}" style="color:#8a8780">Unsubscribe</a>{% endif %}
+     </td></tr>
+    </table>
+
+   </td></tr>
   </table>
-</td></tr></table></body></html>
+</body></html>

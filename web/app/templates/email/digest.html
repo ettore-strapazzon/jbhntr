@@ -1,8 +1,8 @@
 {% extends "email/_shell.html" %}
 {% block subject %}{{ n }} new {{ "role" if n == 1 else "roles" }}, best is {{ top_score }}/100{% endblock %}
 {% block preheader %}{{ top_title }} at {{ top_company }}{% if top_location %}, {{ top_location }}{% endif %}.{% endblock %}
-{% block body %}
-<p style="margin:0 0 14px">Since yesterday it read {{ reviewed }} new postings.
+{% block content %}
+<p style="margin:0 0 14px">Since yesterday, {{ reviewed }} new postings were read.
   {{ n }} {{ "is" if n == 1 else "are" }} worth your time.</p>
 {% for j in jobs %}
   <div style="border:1px solid #e2ded6;border-radius:9px;padding:12px 14px;background:#fff;margin:0 0 8px">
@@ -23,10 +23,4 @@
     <a href="{{ base_url }}/matches" style="color:#174b3e">See the whole shortlist</a>.</p>
 {% endif %}
 <p style="margin:14px 0 0;color:#6b6862">{{ closing }}</p>
-{% endblock %}
-{% block footer %}
-Daily digest for {{ email }}.
-<a href="{{ base_url }}/account" style="color:#174b3e">Make it weekly</a> ·
-<a href="{{ base_url }}/unsubscribe?t={{ token }}" style="color:#174b3e">Turn it off</a> ·
-<a href="{{ base_url }}/privacy" style="color:#174b3e">Privacy</a>
 {% endblock %}

@@ -94,8 +94,12 @@ def render(name: str, ctx: dict) -> tuple[str, str]:
     """(html, text) for templates/email/{name}.html and .txt (R13.1)."""
     from ..templating import templates
     env = templates.env
-    ctx = {**ctx, "base_url": config.base_url.rstrip("/"),
-           "support_email": config.support_email, "config": config}
+    base = config.base_url.rstrip("/")
+    ctx = {**ctx, "base_url": base, "support_email": config.support_email, "config": config}
+    # The shell shows an unsubscribe line only for opt-in mail that supplies a
+    # signed unsubscribe token (digest, waiting-list). Transactional mail omits it.
+    if ctx.get("unsub_token") and "unsub_url" not in ctx:
+        ctx["unsub_url"] = f"{base}/unsubscribe?t={ctx['unsub_token']}"
     return (env.get_template(f"email/{name}.html").render(**ctx),
             env.get_template(f"email/{name}.txt").render(**ctx))
 
@@ -145,7 +149,7 @@ def send_welcome(email: str) -> bool:
 
 def send_digest(email: str, ctx: dict, unsub_token: str) -> bool:
     """Premium daily/weekly digest (R13.4). Caller guarantees it is non-empty."""
-    html, text = render("digest", {**ctx, "token": unsub_token})
+    html, text = render("digest", {**ctx, "unsub_token": unsub_token})
     base = config.base_url.rstrip("/")
     n = ctx.get("n", 0)
     top = ctx.get("top_score", 0)
