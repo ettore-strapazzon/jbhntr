@@ -14,7 +14,7 @@
 <script defer data-domain="{{ config.plausible_domain }}" src="https://plausible.io/js/script.js"></script>
 {% endif %}
 </head>
-<body{% if user %} class="authed"{% endif %}>
+<body class="{% block body_class %}{% endblock %}{% if user %} authed{% endif %}">
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="bar">
   <a class="brand" href="/">

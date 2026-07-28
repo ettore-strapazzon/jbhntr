@@ -367,14 +367,31 @@ footer a{color:var(--muted)}
 .prem-features{margin:0;padding-left:20px}
 .prem-features li{margin-bottom:10px;max-width:60ch}
 
-/* landing hero: centred column that uses the width (R3.2/R3.3) */
-.hero{display:grid;grid-template-columns:minmax(0,1fr);gap:26px;
-  padding:56px 0 44px;text-align:center;justify-items:center}
-.hero-copy{max-width:64ch}
-.hero h1{max-width:20ch;margin:0 auto 14px;font-size:clamp(34px,5vw,56px);
-  line-height:1.05;letter-spacing:-.02em}
-.hero .lede{max-width:56ch;margin:0 auto 18px;font-size:clamp(16px,1.5vw,19px);line-height:1.55;color:var(--muted)}
-.hero .cta{display:flex;gap:10px;justify-content:center;margin-bottom:8px}
+/* ===== landing width + fluid type (Round 3 Pass H — S-04/S-05/S-06) =====
+   One clamp() per level, no font-size media queries anywhere. */
+:root{
+  --wide:1240px; --measure:68ch; --gutter:clamp(20px,5vw,64px); --pine:#174b3e;
+  --step-h1:clamp(2.125rem, 1.1rem + 4.6vw, 4.75rem);
+  --step-h2:clamp(1.5rem, 1.05rem + 1.9vw, 2.5rem);
+  --step-lede:clamp(1.0625rem, 0.98rem + 0.5vw, 1.375rem);
+}
+/* the landing uses the wide structural track; app pages keep 1140 */
+body.home main{max-width:var(--wide);padding:0 0 72px}
+body.home .bar{max-width:var(--wide)}
+.wrap{width:min(100% - var(--gutter)*2, var(--wide));margin-inline:auto}
+.prose{max-width:var(--measure)}
+
+/* hero: two columns the moment there is room for them, one on a phone */
+.hero{display:grid;gap:clamp(28px,4vw,56px);
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));
+  align-items:center;padding-block:clamp(40px,5vw,72px);text-align:left}
+.hero-copy{max-width:none}
+.hero h1{max-width:none;margin:0 0 .6em;font-size:var(--step-h1);
+  line-height:1.02;letter-spacing:-.03em;text-wrap:balance}
+.hero h1 .turn{display:block;color:var(--pine)}
+.hero .lede{max-width:34ch;margin:0 0 1.6em;font-size:var(--step-lede);
+  line-height:1.5;color:var(--muted)}
+.hero .cta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 
 .hero-stack{position:relative;width:100%;max-width:720px;text-align:left;padding-bottom:76px}
 .demo-card{background:#fff;border:1px solid #ddd8ce;border-radius:10px;
@@ -391,19 +408,47 @@ footer a{color:var(--muted)}
 .hero-stack .behind1{top:calc(100% - 76px);max-height:76px;transform:scale(.97);z-index:-1}
 .hero-stack .behind2{top:calc(100% - 40px);max-height:40px;transform:scale(.94);z-index:-2}
 
-/* sections */
-.section{border-top:1px solid var(--line);padding:30px 0 6px;margin-top:12px}
-.section h2{font-size:22px;max-width:34ch}
-.frames{display:grid;grid-template-columns:1fr;gap:16px;margin-top:12px}
-.frame h3{font-size:15px;margin:0 0 6px}
+/* sections: each is the wide track with a top rule */
+.section{border-top:1px solid var(--line);padding-block:clamp(30px,3.6vw,52px)}
+.section h2{font-size:var(--step-h2);line-height:1.1;letter-spacing:-.02em;
+  text-wrap:balance;max-width:22ch;margin:0 0 6px}
+.frames{display:grid;gap:clamp(18px,2.5vw,32px);margin-top:20px;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+.frame h3{font-size:16px;margin:0 0 6px}
+.frame p{max-width:44ch}
+
+/* heading-rail band: sticky heading in a narrow left rail, content spans the rest */
+.band{display:grid;gap:clamp(20px,3vw,48px);
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+@media (min-width:900px){.band{grid-template-columns:1fr 2.1fr}}
+.band > h2{font-size:var(--step-h2);line-height:1.1;letter-spacing:-.02em;
+  text-wrap:balance;max-width:none;margin:0;position:sticky;top:88px;align-self:start}
+
+/* 2x2 feature grid */
+.features{display:grid;gap:clamp(16px,2vw,28px);margin:0;padding:0;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
+.features > li{list-style:none;margin:0;border:1px solid var(--line);
+  border-radius:var(--r-card);padding:16px 18px;background:var(--card)}
+.features b{display:block;margin:0 0 4px}
+
+/* tailored row: copy left, room for a still on the right */
+.tailored{display:grid;gap:clamp(16px,2.5vw,32px);align-items:start;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+.tailored p{max-width:46ch}
+
+/* three-column trust row (named trustrow — .trust is the onboarding box) */
+.trustrow{display:grid;gap:clamp(16px,2.5vw,40px);margin:0 0 4px;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+.trustrow b{display:block;margin:0 0 3px}
+.trustrow p{margin:0;color:var(--muted)}
+
 .reasons{margin:8px 0 0;padding-left:20px;max-width:56ch}
 .reasons li{margin-bottom:8px}
-.honesty{margin-top:14px;padding:14px 16px;border:1px solid var(--line);
-  border-radius:var(--r-card);max-width:56ch}
+.honesty{margin-top:16px;padding:14px 16px;border:1px solid var(--line);
+  border-radius:var(--r-card);max-width:60ch}
 .closing{text-align:center;border-top:2px solid var(--ink)}
+.closing h2{max-width:none;margin-inline:auto}
 .closing .cta{display:flex;justify-content:center;margin-top:4px}
-@media (min-width:1000px){.frames{grid-template-columns:repeat(3,1fr);gap:24px;align-items:start}}
-@media (max-width:640px){ .hero{padding:36px 0 28px} }
 
 /* mobile bottom-bar nav (§11.1) — logged-in, under 720px only */
 .bottombar{display:none}
