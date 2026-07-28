@@ -12,6 +12,9 @@ from .config import ROOT, config
 templates = Jinja2Templates(directory=str(ROOT / "web" / "app" / "templates"))
 # Autoescaping is on by default — user text is never trusted in a template.
 templates.env.globals["config"] = config
+# Render reason prose as short bullets in the job card (R8.2).
+from .services.text import as_bullets  # noqa: E402
+templates.env.globals["as_bullets"] = as_bullets
 # Cache-buster for static assets. Changes every deploy (new commit SHA, or a
 # fresh process start), so a CSS/JS change is never masked by a stale cache.
 templates.env.globals["asset_v"] = (

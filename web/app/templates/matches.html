@@ -56,51 +56,17 @@
 {% if strength.below_good and strength.nudge %}
   <p class="strengthline band-{{ strength.band }}">
     <span class="dot" aria-hidden="true"></span>
-    Your profile is thin in one place: {{ strength.nudge.signal }} — {{ strength.nudge.payoff }}.
+    Your profile is thin in one place: {{ strength.nudge.signal }}. {{ strength.nudge.payoff }}.
     <a href="{{ strength.nudge.href }}">Fix it in two minutes</a>
   </p>
 {% endif %}
 
-{% set has_results = m.groups or m.long_shots %}
-
-{# ---- empty states ---- #}
-{% if not has_results %}
-  {% if not m.latest and state.can_search %}
-    <section class="emptybox">
-      <h2>Nothing here yet — that's expected.</h2>
-      <p class="muted">Your first search takes a few minutes and reads a few thousand
-        postings. Start it and go do something else.</p>
-      <div class="job" aria-hidden="true" style="opacity:.6">
-        <div class="job-head"><span class="score">88</span>
-          <span class="tier" style="background:var(--accent)">Apply now</span>
-          <div style="flex:1"><div><b>Example Company</b> <span class="muted small">· Milan (hybrid)</span></div>
-            <div><b>Senior Product Manager, Payments</b></div></div></div>
-        <p class="small muted" style="margin-top:8px">This is what a result looks like.</p>
-      </div>
-    </section>
-  {% elif m.total and (f_tier or f_source or f_saved) %}
-    <section class="emptybox">
-      <h2>No matches with those filters.</h2>
-      <p><a class="btn ghost" href="/matches">Clear filters</a></p>
-    </section>
-  {% elif searches_left is not none and searches_left <= 0 %}
-    <section class="emptybox">
-      <h2>You've used all {{ config.free_searches }} free searches.</h2>
-      <p class="muted">Your shortlist stays here — premium is what runs a fresh one.</p>
-      <p><a class="btn" href="/premium">See premium</a></p>
-    </section>
-  {% elif m.latest %}
-    <section class="emptybox">
-      <h2>Nothing cleared the bar this time.</h2>
-      <p class="muted">The usual causes: narrow locations, a salary floor excluding
-        roles that don't state pay, or sectors tighter than the market.</p>
-      <p><a class="btn ghost" href="/profile#targets">Adjust my targets</a></p>
-    </section>
-  {% endif %}
-
-{% else %}
-  {# ---- filter bar (§11.5) ---- #}
-  <form class="filterbar" method="get" action="/matches">
+{# ---- filter bar: applies live on change, no Apply button (R7/R16) ---- #}
+{% if m.latest %}
+  <form class="filterbar" id="filters" method="get" action="/matches"
+        hx-get="/matches/results" hx-target="#results" hx-swap="innerHTML"
+        hx-trigger="change" hx-push-url="true" hx-indicator="#results">
+    <input type="hidden" name="run" value="{{ f_run }}">
     <div class="filter-facets">
       {% for t, label in [(1,"Apply now"),(2,"Strong"),(3,"Possible"),(4,"Long shots")] %}
         <label class="fchip"><input type="checkbox" name="tier" value="{{ t }}"
@@ -121,46 +87,28 @@
         <option value="newest" {% if f_sort=='newest' %}selected{% endif %}>Newest first</option>
         <option value="fit" {% if f_sort=='fit' %}selected{% endif %}>Highest requirement fit</option>
       </select>
-      <button class="ghost" type="submit">Apply</button>
+      <noscript><button class="ghost" type="submit">Apply</button></noscript>
       {% if f_tier or f_source or f_saved or f_sort != 'best' %}
         <a class="small muted" href="/matches">Clear filters</a>
       {% endif %}
     </div>
   </form>
-  {% if m.shown != m.total %}<p class="small muted">{{ m.shown }} of {{ m.total }} shown.</p>{% endif %}
+{% endif %}
 
-  {# ---- grouped results ---- #}
-  {% for group in m.groups %}
-    <h2 class="grouplabel">{{ group.label }}</h2>
-    {% for card in group.cards %}
-      {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}
-      {% include "partials/job_card.html" %}
-    {% endfor %}
-  {% endfor %}
+<div id="results">{% include "partials/results.html" %}</div>
 
-  {% if m.long_shots %}
-    <details class="longshots">
-      <summary><b>Long shots</b> ({{ m.long_shots | length }}) — weaker matches worth a glance</summary>
-      {% for card in m.long_shots %}
-        {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}
-        {% include "partials/job_card.html" %}
+{# ---- run selector ---- #}
+{% if m.searches | length > 1 %}
+  <form class="runselect" method="get" action="/matches">
+    <label for="run" class="small muted">Viewing:</label>
+    <select id="run" name="run">
+      <option value="0">All runs (accumulated)</option>
+      {% for s in m.searches %}
+        <option value="{{ s.id }}" {% if f_run == s.id %}selected{% endif %}>
+          {{ s.started_at.strftime("%d %b, %H:%M") }} · {{ s.scored_count }} scored</option>
       {% endfor %}
-    </details>
-  {% endif %}
-
-  {# ---- run selector ---- #}
-  {% if m.searches | length > 1 %}
-    <form class="runselect" method="get" action="/matches">
-      <label for="run" class="small muted">Viewing:</label>
-      <select id="run" name="run">
-        <option value="0">All runs (accumulated)</option>
-        {% for s in m.searches %}
-          <option value="{{ s.id }}" {% if f_run == s.id %}selected{% endif %}>
-            {{ s.started_at.strftime("%d %b, %H:%M") }} · {{ s.scored_count }} scored</option>
-        {% endfor %}
-      </select>
-      <button class="ghost" type="submit">View</button>
-    </form>
-  {% endif %}
+    </select>
+    <button class="ghost" type="submit">View</button>
+  </form>
 {% endif %}
 {% endblock %}

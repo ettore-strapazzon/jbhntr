@@ -1,13 +1,15 @@
-{# One result card, state-aware (§11.7). Swapped in place by /job/{id}/* and
-   /feedback/{id}. Expects: r, st (JobState|None), fb (Feedback|None), docs
-   (set of (id,kind)), user, config, allow (per-type doc allowance), dismiss_reasons. #}
+{# One result card, rebuilt to R8 anatomy. Nothing nested more than one level.
+   Expects: r, st (JobState|None), fb (Feedback|None), docs (set of (id,kind)),
+   user, config, allow (per-type doc allowance), dismiss_reasons, is_new. #}
 {% set saved = st and st.saved %}
 {% set dismissed = st and st.dismissed %}
 {% set applied = st and st.applied_at %}
+{% set good = as_bullets(r.why_good, 3) %}
+{% set bad = as_bullets(r.why_bad, 2) %}
 
 {% if dismissed %}
   <article id="card-{{ r.id }}" class="job dismissed-row">
-    <span class="muted small">Hidden — {{ r.title }} · {{ r.company }}</span>
+    <span class="muted small">Hidden. {{ r.title }} · {{ r.company }}</span>
     <div class="dismiss-reasons">
       {% for reason in dismiss_reasons %}
         <button type="button" class="chip-mini{% if st.dismiss_reason == reason %} on{% endif %}"
@@ -21,24 +23,25 @@
   </article>
 {% else %}
   <article id="card-{{ r.id }}" class="job t{{ r.tier }}{% if applied %} is-applied{% endif %}">
+    {# 1. Head: title is the strongest line #}
     <div class="job-head">
       <span class="score">{{ r.score }}<span class="muted small">/100</span></span>
       <span class="tier tier-{{ r.tier }}">{{ r.tier_label }}</span>
       {% if is_new %}<span class="statebadge new">New</span>{% endif %}
       {% if applied %}<span class="statebadge applied">Applied{% if st.applied_at %} {{ st.applied_at.strftime("%d %b") }}{% endif %}</span>{% endif %}
       {% if saved %}<span class="statebadge saved">Saved</span>{% endif %}
-      <div style="flex:1;min-width:240px">
-        <div>
-          {% if r.company_url %}
-            <a href="{{ r.company_url }}" target="_blank" rel="noopener noreferrer nofollow"><b>{{ r.company }}</b></a>
-          {% else %}<b>{{ r.company }}</b>{% endif %}
-          {% if r.location %}<span class="muted small"> · {{ r.location }}</span>{% endif %}
+      <div class="job-title">
+        <div class="jt">{{ r.title }}</div>
+        <div class="muted small">
+          {% if r.company_url %}<a href="{{ r.company_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ r.company }}</a>{% else %}{{ r.company }}{% endif %}
+          {% if r.location %} · {{ r.location }}{% endif %}
         </div>
-        <div><b>{{ r.title }}</b></div>
         {% if r.company_blurb %}<div class="muted small">{{ r.company_blurb }}</div>{% endif %}
       </div>
     </div>
+    {% if r.tags %}<div class="tags">{% for t in r.tags[:5] %}<span class="tag">{{ t }}</span>{% endfor %}</div>{% endif %}
 
+    {# 2. Fit bars #}
     {% if r.fit_role or r.fit_candidate %}
       <div class="fitbars">
         <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
@@ -50,77 +53,90 @@
       <div class="scorebar" aria-hidden="true"><div style="width:{{ r.score }}%"></div></div>
     {% endif %}
 
+    {# 3. Fits / Watch out, short bullets #}
     <div class="why">
-      <div class="good"><b>Why it fits</b><br>{{ r.why_good or "—" }}</div>
-      <div class="bad"><b>Why it might not</b><br>{{ r.why_bad or "No significant concerns." }}</div>
+      <div class="why-col good">
+        <p class="why-h">Fits</p>
+        <ul>
+          {% for b in good %}<li>{{ b }}</li>{% endfor %}
+          {% if not good %}<li class="muted">{{ r.why_good or "No notes." }}</li>{% endif %}
+        </ul>
+      </div>
+      {% if bad %}
+      <div class="why-col bad">
+        <p class="why-h">Watch out</p>
+        <ul>{% for b in bad %}<li>{{ b }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
     </div>
 
-    {% if r.tags %}
-      <details class="breakdown"><summary>See the breakdown</summary>
-        <div class="tags">{% for t in r.tags %}<span class="tag">{{ t }}</span>{% endfor %}</div>
+    {# 4. Job description, top level #}
+    {% if r.description %}
+      <details class="desc">
+        <summary>Read the job description
+          <span class="muted small">{{ r.description | wordcount }} words</span></summary>
+        <div class="desc-body">{{ r.description[:6000] }}{% if r.description | length > 6000 %}
+          <p class="small muted">Trimmed. <a href="{{ r.apply_url }}" target="_blank"
+            rel="noopener noreferrer">Read the rest on the original posting</a>.</p>{% endif %}</div>
       </details>
     {% endif %}
 
+    {# 5. Actions: three groups #}
     <div class="actions">
-      {% if r.apply_url %}
-        <a class="btn" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Apply</a>
-      {% endif %}
-      {% if (r.id, "cv") in docs %}
-        <a class="btn ghost" href="/document/{{ r.id }}/cv">Your tailored CV</a>
-      {% else %}
-        <form method="post" action="/generate/{{ r.id }}/cv" style="display:inline">
-          <button class="ghost" type="submit"
-            {% if not (user.is_premium or (allow.cv or 0) > 0) %}disabled title="Included in premium"{% endif %}>Tailor my CV</button>
-        </form>
-      {% endif %}
+      <div class="actiongroup primary">
+        {% if r.apply_url %}<a class="btn" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Apply</a>{% endif %}
+      </div>
 
-      {% if saved %}
-        <form method="post" action="/job/{{ r.id }}/unsave" hx-post="/job/{{ r.id }}/unsave"
-              hx-target="#card-{{ r.id }}" hx-swap="outerHTML" style="display:inline">
-          <button class="ghost on" type="submit">Saved ✓</button>
-        </form>
-      {% else %}
-        <form method="post" action="/job/{{ r.id }}/save" hx-post="/job/{{ r.id }}/save"
-              hx-target="#card-{{ r.id }}" hx-swap="outerHTML" style="display:inline">
-          <button class="ghost" type="submit">Save</button>
-        </form>
-      {% endif %}
-
-      {% if applied %}
-        <form method="post" action="/job/{{ r.id }}/unapplied" hx-post="/job/{{ r.id }}/unapplied"
-              hx-target="#card-{{ r.id }}" hx-swap="outerHTML" style="display:inline">
-          <button class="ghost on" type="submit">Applied ✓</button>
-        </form>
-      {% else %}
-        <form method="post" action="/job/{{ r.id }}/applied" hx-post="/job/{{ r.id }}/applied"
-              hx-target="#card-{{ r.id }}" hx-swap="outerHTML" style="display:inline">
-          <button class="ghost" type="submit">I applied</button>
-        </form>
-      {% endif %}
-
-      <form method="post" action="/job/{{ r.id }}/dismiss" hx-post="/job/{{ r.id }}/dismiss"
-            hx-target="#card-{{ r.id }}" hx-swap="outerHTML" style="display:inline">
-        <button class="ghost muted" type="submit">Not for me</button>
-      </form>
-    </div>
-
-    <details class="cardmore">
-      <summary>More</summary>
-      <div class="actions" style="margin-top:8px">
-        {% if (r.id, "cl") in docs %}
-          <a class="btn ghost" href="/document/{{ r.id }}/cl">Your cover letter</a>
-        {% else %}
-          <form method="post" action="/generate/{{ r.id }}/cl" style="display:inline">
-            <button class="ghost" type="submit"
-              {% if not (user.is_premium or (allow.cl or 0) > 0) %}disabled title="Included in premium"{% endif %}>Write a cover letter</button>
-          </form>
+      <div class="actiongroup make">
+        <div class="row">
+          {% if (r.id, "cv") in docs %}
+            <a class="btn ghost" href="/document/{{ r.id }}/cv">Your tailored CV</a>
+          {% else %}
+            <form method="post" action="/generate/{{ r.id }}/cv" style="display:inline">
+              <button class="ghost" type="submit"
+                {% if not (user.is_premium or (allow.cv or 0) > 0) %}disabled
+                  title="No free CV tailorings left. Included in premium."
+                  aria-label="No free CV tailorings left. Included in premium."{% endif %}>Tailor my CV</button>
+            </form>
+          {% endif %}
+          {% if (r.id, "cl") in docs %}
+            <a class="btn ghost" href="/document/{{ r.id }}/cl">Your cover letter</a>
+          {% else %}
+            <form method="post" action="/generate/{{ r.id }}/cl" style="display:inline">
+              <button class="ghost" type="submit"
+                {% if not (user.is_premium or (allow.cl or 0) > 0) %}disabled
+                  title="No free cover letters left. Included in premium."
+                  aria-label="No free cover letters left. Included in premium."{% endif %}>Write a cover letter</button>
+            </form>
+          {% endif %}
+        </div>
+        {% if not user.is_premium %}
+          <span class="quota">{{ allow.cv }} of {{ config.free_cvs }} free CV tailorings left ·
+            {{ allow.cl }} of {{ config.free_cover_letters }} cover letter left</span>
         {% endif %}
       </div>
-      {% if r.description %}
-        <details class="desc"><summary>Job description</summary>
-          <p>{{ r.description[:2500] }}{% if r.description|length > 2500 %}…{% endif %}</p></details>
-      {% endif %}
-      {% include "partials/vote.html" %}
-    </details>
+
+      <div class="actiongroup triage">
+        {% if saved %}
+          <form method="post" action="/job/{{ r.id }}/unsave" hx-post="/job/{{ r.id }}/unsave"
+                hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button class="on" type="submit">Saved</button></form>
+        {% else %}
+          <form method="post" action="/job/{{ r.id }}/save" hx-post="/job/{{ r.id }}/save"
+                hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button type="submit">Save</button></form>
+        {% endif %}
+        {% if applied %}
+          <form method="post" action="/job/{{ r.id }}/unapplied" hx-post="/job/{{ r.id }}/unapplied"
+                hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button class="on" type="submit">Applied</button></form>
+        {% else %}
+          <form method="post" action="/job/{{ r.id }}/applied" hx-post="/job/{{ r.id }}/applied"
+                hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button type="submit">I applied</button></form>
+        {% endif %}
+        <form method="post" action="/job/{{ r.id }}/dismiss" hx-post="/job/{{ r.id }}/dismiss"
+              hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button class="dismiss" type="submit">Not for me</button></form>
+      </div>
+    </div>
+
+    {# 6. Rating #}
+    {% include "partials/vote.html" %}
   </article>
 {% endif %}

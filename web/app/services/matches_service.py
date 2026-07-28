@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from ..models import JobResult, JobState, Search, aware
 from .job_state import state_map
+from .text import as_bullets
 
 # Tier -> group. 1/2/3 get their own group; 4 and 5 are long shots.
 TIER_GROUPS = [(1, "Apply now"), (2, "Strong"), (3, "Possible")]
@@ -31,6 +32,14 @@ class Card:
     r: JobResult
     st: JobState | None
     is_new: bool
+
+    @property
+    def good_bullets(self) -> list[str]:
+        return as_bullets(self.r.why_good, 3)
+
+    @property
+    def bad_bullets(self) -> list[str]:
+        return as_bullets(self.r.why_bad, 2)
 
 
 @dataclass

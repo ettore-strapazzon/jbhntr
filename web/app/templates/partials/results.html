@@ -1,0 +1,58 @@
+{# The result list: count line, grouped cards, long shots, and the empty states.
+   Rendered on the page and re-rendered alone by the live filter bar (R7/R16). #}
+{% set has_results = m.groups or m.long_shots %}
+{% if not has_results %}
+  {% if not m.latest and state.can_search %}
+    <section class="emptybox">
+      <h2>Nothing here yet. That is expected.</h2>
+      <p class="muted">Your first search takes a few minutes and reads a few thousand
+        postings. Start it and go do something else.</p>
+      <div class="job" aria-hidden="true" style="opacity:.6">
+        <div class="job-head"><span class="score">88</span>
+          <span class="tier" style="background:var(--accent)">Apply now</span>
+          <div class="job-title"><div class="jt">Senior Product Manager, Payments</div>
+            <div class="muted small">Meridian Pay · Milan, hybrid</div></div></div>
+        <p class="small muted" style="margin-top:8px">This is what a result looks like.</p>
+      </div>
+    </section>
+  {% elif m.total and (f_tier or f_source or f_saved) %}
+    <section class="emptybox">
+      <h2>No matches with those filters.</h2>
+      <p><a class="btn ghost" href="/matches">Clear filters</a></p>
+    </section>
+  {% elif searches_left is not none and searches_left <= 0 %}
+    <section class="emptybox">
+      <h2>You've used all {{ config.free_searches }} free searches.</h2>
+      <p class="muted">Your shortlist stays here. Premium is what runs a fresh one.</p>
+      <p><a class="btn" href="/premium">See premium</a></p>
+    </section>
+  {% elif m.latest %}
+    <section class="emptybox">
+      <h2>Nothing cleared the bar this time.</h2>
+      <p class="muted">The usual causes: narrow locations, a salary floor excluding
+        roles that don't state pay, or sectors tighter than the market.</p>
+      <p><a class="btn ghost" href="/profile#targets">Adjust my targets</a></p>
+    </section>
+  {% endif %}
+
+{% else %}
+  {% if m.shown != m.total %}<p class="small muted">{{ m.shown }} of {{ m.total }} shown.</p>{% endif %}
+
+  {% for group in m.groups %}
+    <h2 class="grouplabel">{{ group.label }}</h2>
+    {% for card in group.cards %}
+      {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}
+      {% include "partials/job_card.html" %}
+    {% endfor %}
+  {% endfor %}
+
+  {% if m.long_shots %}
+    <details class="longshots">
+      <summary><b>Long shots</b> ({{ m.long_shots | length }}). Weaker matches worth a glance.</summary>
+      {% for card in m.long_shots %}
+        {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}
+        {% include "partials/job_card.html" %}
+      {% endfor %}
+    </details>
+  {% endif %}
+{% endif %}
