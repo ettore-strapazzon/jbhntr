@@ -20,6 +20,13 @@ from ..config import config
 
 log = logging.getLogger("jbhntr.email")
 
+MAIL_FROM_NAME = "JBHNTR"   # display name in the inbox list (S-01)
+
+
+def _from_header() -> str:
+    from email.utils import formataddr
+    return formataddr((MAIL_FROM_NAME, config.smtp_from))
+
 
 def is_configured() -> bool:
     # A from-address plus either the HTTP API key or an SMTP host.
@@ -32,7 +39,8 @@ def _send_via_resend_api(to: str, subject: str, text: str,
     works on hosts that block outbound SMTP ports."""
     import httpx
 
-    payload: dict = {"from": config.smtp_from, "to": [to], "subject": subject, "text": text}
+    payload: dict = {"from": _from_header(), "reply_to": config.smtp_from,
+                     "to": [to], "subject": subject, "text": text}
     if html:
         payload["html"] = html
     if headers:
@@ -58,7 +66,8 @@ def send(to: str, subject: str, text: str, html: str | None = None,
     if config.resend_api_key:
         return _send_via_resend_api(to, subject, text, html, headers)
     msg = EmailMessage()
-    msg["From"] = config.smtp_from
+    msg["From"] = _from_header()
+    msg["Reply-To"] = config.smtp_from
     msg["To"] = to
     msg["Subject"] = subject
     for k, v in (headers or {}).items():
@@ -131,7 +140,7 @@ def send_password_reset(email: str, token: str) -> bool:
 
 def send_welcome(email: str) -> bool:
     html, text = render("welcome", {"free_searches": config.free_searches})
-    return send(email, "You are in. One upload and it starts hunting.", text, html)
+    return send(email, "You are in. One upload and the hunting starts.", text, html)
 
 
 def send_digest(email: str, ctx: dict, unsub_token: str) -> bool:

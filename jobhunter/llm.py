@@ -38,7 +38,12 @@ STYLE_RULES = (
     "en dashes. Never use the construction 'it is not X, it is Y'. Avoid the "
     "words seamless, effortless, unlock, leverage, empower, elevate, robust, "
     "delve, landscape, journey. No exclamation marks. No emoji. Short "
-    "sentences. British spelling."
+    "sentences. British spelling. "
+    # R2.8: the product is not a creature.
+    "Do not describe the system as 'it': never 'tell it', 'ask it', 'let it', "
+    "'it reads', 'it learns', 'it gets better', 'correct it'. Write the user as "
+    "the actor, name JBHNTR as the actor, or state the plain result. Never 'the "
+    "AI', 'our AI', 'the model', 'the algorithm', 'AI-powered', 'intelligent'."
 )
 
 

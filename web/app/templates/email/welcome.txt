@@ -3,10 +3,10 @@ You are in.
 Your account is live and you have {{ free_searches }} full searches to spend,
 with the real scoring model, no card involved.
 
-Three things and it can start:
+Three things, then your first search can run:
 1. Upload your CV
-2. Say where you will work
-3. Tell it what you actually want, in your own words
+2. Where you will work
+3. Describe the work you actually want, in your own words
 
 Set up your profile: {{ base_url }}/onboarding
 
