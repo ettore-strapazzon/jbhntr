@@ -415,9 +415,18 @@ def build_engine_profile(db: Session, user: User) -> EngineProfile:
     p = user.profile
     seeds = [s.value for s in db.query(SeedCompany).filter(SeedCompany.user_id == user.id)]
 
+    # Expand the four seniority bands back to the engine's tuned vocabulary
+    # (R5.3), only here, never in the stored profile.
+    from ..routes.onboarding import SENIORITY_EXPANSION
+    seniority_expanded: list[str] = []
+    for band in (p.seniority if p else []):
+        for tok in SENIORITY_EXPANSION.get(band, [band]):
+            if tok not in seniority_expanded:
+                seniority_expanded.append(tok)
+
     raw = {
         "objective": p.objective if p else "",
-        "seniority": p.seniority if p else [],
+        "seniority": seniority_expanded,
         "company_type": p.company_type if p else [],
         "verticals": p.verticals if p else [],
         # Re-split defensively: profiles saved before split_list existed may

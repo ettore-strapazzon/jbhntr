@@ -36,10 +36,55 @@ STEPS = [
 STEP_IDS = [s[0] for s in STEPS]
 STEP_LABELS = ["Your CV", "Where and how", "In your words"]
 
-SENIORITY = ["junior", "mid", "senior", "lead", "head", "director", "chief", "vp"]
-COMPANY_TYPES = ["startup", "scaleup", "enterprise", "agency", "non-profit", "public sector"]
-VERTICALS = ["AI", "fintech", "crypto", "SaaS", "e-commerce", "healthtech", "deeptech",
-             "banking", "consultancy", "gaming", "climate", "marketplace", "media"]
+# Four seniority bands (R5.3). The old eight-token vocabulary is kept as an
+# internal expansion so the matching engine still sees what it was tuned on.
+SENIORITY = ["junior", "mid", "senior", "executive"]
+SENIORITY_LABELS = {
+    "junior":    ("Junior",    "0 to 2 years, or a first role in this field"),
+    "mid":       ("Mid",       "3 to 6 years, owns their own work"),
+    "senior":    ("Senior",    "Senior, staff, principal, lead"),
+    "executive": ("Executive", "Head, director, VP, chief"),
+}
+SENIORITY_EXPANSION = {
+    "junior":    ["junior", "graduate", "associate", "entry"],
+    "mid":       ["mid", "intermediate"],
+    "senior":    ["senior", "staff", "principal", "lead"],
+    "executive": ["head", "director", "chief", "vp", "svp", "c-level"],
+}
+# Old stored token -> new band, for the one-off profile migration.
+SENIORITY_MIGRATE = {"lead": "senior", "head": "executive", "director": "executive",
+                     "chief": "executive", "vp": "executive"}
+
+VERTICALS = [
+    "AI and machine learning", "Software and SaaS", "Developer tools and cloud",
+    "Cybersecurity", "Data and analytics", "Fintech and payments",
+    "Banking and capital markets", "Insurance", "Crypto and web3",
+    "E-commerce and retail", "Marketplaces", "Consumer apps and social",
+    "Media, gaming and entertainment", "Healthcare and healthtech",
+    "Pharma, biotech and medtech", "Climate, energy and utilities",
+    "Mobility, transport and logistics", "Manufacturing and industrial",
+    "Deeptech, space and robotics", "Construction and real estate",
+    "Travel and hospitality", "Food, drink and agriculture",
+    "Education and edtech", "HR, recruiting and future of work",
+    "Legal and regtech", "Professional services and consulting",
+    "Telecoms", "Public sector and government", "Defence and aerospace",
+    "Non-profit and NGO", "Sport and fitness", "Fashion and beauty",
+]
+COMPANY_TYPES = [
+    "Pre-seed or seed startup", "Series A or B startup",
+    "Scaleup, Series C and beyond", "Listed company", "Large private company",
+    "Family owned business", "Small or medium business",
+    "Agency or studio", "Consultancy", "Non-profit or NGO",
+    "Public sector or government", "University or research institute",
+    "Investor, PE or VC", "Fully remote company",
+    "Bootstrapped and profitable",
+]
+# Old slug -> new label, for the one-off profile migration (R5.4).
+VERTICAL_MIGRATE = {"AI": "AI and machine learning", "SaaS": "Software and SaaS",
+                    "fintech": "Fintech and payments", "banking": "Banking and capital markets"}
+COMPANY_MIGRATE = {"startup": "Series A or B startup",
+                   "scaleup": "Scaleup, Series C and beyond", "enterprise": "Listed company"}
+
 JOB_TYPES = ["full-time", "part-time", "contract", "freelance"]
 
 
@@ -66,7 +111,8 @@ def _render(request: Request, step: str, db: DbSession, user: User, **extra):
         "step": step, "step_no": idx + 1, "step_total": len(STEPS),
         "step_title": STEPS[idx][1], "step_labels": STEP_LABELS,
         "required": STEPS[idx][2], "next_step": _next_step(step),
-        "seniority_options": SENIORITY, "company_options": COMPANY_TYPES,
+        "seniority_options": SENIORITY, "seniority_labels": SENIORITY_LABELS,
+        "company_options": COMPANY_TYPES,
         "vertical_options": VERTICALS, "jobtype_options": JOB_TYPES,
         "work_mode_options": WORK_MODES, "country_options": COUNTRIES,
         "remote_anywhere": remote_anywhere_on(p),

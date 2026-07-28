@@ -77,14 +77,25 @@ def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     finally:
         db.close()
 
-    r = client.post(f"/feedback/{rid}", data={"vote": "up"},
+    # R9: feedback is now a 1-5 rating; vote is derived from it.
+    r = client.post(f"/feedback/{rid}", data={"rating": "5"},
                     headers={"HX-Request": "true"}, follow_redirects=False)
     assert r.status_code == 200
-    assert f"vote-{rid}" in r.text and 'value="up" aria-label="Good match"' in r.text
-    assert 'aria-pressed="true"' in r.text       # the vote is reflected
+    assert f"vote-{rid}" in r.text and 'name="rating" value="5"' in r.text
+    assert 'aria-pressed="true"' in r.text        # the rating is reflected
+    assert "What made it good?" in r.text          # reason revealed on a high rating
 
-    r2 = client.post(f"/feedback/{rid}", data={"vote": "down"}, follow_redirects=False)
-    assert r2.status_code == 303                 # non-HTMX keeps the redirect
+    from web.app.db import SessionLocal
+    from web.app.models import Feedback
+    db2 = SessionLocal()
+    try:
+        fb = db2.query(Feedback).filter_by(job_result_id=rid).one()
+        assert fb.rating == 5 and fb.vote == "up"  # vote derived from rating
+    finally:
+        db2.close()
+
+    r2 = client.post(f"/feedback/{rid}", data={"rating": "1"}, follow_redirects=False)
+    assert r2.status_code == 303                  # non-HTMX keeps the redirect
 
 
 def test_f13_premium_notify_records_intent(client):

@@ -56,32 +56,31 @@ def status(search_id: int, request: Request, user: User = Depends(require_user),
 # --------------------------------------------------------------------------- #
 @router.post("/feedback/{result_id}")
 def feedback(result_id: int, request: Request,
-             vote: str = Form(...), note: str = Form(default=""),
+             rating: int = Form(...), note: str = Form(default=""),
              user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    from ..models import RATING_TO_VOTE
     is_htmx = request.headers.get("HX-Request") == "true"
     result = db.get(JobResult, result_id)
-    if not result or result.user_id != user.id or vote not in ("up", "down"):
+    if not result or result.user_id != user.id or not 1 <= rating <= 5:
         return HTMLResponse("", status_code=400) if is_htmx \
             else RedirectResponse("/matches", status_code=303)
 
-    existing = (db.query(Feedback)
-                  .filter(Feedback.user_id == user.id,
-                          Feedback.job_result_id == result_id)
-                  .first())
-    note = (note or "")[: config.max_feedback_chars]
-    if existing:
-        existing.vote, existing.note = vote, note
-        fb = existing
-    else:
-        fb = Feedback(user_id=user.id, job_result_id=result_id, vote=vote, note=note)
+    fb = (db.query(Feedback)
+            .filter(Feedback.user_id == user.id, Feedback.job_result_id == result_id)
+            .first())
+    if fb is None:
+        fb = Feedback(user_id=user.id, job_result_id=result_id)
         db.add(fb)
+    fb.rating = rating
+    fb.vote = RATING_TO_VOTE[rating]                      # derived, kept for downstream
+    fb.note = (note or "")[: config.max_feedback_chars]
     db.commit()
 
-    # HTMX: swap just this card's vote control in place — no reload, no scroll loss.
+    # HTMX: swap just this card's rating control in place, no reload, no scroll loss.
     if is_htmx:
         return templates.TemplateResponse(request, "partials/vote.html",
             {"request": request, "r": result, "fb": fb, "config": config})
-    return RedirectResponse("/search", status_code=303)
+    return RedirectResponse("/matches", status_code=303)
 
 
 # --------------------------------------------------------------------------- #

@@ -29,6 +29,66 @@ def init_db() -> None:
     """Create tables. Fine for the beta; swap to Alembic before schema churn."""
     Base.metadata.create_all(engine)
     _add_missing_columns()
+    _backfill()
+    _migrate_profiles()
+
+
+def _remap(values, mapping: dict, allowed) -> list:
+    """Map old slugs forward and drop anything unmapped and unknown (R5.3/R5.4)."""
+    allowed = set(allowed)
+    out: list = []
+    for v in (values or []):
+        v2 = mapping.get(v, v)
+        if v2 in allowed and v2 not in out:
+            out.append(v2)
+    return out
+
+
+def _migrate_profiles() -> None:
+    """Move stored profiles onto the new seniority bands and sector/company
+    lists. Idempotent: already-migrated values pass through unchanged."""
+    import logging
+
+    log = logging.getLogger("jbhntr.db")
+    try:
+        from .models import Profile
+        from .routes.onboarding import (
+            COMPANY_MIGRATE, COMPANY_TYPES, SENIORITY, SENIORITY_MIGRATE,
+            VERTICAL_MIGRATE, VERTICALS,
+        )
+        db = SessionLocal()
+        try:
+            changed = 0
+            for p in db.query(Profile):
+                sen = _remap(p.seniority, SENIORITY_MIGRATE, SENIORITY)
+                ver = _remap(p.verticals, VERTICAL_MIGRATE, VERTICALS)
+                ct = _remap(p.company_type, COMPANY_MIGRATE, COMPANY_TYPES)
+                if [sen, ver, ct] != [p.seniority or [], p.verticals or [], p.company_type or []]:
+                    p.seniority, p.verticals, p.company_type = sen, ver, ct
+                    changed += 1
+            if changed:
+                db.commit()
+                log.info("migrated %d profiles to new seniority/sector lists", changed)
+        finally:
+            db.close()
+    except Exception:
+        log.exception("profile migration skipped")
+
+
+def _backfill() -> None:
+    """One-off data fixes after additive columns land. Idempotent."""
+    import logging
+
+    from sqlalchemy import text
+    log = logging.getLogger("jbhntr.db")
+    try:
+        with engine.begin() as conn:
+            # Old thumbs become a rating on the 1-5 scale (R9): up -> 5, down -> 1.
+            conn.execute(text(
+                "UPDATE feedback SET rating = CASE vote WHEN 'up' THEN 5 "
+                "WHEN 'down' THEN 1 END WHERE rating IS NULL AND vote IN ('up','down')"))
+    except Exception:
+        log.exception("backfill skipped")
 
 
 def _add_missing_columns() -> None:
@@ -58,6 +118,7 @@ def _add_missing_columns() -> None:
         "score_cache": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0")},
         "documents": {"note": ("TEXT", "DEFAULT ''")},
+        "feedback": {"rating": ("INTEGER", "")},
     }
     import logging
 

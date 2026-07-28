@@ -1,4 +1,5 @@
 {% extends "onboarding/_step.html" %}
+{% from "partials/chips_field.html" import chips %}
 {% block step %}
 <p class="lede muted">This is the one filter applied before any AI runs, so it's
   worth getting right.</p>
@@ -28,10 +29,14 @@
 
   <div class="field">
     <label>Levels you'd genuinely consider</label>
-    <div class="checks">
+    <div class="checks levels">
       {% for o in seniority_options %}
-        <label><input type="checkbox" name="seniority" value="{{ o }}"
-          {% if o in profile.seniority %}checked{% endif %}> {{ o }}</label>
+        {% set label, hint = seniority_labels[o] %}
+        <label class="levelbox">
+          <input type="checkbox" name="seniority" value="{{ o }}"
+            {% if o in profile.seniority %}checked{% endif %}>
+          <span><b>{{ label }}</b><span class="small muted">{{ hint }}</span></span>
+        </label>
       {% endfor %}
     </div>
   </div>
@@ -47,19 +52,17 @@
   </div>
 
   <div class="field">
-    <label>Sectors and company type <span class="muted small">— tap any that fit</span></label>
-    <div class="checks">
-      {% for o in vertical_options %}
-        <label><input type="checkbox" name="verticals" value="{{ o }}"
-          {% if o in profile.verticals %}checked{% endif %}> {{ o }}</label>
-      {% endfor %}
-    </div>
-    <div class="checks" style="margin-top:8px">
-      {% for o in company_options %}
-        <label><input type="checkbox" name="company_type" value="{{ o }}"
-          {% if o in profile.company_type %}checked{% endif %}> {{ o }}</label>
-      {% endfor %}
-    </div>
+    <label>Which sectors interest you?</label>
+    <p class="small muted">Pick as many as genuinely fit. Leave it empty and it will
+      consider every sector.</p>
+    {{ chips("verticals", vertical_options, profile.verticals) }}
+  </div>
+
+  <div class="field">
+    <label>What kind of company suits you?</label>
+    <p class="small muted">Size and stage matter more than most people expect. This one
+      is worth being honest about.</p>
+    {{ chips("company_type", company_options, profile.company_type) }}
   </div>
 
   <div class="onboard-actions">

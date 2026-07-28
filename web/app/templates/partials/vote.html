@@ -1,19 +1,32 @@
-{# Inline feedback control. Swapped in place by HTMX so a vote never reloads the
-   page or loses scroll position (F-09). The route returns this same partial for
-   HX requests. Needs: r (the JobResult), fb (the Feedback or None), config. #}
-<div id="vote-{{ r.id }}">
-  <form class="vote" method="post" action="/feedback/{{ r.id }}"
-        hx-post="/feedback/{{ r.id }}" hx-target="#vote-{{ r.id }}" hx-swap="outerHTML">
-    <span class="small muted">Good match?</span>
-    <button type="submit" name="vote" value="up" aria-label="Good match"
-      aria-pressed="{{ 'true' if fb and fb.vote == 'up' else 'false' }}"><span aria-hidden="true">👍</span> Good</button>
-    <button type="submit" name="vote" value="down" aria-label="Poor match"
-      aria-pressed="{{ 'true' if fb and fb.vote == 'down' else 'false' }}"><span aria-hidden="true">👎</span> Poor</button>
-    {% if fb %}
-      <input type="text" name="note" value="{{ fb.note or '' }}"
-        placeholder="Why? (optional, helps future searches)"
-        maxlength="{{ config.max_feedback_chars }}" style="flex:1;min-width:180px">
-      <span class="thanks" role="status">Saved — future searches will weigh this.</span>
+{# 1-5 match rating with an optional reason (R9). Swapped in place by HTMX so a
+   rating never reloads the page. rating_labels is a template global. #}
+<div id="vote-{{ r.id }}" class="rate">
+  <form hx-post="/feedback/{{ r.id }}" hx-target="#vote-{{ r.id }}" hx-swap="outerHTML"
+        method="post" action="/feedback/{{ r.id }}">
+    <fieldset>
+      <legend class="small muted">How good a match is this?</legend>
+      <div class="ratebtns">
+        {% for n, label in rating_labels %}
+          <button type="submit" name="rating" value="{{ n }}"
+            class="ratebtn{% if fb and fb.rating == n %} on{% endif %}"
+            aria-pressed="{{ 'true' if fb and fb.rating == n else 'false' }}">
+            <span class="n">{{ n }}</span><span class="l">{{ label }}</span>
+          </button>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% if fb and fb.rating %}
+      <div class="ratenote">
+        <input type="hidden" name="rating" value="{{ fb.rating }}">
+        <label for="note-{{ r.id }}" class="small">
+          {% if fb.rating <= 3 %}What was wrong with it?{% else %}What made it good?{% endif %}
+          <span class="muted">optional, one line</span></label>
+        <input id="note-{{ r.id }}" type="text" name="note" value="{{ fb.note or '' }}"
+          maxlength="{{ config.max_feedback_chars }}"
+          placeholder="{% if fb.rating <= 3 %}too junior, wrong city, not really a product role{% else %}right level, right sector, team size fits{% endif %}">
+        <button type="submit" class="ghost">Save</button>
+        <span class="thanks" role="status">Saved. The next search weighs this.</span>
+      </div>
     {% endif %}
   </form>
 </div>

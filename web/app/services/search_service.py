@@ -391,7 +391,9 @@ def _company_url(job) -> str:
 
 
 def _feedback_examples(db: DbSession, user: User) -> list[dict]:
-    """Past thumbs up/down, fed back into scoring so it learns."""
+    """Past 1-5 ratings, fed back into scoring so it learns (R9.2). Heaviest
+    signals first; the borderline threes are the hard cases."""
+    from ..models import RATING_VERDICT, RATING_WEIGHT
     rows = (
         db.query(Feedback, JobResult)
         .join(JobResult, Feedback.job_result_id == JobResult.id)
@@ -400,13 +402,16 @@ def _feedback_examples(db: DbSession, user: User) -> list[dict]:
         .limit(20)
         .all()
     )
-    return [
+    examples = [
         {
             "title": jr.title,
             "company": jr.company,
             "url": jr.apply_url,
-            "verdict": "good" if fb.vote == "up" else "bad",
-            "why": fb.note or "",
+            "verdict": RATING_VERDICT.get(fb.rating or 3, "borderline"),
+            "weight": RATING_WEIGHT.get(fb.rating or 3, 0.0),
+            "reason": fb.note or "",
         }
         for fb, jr in rows
     ]
+    examples.sort(key=lambda e: -e["weight"])   # strongest signals first
+    return examples

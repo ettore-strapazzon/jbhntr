@@ -20,7 +20,9 @@ from ..services.profile_service import (
     strength, text_depth, text_too_short,
 )
 from ..templating import templates
-from .onboarding import COMPANY_TYPES, JOB_TYPES, SENIORITY, VERTICALS
+from .onboarding import (
+    COMPANY_TYPES, JOB_TYPES, SENIORITY, SENIORITY_LABELS, VERTICALS,
+)
 
 router = APIRouter()
 
@@ -34,7 +36,8 @@ def profile_page(request: Request, user: User = Depends(require_user),
         "materials": db.query(Material).filter(Material.user_id == user.id).all(),
         "seeds": db.query(SeedCompany).filter(SeedCompany.user_id == user.id).all(),
         "state": completeness(db, user), "strength": strength(db, user),
-        "seniority_options": SENIORITY, "company_options": COMPANY_TYPES,
+        "seniority_options": SENIORITY, "seniority_labels": SENIORITY_LABELS,
+        "company_options": COMPANY_TYPES,
         "vertical_options": VERTICALS, "jobtype_options": JOB_TYPES,
         "work_mode_options": WORK_MODES, "country_options": COUNTRIES,
         "remote_anywhere": remote_anywhere_on(p),

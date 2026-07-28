@@ -285,9 +285,19 @@ class Feedback(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     job_result_id: Mapped[int] = mapped_column(ForeignKey("job_results.id", ondelete="CASCADE"),
                                                index=True)
-    vote: Mapped[str] = mapped_column(String(8))  # up | down
+    vote: Mapped[str] = mapped_column(String(8), default="")   # up | down, derived from rating
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)   # 1..5 (R9)
     note: Mapped[str] = mapped_column(String(300), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# 1-5 rating (R9): a usable training signal from the borderline cases. vote is
+# kept and derived so nothing downstream (export, the model examples) breaks.
+RATING_LABELS = [(1, "Not close"), (2, "Weak"), (3, "Borderline"),
+                 (4, "Good"), (5, "Exactly right")]
+RATING_TO_VOTE = {1: "down", 2: "down", 3: "", 4: "up", 5: "up"}
+RATING_WEIGHT = {1: 1.0, 2: 0.6, 3: 0.0, 4: 0.6, 5: 1.0}
+RATING_VERDICT = {1: "wrong", 2: "weak", 3: "borderline", 4: "good", 5: "ideal"}
 
 
 class JobState(Base):

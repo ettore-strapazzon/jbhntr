@@ -1,0 +1,27 @@
+{# Wrapping checkbox chips with a show-all toggle (R5.4). Selected chips always
+   render in the visible set, even when the rest are collapsed. No script. #}
+{% macro chips(name, options, selected, cap=12) %}
+  {% set selected = selected or [] %}
+  {% set sel = options | select("in", selected) | list %}
+  {% set unsel = options | reject("in", selected) | list %}
+  {% set ordered = sel + unsel %}
+  <div class="checks chips-field">
+    {% for o in ordered[:cap] %}
+      <label class="chipcheck{% if o in selected %} on{% endif %}">
+        <input type="checkbox" name="{{ name }}" value="{{ o }}"
+          {% if o in selected %}checked{% endif %}> {{ o }}</label>
+    {% endfor %}
+  </div>
+  {% if ordered[cap:] %}
+    <details class="showall">
+      <summary>Show all {{ options | length }}</summary>
+      <div class="checks chips-field">
+        {% for o in ordered[cap:] %}
+          <label class="chipcheck{% if o in selected %} on{% endif %}">
+            <input type="checkbox" name="{{ name }}" value="{{ o }}"
+              {% if o in selected %}checked{% endif %}> {{ o }}</label>
+        {% endfor %}
+      </div>
+    </details>
+  {% endif %}
+{% endmacro %}

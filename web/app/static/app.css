@@ -68,18 +68,42 @@ button,.btn{display:inline-block;min-height:44px;padding:10px 16px;border-radius
 button.ghost,.btn.ghost{background:#fff;color:var(--accent)}
 button[disabled]{background:#ddd;border-color:#ddd;color:#888;cursor:not-allowed}
 
-/* feedback vote control (inline, HTMX-swapped) */
-.vote{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
-.vote button{min-height:44px;padding:10px 12px;font-size:13px;background:#fff;
-  color:var(--ink);border-color:var(--line)}
-.vote button[aria-pressed="true"][value="up"]{background:var(--ok-bg);border-color:#c9e3d6;color:var(--accent)}
-.vote button[aria-pressed="true"][value="down"]{background:var(--warn-bg);border-color:#efe0b0;color:var(--warn)}
-.vote .thanks{font-size:13px;color:var(--muted)}
+/* 1-5 match rating (R9.3) */
+.rate{margin-top:14px}
+.rate fieldset{border:0;padding:0;margin:0}
+.ratebtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ratebtn{min-width:64px;min-height:44px;display:grid;gap:1px;place-items:center;
+  padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}
+.ratebtn .n{font:700 14px/1 var(--mono)}
+.ratebtn .l{font-size:10.5px;color:var(--muted);letter-spacing:.02em}
+.ratebtn:hover{border-color:var(--accent)}
+.ratebtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.ratebtn.on .l{color:#d8e7e0}
+.ratenote{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.ratenote input[type=text]{flex:1;min-width:200px;min-height:44px}
+.rate .thanks{font-size:13px;color:var(--muted)}
+@media (max-width:720px){.ratebtn{flex:1;min-width:0}.ratebtn .l{display:none}}
 .hint{display:block;font-size:12.5px;color:var(--muted);font-weight:400;margin-top:4px}
 .checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .checks label{display:inline-flex;align-items:center;gap:6px;font-weight:400;margin:0;
   border:1px solid var(--line);padding:7px 11px;border-radius:99px;background:#fff;cursor:pointer}
 .checks input{margin:0}
+/* seniority bands with a hint under each (R5.3) */
+.checks.levels{flex-direction:column;align-items:stretch;gap:8px}
+.levelbox{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);
+  border-radius:8px;padding:10px 12px;font-weight:400;margin:0;cursor:pointer}
+.levelbox input{margin-top:2px}
+.levelbox b{display:block}
+.levelbox .small{display:block}
+/* chip fields with show-all (R5.4) */
+.chips-field{gap:8px}
+.chipcheck{display:inline-flex;align-items:center;gap:6px;font-weight:400;margin:0;
+  min-height:40px;border:1px solid var(--line);padding:6px 12px;border-radius:var(--r-chip);
+  background:#fff;cursor:pointer;font-size:13px}
+.chipcheck.on{background:var(--ok-bg);border-color:#c9e3d6;color:var(--accent)}
+.chipcheck input{width:auto;margin:0}
+.showall{margin-top:8px}
+.showall>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:4px 0}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 
 /* auth cards (§11.12): Google above email, "or use email" divider */

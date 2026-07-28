@@ -15,6 +15,9 @@ templates.env.globals["config"] = config
 # Render reason prose as short bullets in the job card (R8.2).
 from .services.text import as_bullets  # noqa: E402
 templates.env.globals["as_bullets"] = as_bullets
+# 1-5 rating labels for the feedback control (R9).
+from .models import RATING_LABELS  # noqa: E402
+templates.env.globals["rating_labels"] = RATING_LABELS
 # Cache-buster for static assets. Changes every deploy (new commit SHA, or a
 # fresh process start), so a CSS/JS change is never masked by a stale cache.
 templates.env.globals["asset_v"] = (
