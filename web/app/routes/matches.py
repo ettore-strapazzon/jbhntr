@@ -57,6 +57,10 @@ def matches_page(request: Request, user: User = Depends(require_user),
                  tier: list[int] = Query(default=[])):
     ctx = _matches_context(request, user, db, error=error, run=run, source=source,
                            sort=sort, saved=saved, tier=tier)
+    m = ctx.get("m")
+    if m is not None and getattr(m, "total", 0):
+        from ..services.events import record_once
+        record_once(db, "first_shortlist_viewed", user.id)   # once per user
     return templates.TemplateResponse(request, "matches.html", ctx)
 
 

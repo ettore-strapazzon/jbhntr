@@ -54,3 +54,26 @@ def record(db, name: str, user_id: int | None = None, **props) -> None:
         except Exception:
             pass
         log.exception("failed to record product event %s", name)
+
+
+def record_once(db, name: str, user_id: int) -> None:
+    """Log a milestone event at most once per user (e.g. onboarding_completed,
+    first_shortlist_viewed). No-ops if it already exists or on any error."""
+    if name not in EVENT_NAMES:
+        log.warning("ignoring unknown product event: %s", name)
+        return
+    try:
+        from ..models import ProductEvent
+        exists = (db.query(ProductEvent.id)
+                  .filter(ProductEvent.name == name,
+                          ProductEvent.user_id == user_id).first())
+        if exists:
+            return
+        db.add(ProductEvent(name=name, user_id=user_id, properties={}))
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        log.exception("failed to record milestone event %s", name)

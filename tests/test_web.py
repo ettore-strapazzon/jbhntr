@@ -1648,3 +1648,41 @@ def test_privacy_no_third_party_analytics_processor(client):
     page = client.get("/privacy").text
     assert "Plausible" not in page
     assert "first-party and cookieless" in page
+
+
+def test_job_actions_and_milestones_record_events(client):
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, ProductEvent, Search, User
+    from web.app.services import events
+    signup(client, "ev2@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="ev2@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="e2",
+                       tier=1, title="Role", company="Co", dedup_key="dk-e2")
+        db.add(jr); db.commit(); rid = jr.id; uid = u.id
+    finally:
+        db.close()
+
+    client.post(f"/job/{rid}/save")
+    client.post(f"/job/{rid}/applied")
+    client.post(f"/job/{rid}/dismiss", data={"reason": "wrong city"})
+
+    db = SessionLocal()
+    try:
+        names = {e.name for e in db.query(ProductEvent).filter_by(user_id=uid)}
+        assert {"job_saved", "job_marked_applied", "job_dismissed"} <= names
+    finally:
+        db.close()
+
+    # record_once is idempotent
+    db = SessionLocal()
+    try:
+        events.record_once(db, "onboarding_completed", uid)
+        events.record_once(db, "onboarding_completed", uid)
+        n = db.query(ProductEvent).filter_by(
+            user_id=uid, name="onboarding_completed").count()
+        assert n == 1
+    finally:
+        db.close()

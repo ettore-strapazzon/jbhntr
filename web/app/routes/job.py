@@ -43,13 +43,17 @@ def _render_card(request: Request, db: DbSession, user: User, r: JobResult) -> H
     })
 
 
-def _act(request: Request, db: DbSession, user: User, result_id: int, mutate):
+def _act(request: Request, db: DbSession, user: User, result_id: int, mutate,
+         event: str | None = None):
     r = _result(db, user, result_id)
     is_htmx = request.headers.get("HX-Request") == "true"
     if not r:
         return HTMLResponse("", status_code=404) if is_htmx \
             else RedirectResponse("/matches", status_code=303)
     mutate(r)
+    if event:
+        from ..services.events import record
+        record(db, event, user_id=user.id)
     if is_htmx:
         return _render_card(request, db, user, r)
     return RedirectResponse("/matches", status_code=303)
@@ -59,7 +63,8 @@ def _act(request: Request, db: DbSession, user: User, result_id: int, mutate):
 def save(result_id: int, request: Request, user: User = Depends(require_user),
          db: DbSession = Depends(get_session)):
     return _act(request, db, user, result_id,
-                lambda r: job_state.set_saved(db, user.id, r.dedup_key, True))
+                lambda r: job_state.set_saved(db, user.id, r.dedup_key, True),
+                event="job_saved")
 
 
 @router.post("/{result_id}/unsave")
@@ -73,7 +78,8 @@ def unsave(result_id: int, request: Request, user: User = Depends(require_user),
 def dismiss(result_id: int, request: Request, reason: str = Form(default=""),
             user: User = Depends(require_user), db: DbSession = Depends(get_session)):
     return _act(request, db, user, result_id,
-                lambda r: job_state.set_dismissed(db, user.id, r.dedup_key, True, reason))
+                lambda r: job_state.set_dismissed(db, user.id, r.dedup_key, True, reason),
+                event="job_dismissed")
 
 
 @router.post("/{result_id}/undismiss")
@@ -87,7 +93,8 @@ def undismiss(result_id: int, request: Request, user: User = Depends(require_use
 def applied(result_id: int, request: Request, user: User = Depends(require_user),
             db: DbSession = Depends(get_session)):
     return _act(request, db, user, result_id,
-                lambda r: job_state.set_applied(db, user.id, r.dedup_key, True))
+                lambda r: job_state.set_applied(db, user.id, r.dedup_key, True),
+                event="job_marked_applied")
 
 
 @router.post("/{result_id}/unapplied")

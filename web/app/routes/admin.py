@@ -123,9 +123,14 @@ def _gather(db: DbSession) -> dict:
     funnel = [(label, ev.get(name, 0)) for name, label in (
         ("signup_completed", "Signed up"),
         ("cv_uploaded", "Uploaded a CV"),
+        ("onboarding_completed", "Finished onboarding"),
         ("scan_started", "Started a scan"),
         ("scan_completed", "Completed a scan"),
+        ("first_shortlist_viewed", "Viewed first shortlist"),
         ("match_rated", "Rated a match"),
+        ("job_saved", "Saved a role"),
+        ("job_marked_applied", "Marked applied"),
+        ("job_dismissed", "Dismissed a role"),
         ("document_generated", "Generated a draft"),
         ("premium_waitlist_joined", "Joined the waitlist"),
     )]

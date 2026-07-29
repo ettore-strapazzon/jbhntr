@@ -250,4 +250,8 @@ async def save_words(
     p.objective = objective.strip()[:10_000]
     p.about_me = about_me.strip()[:20_000]
     db.commit()
+    # Words is the last step; if the profile is now searchable, onboarding is done.
+    if completeness(db, user).can_search:
+        from ..services.events import record_once
+        record_once(db, "onboarding_completed", user.id)
     return RedirectResponse("/matches", status_code=303)
