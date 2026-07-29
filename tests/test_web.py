@@ -176,9 +176,11 @@ def test_f11_skip_link_and_focus_style_present(client):
 
 def test_landing_hero_and_tier_tokens(client):
     page = client.get("/").text
-    assert "Stop scrolling job boards" in page                 # R3.1 hero copy
-    assert "Fits what you want" in page                        # real two-bar card (F-07)
-    assert "What it will not do" in page and "scrape" in page  # honesty block (R3.6)
+    assert "become your next job" in page                      # HOME-001 hero
+    assert "the opportunities worth pursuing" in page          # HOME-001 lede
+    assert "Illustrative example" in page                      # HOME-003 labelled card
+    assert "Fits what you want" in page                        # two-bar card
+    assert "What JBHNTR does not do" in page and "scrape" in page  # honesty block
     css = client.get("/static/app.css").text
     assert "--tier-1:" in css and ".tier-1{" in css           # tier colours owned by CSS (F-14)
     assert "--mono:" in css                                    # monospace token
@@ -1424,12 +1426,13 @@ def test_home_schema_blocks_are_valid_json(client):
     page = client.get("/").text
     blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>',
                         page, re.DOTALL)
-    assert len(blocks) == 3
+    assert len(blocks) == 4
     types = {json.loads(b)["@type"] for b in blocks}
-    assert types == {"Organization", "WebSite", "SoftwareApplication"}
+    assert types == {"Organization", "WebSite", "SoftwareApplication", "FAQPage"}
     from web.app import seo
-    for b in blocks:                                   # schema URLs use config base
-        assert seo.origin() in b
+    for b in blocks:                                   # non-FAQ schema uses config base
+        if json.loads(b)["@type"] != "FAQPage":
+            assert seo.origin() in b
 
 
 def test_auth_and_private_pages_are_noindex(client):
@@ -1464,7 +1467,40 @@ def test_sitemap_contains_only_public_canonicals(client):
     assert r.status_code == 200
     assert "application/xml" in r.headers["content-type"]
     locs = set(re.findall(r"<loc>(.*?)</loc>", r.text))
-    for path in ("/", "/privacy", "/terms", "/cookies"):
+    for path in ("/", "/how-it-works", "/security", "/pricing",
+                 "/compare/linkedin-jobs", "/privacy", "/terms", "/cookies"):
         assert seo.absolute_url(path) in locs
     for path in ("/matches", "/profile", "/account", "/login", "/signup", "/premium"):
         assert seo.absolute_url(path) not in locs
+
+
+def test_public_marketing_pages_are_indexable_single_h1(client):
+    import re
+    from web.app import seo
+    for path in ("/how-it-works", "/security", "/pricing", "/compare/linkedin-jobs"):
+        page = client.get(path).text
+        assert 'name="robots" content="index,follow' in page       # public
+        assert f'rel="canonical" href="{seo.absolute_url(path)}"' in page
+        assert len(re.findall(r"<h1[ >]", page)) == 1              # exactly one H1
+
+
+def test_home_faq_visible_matches_schema(client):
+    import json
+    import re
+    from web.app import seo
+    page = client.get("/").text
+    q0 = seo.FAQ_PAIRS[0][0]
+    assert f"<summary>{q0}</summary>" in page                       # visible FAQ
+    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>',
+                        page, re.DOTALL)
+    faq = [json.loads(b) for b in blocks if json.loads(b)["@type"] == "FAQPage"]
+    assert faq, "FAQPage schema present"
+    names = {e["name"] for e in faq[0]["mainEntity"]}
+    assert names == {q for q, _ in seo.FAQ_PAIRS}                   # schema == visible
+
+
+def test_signed_out_nav_points_to_real_pages(client):
+    page = client.get("/").text
+    for href in ('href="/how-it-works"', 'href="/pricing"', 'href="/security"'):
+        assert href in page
+    assert 'href="/#how"' not in page and 'href="/#pricing"' not in page

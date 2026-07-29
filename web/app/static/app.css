@@ -369,6 +369,15 @@ footer{max-width:1140px;margin:0 auto;padding:20px 24px;display:flex;gap:16px;
   color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
 footer a{color:var(--muted)}
 
+/* grouped marketing footer (PUB-007) */
+.site-footer{display:block;max-width:var(--wide);padding:32px 24px 40px}
+.site-footer .foot-groups{display:grid;gap:24px;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}
+.foot-group{display:flex;flex-direction:column;gap:6px}
+.foot-group b{font-size:13px;color:var(--ink)}
+.foot-group a{color:var(--muted);font-size:14px}
+.foot-legal{margin:22px 0 0}
+
 .cookie-note{position:fixed;left:16px;right:16px;bottom:16px;max-width:640px;margin:0 auto;
   background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;
   display:flex;gap:12px;align-items:center;justify-content:space-between;font-size:13px;
@@ -494,6 +503,45 @@ body.home .bar{max-width:var(--wide)}
 .closing{text-align:center;border-top:2px solid var(--ink)}
 .closing h2{max-width:none;margin-inline:auto}
 .closing .cta{display:flex;justify-content:center;margin-top:4px}
+
+/* ===== homepage + marketing pages (Guide v2 HOME/PUB) ===== */
+.eyebrow{font:700 11px/1.3 var(--mono);letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);margin:0 0 10px}
+.proofline{font-size:14px;color:var(--muted);margin:0 0 18px;max-width:48ch}
+.example-badge{display:inline-block;font:700 9.5px/1 var(--mono);letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent);background:var(--ok-bg);
+  border:1px solid #c9e3d6;border-radius:99px;padding:5px 9px;margin:0 0 10px}
+.problem-points{margin:14px 0 0;padding-left:20px;max-width:60ch}
+.problem-points li{margin:0 0 6px}
+.section .lede{max-width:62ch}
+/* marketing page intros + prose measure */
+.lead h1{font-size:var(--step-h2);line-height:1.12;letter-spacing:-.02em;
+  text-wrap:balance;max-width:20ch;margin:0 0 12px}
+.section p.prose, .section ul.prose{max-width:var(--measure)}
+.section ul.prose{padding-left:20px}
+.section ul.prose li{margin:0 0 8px}
+/* how-it-works step numbers */
+.frame .step-no{display:block;font:800 12px/1 var(--mono);letter-spacing:.08em;
+  color:var(--accent);margin:0 0 8px}
+/* demo card fit numbers */
+.fitbar{display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center}
+.fitbar .fitbar-label{grid-column:1 / -1}
+.fitbar .scorebar{grid-column:1}
+.fit-num{grid-column:2;font:700 11px/1 var(--mono);color:var(--accent)}
+/* visible FAQ (works with no JS) */
+.faq details{border-top:1px solid var(--line)}
+.faq details:last-of-type{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;font-weight:600;padding:15px 28px 15px 0;position:relative;
+  list-style:none;min-height:44px;display:flex;align-items:center}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";position:absolute;right:2px;color:var(--muted);font-weight:400;font-size:18px}
+.faq details[open] summary::after{content:"\2212"}
+.faq details > p{margin:0 0 16px;max-width:var(--measure);color:var(--muted)}
+/* comparison table */
+.compare{min-width:640px}
+.compare th,.compare td{vertical-align:top}
+.compare td{font-size:13.5px}
+.compare td:first-child{font-weight:600;color:var(--ink)}
 
 /* mobile bottom-bar nav (§11.1) — logged-in, under 720px only */
 .bottombar{display:none}

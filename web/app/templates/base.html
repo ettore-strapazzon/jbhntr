@@ -55,10 +55,11 @@
       <a href="/account">Account</a>
       <a href="/logout">Log out</a>
     {% else %}
-      <a href="/#how">How it works</a>
-      <a href="/#pricing">Premium</a>
+      <a href="/how-it-works">How it works</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/security">Security</a>
       <a href="/login">Log in</a>
-      <a href="/signup" class="pill">Start free</a>
+      <a href="/signup" class="pill">Start your search</a>
     {% endif %}
   </nav>
 </header>
@@ -78,13 +79,28 @@
 </nav>
 {% endif %}
 
-<footer>
-  <span>© {{ config.company_name }}</span>
-  <a href="/terms">Terms</a>
-  <a href="/privacy">Privacy</a>
-  <a href="/cookies">Cookies</a>
-  <a href="mailto:{{ config.support_email }}">Support</a>
-  {% if config.repo_url %}<a href="{{ config.repo_url }}" target="_blank" rel="noopener">Built by one person, in the open</a>{% endif %}
+<footer class="site-footer">
+  <div class="foot-groups">
+    <div class="foot-group">
+      <b>Product</b>
+      <a href="/how-it-works">How it works</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/compare/linkedin-jobs">Compare</a>
+    </div>
+    <div class="foot-group">
+      <b>Trust</b>
+      <a href="/security">Security</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/cookies">Cookies</a>
+    </div>
+    <div class="foot-group">
+      <b>Company</b>
+      {% if config.repo_url %}<a href="{{ config.repo_url }}" target="_blank" rel="noopener">Open-source repository</a>{% endif %}
+      <a href="mailto:{{ config.support_email }}">Support</a>
+    </div>
+  </div>
+  <p class="foot-legal small muted">© {{ config.company_name }}</p>
 </footer>
 
 <!-- Only a strictly-necessary session cookie is used, so this is an

@@ -24,9 +24,59 @@ PRIVATE_ROBOTS = "noindex,nofollow,noarchive"
 
 # The canonical set of public, indexable pages. The sitemap is generated from
 # this tuple, not from route introspection, so private routes can never leak in.
-# Add "/how-it-works", "/security", "/pricing", "/compare/linkedin-jobs" when
-# those pages ship; add "/job-sources" and "/about" in the second pass.
-PUBLIC_PATHS: tuple[str, ...] = ("/", "/privacy", "/terms", "/cookies")
+# Add "/job-sources" and "/about" in the second pass.
+PUBLIC_PATHS: tuple[str, ...] = (
+    "/", "/how-it-works", "/security", "/pricing", "/compare/linkedin-jobs",
+    "/privacy", "/terms", "/cookies",
+)
+
+# Homepage FAQ. Defined once so the visible <details> block and the FAQPage
+# JSON-LD render from the same strings and can never drift (SEO-006 / HOME-010).
+FAQ_PAIRS: tuple[tuple[str, str], ...] = (
+    ("What is JBHNTR?",
+     "JBHNTR is an AI job-search agent. It scans job boards and company career "
+     "pages, filters and ranks roles against your profile, and returns a "
+     "shortlist with the reasons for and against each match."),
+    ("Where does JBHNTR search?",
+     "It uses broad job feeds, niche and remote boards, and direct employer "
+     "career pages, including ATS platforms such as Greenhouse, Lever and Ashby. "
+     "Coverage varies by country, sector and source availability."),
+    ("Does JBHNTR scrape LinkedIn?",
+     "No. The public product does not scrape LinkedIn. It relies on other job "
+     "sources, aggregators and employer career pages."),
+    ("How does matching work?",
+     "JBHNTR first applies hard constraints such as location and working mode, "
+     "then uses semantic retrieval to find relevant work beyond exact titles. "
+     "The strongest candidates are assessed in two directions: how well the role "
+     "fits what you want and how well your background fits the requirements."),
+    ("Does JBHNTR apply automatically?",
+     "No. It helps you find and evaluate roles and can draft application "
+     "materials. You review the original posting, edit every draft and submit the "
+     "application yourself."),
+    ("How fresh are the jobs?",
+     "The shared job corpus is refreshed on a schedule and tracks when listings "
+     "were last seen. JBHNTR also removes dead or stale listings where its checks "
+     "identify them, but no aggregator can guarantee that every employer page is "
+     "updated immediately."),
+    ("Who can see my CV?",
+     "Your profile is private by default. Employers and recruiters cannot browse "
+     "it. The services required to operate JBHNTR process career text as "
+     "described in the Privacy Policy; any future recruiter discoverability "
+     "feature must be explicit and optional."),
+    ("Can JBHNTR guarantee that a job is still open?",
+     "No. Always verify the original employer posting before applying. JBHNTR "
+     "tracks freshness and checks listings, but employers and job sources can "
+     "change without notice."),
+    ("Is JBHNTR for a particular profession?",
+     "No. The profile supports different sectors, seniority levels, company "
+     "types, contract types and locations. Result quality still depends on source "
+     "coverage in your market and the detail in your profile."),
+    ("What will Premium add?",
+     "Premium is planned to add automatic recurring scans, more frequent "
+     "freshness, useful digests and expanded application workflow. The free "
+     "product uses the same core approach and is intended to be good enough to "
+     "judge the product honestly."),
+)
 
 
 def origin() -> str:

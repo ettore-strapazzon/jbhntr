@@ -38,6 +38,7 @@ def home(request: Request):
             return RedirectResponse("/matches", status_code=303)
         ctx = {
             "request": request,
+            "faq_pairs": seo.FAQ_PAIRS,
             **seo.public_seo(
                 title=seo.DEFAULT_TITLE,
                 description=seo.DEFAULT_DESCRIPTION,
@@ -47,12 +48,76 @@ def home(request: Request):
                     seo.organization_schema(),
                     seo.website_schema(),
                     seo.software_application_schema(),
+                    seo.faq_schema(list(seo.FAQ_PAIRS)),
                 ],
             ),
         }
         return templates.TemplateResponse(request, "landing.html", ctx)
     finally:
         db.close()
+
+
+def _public_page(request: Request, template: str, *, title: str,
+                 description: str, path: str, og_title: str):
+    from ..auth import current_user
+    from ..db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        user = current_user(request, db)
+        ctx = {"request": request, "user": user, **seo.public_seo(
+            title=title, description=description, path=path, og_title=og_title)}
+        return templates.TemplateResponse(request, template, ctx)
+    finally:
+        db.close()
+
+
+@router.get("/how-it-works", response_class=HTMLResponse)
+def how_it_works(request: Request):
+    return _public_page(
+        request, "marketing/how_it_works.html",
+        title="How JBHNTR Works | AI Job Search and Two-Way Fit Scoring",
+        description=("How JBHNTR turns your CV, goals and constraints into a "
+                     "cross-source job scan, then scores each role against what "
+                     "you want and what the employer requires."),
+        path="/how-it-works",
+        og_title="How JBHNTR searches the job market for you")
+
+
+@router.get("/security", response_class=HTMLResponse)
+def security(request: Request):
+    return _public_page(
+        request, "marketing/security.html",
+        title="CV Privacy and Data Security | JBHNTR",
+        description=("Learn how JBHNTR encrypts uploaded career documents, uses "
+                     "AI providers, keeps profiles private by default and supports "
+                     "export and deletion."),
+        path="/security",
+        og_title="Your CV is used to search for you, not to sell you")
+
+
+@router.get("/pricing", response_class=HTMLResponse)
+def pricing(request: Request):
+    return _public_page(
+        request, "marketing/pricing.html",
+        title="JBHNTR Pricing | Free Job Search and Planned Premium",
+        description=("Run complete JBHNTR searches free. See current limits and "
+                     "what planned Premium automation will add when it opens."),
+        path="/pricing",
+        og_title="Free to prove the search. Premium for continuity.")
+
+
+@router.get("/compare/linkedin-jobs", response_class=HTMLResponse)
+def compare_linkedin_jobs(request: Request):
+    return _public_page(
+        request, "marketing/compare_linkedin_jobs.html",
+        title="JBHNTR vs LinkedIn Jobs | An Independent Job Search Agent",
+        description=("A fair comparison of LinkedIn Jobs and JBHNTR: a "
+                     "professional network with its own inventory, against an "
+                     "independent agent that searches across sources and scores "
+                     "fit both ways."),
+        path="/compare/linkedin-jobs",
+        og_title="LinkedIn Jobs and JBHNTR, compared honestly")
 
 
 @router.get("/robots.txt")
