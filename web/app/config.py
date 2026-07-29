@@ -87,6 +87,11 @@ class WebConfig:
     plausible_domain: str = os.environ.get("PLAUSIBLE_DOMAIN", "")
     support_email: str = os.environ.get("SUPPORT_EMAIL", "support@jbhntr.app")
     company_name: str = os.environ.get("COMPANY_NAME", "JBHNTR")
+
+    # --- public entity / SEO (stable values templates and schema need) ---
+    site_name: str = os.environ.get("SITE_NAME", "JBHNTR")
+    founder_name: str = os.environ.get("FOUNDER_NAME", "Ettore Strapazzon")
+    og_image_path: str = os.environ.get("OG_IMAGE_PATH", "/static/og-default.png")
     # Public repo, linked in the footer ("built in the open"). Correct the handle
     # if it differs; blank hides the link.
     repo_url: str = os.environ.get("REPO_URL", "https://github.com/ettore-strapazzon/jbhntr")

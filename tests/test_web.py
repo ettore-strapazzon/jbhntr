@@ -1405,3 +1405,66 @@ def test_admin_shows_unique_visitors_by_country(client, monkeypatch):
     r = client.get("/admin", auth=("op", "s3cret"))
     assert r.status_code == 200
     assert "Unique visitors by country" in r.text
+
+
+# --------------------------- SEO foundation (Guide v2) --------------------- #
+def test_home_has_public_seo_metadata(client):
+    page = client.get("/").text
+    assert "AI Job Search Agent Across Job Boards and Career Pages" in page
+    assert 'name="description"' in page
+    assert 'name="robots" content="index,follow' in page
+    assert 'rel="canonical"' in page
+    assert 'property="og:title"' in page
+    assert "application/ld+json" in page
+
+
+def test_home_schema_blocks_are_valid_json(client):
+    import json
+    import re
+    page = client.get("/").text
+    blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>',
+                        page, re.DOTALL)
+    assert len(blocks) == 3
+    types = {json.loads(b)["@type"] for b in blocks}
+    assert types == {"Organization", "WebSite", "SoftwareApplication"}
+    from web.app import seo
+    for b in blocks:                                   # schema URLs use config base
+        assert seo.origin() in b
+
+
+def test_auth_and_private_pages_are_noindex(client):
+    for path in ("/login", "/signup", "/forgot"):
+        page = client.get(path).text
+        assert 'name="robots" content="noindex,nofollow,noarchive"' in page
+
+
+def test_legal_pages_are_public_and_indexable(client):
+    from web.app import seo
+    for path in ("/privacy", "/terms", "/cookies"):
+        page = client.get(path).text
+        assert 'name="robots" content="index,follow' in page
+        assert f'rel="canonical" href="{seo.absolute_url(path)}"' in page
+
+
+def test_robots_txt_allows_all_and_blocks_private(client):
+    r = client.get("/robots.txt")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/plain")
+    assert "User-agent: *" in r.text and "Allow: /" in r.text
+    assert "Disallow: /matches" in r.text and "Disallow: /account" in r.text
+    assert "User-agent: GPTBot" not in r.text          # allow-all policy: no bot blocks
+    from web.app import seo
+    assert f"Sitemap: {seo.absolute_url('/sitemap.xml')}" in r.text
+
+
+def test_sitemap_contains_only_public_canonicals(client):
+    import re
+    from web.app import seo
+    r = client.get("/sitemap.xml")
+    assert r.status_code == 200
+    assert "application/xml" in r.headers["content-type"]
+    locs = set(re.findall(r"<loc>(.*?)</loc>", r.text))
+    for path in ("/", "/privacy", "/terms", "/cookies"):
+        assert seo.absolute_url(path) in locs
+    for path in ("/matches", "/profile", "/account", "/login", "/signup", "/premium"):
+        assert seo.absolute_url(path) not in locs
