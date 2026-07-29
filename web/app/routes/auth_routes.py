@@ -63,6 +63,9 @@ def signup(
     user.marketing_opt_in = bool(marketing)
     db.commit()
 
+    from ..services.events import record
+    record(db, "signup_completed", user_id=user.id)
+
     from ..services.email import send_welcome
     send_welcome(user.email)   # no-op until SMTP is configured
 

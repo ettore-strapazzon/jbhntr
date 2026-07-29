@@ -189,6 +189,9 @@ async def upload(
         text=text[:200_000],
     ))
     db.commit()
+    if kind == "cv":
+        from ..services.events import record
+        record(db, "cv_uploaded", user_id=user.id)
     return RedirectResponse(dest, status_code=303)
 
 

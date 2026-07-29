@@ -372,10 +372,10 @@ class Session(Base):
 class PageView(Base):
     """Minimal analytics. Stores no IP and no user id.
 
-    `visitor` is a one-way daily-rotating hash (a salt that changes every day,
-    combined with the caller's IP and user-agent, then SHA-256'd). It lets us
-    count *distinct* visitors within a day without ever storing an IP or being
-    able to follow anyone across days. See services/analytics.py.
+    `visitor` is a one-way persistent hash (a secret non-rotating salt combined
+    with the caller's IP and user-agent, then SHA-256'd). It lets us count
+    *distinct* devices over time without ever storing an IP. See
+    services/analytics.py.
     """
 
     __tablename__ = "page_views"
@@ -385,4 +385,21 @@ class PageView(Base):
     referrer: Mapped[str] = mapped_column(String(255), default="")
     country: Mapped[str] = mapped_column(String(8), default="")
     visitor: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class ProductEvent(Base):
+    """Server-side funnel/activation events (PROOF-003). One row per action, e.g.
+    signup_completed, scan_completed, match_rated. Deliberately carries no CV
+    text, objective text, job-description text, IP or email — only a controlled
+    event name, an optional user id, and a small allowlisted properties bag.
+    """
+
+    __tablename__ = "product_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, default=None)
+    name: Mapped[str] = mapped_column(String(48), index=True)
+    properties: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

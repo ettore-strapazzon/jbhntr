@@ -75,6 +75,8 @@ def feedback(result_id: int, request: Request,
     fb.vote = RATING_TO_VOTE[rating]                      # derived, kept for downstream
     fb.note = (note or "")[: config.max_feedback_chars]
     db.commit()
+    from ..services.events import record
+    record(db, "match_rated", user_id=user.id, rating=rating)
 
     # HTMX: swap just this card's rating control in place, no reload, no scroll loss.
     if is_htmx:
@@ -160,5 +162,7 @@ def generate(result_id: int, kind: str, request: Request,
     if not user.is_premium:
         user.documents_used += 1
     db.commit()
+    from ..services.events import record
+    record(db, "document_generated", user_id=user.id, kind=kind)
     # The document view (routes/documents.py) renders it, editable, with exports.
     return RedirectResponse(f"/document/{result.id}/{kind}", status_code=303)

@@ -34,6 +34,17 @@
   {% endif %}
 </div>
 
+{# ===== activation funnel (product events) ===== #}
+<div class="card">
+  <h2>Activation funnel <span class="muted small">(events, last 30 days)</span></h2>
+  <table class="apptable"><tbody>
+    {% for label, n in funnel %}
+      <tr><td>{{ label }}</td><td>{{ n }}</td></tr>
+    {% endfor %}
+  </tbody></table>
+  <p class="small muted">The number that matters is signed up → completed a scan.</p>
+</div>
+
 {# ===== searches ===== #}
 <div class="card">
   <h2>Searches</h2>

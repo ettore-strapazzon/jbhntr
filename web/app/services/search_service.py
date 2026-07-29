@@ -77,6 +77,9 @@ def start_search(db: DbSession, user: User) -> Search:
     db.commit()
     db.refresh(search)
 
+    from .events import record
+    record(db, "scan_started", user_id=user.id)
+
     threading.Thread(target=_run_search, args=(search.id, user.id), daemon=True).start()
     return search
 
@@ -209,6 +212,8 @@ def _run_search(search_id: int, user_id: int) -> None:
         _set(db, search, status="done", stage="Done", error=note,
              scored_count=len(ranked), finished_at=utcnow())
         log.info("Search %s finished: %d results", search.id, len(ranked))
+        from .events import record
+        record(db, "scan_completed", user_id=user_id, count=len(ranked))
 
     except Exception as exc:  # never leave a search stuck in 'running'
         log.exception("Search %s failed", search_id)

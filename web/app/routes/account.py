@@ -44,6 +44,8 @@ def premium_waitlist(request: Request, region: str = Form("top"),
     if not user.premium_requested_at:
         user.premium_requested_at = utcnow()
         db.commit()
+        from ..services.events import record
+        record(db, "premium_waitlist_joined", user_id=user.id)
         from ..services.email import send_premium_waitlist
         # first_name is not stored yet, so the greeting drops the name.
         send_premium_waitlist(user.email, user.id, first_name="")

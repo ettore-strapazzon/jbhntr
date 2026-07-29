@@ -1591,3 +1591,60 @@ def test_claim_lint_no_dashes_in_marketing_prose():
         if "\u2014" in text or "\u2013" in text:
             offenders.append(f)
     assert not offenders, "em/en dash in: " + ", ".join(offenders)
+
+
+# --------------------------- product events (PROOF-003) ------------------- #
+def test_signup_and_waitlist_record_product_events(client):
+    from web.app.db import SessionLocal
+    from web.app.models import ProductEvent, User
+    signup(client, "ev@example.com")
+    client.post("/premium/waitlist", data={"region": "top"})
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="ev@example.com").one()
+        names = {e.name for e in db.query(ProductEvent).filter_by(user_id=u.id)}
+        assert "signup_completed" in names
+        assert "premium_waitlist_joined" in names
+    finally:
+        db.close()
+
+
+def test_events_helper_rejects_unknown_and_strips_pii():
+    from web.app.db import SessionLocal
+    from web.app.models import ProductEvent
+    from web.app.services import events
+    db = SessionLocal()
+    try:
+        before = db.query(ProductEvent).count()
+        events.record(db, "definitely_not_an_event", user_id=None)   # unknown -> no-op
+        assert db.query(ProductEvent).count() == before
+        events.record(db, "match_rated", rating=4, email="secret@x.com", cv_text="PII")
+        ev = db.query(ProductEvent).filter_by(name="match_rated").order_by(
+            ProductEvent.id.desc()).first()
+        assert ev.properties == {"rating": 4}         # only allowlisted keys kept
+    finally:
+        db.close()
+
+
+def test_pageview_retention_prune():
+    import datetime
+    from web.app.db import SessionLocal
+    from web.app.models import PageView, utcnow
+    from web.app.services.cron import _prune_pageviews
+    db = SessionLocal()
+    try:
+        old = PageView(path="/old", created_at=utcnow() - datetime.timedelta(days=800))
+        new = PageView(path="/new", created_at=utcnow())
+        db.add_all([old, new]); db.commit()
+        removed = _prune_pageviews(db)
+        assert removed >= 1
+        paths = {p.path for p in db.query(PageView)}
+        assert "/new" in paths and "/old" not in paths
+    finally:
+        db.close()
+
+
+def test_privacy_no_third_party_analytics_processor(client):
+    page = client.get("/privacy").text
+    assert "Plausible" not in page
+    assert "first-party and cookieless" in page

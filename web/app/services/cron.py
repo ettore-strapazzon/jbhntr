@@ -21,6 +21,17 @@ from .reaper import run as reaper_run
 log = logging.getLogger("jbhntr.cron")
 
 WEEKLY_DAY = 0   # Monday, in UTC
+PAGEVIEW_RETENTION_DAYS = 730   # 24 months — matches the Privacy Policy
+
+
+def _prune_pageviews(db, days: int = PAGEVIEW_RETENTION_DAYS) -> int:
+    """Delete raw page-view rows past the retention window (privacy promise)."""
+    from ..models import PageView, utcnow
+    cutoff = utcnow() - datetime.timedelta(days=days)
+    n = db.query(PageView).filter(PageView.created_at < cutoff).delete(
+        synchronize_session=False)
+    db.commit()
+    return n
 
 
 def nightly(today: datetime.date | None = None) -> dict:
@@ -46,6 +57,7 @@ def nightly(today: datetime.date | None = None) -> dict:
     db = SessionLocal()
     try:
         out["digests"] = run_digests(db, is_weekly_day=is_weekly)
+        out["pageview_pruned"] = _prune_pageviews(db)
     finally:
         db.close()
 

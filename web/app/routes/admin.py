@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from ..config import config
 from ..db import get_session
-from ..models import Document, Feedback, PageView, Search, User, utcnow
+from ..models import Document, Feedback, PageView, ProductEvent, Search, User, utcnow
 from ..templating import templates
 
 router = APIRouter()
@@ -116,8 +116,23 @@ def _gather(db: DbSession) -> dict:
                  .group_by(PageView.path).order_by(func.count(PageView.id).desc())
                  .limit(12).all())
 
+    # --- product events (PROOF-003): the activation funnel ---
+    ev = dict(db.query(ProductEvent.name, func.count(ProductEvent.id))
+              .filter(ProductEvent.created_at >= _since(30))
+              .group_by(ProductEvent.name).all())
+    funnel = [(label, ev.get(name, 0)) for name, label in (
+        ("signup_completed", "Signed up"),
+        ("cv_uploaded", "Uploaded a CV"),
+        ("scan_started", "Started a scan"),
+        ("scan_completed", "Completed a scan"),
+        ("match_rated", "Rated a match"),
+        ("document_generated", "Generated a draft"),
+        ("premium_waitlist_joined", "Joined the waitlist"),
+    )]
+
     return {
         "now": now,
+        "funnel": funnel,
         "total_users": total_users, "google_users": google_users,
         "premium_users": premium_users, "waitlist": waitlist,
         "total_searches": total_searches, "searches_7d": searches_7d,
