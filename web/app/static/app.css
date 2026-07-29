@@ -438,6 +438,10 @@ footer a{color:var(--muted)}
   --step-h1:clamp(2.125rem, 1.1rem + 4.6vw, 4.75rem);
   --step-h2:clamp(1.75rem, 1.1rem + 2.4vw, 2.75rem);
   --step-lede:clamp(1.0625rem, 0.98rem + 0.5vw, 1.375rem);
+  /* Round 4b: one spacing scale so section boundaries add up once, not thrice */
+  --space-section:clamp(48px, 4.6vw, 76px);
+  --space-block:clamp(20px, 2vw, 32px);
+  --space-tight:12px;
 }
 html{overflow-x:clip}             /* seatbelt; the real fixes below don't need it */
 
@@ -454,19 +458,28 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
 .brand{color:inherit;font-weight:inherit;text-decoration:none}
 
 /* ---- section shell + two-track grid ---- */
-.section{padding-block:clamp(56px,7vw,104px);border-top:1px solid var(--rule)}
+.section{padding-block:var(--space-section);border-top:1px solid var(--rule)}
 .section:first-of-type{border-top:0}
+/* kill the third contribution: trailing margin on a block's last element (Fix 1) */
+.section > .container > *:last-child,
+.section-head > *:last-child,
+.section-body > *:last-child,
+.section-solo > *:last-child{margin-bottom:0}
 .section-grid{display:grid;gap:clamp(24px,4vw,64px);align-items:start;
   grid-template-columns:minmax(0,22rem) minmax(0,1fr)}
 @media (max-width:860px){.section-grid{grid-template-columns:minmax(0,1fr)}}
 /* every direct grid child clamps its own min-size (kills sideways scroll, L-02) */
 .section-grid > *,.card-grid > *,.step-grid > *,.hero-grid > *{min-width:0}
-/* eyebrow + heading + body live together as ONE grid child (fixes L-03/L-04/L-07) */
-.section-head{display:flex;flex-direction:column;gap:14px}
-.section-head h2{margin:0;font-weight:600;letter-spacing:-.015em;line-height:1.1;
+/* eyebrow + heading + body live together as ONE grid child (fixes L-03/L-04/L-07).
+   Margins own the rhythm so the eyebrow can hug its heading (Fix 2). */
+.section-head{display:flex;flex-direction:column}
+.section-head .eyebrow{margin:0 0 4px;line-height:1.2}   /* 4px to the heading */
+.section-head h2{margin:0 0 12px;font-weight:600;letter-spacing:-.015em;line-height:1.1;
   font-size:var(--step-h2);text-wrap:balance}
-.section-head p{margin:0;color:var(--text-muted);max-width:34em}
-.section-head .cta{margin:0}
+.section-head p{margin:0 0 12px;color:var(--text-muted);max-width:34em}
+.section-head .cta{margin:0 0 12px}   /* last-child rule zeroes the final one */
+/* a paragraph or head followed by a bullet list: one gap, not two (Fix 1) */
+.section-body ul,.section-head + ul{margin-top:var(--space-tight)}
 .cta{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .doc .cta{margin:18px 0 8px}
 .eyebrow{font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;
@@ -507,7 +520,7 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
   color:var(--pine);margin:0 0 10px}
 
 /* ---- hero ---- */
-.hero{padding-block:clamp(48px,6vw,88px) clamp(56px,7vw,104px)}
+.hero{padding-block:clamp(36px,3.4vw,56px) var(--space-section)}
 .hero-grid{display:grid;gap:clamp(32px,5vw,72px);align-items:center;
   grid-template-columns:minmax(0,1fr) minmax(0,30rem)}
 @media (max-width:940px){.hero-grid{grid-template-columns:minmax(0,1fr)}}
@@ -570,17 +583,17 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
 .compare td{font-size:13.5px;color:var(--text-muted)}
 .compare td:first-child{font-weight:600;color:var(--text)}
 
-/* ---- sub-pages: long-form reading, centred measure (fixes L-05) ---- */
-.doc{max-width:44rem;margin-inline:auto}
+/* ---- sub-pages: long-form reading, left-aligned to the nav (Round 4b Fix 3) ---- */
+.doc{max-width:46rem;margin-inline:0;padding-top:clamp(40px,4.4vw,72px)}
 .doc h1{font-size:clamp(32px,4vw,52px);line-height:1.08;letter-spacing:-.02em;margin:0 0 16px}
+.doc > .eyebrow{margin:0 0 6px}   /* clearance under the nav; tight to the h1 */
 .doc .lede{font-size:var(--step-lede);color:var(--text-muted);margin:0 0 8px;max-width:38em}
 .doc > section{padding-block:clamp(32px,4vw,56px);border-top:1px solid var(--rule)}
-.doc > section:first-of-type{border-top:0;padding-top:clamp(20px,3vw,32px)}
+.doc > section:first-of-type{border-top:0;padding-top:var(--space-block)}
 .doc h2{font-size:clamp(22px,2.4vw,30px);line-height:1.2;letter-spacing:-.01em;margin:0 0 12px}
 .doc p,.doc ul{margin:0 0 14px;color:var(--text-muted);max-width:38em}
 .doc ul{padding-left:20px}
 .doc li{margin:0 0 8px}
-.doc .eyebrow{margin:0 0 10px}
 
 /* mobile bottom-bar nav (§11.1) — logged-in, under 720px only */
 .bottombar{display:none}
