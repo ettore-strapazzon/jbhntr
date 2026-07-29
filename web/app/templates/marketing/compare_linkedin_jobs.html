@@ -1,53 +1,55 @@
 {% extends "base.html" %}
 {% block body_class %}home{% endblock %}
 {% block content %}
-<section class="section wrap lead">
-  <p class="eyebrow">COMPARISON</p>
-  <h1>JBHNTR and LinkedIn Jobs, compared</h1>
-  <p class="lede prose">LinkedIn Jobs is a professional network with its own job
-    inventory and, now, AI-assisted search. JBHNTR is an independent agent that
-    searches across many sources and scores each role in both directions. They
-    solve different halves of the same problem, and most people will use both.</p>
-  <p class="small muted">Last reviewed against official sources on 28 July 2026.</p>
-</section>
+<div class="container">
+  <article class="doc">
+    <p class="eyebrow">COMPARISON</p>
+    <h1>JBHNTR and LinkedIn Jobs, compared</h1>
+    <p class="lede">LinkedIn Jobs is a professional network with its own job inventory
+      and, now, AI-assisted search. JBHNTR is an independent agent that searches across
+      many sources and scores each role in both directions. They solve different halves
+      of the same problem, and most people will use both.</p>
+    <p class="small muted">Last reviewed against official sources on 28 July 2026.</p>
 
-<section class="section wrap" aria-labelledby="s-table">
-  <h2 id="s-table">Where they differ</h2>
-  <div class="tablewrap">
-    <table class="apptable compare">
-      <thead><tr><th>Dimension</th><th>LinkedIn Jobs</th><th>JBHNTR</th></tr></thead>
-      <tbody>
-        <tr><td>Where roles come from</td>
-          <td>Its own inventory, posted by employers to the platform</td>
-          <td>25+ sources including direct employer career pages; not LinkedIn</td></tr>
-        <tr><td>Who the tool acts for</td>
-          <td>Candidates and employers, with recruiter products as the revenue base</td>
-          <td>The candidate. No recruiter product today, and any future one requires explicit opt-in</td></tr>
-        <tr><td>How fit is expressed</td>
-          <td>Relevance and match signals within the platform</td>
-          <td>Two scores, role fit and requirements fit, with reasons for and against</td></tr>
-        <tr><td>Profile visibility</td>
-          <td>A public professional profile is the core of the product</td>
-          <td>Private by default, not browsable</td></tr>
-        <tr><td>Best at</td>
-          <td>Network, employer presence, breadth of its own postings, being where recruiters look</td>
-          <td>Reading across sources you would not check yourself and saying which few are worth a decision</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
+    <section aria-labelledby="s-table">
+      <h2 id="s-table">Where they differ</h2>
+      <div class="tablewrap">
+        <table class="apptable compare">
+          <thead><tr><th>Dimension</th><th>LinkedIn Jobs</th><th>JBHNTR</th></tr></thead>
+          <tbody>
+            <tr><td>Where roles come from</td>
+              <td>Its own inventory, posted by employers to the platform</td>
+              <td>25+ sources including direct employer career pages; not LinkedIn</td></tr>
+            <tr><td>Who the tool acts for</td>
+              <td>Candidates and employers, with recruiter products as the revenue base</td>
+              <td>The candidate. No recruiter product today, and any future one requires explicit opt-in</td></tr>
+            <tr><td>How fit is expressed</td>
+              <td>Relevance and match signals within the platform</td>
+              <td>Two scores, role fit and requirements fit, with reasons for and against</td></tr>
+            <tr><td>Profile visibility</td>
+              <td>A public professional profile is the core of the product</td>
+              <td>Private by default, not browsable</td></tr>
+            <tr><td>Best at</td>
+              <td>Network, employer presence, breadth of its own postings, being where recruiters look</td>
+              <td>Reading across sources you would not check yourself and saying which few are worth a decision</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-when">
-  <h2 id="s-when">When LinkedIn is the better tool</h2>
-  <p class="prose">Sometimes it is the right choice: when the role is likely to be
-    posted only on LinkedIn, when the network connection matters more than the
-    match, and when a recruiter needs to find the candidate rather than the other
-    way round. JBHNTR does not have broader coverage than LinkedIn. The difference
-    is structural: LinkedIn earns from the employer and recruiter side, so it is
-    not built to be an agent acting for one candidate across the whole market.</p>
-  <p class="cta">
-    <a class="btn" href="/signup">Start a free scan</a>
-    <a class="btn ghost" href="/how-it-works">How matching works</a>
-  </p>
-</section>
+    <section aria-labelledby="s-when">
+      <h2 id="s-when">When LinkedIn is the better tool</h2>
+      <p>Sometimes it is the right choice: when the role is likely to be posted only on
+        LinkedIn, when the network connection matters more than the match, and when a
+        recruiter needs to find the candidate rather than the other way round. JBHNTR
+        does not have broader coverage than LinkedIn. The difference is structural:
+        LinkedIn earns from the employer and recruiter side, so it is not built to be an
+        agent acting for one candidate across the whole market.</p>
+      <p class="cta">
+        <a class="btn" href="/signup">Start a free scan</a>
+        <a class="btn ghost" href="/how-it-works">How matching works</a>
+      </p>
+    </section>
+  </article>
+</div>
 {% endblock %}

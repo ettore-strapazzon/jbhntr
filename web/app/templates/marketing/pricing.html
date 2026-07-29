@@ -1,49 +1,50 @@
 {% extends "base.html" %}
 {% block body_class %}home{% endblock %}
 {% block content %}
-<section class="section wrap lead">
-  <p class="eyebrow">FREE NOW · PREMIUM PLANNED</p>
-  <h1>Free to prove the search. Premium for continuity.</h1>
-  <p class="lede prose">Use the complete core search before deciding whether
-    recurring automation is worth paying for.</p>
-</section>
+<div class="container">
+  <article class="doc">
+    <p class="eyebrow">FREE NOW · PREMIUM PLANNED</p>
+    <h1>Free to prove the search. Premium for continuity.</h1>
+    <p class="lede">Use the complete core search before deciding whether recurring
+      automation is worth paying for.</p>
 
-<section class="section wrap" aria-labelledby="s-free">
-  <h2 id="s-free">Free now</h2>
-  <ul class="prose">
-    <li>{{ config.free_searches }} complete market scans you start yourself.</li>
-    <li>The same core search method: hard filters, semantic retrieval, two-way fit
-      and explanations.</li>
-    <li>{{ config.free_cvs }} tailored CV drafts and {{ config.free_cover_letters }}
-      cover-letter draft.</li>
-    <li>Save, dismiss, rate and track applications.</li>
-    <li>No payment card required.</li>
-  </ul>
-</section>
+    <section aria-labelledby="s-free">
+      <h2 id="s-free">Free now</h2>
+      <ul>
+        <li>{{ config.free_searches }} complete market scans you start yourself.</li>
+        <li>The same core search method: hard filters, semantic retrieval, two-way fit
+          and explanations.</li>
+        <li>{{ config.free_cvs }} tailored CV drafts and {{ config.free_cover_letters }}
+          cover-letter draft.</li>
+        <li>Save, dismiss, rate and track applications.</li>
+        <li>No payment card required.</li>
+      </ul>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-prem">
-  <h2 id="s-prem">Premium: planned, not on sale</h2>
-  <p class="prose">Planned Premium is intended to add:</p>
-  <ul class="prose">
-    <li>automatic recurring scans;</li>
-    <li>more frequent checks against fresh postings;</li>
-    <li>a digest only when new roles clear the user's threshold;</li>
-    <li>expanded tailored-document allowance;</li>
-    <li>deeper application and search-history tools.</li>
-  </ul>
-  <p class="prose">The price has not been announced. If payments later launch, the
-    live checkout configuration becomes the source of truth.</p>
-</section>
+    <section aria-labelledby="s-prem">
+      <h2 id="s-prem">Premium: planned, not on sale</h2>
+      <p>Planned Premium is intended to add:</p>
+      <ul>
+        <li>automatic recurring scans;</li>
+        <li>more frequent checks against fresh postings;</li>
+        <li>a digest only when new roles clear the user's threshold;</li>
+        <li>expanded tailored-document allowance;</li>
+        <li>deeper application and search-history tools.</li>
+      </ul>
+      <p>The price has not been announced. If payments later launch, the live checkout
+        configuration becomes the source of truth.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-limits">
-  <h2 id="s-limits">Honest limits</h2>
-  <p class="prose">No plan guarantees complete market coverage, an open listing, an
-    interview or a job. Premium buys continuity and depth, not a deliberately
-    weakened free model.</p>
-  {% if user %}
-    <p class="cta"><a class="btn" href="/premium">Join the Premium waiting list</a></p>
-  {% else %}
-    <p class="cta"><a class="btn" href="/signup">Create an account to join the waiting list</a></p>
-  {% endif %}
-</section>
+    <section aria-labelledby="s-limits">
+      <h2 id="s-limits">Honest limits</h2>
+      <p>No plan guarantees complete market coverage, an open listing, an interview or a
+        job. Premium buys continuity and depth, not a deliberately weakened free model.</p>
+      {% if user %}
+        <p class="cta"><a class="btn" href="/premium">Join the Premium waiting list</a></p>
+      {% else %}
+        <p class="cta"><a class="btn" href="/signup">Create an account to join the waiting list</a></p>
+      {% endif %}
+    </section>
+  </article>
+</div>
 {% endblock %}

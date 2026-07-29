@@ -3,61 +3,62 @@
 {% block content %}
 {# TRUST-003: update this page whenever encryption, subprocessors, analytics,
    deletion or recruiter-access behaviour changes. #}
-<section class="section wrap lead">
-  <p class="eyebrow">CANDIDATE CONTROL</p>
-  <h1>Your CV is used to search for you, not to sell you</h1>
-  <p class="lede prose">Career documents are sensitive. JBHNTR is designed to
-    minimise access, encrypt stored uploads and keep the candidate in control of
-    export, deletion and any future recruiter visibility.</p>
-</section>
+<div class="container">
+  <article class="doc">
+    <p class="eyebrow">CANDIDATE CONTROL</p>
+    <h1>Your CV is used to search for you, not to sell you</h1>
+    <p class="lede">Career documents are sensitive. JBHNTR is designed to minimise
+      access, encrypt stored uploads and keep the candidate in control of export,
+      deletion and any future recruiter visibility.</p>
 
-<section class="section wrap" aria-labelledby="s-private">
-  <h2 id="s-private">Private by default</h2>
-  <p class="prose">Employers and recruiters cannot browse candidate profiles in the
-    current product. Any future discoverability feature must be explicit, limited
-    to the user's chosen criteria and reversible.</p>
-</section>
+    <section aria-labelledby="s-private">
+      <h2 id="s-private">Private by default</h2>
+      <p>Employers and recruiters cannot browse candidate profiles in the current
+        product. Any future discoverability feature must be explicit, limited to the
+        user's chosen criteria and reversible.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-storage">
-  <h2 id="s-storage">Storage</h2>
-  <p class="prose">Uploaded CVs and other career materials are encrypted at rest.
-    Access is limited to the application processes required to provide the service.
-    The exact technical controls and operational responsibilities are documented
-    internally and should be reviewed before production scale.</p>
-</section>
+    <section aria-labelledby="s-storage">
+      <h2 id="s-storage">Storage</h2>
+      <p>Uploaded CVs and other career materials are encrypted at rest. Access is
+        limited to the application processes required to provide the service. The exact
+        technical controls and operational responsibilities are documented internally
+        and should be reviewed before production scale.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-ai">
-  <h2 id="s-ai">AI processing</h2>
-  <p class="prose">To match jobs and generate application drafts, text from career
-    materials and job postings may be sent to OpenRouter and the model provider
-    selected by the service. This can involve international data transfers. The
-    active providers and the legal basis are stated in the Privacy Policy.</p>
-</section>
+    <section aria-labelledby="s-ai">
+      <h2 id="s-ai">AI processing</h2>
+      <p>To match jobs and generate application drafts, text from career materials and
+        job postings may be sent to OpenRouter and the model provider selected by the
+        service. This can involve international data transfers. The active providers and
+        the legal basis are stated in the Privacy Policy.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-analytics">
-  <h2 id="s-analytics">Analytics</h2>
-  <p class="prose">The product uses one necessary session cookie and cookieless
-    analytics. First-party page-view records store no IP address and no account
-    identifier. To count distinct visitors, a one-way token derived from your IP
-    and browser is stored; the IP itself is never kept.</p>
-</section>
+    <section aria-labelledby="s-analytics">
+      <h2 id="s-analytics">Analytics</h2>
+      <p>The product uses one necessary session cookie and cookieless analytics.
+        First-party page-view records store no IP address and no account identifier. To
+        count distinct visitors, a one-way token derived from your IP and browser is
+        stored; the IP itself is never kept.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-controls">
-  <h2 id="s-controls">User controls</h2>
-  <p class="prose">Signed-in users can download an export of stored account and
-    career information and permanently delete the account. The delete flow requires
-    confirmation because the action cannot be undone. Export and deletion are
-    available in Account after sign-in.</p>
-</section>
+    <section aria-labelledby="s-controls">
+      <h2 id="s-controls">User controls</h2>
+      <p>Signed-in users can download an export of stored account and career information
+        and permanently delete the account. The delete flow requires confirmation
+        because the action cannot be undone. Export and deletion are available in
+        Account after sign-in.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-not">
-  <h2 id="s-not">What this page is not</h2>
-  <p class="prose">This page does not claim certification, formal penetration
-    testing, EU-only processing or absolute security. Those are stated only when
-    completed and documented.</p>
-  <p class="cta"><a class="btn" href="/signup">Start with a private profile</a></p>
-  <p class="small"><a href="/privacy">Privacy policy</a> · <a href="/terms">Terms</a> ·
-    <a href="/cookies">Cookie notice</a>{% if config.repo_url %} ·
-    <a href="{{ config.repo_url }}" target="_blank" rel="noopener">Source code</a>{% endif %}</p>
-</section>
+    <section aria-labelledby="s-not">
+      <h2 id="s-not">What this page is not</h2>
+      <p>This page does not claim certification, formal penetration testing, EU-only
+        processing or absolute security. Those are stated only when completed and documented.</p>
+      <p class="cta"><a class="btn" href="/signup">Start with a private profile</a></p>
+      <p class="small"><a href="/privacy">Privacy policy</a> · <a href="/terms">Terms</a> ·
+        <a href="/cookies">Cookie notice</a>{% if config.repo_url %} ·
+        <a href="{{ config.repo_url }}" target="_blank" rel="noopener">Source code</a>{% endif %}</p>
+    </section>
+  </article>
+</div>
 {% endblock %}

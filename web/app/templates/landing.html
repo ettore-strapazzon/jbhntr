@@ -2,201 +2,237 @@
 {% block body_class %}home{% endblock %}
 {% block content %}
 
-{# ============================ HERO (HOME-001/002/003) ============================ #}
-<section class="hero wrap">
-  <div class="hero-copy">
-    <p class="eyebrow">AI JOB-SEARCH AGENT</p>
-    <h1>Don't let job hunting
-      <span class="turn">become your next job.</span></h1>
-    <p class="lede">JBHNTR searches the job market, evaluates every role against
-      your profile, and helps tailor your CV and cover letter
-      for the opportunities worth pursuing.</p>
-    <p class="proofline">Direct career-page coverage. Two-way fit scores. A reason
-      for and against every match.</p>
-    <p class="cta">
-      <a class="btn" href="/signup">Start your search</a>
-      <a class="btn ghost" href="/how-it-works">See how it works</a>
-    </p>
-    <p class="small muted">{{ config.free_searches }} searches free. No card. Your CV stays private.</p>
-  </div>
+{# ============================ HERO (L-01) ============================ #}
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">AI JOB-SEARCH AGENT</p>
+        <h1>Don't let job hunting
+          <span class="turn">become your next job.</span></h1>
+        <p class="lede">JBHNTR searches the job market, evaluates every role against
+          your profile, and helps tailor your CV and cover letter
+          for the opportunities worth pursuing.</p>
+        <p class="proofline">Direct career-page coverage. Two-way fit scores. A reason
+          for and against every match.</p>
+        <p class="cta">
+          <a class="btn" href="/signup">Start your search</a>
+          <a class="btn ghost" href="/how-it-works">See how it works</a>
+        </p>
+        <p class="small muted">{{ config.free_searches }} searches free. No card. Your CV stays private.</p>
+      </div>
 
-  <div class="hero-stack">
-    {# NOTE (TODO PROOF-001): fictional example until an approved anonymised real
-       scan result is supplied. Keep the "Illustrative example" badge until then. #}
-    <article class="demo-card job t1" aria-label="Illustrative JBHNTR match card">
-      <p class="example-badge">Illustrative example</p>
-      <div class="job-head">
-        <span class="score">88</span>
-        <span class="tier tier-1">Apply now</span>
-        <span class="muted small">posted 2 days ago</span>
-        <div class="job-title">
-          <div class="jt">Senior Product Manager, Payments</div>
-          <div class="muted small">Meridian Pay · Milan, hybrid · Series B, 140 people</div>
-        </div>
-      </div>
-      <div class="fitbars">
-        <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
-          <div class="scorebar"><div style="width:92%"></div></div><span class="fit-num">92</span></div>
-        <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
-          <div class="scorebar"><div style="width:78%"></div></div><span class="fit-num">78</span></div>
-      </div>
-      <div class="why">
-        <div class="why-col good"><p class="why-h">Fits</p>
-          <ul><li>Payments depth and B2B SaaS line up with the core of the role</li></ul></div>
-        <div class="why-col bad"><p class="why-h">Watch out</p>
-          <ul><li>They ask for team leadership at scale, your last role was an IC</li></ul></div>
-      </div>
-    </article>
+      {# NOTE (TODO PROOF-001): illustrative until an approved anonymised result. #}
+      <div class="hero-visual">
+        <article class="proof-card proof-card--lead" aria-label="Illustrative JBHNTR match card">
+          <p class="example-badge">Illustrative example</p>
+          <p class="proof-meta">88 · APPLY NOW · posted 2 days ago</p>
+          <p class="jt">Senior Product Manager, Payments</p>
+          <p class="muted small" style="margin:0">Meridian Pay · Milan, hybrid · Series B, 140 people</p>
+          <div class="fitbars">
+            <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
+              <div class="scorebar"><div style="width:92%"></div></div><span class="fit-num">92</span></div>
+            <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
+              <div class="scorebar"><div style="width:78%"></div></div><span class="fit-num">78</span></div>
+          </div>
+          <div class="why">
+            <div class="why-col good"><p class="why-h">Fits</p>
+              <ul><li>Payments depth and B2B SaaS line up with the core of the role</li></ul></div>
+            <div class="why-col bad watch-out"><p class="why-h">Watch out</p>
+              <ul><li>They ask for team leadership at scale, your last role was an IC</li></ul></div>
+          </div>
+        </article>
 
-    <article class="demo-card job t2 behind behind1" aria-hidden="true">
-      <div class="job-head"><span class="score">81</span><span class="tier tier-2">Strong</span>
-        <div class="job-title"><div class="jt">Group PM, Risk</div>
-          <div class="muted small">Lombard Bank · Milan (hybrid)</div></div></div>
-      <div class="fitbars">
-        <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
-          <div class="scorebar"><div style="width:84%"></div></div><span class="fit-num">84</span></div>
-        <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
-          <div class="scorebar"><div style="width:72%"></div></div><span class="fit-num">72</span></div></div>
-    </article>
-    <article class="demo-card job t3 behind behind2" aria-hidden="true">
-      <div class="job-head"><span class="score">74</span><span class="tier tier-3">Possible</span>
-        <div class="job-title"><div class="jt">Lead PM, Platform</div>
-          <div class="muted small">Corviale · Remote, EU</div></div></div>
-    </article>
+        <article class="proof-card proof-card--next" aria-hidden="true">
+          <p class="proof-meta">81 · STRONG</p>
+          <p class="jt">Group PM, Risk</p>
+          <p class="muted small" style="margin:0">Lombard Bank · Milan (hybrid)</p>
+          <div class="fitbars">
+            <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
+              <div class="scorebar"><div style="width:84%"></div></div><span class="fit-num">84</span></div>
+            <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
+              <div class="scorebar"><div style="width:72%"></div></div><span class="fit-num">72</span></div>
+          </div>
+        </article>
+      </div>
+    </div>
   </div>
 </section>
 
 {# ============================ PROBLEM (HOME-004) ============================ #}
-<section class="section wrap problem" aria-labelledby="problem-title">
-  <p class="eyebrow">THE PROBLEM</p>
-  <h2 id="problem-title">The right role is rarely in one place.</h2>
-  <p class="lede">It may be on a major job board, a niche site or a company career
-    page you did not know to check. Alerts send every keyword hit. JBHNTR reads
-    across the market, removes duplicates and weak fits, and gives you the small
-    set worth a decision.</p>
-  <ul class="problem-points">
-    <li>Stop rebuilding the same search across different platforms.</li>
-    <li>Stop opening roles that fail your location, level or working constraints.</li>
-    <li>See adjacent roles that title-only alerts miss.</li>
-  </ul>
+<section class="section" aria-labelledby="problem-title">
+  <div class="container">
+    <div class="section-solo">
+      <div class="section-head">
+        <p class="eyebrow">THE PROBLEM</p>
+        <h2 id="problem-title">The right role is rarely in one place.</h2>
+        <p>It may be on a major job board, a niche site or a company career page you
+          did not know to check. Alerts send every keyword hit. JBHNTR reads across the
+          market, removes duplicates and weak fits, and gives you the small set worth a
+          decision.</p>
+      </div>
+      <ul class="problem-points">
+        <li>Stop rebuilding the same search across different platforms.</li>
+        <li>Stop opening roles that fail your location, level or working constraints.</li>
+        <li>See adjacent roles that title-only alerts miss.</li>
+      </ul>
+    </div>
+  </div>
 </section>
 
 {# ============================ HOW IT WORKS (HOME-005) ============================ #}
-<section class="section wrap" id="how" aria-labelledby="how-title">
-  <p class="eyebrow">HOW IT WORKS</p>
-  <h2 id="how-title">One profile. One market scan. A reasoned shortlist.</h2>
-  <div class="frames">
-    <article class="frame">
-      <span class="step-no">01</span>
-      <h3>Say what a CV cannot.</h3>
-      <p>Upload your CV, choose where and how you will work, and describe the role
-        you actually want, including what you do not want.</p>
-    </article>
-    <article class="frame">
-      <span class="step-no">02</span>
-      <h3>JBHNTR scans the market.</h3>
-      <p>It checks job boards, aggregators and direct employer career pages,
-        filters hard constraints and ranks by meaning rather than title alone.</p>
-    </article>
-    <article class="frame">
-      <span class="step-no">03</span>
-      <h3>Review the case for and against.</h3>
-      <p>Every match shows role fit, requirements fit, the strongest reasons to
-        apply and the gaps to consider before you spend time.</p>
-    </article>
-  </div>
-  <p><a href="/how-it-works">Read the full method</a></p>
-</section>
-
-{# ======================= DIFFERENTIATORS (HOME-006) ======================= #}
-<section class="section wrap" aria-labelledby="diff-title">
-  <p class="eyebrow">WHY IT IS DIFFERENT</p>
-  <h2 id="diff-title">Judgement in two directions, not a longer feed.</h2>
-  <ul class="features">
-    <li><b>Judges fit both ways.</b> A role can suit your goals and still be a
-      stretch on the requirements. Both scores are shown, with the reasoning,
-      instead of one number that hides the trade-off.</li>
-    <li><b>Understands the work, not only the title.</b> Semantic retrieval finds
-      adjacent and equivalent roles, while hard constraints keep the list grounded
-      in where and how you can actually work.</li>
-    <li><b>Searches outside one platform.</b> Broad job sources, niche boards and
-      employer ATS pages, including Greenhouse, Lever and Ashby boards.</li>
-    <li><b>Learns what you reject.</b> Ratings, notes, saves, dismissals and
-      applications become context for later scans.</li>
-  </ul>
-  <p class="small"><a href="/how-it-works#two-way-fit">How two-way fit scoring works</a></p>
-</section>
-
-{# ==================== TAILORED APPLICATIONS (HOME-007) ==================== #}
-<section class="section wrap">
-  <div class="band">
-    <p class="eyebrow">FROM DECISION TO APPLICATION</p>
-    <h2>Found a role worth applying to? Start with a tailored draft.</h2>
-    <p>JBHNTR can draft a CV and cover letter for that specific posting using the
-      career material you supplied. Edit the wording, verify every claim and export
-      it when it sounds like you. It is a first draft, never an application sent on
-      your behalf.</p>
+<section class="section" id="how" aria-labelledby="how-title">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">HOW IT WORKS</p>
+      <h2 id="how-title">One profile. One market scan. A reasoned shortlist.</h2>
+    </div>
+    <div class="step-grid">
+      <article class="step">
+        <span class="step-no">01</span>
+        <h3>Say what a CV cannot.</h3>
+        <p>Upload your CV, choose where and how you will work, and describe the role
+          you actually want, including what you do not want.</p>
+      </article>
+      <article class="step">
+        <span class="step-no">02</span>
+        <h3>JBHNTR scans the market.</h3>
+        <p>It checks job boards, aggregators and direct employer career pages,
+          filters hard constraints and ranks by meaning rather than title alone.</p>
+      </article>
+      <article class="step">
+        <span class="step-no">03</span>
+        <h3>Review the case for and against.</h3>
+        <p>Every match shows role fit, requirements fit, the strongest reasons to
+          apply and the gaps to consider before you spend time.</p>
+      </article>
+    </div>
+    <p class="small"><a href="/how-it-works">Read the full method</a></p>
   </div>
 </section>
 
-{# ==================== TRUST (HOME-008) ==================== #}
-<section class="section wrap" aria-labelledby="trust-title">
-  <p class="eyebrow">CANDIDATE CONTROL</p>
-  <h2 id="trust-title">Your CV is used to search for you, not to sell you.</h2>
-  <div class="trustrow">
-    <div><b>Private by default.</b><p>Your profile is not shown to employers or
-      recruiters unless you explicitly choose a future discoverability option.</p></div>
-    <div><b>Encrypted and minimised.</b><p>Uploaded documents are encrypted at
-      rest. Only the systems needed to match and draft process their text.</p></div>
-    <div><b>Export and real deletion.</b><p>Download the data held about you or
-      delete the account and its stored career material.</p></div>
+{# ======================= DIFFERENTIATORS (HOME-006, L-06) ======================= #}
+<section class="section" aria-labelledby="diff-title">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">WHY IT IS DIFFERENT</p>
+      <h2 id="diff-title">Judgement in two directions, not a longer feed.</h2>
+    </div>
+    <ul class="card-grid">
+      <li><b>Judges fit both ways.</b><p>A role can suit your goals and still be a
+        stretch on the requirements. Both scores are shown, with the reasoning,
+        instead of one number that hides the trade-off.</p></li>
+      <li><b>Understands the work, not only the title.</b><p>Semantic retrieval finds
+        adjacent and equivalent roles, while hard constraints keep the list grounded
+        in where and how you can actually work.</p></li>
+      <li><b>Searches outside one platform.</b><p>Broad job sources, niche boards and
+        employer ATS pages, including Greenhouse, Lever and Ashby boards.</p></li>
+      <li><b>Learns what you reject.</b><p>Ratings, notes, saves, dismissals and
+        applications become context for later scans.</p></li>
+    </ul>
+    <p class="small"><a href="/how-it-works#two-way-fit">How two-way fit scoring works</a></p>
   </div>
-  <p class="small"><a href="/security">How security works</a> ·
-    <a href="/privacy">Privacy policy</a> · <a href="/cookies">Cookie notice</a></p>
 </section>
 
-{# ==================== FREE AND PLANNED PREMIUM (HOME-009) ==================== #}
-<section class="section wrap" id="pricing" aria-labelledby="pricing-title">
-  <div class="band">
-    <p class="eyebrow">FREE NOW · PREMIUM PLANNED</p>
-    <h2 id="pricing-title">Try the complete search free. Pay later for continuity.</h2>
-    <p>The free version includes {{ config.free_searches }} full market scans,
-      {{ config.free_cvs }} tailored CV drafts and {{ config.free_cover_letters }}
-      cover-letter draft. No card is required.</p>
-    <p>Planned Premium will keep the search running in the background, scan more
-      frequently, send a digest only when strong new matches appear and expand the
-      application workflow. It is not open yet, and no price has been announced.</p>
-    <p><a class="btn ghost" href="/pricing">See free and planned Premium</a></p>
+{# ==================== TAILORED APPLICATIONS (HOME-007, L-03) ==================== #}
+<section class="section">
+  <div class="container">
+    <div class="section-solo">
+      <div class="section-head">
+        <p class="eyebrow">FROM DECISION TO APPLICATION</p>
+        <h2>Found a role worth applying to? Start with a tailored draft.</h2>
+        <p>JBHNTR can draft a CV and cover letter for that specific posting using the
+          career material you supplied. Edit the wording, verify every claim and export
+          it when it sounds like you. It is a first draft, never an application sent on
+          your behalf.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ==================== CANDIDATE CONTROL (HOME-008, L-03/L-07) ==================== #}
+<section class="section" aria-labelledby="trust-title">
+  <div class="container">
+    <div class="section-grid">
+      <div class="section-head">
+        <p class="eyebrow">CANDIDATE CONTROL</p>
+        <h2 id="trust-title">Your CV is used to search for you, not to sell you.</h2>
+        <p class="small linkrow"><a href="/security">How security works</a> ·
+          <a href="/privacy">Privacy policy</a> · <a href="/cookies">Cookie notice</a></p>
+      </div>
+      <div class="card-grid cols-3">
+        <div><b>Private by default.</b><p>Your profile is not shown to employers or
+          recruiters unless you explicitly choose a future discoverability option.</p></div>
+        <div><b>Encrypted and minimised.</b><p>Uploaded documents are encrypted at
+          rest. Only the systems needed to match and draft process their text.</p></div>
+        <div><b>Export and real deletion.</b><p>Download the data held about you or
+          delete the account and its stored career material.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ==================== FREE AND PLANNED PREMIUM (HOME-009, L-04) ==================== #}
+<section class="section" id="pricing" aria-labelledby="pricing-title">
+  <div class="container">
+    <div class="section-grid">
+      <div class="section-head">
+        <p class="eyebrow">FREE NOW · PREMIUM PLANNED</p>
+        <h2 id="pricing-title">Try the complete search free. Pay later for continuity.</h2>
+        <p class="cta"><a class="btn ghost" href="/pricing">See free and planned Premium</a></p>
+      </div>
+      <div class="panelstack">
+        <div class="panel"><p>The free version includes {{ config.free_searches }} full
+          market scans, {{ config.free_cvs }} tailored CV drafts and
+          {{ config.free_cover_letters }} cover-letter draft. No card is required.</p></div>
+        <div class="panel"><p>Planned Premium will keep the search running in the
+          background, scan more frequently, send a digest only when strong new matches
+          appear and expand the application workflow. It is not open yet, and no price
+          has been announced.</p></div>
+      </div>
+    </div>
   </div>
 </section>
 
 {# ==================== HONESTY BLOCK ==================== #}
-<section class="section wrap">
-  <div class="honesty">
-    <b>What JBHNTR does not do.</b>
-    It does not mass apply, scrape LinkedIn or guarantee that a listing is still
-    open. It cannot find a role that has not been published. Match scores help you
-    prioritise; they are not a prediction that you will be hired.
+<section class="section">
+  <div class="container">
+    <div class="honesty">
+      <b>What JBHNTR does not do.</b>
+      It does not mass apply, scrape LinkedIn or guarantee that a listing is still
+      open. It cannot find a role that has not been published. Match scores help you
+      prioritise; they are not a prediction that you will be hired.
+    </div>
   </div>
 </section>
 
-{# ==================== FAQ (HOME-010) ==================== #}
-<section class="section wrap faq" aria-labelledby="faq-title">
-  <p class="eyebrow">QUESTIONS, ANSWERED</p>
-  <h2 id="faq-title">What people ask before their first scan.</h2>
-  {% for q, a in faq_pairs %}
-    <details{% if loop.first %} open{% endif %}>
-      <summary>{{ q }}</summary>
-      <p>{{ a }}</p>
-    </details>
-  {% endfor %}
+{# ==================== FAQ (HOME-010, L-08) ==================== #}
+<section class="section faq" aria-labelledby="faq-title">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">QUESTIONS, ANSWERED</p>
+      <h2 id="faq-title">What people ask before their first scan.</h2>
+    </div>
+    <div>
+      {% for q, a in faq_pairs %}
+        <details{% if loop.first %} open{% endif %}>
+          <summary>{{ q }}</summary>
+          <p>{{ a }}</p>
+        </details>
+      {% endfor %}
+    </div>
+  </div>
 </section>
 
 {# ==================== FINAL CTA (HOME-011) ==================== #}
-<section class="section wrap closing">
-  <h2>Let JBHNTR read the market for you.</h2>
-  <p>Upload a CV, describe the work you want and run your first scan.</p>
-  <p class="cta"><a class="btn" href="/signup">Start your search</a></p>
-  <p class="small muted">{{ config.free_searches }} searches free. No card. Your CV stays private.</p>
+<section class="section closing">
+  <div class="container">
+    <div class="section-head">
+      <h2>Let JBHNTR read the market for you.</h2>
+      <p>Upload a CV, describe the work you want and run your first scan.</p>
+      <p class="cta"><a class="btn" href="/signup">Start your search</a></p>
+      <p class="small muted">{{ config.free_searches }} searches free. No card. Your CV stays private.</p>
+    </div>
+  </div>
 </section>
 {% endblock %}

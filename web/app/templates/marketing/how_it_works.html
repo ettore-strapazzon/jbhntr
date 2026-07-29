@@ -1,98 +1,96 @@
 {% extends "base.html" %}
 {% block body_class %}home{% endblock %}
 {% block content %}
-<section class="section wrap lead">
-  <p class="eyebrow">HOW IT WORKS</p>
-  <h1>How JBHNTR searches the job market for you</h1>
-  <p class="lede prose">JBHNTR turns your career material and preferences into a
-    cross-source market scan, then gives you a shortlist you can understand rather
-    than a feed you have to filter again.</p>
-</section>
+<div class="container">
+  <article class="doc">
+    <p class="eyebrow">HOW IT WORKS</p>
+    <h1>How JBHNTR searches the job market for you</h1>
+    <p class="lede">JBHNTR turns your career material and preferences into a
+      cross-source market scan, then gives you a shortlist you can understand rather
+      than a feed you have to filter again.</p>
 
-<section class="section wrap" aria-labelledby="s-profile">
-  <h2 id="s-profile">Build the search profile</h2>
-  <p class="prose">Upload at least one CV, choose where and how you can work, select
-    the levels and types of role you would genuinely consider, and describe what
-    you want in your own words. The narrative matters because titles alone rarely
-    capture the work.</p>
-  <p class="prose">The profile is persistent. You do not rebuild the same filters
-    every time you return. Additional CVs, cover letters, target companies and
-    feedback add context, but they should improve an already useful profile rather
-    than block first value.</p>
-</section>
+    <section aria-labelledby="s-profile">
+      <h2 id="s-profile">Build the search profile</h2>
+      <p>Upload at least one CV, choose where and how you can work, select the levels
+        and types of role you would genuinely consider, and describe what you want in
+        your own words. The narrative matters because titles alone rarely capture the work.</p>
+      <p>The profile is persistent. You do not rebuild the same filters every time you
+        return. Additional CVs, cover letters, target companies and feedback add
+        context, but they should improve an already useful profile rather than block
+        first value.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-scan">
-  <h2 id="s-scan">Scan across the market</h2>
-  <p class="prose">A scan reads the shared job corpus built from broad feeds, niche
-    boards and employer career pages. Hard constraints remove impossible roles
-    first. Semantic retrieval then looks for work that is similar in meaning even
-    when the title is different.</p>
-  <p class="prose">JBHNTR does not promise to cover every listing on the internet.
-    Source availability changes, employers use different systems and some markets
-    are better covered than others.</p>
-</section>
+    <section aria-labelledby="s-scan">
+      <h2 id="s-scan">Scan across the market</h2>
+      <p>A scan reads the shared job corpus built from broad feeds, niche boards and
+        employer career pages. Hard constraints remove impossible roles first. Semantic
+        retrieval then looks for work that is similar in meaning even when the title is
+        different.</p>
+      <p>JBHNTR does not promise to cover every listing on the internet. Source
+        availability changes, employers use different systems and some markets are
+        better covered than others.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-hard">
-  <h2 id="s-hard">Hard constraints before judgement</h2>
-  <p class="prose">Location, work mode, contract type and other explicit constraints
-    remove jobs that cannot work before expensive judgement begins. A semantically
-    relevant role in the wrong country is still the wrong result, and filtering
-    first is also what makes the judgement step affordable to run at corpus scale.</p>
-</section>
+    <section aria-labelledby="s-hard">
+      <h2 id="s-hard">Hard constraints before judgement</h2>
+      <p>Location, work mode, contract type and other explicit constraints remove jobs
+        that cannot work before expensive judgement begins. A semantically relevant role
+        in the wrong country is still the wrong result, and filtering first is also what
+        makes the judgement step affordable to run at corpus scale.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-meaning">
-  <h2 id="s-meaning">Meaning before title</h2>
-  <p class="prose">Job titles are inconsistent between employers. Semantic retrieval
-    compares the meaning of the posting with the profile and the stated objective,
-    so equivalent and adjacent roles surface without treating every shared keyword
-    as relevance.</p>
-</section>
+    <section aria-labelledby="s-meaning">
+      <h2 id="s-meaning">Meaning before title</h2>
+      <p>Job titles are inconsistent between employers. Semantic retrieval compares the
+        meaning of the posting with the profile and the stated objective, so equivalent
+        and adjacent roles surface without treating every shared keyword as relevance.</p>
+    </section>
 
-<section class="section wrap" id="two-way-fit" aria-labelledby="s-twoway">
-  <h2 id="s-twoway">Two-way fit</h2>
-  <p class="prose">The strongest candidate roles are assessed twice:</p>
-  <ul class="prose">
-    <li><b>Fits what you want:</b> whether the role, company, location and work
-      match your stated goals.</li>
-    <li><b>You fit their requirements:</b> whether your background plausibly
-      supports the main requirements in the posting.</li>
-  </ul>
-  <p class="prose">A role may score well on one side and poorly on the other.
-    Showing that trade-off is part of the product, not an error to hide. Keep both
-    dimensions visible so a reader can decide whether a stretch is worth taking.</p>
-</section>
+    <section id="two-way-fit" aria-labelledby="s-twoway">
+      <h2 id="s-twoway">Two-way fit</h2>
+      <p>The strongest candidate roles are assessed twice:</p>
+      <ul>
+        <li><b>Fits what you want:</b> whether the role, company, location and work
+          match your stated goals.</li>
+        <li><b>You fit their requirements:</b> whether your background plausibly
+          supports the main requirements in the posting.</li>
+      </ul>
+      <p>A role may score well on one side and poorly on the other. Showing that
+        trade-off is part of the product, not an error to hide. Keep both dimensions
+        visible so a reader can decide whether a stretch is worth taking.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-reasons">
-  <h2 id="s-reasons">Reasons, not just a score</h2>
-  <p class="prose">Every scored role includes a tier, two-way fit, the strongest
-    reasons to consider it and the points to check. “Watch out” is not a disclaimer
-    appended to a recommendation; it is evidence that the system is willing to say
-    no.</p>
-  <p class="prose">Match scores are prioritisation tools. They are not hiring
-    probabilities and they do not replace reading the original posting.</p>
-</section>
+    <section aria-labelledby="s-reasons">
+      <h2 id="s-reasons">Reasons, not just a score</h2>
+      <p>Every scored role includes a tier, two-way fit, the strongest reasons to
+        consider it and the points to check. “Watch out” is not a disclaimer appended to
+        a recommendation; it is evidence that the system is willing to say no.</p>
+      <p>Match scores are prioritisation tools. They are not hiring probabilities and
+        they do not replace reading the original posting.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-act">
-  <h2 id="s-act">Act, and inform the next scan</h2>
-  <p class="prose">Open the original posting, save the role, mark it as applied,
-    dismiss it or rate whether it was worth showing. For a selected role, JBHNTR
-    can prepare an editable first draft of a tailored CV or cover letter. You decide
-    what is true, what sounds like you and what gets submitted.</p>
-  <p class="prose">Ratings, notes, saves, dismissals and application states provide
-    context for future ranking. A fixed amount of feedback is not a guarantee of
-    improvement.</p>
-</section>
+    <section aria-labelledby="s-act">
+      <h2 id="s-act">Act, and inform the next scan</h2>
+      <p>Open the original posting, save the role, mark it as applied, dismiss it or
+        rate whether it was worth showing. For a selected role, JBHNTR can prepare an
+        editable first draft of a tailored CV or cover letter. You decide what is true,
+        what sounds like you and what gets submitted.</p>
+      <p>Ratings, notes, saves, dismissals and application states provide context for
+        future ranking. A fixed amount of feedback is not a guarantee of improvement.</p>
+    </section>
 
-<section class="section wrap" aria-labelledby="s-limits">
-  <h2 id="s-limits">Limits</h2>
-  <p class="prose">A model can misread a posting, miss unstated context or overvalue
-    language in a CV. Scores are not hiring probabilities. Verify the original role
-    and correct every generated claim before you send an application.</p>
-  <p class="cta">
-    <a class="btn" href="/signup">Start a free scan</a>
-    <a class="btn ghost" href="/pricing">See pricing</a>
-  </p>
-  <p class="small"><a href="/security">How security works</a> ·
-    <a href="/compare/linkedin-jobs">JBHNTR vs LinkedIn Jobs</a></p>
-</section>
+    <section aria-labelledby="s-limits">
+      <h2 id="s-limits">Limits</h2>
+      <p>A model can misread a posting, miss unstated context or overvalue language in a
+        CV. Scores are not hiring probabilities. Verify the original role and correct
+        every generated claim before you send an application.</p>
+      <p class="cta">
+        <a class="btn" href="/signup">Start a free scan</a>
+        <a class="btn ghost" href="/pricing">See pricing</a>
+      </p>
+      <p class="small"><a href="/security">How security works</a> ·
+        <a href="/compare/linkedin-jobs">JBHNTR vs LinkedIn Jobs</a></p>
+    </section>
+  </article>
+</div>
 {% endblock %}
