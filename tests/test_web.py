@@ -1361,14 +1361,12 @@ def test_admin_shows_waitlist_and_csv(client, monkeypatch):
 
 # --------------------------- visitor analytics ---------------------------- #
 def test_visitor_hash_is_stable_and_ip_sensitive():
-    from datetime import date
     from web.app.services.analytics import visitor_hash
-    d = date(2026, 7, 29)
-    a = visitor_hash("1.2.3.4", "UA/1", day=d)
-    assert a == visitor_hash("1.2.3.4", "UA/1", day=d)        # same day+ip+ua => same
-    assert a != visitor_hash("9.9.9.9", "UA/1", day=d)        # different ip => different
-    assert a != visitor_hash("1.2.3.4", "UA/1", day=date(2026, 7, 30))  # next day differs
-    assert visitor_hash("", "UA/1", day=d) == ""              # no ip => uncounted
+    a = visitor_hash("1.2.3.4", "UA/1")
+    assert a == visitor_hash("1.2.3.4", "UA/1")              # same ip+ua => same token (persists)
+    assert a != visitor_hash("9.9.9.9", "UA/1")             # different ip => different
+    assert a != visitor_hash("1.2.3.4", "UA/2")             # different browser => different
+    assert visitor_hash("", "UA/1") == ""                   # no ip => uncounted
     assert len(a) == 64 and all(c in "0123456789abcdef" for c in a)     # a hash, not an ip
 
 
@@ -1390,7 +1388,6 @@ def test_pageview_stores_visitor_token_never_ip(client):
 
 
 def test_admin_shows_unique_visitors_by_country(client, monkeypatch):
-    from datetime import date
     from web.app.config import config
     from web.app.db import SessionLocal
     from web.app.models import PageView
@@ -1398,12 +1395,10 @@ def test_admin_shows_unique_visitors_by_country(client, monkeypatch):
     monkeypatch.setattr(config, "admin_token", "s3cret")
     db = SessionLocal()
     try:
-        d = date(2026, 7, 29)
         # two distinct visitors from IT (one visiting twice), one from FR
         for ip, ua, country in [("1.1.1.1", "A", "IT"), ("1.1.1.1", "A", "IT"),
                                  ("2.2.2.2", "B", "IT"), ("3.3.3.3", "C", "FR")]:
-            db.add(PageView(path="/", country=country,
-                            visitor=visitor_hash(ip, ua, day=d)))
+            db.add(PageView(path="/", country=country, visitor=visitor_hash(ip, ua)))
         db.commit()
     finally:
         db.close()

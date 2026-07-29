@@ -1,22 +1,27 @@
-"""Privacy-safe visitor counting.
+"""Visitor counting.
 
-We never store an IP address. Instead each pageview carries a `visitor` token:
-a SHA-256 of (a secret salt that rotates every day) + the caller's IP + the
-user-agent. The same person on the same day produces the same token — so we can
-count distinct visitors — but the token cannot be reversed to an IP and a fresh
-salt tomorrow makes it useless for following anyone across days. This is the same
-technique Plausible and Cloudflare use to count visitors without consent banners.
+Each pageview carries a `visitor` token: a one-way SHA-256 of a secret,
+non-rotating salt (derived from SECRET_KEY) + the caller's IP + user-agent. The
+salt does not change, so the same device/network produces the same token over
+time — which lets us count *distinct people across days* (true monthly uniques),
+not just per-day uniques. We still never store the raw IP: only the irreversible
+token is persisted.
+
+Privacy note: because the token is stable, it is a persistent pseudonymous
+identifier (it can, in principle, tell that two visits days apart came from the
+same device). That is a deliberate trade for cross-day accuracy. It is an
+approximation — a changed IP (mobile networks, dynamic ISPs) or a browser update
+mints a new token — so it counts distinct devices/networks, not literally people.
+Review the lawful basis / disclosure for this before relying on it in the EU.
 """
 
 from __future__ import annotations
 
 import hashlib
-from datetime import date
 
 from fastapi import Request
 
 from ..config import config
-from ..models import utcnow
 
 
 def client_ip(request: Request) -> str:
@@ -31,19 +36,18 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
-def _daily_salt(day: date) -> bytes:
-    # Derived from SECRET_KEY so it is stable within a day and unknowable to
-    # anyone without the key; changes at UTC midnight so tokens never carry over.
-    return hashlib.sha256(f"{config.secret_key}|{day.isoformat()}".encode()).digest()
+def _salt() -> bytes:
+    # Secret and stable: derived from SECRET_KEY so outsiders cannot recompute a
+    # token, but never rotated, so the same visitor maps to the same token over time.
+    return hashlib.sha256(f"{config.secret_key}|visitor-v1".encode()).digest()
 
 
-def visitor_hash(ip: str, user_agent: str, day: date | None = None) -> str:
-    """One-way daily token for (ip, user-agent). Empty IP -> empty token (uncounted)."""
+def visitor_hash(ip: str, user_agent: str) -> str:
+    """Stable one-way token for (ip, user-agent). Empty IP -> empty token (uncounted)."""
     if not ip:
         return ""
-    day = day or utcnow().date()
     h = hashlib.sha256()
-    h.update(_daily_salt(day))
+    h.update(_salt())
     h.update(b"|")
     h.update(ip.encode("utf-8", "ignore"))
     h.update(b"|")

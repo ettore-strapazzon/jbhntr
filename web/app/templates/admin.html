@@ -106,8 +106,9 @@
           <tr><td>{{ c or "—" }}</td><td>{{ n }}</td></tr>
         {% else %}<tr><td class="muted">no data yet</td><td></td></tr>{% endfor %}
       </tbody></table>
-      <p class="small muted">Country from Cloudflare; visitors deduped by a
-        daily-rotating anonymous token, not an IP.</p>
+      <p class="small muted">Country from Cloudflare; visitors deduped by a stable
+        anonymous token (a hash of IP + browser) — the IP itself is never stored.
+        Counts distinct devices, so a changed IP or browser can double-count.</p>
     </div>
     <div>
       <h3>Top pages <span class="muted small">(30d, by pageviews)</span></h3>
