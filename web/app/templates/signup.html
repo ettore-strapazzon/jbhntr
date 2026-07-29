@@ -3,7 +3,8 @@
 {% block content %}
 <div class="card authcard">
   <h1>Create your account</h1>
-  <p class="muted">{{ config.free_searches }} free searches. No card.</p>
+  <p class="muted">Build a private search profile and run {{ config.free_searches }}
+    complete market scans. No card required.</p>
   {% for e in errors or [] %}<div class="notice err" role="alert">{{ e }}</div>{% endfor %}
 
   {% if config.google_client_id %}
@@ -28,10 +29,12 @@
     </label>
     <label class="single-check" style="align-items:flex-start">
       <input type="checkbox" name="marketing" value="1">
-      <span class="small">Email me occasional product updates.</span>
+      <span class="small">Email me occasional JBHNTR product updates. Optional.</span>
     </label>
 
     <p><button type="submit">Create account</button></p>
+    <p class="small muted">Your profile is private by default. Read how your CV is
+      processed in <a href="/security">Security</a> and <a href="/privacy">Privacy</a>.</p>
   </form>
 
   <p class="small">Already have an account? <a href="/login">Log in</a></p>

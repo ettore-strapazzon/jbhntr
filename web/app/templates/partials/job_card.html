@@ -25,7 +25,7 @@
   <article id="card-{{ r.id }}" class="job t{{ r.tier }}{% if applied %} is-applied{% endif %}">
     {# 1. Head: title is the strongest line #}
     <div class="job-head">
-      <span class="score">{{ r.score }}<span class="muted small">/100</span></span>
+      <span class="score"><span class="sr-only">Match score </span>{{ r.score }}<span class="muted small">/100</span></span>
       <span class="tier tier-{{ r.tier }}">{{ r.tier_label }}</span>
       {% if is_new %}<span class="statebadge new">New</span>{% endif %}
       {% if applied %}<span class="statebadge applied">Applied{% if st.applied_at %} {{ st.applied_at.strftime("%d %b") }}{% endif %}</span>{% endif %}
@@ -37,6 +37,7 @@
           {% if r.location %} · {{ r.location }}{% endif %}
         </div>
         {% if r.company_blurb %}<div class="muted small">{{ r.company_blurb }}</div>{% endif %}
+        {% if r.source %}<div class="muted small">Source: {{ r.source }}</div>{% endif %}
       </div>
     </div>
     {% if r.tags %}<div class="tags">{% for t in r.tags[:5] %}<span class="tag">{{ t }}</span>{% endfor %}</div>{% endif %}
@@ -84,35 +85,35 @@
     {# 5. Actions: three groups #}
     <div class="actions">
       <div class="actiongroup primary">
-        {% if r.apply_url %}<a class="btn" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Apply</a>{% endif %}
+        {% if r.apply_url %}<a class="btn" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open original posting</a>{% endif %}
       </div>
 
       <div class="actiongroup make">
         <div class="row">
           {% if (r.id, "cv") in docs %}
-            <a class="btn ghost" href="/document/{{ r.id }}/cv">Your tailored CV</a>
+            <a class="btn ghost" href="/document/{{ r.id }}/cv">Tailored CV draft</a>
           {% else %}
             <form method="post" action="/generate/{{ r.id }}/cv" style="display:inline">
               <button class="ghost" type="submit"
                 {% if not (user.is_premium or (allow.cv or 0) > 0) %}disabled
-                  title="No free CV tailorings left. Included in premium."
-                  aria-label="No free CV tailorings left. Included in premium."{% endif %}>Tailor my CV</button>
+                  title="Free CV draft allowance used. Premium is planned to expand this."
+                  aria-label="Free CV draft allowance used. Premium is planned to expand this."{% endif %}>Draft a tailored CV</button>
             </form>
           {% endif %}
           {% if (r.id, "cl") in docs %}
-            <a class="btn ghost" href="/document/{{ r.id }}/cl">Your cover letter</a>
+            <a class="btn ghost" href="/document/{{ r.id }}/cl">Cover-letter draft</a>
           {% else %}
             <form method="post" action="/generate/{{ r.id }}/cl" style="display:inline">
               <button class="ghost" type="submit"
                 {% if not (user.is_premium or (allow.cl or 0) > 0) %}disabled
-                  title="No free cover letters left. Included in premium."
-                  aria-label="No free cover letters left. Included in premium."{% endif %}>Write a cover letter</button>
+                  title="Free cover-letter draft allowance used. Premium is planned to expand this."
+                  aria-label="Free cover-letter draft allowance used. Premium is planned to expand this."{% endif %}>Draft a cover letter</button>
             </form>
           {% endif %}
         </div>
         {% if not user.is_premium %}
-          <span class="quota">{{ allow.cv }} of {{ config.free_cvs }} free CV tailorings left ·
-            {{ allow.cl }} of {{ config.free_cover_letters }} cover letter left</span>
+          <span class="quota">{{ allow.cv }} of {{ config.free_cvs }} CV draft{{ 's' if config.free_cvs != 1 else '' }} left ·
+            {{ allow.cl }} of {{ config.free_cover_letters }} cover-letter draft{{ 's' if config.free_cover_letters != 1 else '' }} left</span>
         {% endif %}
       </div>
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Your shortlist — JBHNTR{% endblock %}
+{% block title %}Your job shortlist · JBHNTR{% endblock %}
 {% block content %}
 
 {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
@@ -7,10 +7,10 @@
 {# ---- header: run context + run button + usage ---- #}
 <div class="matches-head">
   <div>
-    <h1>Your shortlist</h1>
+    <h1>Your job shortlist</h1>
     {% if m.latest %}
       <p class="small muted">Updated {{ m.latest.started_at.strftime("%d %b, %H:%M") }}
-        {% if m.has_prior_run and m.new_count %}· {{ m.new_count }} new since your last search{% endif %}
+        {% if m.has_prior_run and m.new_count %}· {{ m.new_count }} new since your last scan{% endif %}
         {% if m.latest.raw_count %}· {{ m.latest.raw_count }} postings reviewed{% endif %}</p>
     {% endif %}
   </div>
@@ -19,16 +19,16 @@
       <form method="post" action="/search" style="margin:0">
         <button type="submit"
           {% if not state.can_search or (searches_left is not none and searches_left <= 0) %}disabled{% endif %}>
-          Run a new search</button>
+          Scan for new jobs</button>
       </form>
     {% endif %}
     {% if user.is_premium %}
-      <span class="small muted">Unlimited · fair use {{ config.premium_searches_per_day }}/day</span>
+      <span class="small muted">Up to {{ config.premium_searches_per_day }} scans a day under fair use</span>
     {% elif searches_left <= 0 %}
-      <span class="small muted">No free searches left. Your shortlist stays here.
+      <span class="small muted">No free scans left. Your shortlist stays here.
         <a href="/premium">See premium</a>.</span>
     {% else %}
-      <span class="small muted">{{ searches_left }} of {{ config.free_searches }} free searches left</span>
+      <span class="small muted">{{ searches_left }} of {{ config.free_searches }} free scans left</span>
     {% endif %}
   </div>
 </div>
@@ -36,9 +36,9 @@
 {# ---- gate / progress / failure ---- #}
 {% if not state.can_search %}
   <div class="notice warn">
-    <b>Finalise your profile first.</b> Searching without it produces poor matches.
-    Still needed: {{ state.missing_required | join(", ") }}.
-    <div style="margin-top:10px"><a class="btn" href="/onboarding">Complete profile</a></div>
+    <b>Finish the search profile first.</b> A scan without these signals produces
+    avoidable false matches. Still needed: {{ state.missing_required | join(", ") }}.
+    <div style="margin-top:10px"><a class="btn" href="/onboarding">Complete search profile</a></div>
   </div>
 {% endif %}
 
@@ -48,7 +48,7 @@
   </div>
 {% elif last_failed %}
   <div class="notice err" role="alert">
-    <b>That search didn't finish.</b> It wasn't counted against your allowance.
+    <b>That market scan did not finish.</b> It was not counted against your allowance.
     {% if last_failed.error %}<details style="margin-top:6px">
       <summary class="small muted">Technical details</summary>
       <span class="small muted">{{ last_failed.error }}</span></details>{% endif %}
@@ -60,7 +60,7 @@
   <p class="strengthline band-{{ strength.band }}">
     <span class="dot" aria-hidden="true"></span>
     Your profile is thin in one place: {{ strength.nudge.signal }}. {{ strength.nudge.payoff }}.
-    <a href="{{ strength.nudge.href }}">Fix it in two minutes</a>
+    <a href="{{ strength.nudge.href }}">Add this signal</a>
   </p>
 {% endif %}
 
@@ -103,9 +103,9 @@
 {# ---- run selector ---- #}
 {% if m.searches | length > 1 %}
   <form class="runselect" method="get" action="/matches">
-    <label for="run" class="small muted">Viewing:</label>
+    <label for="run" class="small muted">Results from:</label>
     <select id="run" name="run">
-      <option value="0">All runs (accumulated)</option>
+      <option value="0">All scans</option>
       {% for s in m.searches %}
         <option value="{{ s.id }}" {% if f_run == s.id %}selected{% endif %}>
           {{ s.started_at.strftime("%d %b, %H:%M") }} · {{ s.scored_count }} scored</option>

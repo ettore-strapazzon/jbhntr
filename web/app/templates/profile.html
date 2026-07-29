@@ -48,8 +48,9 @@
 {# ---- documents ---- #}
 <section id="documents" class="psection">
   <h2>Your documents</h2>
-  <p class="small muted">Two or three CVs written for different kinds of role, and a
-    couple of your own cover letters, is the sweet spot. Max 1 MB each · PDF, DOCX,
+  <p class="small muted">Keep at least one current CV. Add another only when it
+    represents materially different work. Cover letters and a LinkedIn export are
+    optional context for drafting and career history. Max 1 MB each · PDF, DOCX,
     TXT or MD · stored encrypted.</p>
   {% for m in materials %}
     {% set sub = m.kind.replace("_", " ") ~ ", " ~ ((m.size_bytes / 1024) | round | int) ~ " KB" %}
@@ -86,8 +87,9 @@
         {% include "partials/depth_meter.html" %}
       {% endwith %}
     </div>
-    <span id="p-objective-hint" class="hint">A few sentences. {{ min_text }} characters
-      minimum, but a paragraph works far better. Include what you don't want.</span>
+    <span id="p-objective-hint" class="hint">Describe the work, scope and environment
+      you want, plus the roles that look relevant by title but are not.
+      {{ min_text }} characters minimum.</span>
 
     <label for="about_me">And a bit about you</label>
     <textarea id="about_me" name="about_me" minlength="30" style="min-height:200px"
@@ -100,8 +102,8 @@
         {% include "partials/depth_meter.html" %}
       {% endwith %}
     </div>
-    <span id="p-about-hint" class="hint">Your story, strengths, working style,
-      constraints — anything a CV can't show.</span>
+    <span id="p-about-hint" class="hint">Add evidence, strengths, working style and
+      constraints that should affect match judgement.</span>
     <p style="margin-top:14px"><button type="submit">Save</button></p>
   </form>
 </section>
@@ -166,7 +168,8 @@
       <label for="salary_floor">Salary floor in EUR <span class="muted small">(optional)</span></label>
       <input id="salary_floor" type="number" name="salary_floor" min="0" step="1000"
              value="{{ profile.salary_floor_eur or '' }}" style="max-width:220px">
-      <span class="hint">Only counts against a job when a figure is stated and falls below this.</span>
+      <span class="hint">Only counts against a job when a figure is stated and falls
+        below this. Jobs without disclosed pay are not rejected by the salary floor.</span>
     </div>
 
     <div class="field">
@@ -179,7 +182,8 @@
       <label for="seeds">Companies you admire <span class="muted small">(one per line — a website works best)</span></label>
       <textarea id="seeds" name="seeds" style="min-height:90px"
         placeholder="https://stripe.com&#10;notion.so">{{ seeds | map(attribute="value") | join("\n") }}</textarea>
-      <span class="hint">Used to find similar companies and to judge whether an employer suits you.</span>
+      <span class="hint">Used to discover related employers and add context about the
+        environments you prefer. It does not guarantee those companies are searched or hiring.</span>
     </div>
 
     <p><button type="submit">Save</button></p>

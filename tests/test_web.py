@@ -83,7 +83,9 @@ def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     assert r.status_code == 200
     assert f"vote-{rid}" in r.text and 'name="rating" value="5"' in r.text
     assert 'aria-pressed="true"' in r.text        # the rating is reflected
-    assert "What made it good?" in r.text          # reason revealed on a high rating
+    # COPY-010: 4-5 saves immediately with no reason prompt
+    assert "context for future scans" in r.text
+    assert "What made it" not in r.text            # no reason question on a high rating
 
     from web.app.db import SessionLocal
     from web.app.models import Feedback
@@ -93,6 +95,11 @@ def test_f09_feedback_htmx_returns_partial_else_redirects(client):
         assert fb.rating == 5 and fb.vote == "up"  # vote derived from rating
     finally:
         db2.close()
+
+    # a low rating (1-3) asks for the reason
+    rlow = client.post(f"/feedback/{rid}", data={"rating": "2"},
+                       headers={"HX-Request": "true"}, follow_redirects=False)
+    assert "What made it irrelevant or misleading?" in rlow.text
 
     r2 = client.post(f"/feedback/{rid}", data={"rating": "1"}, follow_redirects=False)
     assert r2.status_code == 303                  # non-HTMX keeps the redirect
@@ -189,7 +196,7 @@ def test_landing_hero_and_tier_tokens(client):
 # --------------------------- design phase C ------------------------------- #
 def test_onboarding_is_three_labelled_steps(client):
     signup(client, "ob3@example.com")
-    for step, marker in (("upload", "Your CV stays yours"),      # trust block (F-15)
+    for step, marker in (("upload", "Private by default"),       # trust block (F-15)
                          ("aim", "country-field"),               # token field (F-03)
                          ("words", "depth-objective")):          # depth meter (§5.5)
         page = client.get(f"/onboarding/{step}").text
@@ -584,12 +591,12 @@ def test_logout_clears_the_session(client):
 def test_new_user_cannot_search_until_profile_is_complete(client):
     signup(client, "gate@example.com")
     page = client.get("/search")
-    assert "Finalise your profile first" in page.text
+    assert "Finish the search profile first" in page.text
 
     # The server must enforce it too, not just hide the button.
     r = client.post("/search", follow_redirects=False)
     body = r.text if r.status_code == 200 else client.get("/search").text
-    assert "Finalise your profile" in body
+    assert "Finish the search profile first" in body
 
 
 def test_free_quota_is_shown(client):

@@ -3,7 +3,9 @@
 {% block content %}
 <a class="small muted" href="/matches">← Back to your shortlist</a>
 <h1>Your {{ kind_label }} for {{ r.title }} at {{ r.company }}</h1>
-<p class="muted">A first draft, not a final one. Read it before you send it.</p>
+<p class="muted">A first draft, not a final one. Verify every role, date, metric and
+  claim before you send it. JBHNTR drafts from the material you supplied; it cannot
+  know whether every generated sentence is accurate.</p>
 {% if saved %}<div class="notice ok" role="status">Saved.</div>{% endif %}
 
 {% if doc.note %}
@@ -25,12 +27,13 @@
     <div class="rail-box">
       <b>The role</b>
       <p class="small muted">{{ r.title }}<br>{{ r.company }}{% if r.location %} · {{ r.location }}{% endif %}</p>
-      {% if r.apply_url %}<a class="small" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open the posting →</a>{% endif %}
+      {% if r.apply_url %}<a class="small" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open original posting →</a>{% endif %}
     </div>
     {% if cl_thin %}
       <div class="rail-box thin-nudge">
-        <p class="small">We had no cover letter of yours to learn from, so this reads
-          more neutral than you probably do. <a href="/profile#documents">Add one</a>.</p>
+        <p class="small">You have no cover letter on file for the drafting tool to match
+          your register, so this reads more neutral than you probably do.
+          <a href="/profile#documents">Add one</a>.</p>
       </div>
     {% endif %}
     <p class="small muted">Edit anything above, then save or export. Exporting keeps your edits.</p>

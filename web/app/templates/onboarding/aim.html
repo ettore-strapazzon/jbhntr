@@ -1,15 +1,15 @@
 {% extends "onboarding/_step.html" %}
 {% from "partials/chips_field.html" import chips %}
 {% block step %}
-<p class="lede muted">This is the one filter applied before any AI runs, so it's
-  worth getting right.</p>
+<p class="lede muted">Location and working mode remove impossible jobs before AI
+  ranking begins. The remaining choices help judge whether a role belongs in your search.</p>
 
 {# Countries own their own geography and auto-save, so the token field lives
    outside the step form (a nested <form> would be invalid HTML). #}
 <div class="field">
   <label id="countries-label">Countries</label>
-  <p class="small muted">Onsite and hybrid use these as your base. Remote uses them
-    as where you can legally work from.</p>
+  <p class="small muted">Onsite and hybrid roles use these as work locations. Remote
+    roles use them to understand where you can legally work from.</p>
   {% include "partials/country_field.html" %}
   <p id="corpus-count" class="small corpus-count" aria-live="polite"
      hx-get="/fields/corpus-count" hx-trigger="load, countries-changed from:body"
@@ -53,15 +53,15 @@
 
   <div class="field">
     <label>Which sectors interest you?</label>
-    <p class="small muted">Pick as many as genuinely fit. Leave it empty and it will
-      consider every sector.</p>
+    <p class="small muted">Choose the sectors you would genuinely consider. Leave this
+      open only when sector is not a decision factor.</p>
     {{ chips("verticals", vertical_options, profile.verticals) }}
   </div>
 
   <div class="field">
     <label>What kind of company suits you?</label>
-    <p class="small muted">Size and stage matter more than most people expect. This one
-      is worth being honest about.</p>
+    <p class="small muted">Company size and stage can change the work as much as the
+      title. Choose the environments you would seriously join.</p>
     {{ chips("company_type", company_options, profile.company_type) }}
   </div>
 

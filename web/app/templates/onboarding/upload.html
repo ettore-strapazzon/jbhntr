@@ -1,6 +1,7 @@
 {% extends "onboarding/_step.html" %}
 {% block step %}
-<p class="lede muted">Everything the matcher knows about you starts here.</p>
+<p class="lede muted">Your CV gives the scan its starting context. You will add the
+  work you want in the next two steps.</p>
 
 {% set cvs = materials | selectattr("kind", "equalto", "cv") | list %}
 
@@ -27,13 +28,15 @@
     {% endif %}
   </div>
 
-  <aside class="trust" aria-label="How we handle your CV">
-    <b>Your CV stays yours.</b>
+  <aside class="trust" aria-label="How JBHNTR handles your CV">
+    <b>Private by default.</b>
     <ul>
       <li>Encrypted at rest.</li>
-      <li>Never shown to employers or recruiters.</li>
-      <li>Export or delete it in one click, any time.</li>
+      <li>Not shown to employers or recruiters unless you explicitly opt in to a
+        future discoverability feature.</li>
+      <li>Available to export or delete from your account.</li>
     </ul>
+    <a class="small" href="/security">How your CV is processed</a>
   </aside>
 </div>
 
@@ -41,9 +44,9 @@
   {# Secondary invite — never blocks. #}
   <section class="section">
     <h2>Add a little more? (optional)</h2>
-    <p class="muted small">A second CV written for a different kind of role makes
-      tailoring noticeably better. A cover letter teaches it your voice; a LinkedIn
-      export fills in history a one-page CV trims.</p>
+    <p class="muted small">A second CV can add context for a different type of role.
+      A cover letter helps the drafting tool reflect your normal register; a LinkedIn
+      export can restore history omitted from a short CV.</p>
     {% for m in materials if m.kind != "cv" %}
       {% set sub = m.kind.replace("_", " ") %}
       {% include "partials/material_row.html" %}

@@ -4,34 +4,37 @@
 {% if not has_results %}
   {% if not m.latest and state.can_search %}
     <section class="emptybox">
-      <h2>Nothing here yet. That is expected.</h2>
-      <p class="muted">Your first search takes a few minutes and reads a few thousand
-        postings. Start it and go do something else.</p>
+      <h2>No scan yet.</h2>
+      <p class="muted">Your first scan can take a few minutes because it filters and
+        evaluates a large job corpus. Start it, close the tab if you like and return
+        to the shortlist later.</p>
       <div class="job" aria-hidden="true" style="opacity:.6">
         <div class="job-head"><span class="score">88</span>
           <span class="tier" style="background:var(--accent)">Apply now</span>
           <div class="job-title"><div class="jt">Senior Product Manager, Payments</div>
             <div class="muted small">Meridian Pay · Milan, hybrid</div></div></div>
-        <p class="small muted" style="margin-top:8px">This is what a result looks like.</p>
+        <p class="small muted" style="margin-top:8px">Illustrative result.</p>
       </div>
     </section>
   {% elif m.total and (f_tier or f_source or f_saved) %}
     <section class="emptybox">
-      <h2>No matches with those filters.</h2>
+      <h2>No roles match the current filters.</h2>
+      <p class="muted">Clear one or more filters to return to the full shortlist.</p>
       <p><a class="btn ghost" href="/matches">Clear filters</a></p>
     </section>
   {% elif searches_left is not none and searches_left <= 0 %}
     <section class="emptybox">
-      <h2>You've used all {{ config.free_searches }} free searches.</h2>
-      <p class="muted">Your shortlist stays here. Premium is what runs a fresh one.</p>
-      <p><a class="btn" href="/premium">See premium</a></p>
+      <h2>You have used the free scan allowance.</h2>
+      <p class="muted">Your existing shortlist, saved roles and applications remain
+        available. Planned Premium will add recurring scans; you can join the waitlist.</p>
+      <p><a class="btn" href="/premium">Join the waiting list</a></p>
     </section>
   {% elif m.latest %}
     <section class="emptybox">
-      <h2>Nothing cleared the bar this time.</h2>
-      <p class="muted">The usual causes: narrow locations, a salary floor excluding
-        roles that don't state pay, or sectors tighter than the market.</p>
-      <p><a class="btn ghost" href="/profile#targets">Adjust my targets</a></p>
+      <h2>Nothing cleared the current bar.</h2>
+      <p class="muted">Common causes are narrow locations, a salary floor where pay is
+        not disclosed, or profile criteria that the current corpus cannot satisfy.</p>
+      <p><a class="btn ghost" href="/profile#targets">Review search targets</a></p>
     </section>
   {% endif %}
 

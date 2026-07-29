@@ -2,19 +2,20 @@
 {% block title %}Applications — JBHNTR{% endblock %}
 {% block content %}
 <h1>Applications</h1>
-<p class="muted">Everything you marked as applied, with the documents you sent.</p>
+<p class="muted">Roles you marked as applied, with the status and any JBHNTR drafts
+  saved for that role.</p>
 
 {% if not rows %}
   <section class="emptybox">
-    <p class="muted">Nothing yet. Mark a match as applied and it lands here with its
-      CV and cover letter attached.</p>
+    <p class="muted">No applications tracked yet. Mark a shortlisted role as applied
+      and it will appear here.</p>
     <p><a class="btn ghost" href="/matches">Back to your shortlist</a></p>
   </section>
 {% else %}
   <div class="tablewrap">
     <table class="apptable">
       <thead>
-        <tr><th>Role</th><th>Applied</th><th>Status</th><th>Documents</th><th></th></tr>
+        <tr><th>Role</th><th>Applied</th><th>Status</th><th>Drafts</th><th></th></tr>
       </thead>
       <tbody>
         {% for row in rows %}

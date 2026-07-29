@@ -1,12 +1,12 @@
 {% extends "onboarding/_step.html" %}
 {% block step %}
-<p class="lede muted">Two paragraphs. They do more for your matches than every
-  checkbox before them, and they're what the CV and cover-letter writing draws on.</p>
+<p class="lede muted">Two short descriptions give the search context a CV rarely
+  carries: the work you want next and the evidence about how you work.</p>
 
 <form method="post" action="/onboarding/save/words">
   <div class="field words-field">
     <div class="words-main">
-      <label for="objective">What are you looking for?</label>
+      <label for="objective">What should your next role actually involve?</label>
       <textarea id="objective" name="objective" minlength="30" style="min-height:160px"
         aria-describedby="objective-hint"
         hx-post="/fields/depth" hx-trigger="input changed delay:400ms"
@@ -18,19 +18,19 @@
           {% include "partials/depth_meter.html" %}
         {% endwith %}
       </div>
-      <span id="objective-hint" class="hint">A few sentences. 30 characters minimum,
-        but a paragraph works far better.</span>
+      <span id="objective-hint" class="hint">Describe the problems, scope, environment
+        and trade-offs you want. Include what you do not want repeated. 30 characters minimum.</span>
     </div>
     <ul class="prompts small muted" aria-hidden="true">
-      <li>What would make you leave your current role?</li>
-      <li>What kind of problem do you want to be working on?</li>
-      <li>What would you rather not do again?</li>
+      <li>What work would make a move worthwhile?</li>
+      <li>Which problems or responsibilities should dominate the role?</li>
+      <li>Which titles sound relevant but usually describe the wrong work?</li>
     </ul>
   </div>
 
   <div class="field words-field">
     <div class="words-main">
-      <label for="about_me">And a bit about you</label>
+      <label for="about_me">What else should the scan take into account?</label>
       <textarea id="about_me" name="about_me" minlength="30" style="min-height:220px"
         aria-describedby="about-hint"
         hx-post="/fields/depth" hx-trigger="input changed delay:400ms"
@@ -42,18 +42,18 @@
           {% include "partials/depth_meter.html" %}
         {% endwith %}
       </div>
-      <span id="about-hint" class="hint">Your story, strengths, working style,
-        constraints — anything a CV can't show.</span>
+      <span id="about-hint" class="hint">Add strengths, evidence, working style and
+        constraints that should affect whether a role is credible.</span>
     </div>
     <ul class="prompts small muted" aria-hidden="true">
-      <li>What are you unusually good at?</li>
-      <li>What did you do that you're proud of, and why was it hard?</li>
-      <li>Anything non-negotiable — hours, travel, notice period, visa?</li>
+      <li>What are you unusually good at, and what proves it?</li>
+      <li>Which achievement best shows the scale or difficulty you can handle?</li>
+      <li>Which constraints (travel, visa, notice, hours) change the answer?</li>
     </ul>
   </div>
 
   <div class="onboard-actions">
-    <button class="btn" type="submit">Save and run my first search</button>
+    <button class="btn" type="submit">Save and run my first market scan</button>
     <a class="small muted" href="/onboarding/aim">Back</a>
     <a class="small muted finish" href="/matches">Save and finish later</a>
   </div>

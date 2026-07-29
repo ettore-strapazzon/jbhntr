@@ -8,11 +8,11 @@
 {# ===== header row: H1 + lede left, CTA top-right ===== #}
 <header class="prem-head">
   <div class="prem-head-copy">
-    <h1>Premium runs the hunt every day, without you asking.</h1>
-    <p class="lede muted">The free version gives you three searches you start yourself.
-      Premium keeps looking in the background, unlimited searches, unlimited tailored CVs
-      and cover letters, and a digest only on days something worth reading turned up. It
-      is not open yet and there is no price to quote.</p>
+    <h1>Premium will keep the search running between visits.</h1>
+    <p class="lede muted">The free version gives you {{ config.free_searches }} complete
+      scans you start yourself. Planned Premium adds recurring scans, useful digests, more
+      frequent freshness and a larger application workflow. It is not open yet and no price
+      has been announced.</p>
   </div>
   <div class="prem-head-cta">
     {% if user.is_premium %}
@@ -29,20 +29,18 @@
 
 {# ===== what premium adds: six cards, three across on desktop ===== #}
 <ul class="prem-features">
-  <li><b>The hunt runs every day.</b> A fresh search whenever you want one, up to
-    {{ config.premium_searches_per_day }} a day, against the newest postings, not the
-    ones you have already seen.</li>
-  <li><b>A digest on the days it matters.</b> Only the roles that clear your bar, scored,
-    straight to your inbox. Nothing on the days there is nothing.</li>
-  <li><b>Unlimited tailored CVs and cover letters.</b> Free accounts get
-    {{ config.free_cvs }} CVs and {{ config.free_cover_letters }} cover letter in total.</li>
-  <li><b>Bring your own job description.</b> Paste a posting you found somewhere else and
-    get the same tailored CV and cover letter for it, plus a score against your profile.
-    <span class="muted small">(coming with premium)</span></li>
-  <li><b>More sources.</b> The premium run reaches further into company career pages and
-    the niche boards, where roles appear before the aggregators pick them up.</li>
-  <li><b>The stronger scoring model.</b> Noticeably better on the borderline cases, which
-    is where the free model is weakest.</li>
+  <li><b>Recurring market scans.</b> Run automatically on the schedule offered at launch,
+    within a published fair-use policy.</li>
+  <li><b>A digest only when there is something to review.</b> New roles that clear your
+    threshold, with reasons and original links.</li>
+  <li><b>Expanded application drafts.</b> A higher or included allowance for tailored CV
+    and cover-letter drafts.</li>
+  <li><b>Bring an external posting.</b> Planned: evaluate a role found elsewhere and
+    create the same reviewable drafts.</li>
+  <li><b>Deeper source and freshness options.</b> Planned where paid or licensed sources
+    add real coverage.</li>
+  <li><b>More search history and comparison.</b> Planned tools to understand what changed
+    and which sources produce useful roles.</li>
 </ul>
 
 {# ===== second CTA, after the grid ===== #}

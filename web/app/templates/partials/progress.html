@@ -4,7 +4,7 @@
 <div id="progress" hx-get="/search/{{ search.id }}/status"
      hx-trigger="every 3s" hx-swap="outerHTML" aria-live="polite" aria-busy="true">
   <div class="notice ok">
-    <b>Search running…</b> {{ search.stage or "Starting" }}
+    <b>Scanning the market…</b> {{ search.stage or "Starting" }}
     {% if search.raw_count %}<span class="small muted"> · {{ search.raw_count }} postings reviewed</span>{% endif %}
     {% set counts = [search.raw_count, search.located_count, search.ranked_count, search.ranked_count] %}
     {% set units = ["postings", "in your countries", "shortlisted", "to score"] %}
@@ -19,7 +19,7 @@
       {% endfor %}
     </div>
     <div class="small muted" style="margin-top:8px">
-      This keeps running if you close the tab. Come back to /matches whenever.
+      This continues if you close the tab. Return to your shortlist when it is ready.
     </div>
   </div>
 </div>
