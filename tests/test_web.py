@@ -1511,3 +1511,23 @@ def test_signed_out_nav_points_to_real_pages(client):
     for href in ('href="/how-it-works"', 'href="/pricing"', 'href="/security"'):
         assert href in page
     assert 'href="/#how"' not in page and 'href="/#pricing"' not in page
+
+
+# --------------------------- trust / legal alignment ---------------------- #
+def test_privacy_future_recruiter_optin(client):
+    page = client.get("/privacy").text
+    assert "off by default" in page                       # future discoverability
+    assert "candidate discoverability" in page
+    assert "never shared with employers" not in page      # absolute removed
+
+
+def test_terms_plan_wording_has_no_unlimited(client):
+    page = client.get("/terms").text
+    assert "not for sale while payments are disabled" in page
+    assert "unlimited" not in page.lower()
+
+
+def test_security_page_links_to_legal(client):
+    page = client.get("/security").text
+    for href in ('href="/privacy"', 'href="/terms"', 'href="/cookies"'):
+        assert href in page
