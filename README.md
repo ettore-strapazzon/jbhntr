@@ -1,12 +1,12 @@
 # JBHNTR
 
-An AI job-search tool that reads the market so you don't have to. It pulls
-postings from a lot of free sources and scores each one against your CV and what
-you're actually after, so you end up with a short shortlist instead of a hundred
-open tabs.
+**An AI job-search agent that reads the market for you.**
 
-**Live at [jbhntr.app](https://jbhntr.app).** I built it for my own job search
-and then opened it up for anyone to use.
+JBHNTR scans job boards, niche sources and company career pages, then ranks each
+role against both what the candidate wants and what the employer requires. The
+output is a reasoned shortlist, not another feed to scroll.
+
+Live at [jbhntr.app](https://jbhntr.app).
 
 <!-- SCREENSHOT: replace with a real screenshot of the search results page -->
 ![JBHNTR search results](docs/screenshot.png)
@@ -18,15 +18,18 @@ and then opened it up for anyone to use.
 Job hunting is mostly noise. The roles worth applying to are spread across dozens
 of boards and company career pages, LinkedIn hides most of them behind its feed,
 and plain keyword search tends to either bury you or skip the one job that
-actually fits. I wanted something closer to a good recruiter: it learns your
-background, reads a lot of postings, and hands back an honest ranked shortlist
-every day.
+actually fits. I wanted something closer to a good recruiter: one that
+understands your background, reads a lot of postings, and hands back an honest
+ranked shortlist when a scan runs; the shared corpus itself is refreshed on a
+schedule.
 
 ## What it does
 
 It aggregates widely, from broad engines like Adzuna, Careerjet and Jooble to
 niche remote boards and companies' own career pages (Greenhouse, Lever, Ashby
-and friends). Over 25 sources, all free.
+and friends). The engine supports 25+ configured source endpoints and source
+types, including free feeds, metered APIs and direct employer ATS boards.
+Production availability varies by configuration and geography.
 
 You give it a few companies you admire and it goes looking for others like them,
 then keeps an eye on their job boards for you.
@@ -60,11 +63,15 @@ Verdicts are cached, so running a similar search again costs almost nothing.
 (server-rendered, no JavaScript build step), fastembed for on-device embeddings,
 Claude through OpenRouter, deployed on Railway behind Cloudflare.
 
-> I built this by vibe coding with AI agents. I designed the architecture and
-> made the calls; the implementation came out of a long back-and-forth with an
-> AI coding agent, including a few things I'd never written by hand before, like
-> the embeddings, the shared job corpus and the ATS integrations. The reasoning
-> behind the bigger decisions lives in [docs/](docs/).
+The product was designed by Ettore Strapazzon and implemented through an extended
+collaboration with AI coding agents. The repository documents the architecture,
+trade-offs and tests so the system can be inspected rather than treated as a
+black box. The reasoning behind the bigger decisions lives in [docs/](docs/).
+
+> **Development note.** The architecture and the calls were mine; the
+> implementation came out of a long back-and-forth with AI coding agents,
+> including a few parts I had never written by hand before, like the embeddings,
+> the shared job corpus and the ATS integrations.
 
 ## Running it locally
 

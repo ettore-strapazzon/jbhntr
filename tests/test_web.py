@@ -1531,3 +1531,63 @@ def test_security_page_links_to_legal(client):
     page = client.get("/security").text
     for href in ('href="/privacy"', 'href="/terms"', 'href="/cookies"'):
         assert href in page
+
+
+# --------------------------- claim lint (TEST-004) ------------------------ #
+def _customer_template_files():
+    import glob
+    import os
+    files = []
+    for f in glob.glob("web/app/templates/**/*.html", recursive=True) + \
+             glob.glob("web/app/templates/**/*.txt", recursive=True):
+        if os.path.basename(f) == "admin.html":
+            continue                                   # operator-only, not customer copy
+        files.append(f)
+    return files
+
+
+BANNED_CLAIMS = (
+    "every new posting", "twenty ratings is enough", "unlimited searches",
+    "unlimited tailored", "stronger scoring model", "no recruiter has an account",
+    "roles are posted days before", "perfect match", "dream job", "guaranteed",
+    "overnight", "while you sleep",
+)
+BANNED_VOICE = (
+    "tell it", "ask it", "let it", "it learns", "it gets better", "correct it",
+    "teach it", "the ai", "our ai", "ai-powered", "the algorithm",
+)
+
+
+def test_claim_lint_no_banned_claims_or_voice():
+    offenders = []
+    for f in _customer_template_files():
+        low = open(f, encoding="utf-8").read().lower()
+        for phrase in BANNED_CLAIMS:
+            if phrase in low:
+                offenders.append(f"{f}: claim '{phrase}'")
+        for phrase in BANNED_VOICE:
+            if phrase == "the ai":
+                # allow the category noun "AI job search/-search agent"
+                stripped = low.replace("ai job search agent", "").replace(
+                    "ai job-search agent", "")
+                if "the ai" in stripped:
+                    offenders.append(f"{f}: voice 'the ai'")
+            elif phrase in low:
+                offenders.append(f"{f}: voice '{phrase}'")
+    assert not offenders, "banned phrases: " + "; ".join(offenders)
+
+
+def test_claim_lint_no_dashes_in_marketing_prose():
+    """Marketing prose (landing + public pages + emails) stays free of em/en
+    dashes. Legal and operator copy are allowlisted by scope."""
+    import glob
+    offenders = []
+    files = (["web/app/templates/landing.html"]
+             + glob.glob("web/app/templates/marketing/*.html")
+             + glob.glob("web/app/templates/email/*.html")
+             + glob.glob("web/app/templates/email/*.txt"))
+    for f in files:
+        text = open(f, encoding="utf-8").read()
+        if "\u2014" in text or "\u2013" in text:
+            offenders.append(f)
+    assert not offenders, "em/en dash in: " + ", ".join(offenders)
