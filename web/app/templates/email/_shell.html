@@ -40,8 +40,9 @@
            style="width:600px;max-width:100%">
      <tr><td style="padding:16px 8px 0;text-align:center;
        font:400 12px/1.5 Helvetica,Arial,sans-serif;color:#8a8780">
-       JBHNTR{% if config.postal_address %} · {{ config.postal_address }}{% endif %}
-       {% if unsub_url %}<br><a href="{{ unsub_url }}" style="color:#8a8780">Unsubscribe</a>{% endif %}
+       JBHNTR · An AI job-search agent that reads the market for you.<br>
+       {% if config.postal_address %}{{ config.postal_address }}<br>{% endif %}
+       {% if unsub_url %}<a href="{{ unsub_url }}" style="color:#8a8780">Unsubscribe</a>{% endif %}
      </td></tr>
     </table>
 

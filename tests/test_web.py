@@ -467,7 +467,7 @@ def test_welcome_email_on_signup(client, monkeypatch):
     monkeypatch.setattr(mail, "send",
                         lambda to, subject, text, html=None, headers=None: sent.append(subject) or True)
     signup(client, "welcome@example.com")
-    assert any("One upload" in s for s in sent)   # R13.2 welcome subject
+    assert any("account is ready" in s for s in sent)   # EMAIL-001 welcome subject
 
 
 # ------------------------------- public ---------------------------------- #

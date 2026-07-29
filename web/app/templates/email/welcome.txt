@@ -1,14 +1,20 @@
-You are in.
+Your JBHNTR account is ready.
 
-Your account is live and you have {{ free_searches }} full searches to spend,
-with the real scoring model, no card involved.
+Welcome. JBHNTR is an AI job-search agent that reads across job sources and
+company career pages, then returns a reasoned shortlist.
 
-Three things, then your first search can run:
-1. Upload your CV
-2. Where you will work
-3. Describe the work you actually want, in your own words
+Three things give the first scan enough context:
+1. Upload a current CV.
+2. Choose where and how you can work.
+3. Describe the work you actually want, including what you do not want.
 
-Set up your profile: {{ base_url }}/onboarding
+Build my search profile: {{ base_url }}/onboarding
 
-Your CV is encrypted, never shown to employers, and deleted properly if you
-delete your account. If something is broken, reply to this email.
+Your account includes {{ free_searches }} complete scans. No card is required.
+A scan can take a few minutes and continues if you close the tab.
+
+Your profile is private by default. Employers and recruiters cannot browse it.
+Career text is processed by the services described in the Privacy Policy,
+stored uploads are encrypted at rest, and you can export or delete your data.
+
+If something is unclear or broken, reply to this email. It reaches a person.

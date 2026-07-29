@@ -1,18 +1,18 @@
 {% extends "email/_shell.html" %}
-{% block subject %}You are on the list for Premium{% endblock %}
+{% block subject %}You are on the JBHNTR Premium waitlist{% endblock %}
 {% block preheader %}Nothing changes today. Here is what happens when it opens.{% endblock %}
 {% block content %}
 <p style="margin:0 0 12px;font:600 19px/1.2 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif">You are on the list.</p>
 <p style="margin:0 0 11px">Thanks{% if first_name %}, {{ first_name }}{% endif %}. Premium is
   not open yet, so there is nothing to pay and nothing to do. When it opens you will
-  hear from us before anyone else, and the first stretch is free while we test it.</p>
+  hear from us before anyone else.</p>
 <p style="margin:0 0 11px">What Premium adds, so you know what you are waiting for:</p>
-<p style="margin:0 0 5px">The hunt runs every day on its own, no searches to start and none to count.</p>
-<p style="margin:0 0 5px">Tailored CVs and cover letters without a limit.</p>
-<p style="margin:0 0 11px">One digest, only on the days something worth reading turned up.</p>
-<p style="margin:0 0 11px">Meanwhile your three free searches are still there, and the
-  scoring is the same model Premium uses. Nothing is held back to make the paid version
-  look better.</p>
+<p style="margin:0 0 5px">Automatic recurring market scans.</p>
+<p style="margin:0 0 5px">A digest only when new roles clear your threshold.</p>
+<p style="margin:0 0 5px">More frequent freshness and deeper search options where they add value.</p>
+<p style="margin:0 0 11px">Expanded tailored-document and application workflow.</p>
+<p style="margin:0 0 11px">The free searches use the complete core method, so you can
+  judge whether the shortlist is useful before Premium opens.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0">
   <tr><td style="background:#174b3e">
     <a href="{{ search_url }}" style="display:inline-block;padding:14px 22px;

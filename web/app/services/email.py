@@ -144,7 +144,7 @@ def send_password_reset(email: str, token: str) -> bool:
 
 def send_welcome(email: str) -> bool:
     html, text = render("welcome", {"free_searches": config.free_searches})
-    return send(email, "You are in. One upload and the hunting starts.", text, html)
+    return send(email, "Your JBHNTR account is ready", text, html)
 
 
 def send_digest(email: str, ctx: dict, unsub_token: str) -> bool:
@@ -152,9 +152,9 @@ def send_digest(email: str, ctx: dict, unsub_token: str) -> bool:
     html, text = render("digest", {**ctx, "unsub_token": unsub_token})
     base = config.base_url.rstrip("/")
     n = ctx.get("n", 0)
-    top = ctx.get("top_score", 0)
-    roles = "role" if n == 1 else "roles"
-    subject = f"{n} new {roles}, best is {top}/100"
+    # EMAIL-003: the score is not an objective probability, so keep it out of the
+    # subject; lead with the count of matches worth reviewing.
+    subject = f"{n} new JBHNTR match{'es' if n != 1 else ''} worth reviewing"
     return send(email, subject, text, html, headers={
         "List-Unsubscribe": f"<{base}/unsubscribe?t={unsub_token}>",
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
@@ -173,7 +173,7 @@ def send_premium_waitlist(email: str, user_id: int, first_name: str = "") -> boo
         "search_url": f"{base}/matches",
         "unsub_token": unsub, "unsub_url": unsub_url,
     })
-    return send(email, "You are on the list for Premium", text, html, headers={
+    return send(email, "You are on the JBHNTR Premium waitlist", text, html, headers={
         "List-Unsubscribe": f"<{unsub_url}>",
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     })

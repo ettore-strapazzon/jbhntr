@@ -1,9 +1,9 @@
 {% extends "email/_shell.html" %}
-{% block subject %}{{ n }} new {{ "role" if n == 1 else "roles" }}, best is {{ top_score }}/100{% endblock %}
+{% block subject %}{{ n }} new JBHNTR match{{ "es" if n != 1 else "" }} worth reviewing{% endblock %}
 {% block preheader %}{{ top_title }} at {{ top_company }}{% if top_location %}, {{ top_location }}{% endif %}.{% endblock %}
 {% block content %}
-<p style="margin:0 0 14px">Since yesterday, {{ reviewed }} new postings were read.
-  {{ n }} {{ "is" if n == 1 else "are" }} worth your time.</p>
+<p style="margin:0 0 14px">Since the last digest, {{ reviewed }} new postings were
+  checked and {{ n }} cleared your current bar.</p>
 {% for j in jobs %}
   <div style="border:1px solid #e2ded6;border-radius:9px;padding:12px 14px;background:#fff;margin:0 0 8px">
     <p style="margin:0 0 4px">
@@ -14,13 +14,13 @@
     <p style="margin:0 0 7px;font-size:13px;color:#6b6862">{{ j.company }}{% if j.location %} · {{ j.location }}{% endif %}</p>
     {% if j.good %}<p style="margin:0 0 3px;font-size:13.5px">{{ j.good }}.{% if j.bad %} {{ j.bad }}.{% endif %}</p>{% endif %}
     <p style="margin:0;font-size:13.5px">
-      <a href="{{ base_url }}/matches#card-{{ j.id }}" style="color:#174b3e">See the full match</a></p>
+      <a href="{{ base_url }}/matches#card-{{ j.id }}" style="color:#174b3e">Open match in JBHNTR</a></p>
   </div>
 {% endfor %}
 {% if remaining %}
   <p style="margin:8px 0 14px">{{ remaining }} more cleared the bar{% if remaining_longshots %},
     including {{ remaining_longshots }} long shots{% endif %}.
-    <a href="{{ base_url }}/matches" style="color:#174b3e">See the whole shortlist</a>.</p>
+    <a href="{{ base_url }}/matches" style="color:#174b3e">Open the full shortlist</a>.</p>
 {% endif %}
 <p style="margin:14px 0 0;color:#6b6862">{{ closing }}</p>
 {% endblock %}

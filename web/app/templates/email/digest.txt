@@ -1,6 +1,6 @@
-{{ n }} new role{{ "s" if n != 1 }} for you, best scored {{ top_score }}/100.
+{{ n }} new JBHNTR match{{ "es" if n != 1 else "" }} worth reviewing.
 
-Since yesterday it read {{ reviewed }} new postings.
+Since the last digest, {{ reviewed }} new postings were checked and {{ n }} cleared your current bar.
 {% for j in jobs %}
 {{ j.score }}/100  {{ j.tier_label|upper }}
 {{ j.title }}

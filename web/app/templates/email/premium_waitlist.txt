@@ -2,18 +2,17 @@ You are on the list.
 
 Thanks{% if first_name %}, {{ first_name }}{% endif %}. Premium is not open yet, so
 there is nothing to pay and nothing to do. When it opens you will hear
-from us before anyone else, and the first stretch is free while we test it.
+from us before anyone else.
 
 What Premium adds, so you know what you are waiting for:
 
-- The hunt runs every day on its own, no searches to start and none to
-  count.
-- Tailored CVs and cover letters without a limit.
-- One digest, only on the days something worth reading turned up.
+- Automatic recurring market scans.
+- A digest only when new roles clear your threshold.
+- More frequent freshness and deeper search options where they add value.
+- Expanded tailored-document and application workflow.
 
-Meanwhile your three free searches are still there, and the scoring is
-the same model Premium uses. Nothing is held back to make the paid
-version look better.
+The free searches use the complete core method, so you can judge whether
+the shortlist is useful before Premium opens.
 
 Run a search now:
 {{ search_url }}
