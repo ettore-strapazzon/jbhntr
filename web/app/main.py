@@ -96,15 +96,19 @@ async def security_and_analytics(request: Request, call_next):
     if not config.debug:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
-    # Minimal, privacy-preserving analytics: no IP, no user id, no cookie.
+    # Minimal, privacy-preserving analytics: no IP and no user id are stored; the
+    # visitor token is a daily-rotating one-way hash (see services/analytics.py).
     path = request.url.path
     if request.method == "GET" and not path.startswith(("/static", "/health")):
         try:
+            from .services.analytics import client_ip, visitor_hash
             db = SessionLocal()
             db.add(PageView(
                 path=path[:255],
                 referrer=(request.headers.get("referer") or "")[:255],
                 country=request.headers.get("cf-ipcountry", "")[:8],
+                visitor=visitor_hash(client_ip(request),
+                                     request.headers.get("user-agent", "")) or None,
             ))
             db.commit()
             db.close()

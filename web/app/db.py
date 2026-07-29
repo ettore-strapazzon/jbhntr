@@ -121,6 +121,7 @@ def _add_missing_columns() -> None:
                         "fit_candidate": ("INTEGER", "DEFAULT 0")},
         "documents": {"note": ("TEXT", "DEFAULT ''")},
         "feedback": {"rating": ("INTEGER", "")},
+        "page_views": {"visitor": ("TEXT", "")},
     }
     import logging
 

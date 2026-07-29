@@ -1357,3 +1357,56 @@ def test_admin_shows_waitlist_and_csv(client, monkeypatch):
     assert csv.status_code == 200
     assert "text/csv" in csv.headers["content-type"]
     assert "wanter@example.com" in csv.text and "email,requested_at" in csv.text
+
+
+# --------------------------- visitor analytics ---------------------------- #
+def test_visitor_hash_is_stable_and_ip_sensitive():
+    from datetime import date
+    from web.app.services.analytics import visitor_hash
+    d = date(2026, 7, 29)
+    a = visitor_hash("1.2.3.4", "UA/1", day=d)
+    assert a == visitor_hash("1.2.3.4", "UA/1", day=d)        # same day+ip+ua => same
+    assert a != visitor_hash("9.9.9.9", "UA/1", day=d)        # different ip => different
+    assert a != visitor_hash("1.2.3.4", "UA/1", day=date(2026, 7, 30))  # next day differs
+    assert visitor_hash("", "UA/1", day=d) == ""              # no ip => uncounted
+    assert len(a) == 64 and all(c in "0123456789abcdef" for c in a)     # a hash, not an ip
+
+
+def test_pageview_stores_visitor_token_never_ip(client):
+    from web.app.db import SessionLocal
+    from web.app.models import PageView
+    ip = "203.0.113.77"
+    client.get("/", headers={"cf-connecting-ip": ip, "cf-ipcountry": "IT",
+                             "user-agent": "Mozilla/5.0 test"})
+    db = SessionLocal()
+    try:
+        pv = db.query(PageView).order_by(PageView.id.desc()).first()
+        assert pv is not None
+        assert pv.visitor and len(pv.visitor) == 64          # a token was stored
+        assert ip not in (pv.visitor or "")                  # the raw IP never is
+        assert pv.country == "IT"
+    finally:
+        db.close()
+
+
+def test_admin_shows_unique_visitors_by_country(client, monkeypatch):
+    from datetime import date
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import PageView
+    from web.app.services.analytics import visitor_hash
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    db = SessionLocal()
+    try:
+        d = date(2026, 7, 29)
+        # two distinct visitors from IT (one visiting twice), one from FR
+        for ip, ua, country in [("1.1.1.1", "A", "IT"), ("1.1.1.1", "A", "IT"),
+                                 ("2.2.2.2", "B", "IT"), ("3.3.3.3", "C", "FR")]:
+            db.add(PageView(path="/", country=country,
+                            visitor=visitor_hash(ip, ua, day=d)))
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/admin", auth=("op", "s3cret"))
+    assert r.status_code == 200
+    assert "Unique visitors by country" in r.text

@@ -89,24 +89,28 @@
   </div>
 </div>
 
-{# ===== pageviews ===== #}
+{# ===== visitors & pageviews ===== #}
 <div class="card">
-  <h2>Pageviews <span class="muted small">(first-party, cookieless, no IP)</span></h2>
+  <h2>Visitors <span class="muted small">(first-party, cookieless, no IP stored)</span></h2>
   <div class="admin-stats">
-    <div class="stat"><b>{{ pv_30d }}</b><span>last 30 days</span></div>
-    <div class="stat"><b>{{ pv_7d }}</b><span>last 7 days</span></div>
+    <div class="stat"><b>{{ uv_30d }}</b><span>unique visitors, 30d</span></div>
+    <div class="stat"><b>{{ uv_7d }}</b><span>unique visitors, 7d</span></div>
+    <div class="stat"><b>{{ pv_30d }}</b><span>pageviews, 30d</span></div>
+    <div class="stat"><b>{{ pv_7d }}</b><span>pageviews, 7d</span></div>
   </div>
   <div class="admin-two">
     <div>
-      <h3>Top countries <span class="muted small">(30d, Cloudflare)</span></h3>
+      <h3>Unique visitors by country <span class="muted small">(30d)</span></h3>
       <table class="apptable"><tbody>
-        {% for c, n in top_countries %}
+        {% for c, n in visitors_by_country %}
           <tr><td>{{ c or "—" }}</td><td>{{ n }}</td></tr>
-        {% else %}<tr><td class="muted">no data</td><td></td></tr>{% endfor %}
+        {% else %}<tr><td class="muted">no data yet</td><td></td></tr>{% endfor %}
       </tbody></table>
+      <p class="small muted">Country from Cloudflare; visitors deduped by a
+        daily-rotating anonymous token, not an IP.</p>
     </div>
     <div>
-      <h3>Top pages <span class="muted small">(30d)</span></h3>
+      <h3>Top pages <span class="muted small">(30d, by pageviews)</span></h3>
       <table class="apptable"><tbody>
         {% for p, n in top_paths %}
           <tr><td>{{ p }}</td><td>{{ n }}</td></tr>

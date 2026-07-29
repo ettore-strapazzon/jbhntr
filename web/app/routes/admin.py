@@ -94,13 +94,23 @@ def _gather(db: DbSession) -> dict:
     doc_counts = dict(db.query(Document.kind, func.count(Document.id))
                       .group_by(Document.kind).all())
 
-    # --- pageviews (privacy-safe: no IP, no user link) ---
+    # --- pageviews + unique visitors (privacy-safe: no IP, no user link) ---
     pv_7d = db.query(PageView).filter(PageView.created_at >= _since(7)).count()
     pv_30d = db.query(PageView).filter(PageView.created_at >= _since(30)).count()
-    top_countries = (db.query(PageView.country, func.count(PageView.id).label("n"))
-                     .filter(PageView.created_at >= _since(30))
-                     .group_by(PageView.country).order_by(func.count(PageView.id).desc())
-                     .limit(12).all())
+
+    _has_visitor = PageView.visitor.isnot(None) & (PageView.visitor != "")
+    uv_7d = db.query(func.count(func.distinct(PageView.visitor))).filter(
+        PageView.created_at >= _since(7), _has_visitor).scalar() or 0
+    uv_30d = db.query(func.count(func.distinct(PageView.visitor))).filter(
+        PageView.created_at >= _since(30), _has_visitor).scalar() or 0
+
+    # distinct visitors per country (30d) — the "who, by country" view
+    uv = func.count(func.distinct(PageView.visitor))
+    visitors_by_country = (db.query(PageView.country, uv.label("n"))
+                           .filter(PageView.created_at >= _since(30), _has_visitor)
+                           .group_by(PageView.country).order_by(uv.desc())
+                           .limit(12).all())
+
     top_paths = (db.query(PageView.path, func.count(PageView.id).label("n"))
                  .filter(PageView.created_at >= _since(30))
                  .group_by(PageView.path).order_by(func.count(PageView.id).desc())
@@ -118,7 +128,8 @@ def _gather(db: DbSession) -> dict:
         "rating_dist": rating_dist,
         "cv_count": doc_counts.get("cv", 0), "cl_count": doc_counts.get("cl", 0),
         "pv_7d": pv_7d, "pv_30d": pv_30d,
-        "top_countries": top_countries, "top_paths": top_paths,
+        "uv_7d": uv_7d, "uv_30d": uv_30d,
+        "visitors_by_country": visitors_by_country, "top_paths": top_paths,
     }
 
 

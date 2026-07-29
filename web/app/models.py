@@ -370,7 +370,13 @@ class Session(Base):
 
 
 class PageView(Base):
-    """Minimal analytics. Deliberately stores no IP and no user id."""
+    """Minimal analytics. Stores no IP and no user id.
+
+    `visitor` is a one-way daily-rotating hash (a salt that changes every day,
+    combined with the caller's IP and user-agent, then SHA-256'd). It lets us
+    count *distinct* visitors within a day without ever storing an IP or being
+    able to follow anyone across days. See services/analytics.py.
+    """
 
     __tablename__ = "page_views"
 
@@ -378,4 +384,5 @@ class PageView(Base):
     path: Mapped[str] = mapped_column(String(255), index=True)
     referrer: Mapped[str] = mapped_column(String(255), default="")
     country: Mapped[str] = mapped_column(String(8), default="")
+    visitor: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
