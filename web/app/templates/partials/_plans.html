@@ -1,0 +1,61 @@
+{# Shared Free/Premium plan boxes (Round 5b). Subgrid-aligned: exactly six direct
+   children per card (badge, head, price, figs, list, cta). Auth-aware via
+   plan_authed / plan_remaining / plan_on_waitlist — public page leaves them unset. #}
+<div class="plans">
+  <article class="plan plan-free">
+    <p class="plan-badge">{% if plan_authed %}Your current plan{% else %}Available now{% endif %}</p>
+    <div class="plan-head">
+      <h3 class="plan-name">Free</h3>
+      <p class="plan-positioning">Run the search yourself</p>
+    </div>
+    <div class="plan-price">
+      <b>&euro;0</b>
+      <span>No payment card required</span>
+    </div>
+    <div class="plan-figs">
+      <div><b>{% if plan_authed %}{{ plan_remaining.searches }} of {% endif %}{{ config.free_searches }}</b><span>searches{% if plan_authed %} left{% endif %}</span></div>
+      <div><b>{% if plan_authed %}{{ plan_remaining.cv }} of {% endif %}{{ config.free_cvs }}</b><span>tailored CVs{% if plan_authed %} left{% endif %}</span></div>
+      <div><b>{% if plan_authed %}{{ plan_remaining.cl }} of {% endif %}{{ config.free_cover_letters }}</b><span>cover letters{% if plan_authed %} left{% endif %}</span></div>
+    </div>
+    <ul class="plan-list">
+      <li>Complete searches you start manually</li>
+      <li>Ranked matches and two-way fit explanations</li>
+      <li>Full CV and cover letter tailoring</li>
+      <li>Save, dismiss and track applications</li>
+    </ul>
+    <a class="btn plan-cta" href="{% if plan_authed %}/matches{% else %}/signup{% endif %}">{% if plan_authed %}Start a search{% else %}Start free{% endif %}</a>
+  </article>
+
+  <article class="plan plan--premium">
+    <p class="plan-badge">Coming soon</p>
+    <div class="plan-head">
+      <h3 class="plan-name">Premium</h3>
+      <p class="plan-positioning">Let JBHNTR work every day</p>
+    </div>
+    <div class="plan-price">
+      <b>Affordable</b>
+      <span>Price announced at launch</span>
+    </div>
+    <div class="plan-figs">
+      <div><b>Daily</b><span>automatic searches</span></div>
+      <div><b>{{ config.premium_cvs_monthly }}</b><span>CVs / month</span></div>
+      <div><b>{{ config.premium_cover_letters_monthly }}</b><span>letters / month</span></div>
+    </div>
+    <ul class="plan-list">
+      <li>Customisable email digest with new and saved matches</li>
+      <li>Wider coverage across company career pages</li>
+      <li>Advanced models for matching and tailoring</li>
+      <li>Import any external job description</li>
+    </ul>
+    {% if plan_authed and plan_on_waitlist %}
+      <p class="plan-cta plan-foot">You are on the waitlist. We will email you when Premium opens.</p>
+    {% elif plan_authed %}
+      <form class="plan-cta" method="post" action="/premium/waitlist">
+        <input type="hidden" name="region" value="plan">
+        <button class="btn" type="submit">Join the Premium waitlist</button>
+      </form>
+    {% else %}
+      <a class="btn plan-cta" href="/signup">Join the Premium waitlist</a>
+    {% endif %}
+  </article>
+</div>

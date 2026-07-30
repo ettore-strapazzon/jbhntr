@@ -138,13 +138,20 @@ def test_premium_waitlist_htmx_swaps_button_and_sends_once(client, monkeypatch):
 
 
 def test_premium_page_has_banner_and_no_price(client):
-    """PREM-01: coming-soon signalled, waitlist CTA, no price anywhere."""
+    """Round 5b: the logged-in Premium tab is the shared pricing page with an
+    auth-aware frame — 'Your plan' heading, current-plan badge, remaining-allowance
+    figures, waitlist CTA, and no quoted price."""
     signup(client, email="pp@example.com")
     r = client.get("/premium")
     assert r.status_code == 200
-    assert "COMING SOON" in r.text
+    assert "Your plan" in r.text                      # h1
+    assert "Your current plan" in r.text              # Free-box badge, logged in
+    assert "Coming soon" in r.text                    # Premium badge (CSS uppercases)
     assert "Join the Premium waitlist" in r.text
-    assert "$" not in r.text and "€" not in r.text   # no price is quoted
+    assert "Affordable" in r.text                     # Premium price, soft promise
+    from web.app.config import config
+    assert f"of {config.free_searches}" in r.text     # remaining-allowance figures
+    assert "$" not in r.text                           # no price is quoted
 
 
 def test_waitlist_email_renders_in_shell_and_carries_unsub():
@@ -1808,15 +1815,16 @@ def test_landing_flow_steps_and_plan_metrics(client):
     pos = [page.find(x) for x in labels]
     assert all(p != -1 for p in pos), "all five flow labels present"
     assert pos == sorted(pos), "flow labels in order"
-    assert f">{config.free_searches}</strong>" in page          # 3 searches
-    assert f">{config.premium_cvs_monthly}</strong>" in page     # 30 CVs
-    assert f">{config.premium_cover_letters_monthly}</strong>" in page  # 20 letters
+    assert f">{config.free_searches}</b>" in page          # 3 searches (plan-figs)
+    assert f">{config.premium_cvs_monthly}</b>" in page     # 30 CVs
+    assert f">{config.premium_cover_letters_monthly}</b>" in page  # 20 letters
 
 
 def test_pricing_and_premium_have_no_banned_plan_words(client):
+    # "affordable" is an accepted soft promise from Round 5b (never next to a figure),
+    # so it is intentionally allowed here; "unlimited" stays banned.
     for path in ("/pricing", "/"):
         t = client.get(path).text.lower()
         assert "unlimited" not in t
-        assert "affordable" not in t
         for bad in ("2 tailored cv", "one cover letter", "cheap to keep"):
             assert bad not in t

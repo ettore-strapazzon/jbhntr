@@ -27,9 +27,17 @@ def _waitlist_ahead(db: DbSession) -> int:
 @router.get("/premium", response_class=HTMLResponse)
 def premium(request: Request, user: User = Depends(require_user),
             requested: str = "", db: DbSession = Depends(get_session)):
+    from ..services import doc_quota
+    remaining = {
+        "searches": user.searches_remaining(config.free_searches) or 0,
+        "cv": doc_quota.left(db, user, "cv"),
+        "cl": doc_quota.left(db, user, "cl"),
+    }
     return templates.TemplateResponse(request, "premium.html",
         {"request": request, "user": user, "requested": requested,
-         "ahead": _waitlist_ahead(db)})
+         "ahead": _waitlist_ahead(db), "plan_authed": True,
+         "plan_remaining": remaining,
+         "plan_on_waitlist": user.premium_requested_at is not None})
 
 
 @router.post("/premium/waitlist")
