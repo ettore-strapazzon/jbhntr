@@ -72,7 +72,7 @@ class User(Base):
         return until is None or until > utcnow()
 
     def searches_remaining(self, free_allowance: int) -> int | None:
-        """None means unlimited (premium)."""
+        """None means no per-account search cap (premium; fair-use only)."""
         if self.is_premium:
             return None
         return max(0, free_allowance - self.searches_used)

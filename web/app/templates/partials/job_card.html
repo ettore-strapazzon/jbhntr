@@ -88,6 +88,10 @@
         {% if r.apply_url %}<a class="btn" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open original posting</a>{% endif %}
       </div>
 
+      {% set cv_limit = config.premium_cvs_monthly if user.is_premium else config.free_cvs %}
+      {% set cl_limit = config.premium_cover_letters_monthly if user.is_premium else config.free_cover_letters %}
+      {% set cv_gone = "This month's tailored-CV allowance is used; it resets on the 1st." if user.is_premium else "Your free tailored-CV allowance is used." %}
+      {% set cl_gone = "This month's cover-letter allowance is used; it resets on the 1st." if user.is_premium else "Your free cover-letter allowance is used." %}
       <div class="actiongroup make">
         <div class="row">
           {% if (r.id, "cv") in docs %}
@@ -95,9 +99,7 @@
           {% else %}
             <form method="post" action="/generate/{{ r.id }}/cv" style="display:inline">
               <button class="ghost" type="submit"
-                {% if not (user.is_premium or (allow.cv or 0) > 0) %}disabled
-                  title="Free CV draft allowance used. Premium is planned to expand this."
-                  aria-label="Free CV draft allowance used. Premium is planned to expand this."{% endif %}>Draft a tailored CV</button>
+                {% if (allow.cv or 0) <= 0 %}disabled title="{{ cv_gone }}" aria-label="{{ cv_gone }}"{% endif %}>Draft a tailored CV</button>
             </form>
           {% endif %}
           {% if (r.id, "cl") in docs %}
@@ -105,16 +107,12 @@
           {% else %}
             <form method="post" action="/generate/{{ r.id }}/cl" style="display:inline">
               <button class="ghost" type="submit"
-                {% if not (user.is_premium or (allow.cl or 0) > 0) %}disabled
-                  title="Free cover-letter draft allowance used. Premium is planned to expand this."
-                  aria-label="Free cover-letter draft allowance used. Premium is planned to expand this."{% endif %}>Draft a cover letter</button>
+                {% if (allow.cl or 0) <= 0 %}disabled title="{{ cl_gone }}" aria-label="{{ cl_gone }}"{% endif %}>Draft a cover letter</button>
             </form>
           {% endif %}
         </div>
-        {% if not user.is_premium %}
-          <span class="quota">{{ allow.cv }} of {{ config.free_cvs }} CV draft{{ 's' if config.free_cvs != 1 else '' }} left ·
-            {{ allow.cl }} of {{ config.free_cover_letters }} cover-letter draft{{ 's' if config.free_cover_letters != 1 else '' }} left</span>
-        {% endif %}
+        <span class="quota">{{ allow.cv }} of {{ cv_limit }} tailored CV{{ 's' if cv_limit != 1 }}{% if user.is_premium %} left this month{% else %} left{% endif %} ·
+          {{ allow.cl }} of {{ cl_limit }} cover letter{{ 's' if cl_limit != 1 }}{% if user.is_premium %} left this month{% else %} left{% endif %}</span>
       </div>
 
       <div class="actiongroup triage">

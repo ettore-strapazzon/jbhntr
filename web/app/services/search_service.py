@@ -42,7 +42,8 @@ class QuotaError(RuntimeError):
 def check_quota(db: DbSession, user: User) -> None:
     """Raise QuotaError if this user may not start another search."""
     if user.is_premium:
-        # "Unlimited" with a fair-use ceiling — see docs/ARCHITECTURE.md.
+        # Premium runs a daily automatic search plus manual runs under a
+        # fair-use ceiling — see docs/ARCHITECTURE.md.
         since = utcnow() - timedelta(days=1)
         today = (
             db.query(Search)
@@ -60,7 +61,7 @@ def check_quota(db: DbSession, user: User) -> None:
     if remaining is not None and remaining <= 0:
         raise QuotaError(
             f"You've used all {config.free_searches} free searches. "
-            "Upgrade for unlimited searching."
+            "Premium searches for you every day."
         )
 
 

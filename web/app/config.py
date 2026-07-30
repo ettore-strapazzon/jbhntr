@@ -37,13 +37,16 @@ class WebConfig:
     session_days: int = 14
 
     # --- limits (the levers that protect the AI bill) ---
-    free_searches: int = int(os.environ.get("FREE_SEARCHES", "3"))
-    # Per-type free document allowance: a free user gets 2 tailored CVs and 1
-    # cover letter (counted per distinct job, so regenerating one is free).
-    free_cvs: int = _int("FREE_CVS", 2)
-    free_cover_letters: int = _int("FREE_COVER_LETTERS", 1)
-    free_documents: int = int(os.environ.get("FREE_DOCUMENTS", "2"))  # legacy copy only
-    premium_searches_per_day: int = int(os.environ.get("PREMIUM_SEARCHES_PER_DAY", "2"))
+    # Free is a lifetime allowance; Premium document allowances are per calendar
+    # month. All numbers are config-driven so copy never hard-codes them.
+    free_searches: int = _int("FREE_SEARCHES", 3)
+    free_cvs: int = _int("FREE_CVS", 3)                    # lifetime, per distinct job
+    free_cover_letters: int = _int("FREE_COVER_LETTERS", 3)
+    premium_cvs_monthly: int = _int("PREMIUM_CVS_MONTHLY", 30)
+    premium_cover_letters_monthly: int = _int("PREMIUM_COVER_LETTERS_MONTHLY", 20)
+    # Premium runs one automatic search a day; the manual fair-use cap stays too.
+    premium_auto_searches_per_day: int = _int("PREMIUM_AUTO_SEARCHES_PER_DAY", 1)
+    premium_searches_per_day: int = _int("PREMIUM_SEARCHES_PER_DAY", 2)
     max_upload_bytes: int = 1024 * 1024          # 1 MB, per the spec
     max_feedback_chars: int = 300
 

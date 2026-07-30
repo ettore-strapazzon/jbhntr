@@ -1733,3 +1733,67 @@ def test_admin_reset_usage_endpoint(client, monkeypatch):
     db.close()
     # gated by admin auth
     assert client.post("/admin/reset-usage", data={"email": "x@y.com"}).status_code == 401
+
+
+# --------------------- plan quotas (PLAN-01 / PLAN-02) --------------------- #
+def test_doc_quota_free_lifetime_premium_monthly(client):
+    from datetime import timedelta
+    from web.app.db import SessionLocal
+    from web.app.models import Document, JobResult, Search, User, utcnow
+    from web.app.services import doc_quota
+    signup(client, "quota@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="quota@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+
+        def job(sid):
+            jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id=sid,
+                           tier=1, title="T", company="C")
+            db.add(jr); db.flush(); return jr.id
+
+        # free: lifetime 3 / 3
+        assert doc_quota.left(db, u, "cv") == 3 and doc_quota.left(db, u, "cl") == 3
+        j1 = job("j1")
+        db.add(Document(user_id=u.id, job_result_id=j1, kind="cv", content="a",
+                        created_at=utcnow() - timedelta(days=400)))
+        db.add(Document(user_id=u.id, job_result_id=j1, kind="cv", content="a2",
+                        created_at=utcnow()))            # same job, regenerated
+        db.commit()
+        assert doc_quota.left(db, u, "cv") == 2          # one distinct job, lifetime
+
+        # premium: monthly 30 / 20, prior-month docs excluded
+        u.plan = "premium"; db.commit()
+        assert doc_quota.left(db, u, "cv") == 29         # only this month's j1 counts
+        assert doc_quota.left(db, u, "cl") == 20
+        j2 = job("j2")
+        db.add(Document(user_id=u.id, job_result_id=j2, kind="cv", content="b",
+                        created_at=doc_quota.month_start() - timedelta(days=1)))
+        db.commit()
+        assert doc_quota.left(db, u, "cv") == 29         # last month does not count
+    finally:
+        db.close()
+
+
+def test_generation_blocked_when_free_quota_exhausted(client):
+    from web.app.db import SessionLocal
+    from web.app.models import Document, JobResult, Search, User
+    signup(client, "exhaust@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="exhaust@example.com").one()
+    s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+    ids = []
+    for i in range(4):
+        jr = JobResult(search_id=s.id, user_id=u.id, position=i + 1, short_id=f"x{i}",
+                       tier=1, title="T", company="C")
+        db.add(jr); db.flush(); ids.append(jr.id)
+    for j in ids[:3]:                                    # use all 3 free CV allowances
+        db.add(Document(user_id=u.id, job_result_id=j, kind="cv", content="c"))
+    db.commit(); fourth = ids[3]; db.close()
+
+    r = client.post(f"/generate/{fourth}/cv", follow_redirects=False)
+    assert r.status_code == 303 and "error=" in r.headers["location"]
+    assert "free" in r.headers["location"].lower()
+    db = SessionLocal()
+    assert db.query(Document).filter_by(job_result_id=fourth).count() == 0   # nothing generated
+    db.close()

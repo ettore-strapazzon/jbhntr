@@ -103,11 +103,12 @@ def generate(result_id: int, kind: str, request: Request,
     already = (db.query(Document)
                  .filter(Document.job_result_id == result.id,
                          Document.kind == kind, Document.user_id == user.id).first())
-    if not user.is_premium and not already and doc_quota.left(db, user, kind) == 0:
+    if not already and doc_quota.left(db, user, kind) == 0:
         label = "tailored CVs" if kind == "cv" else "cover letters"
-        return RedirectResponse(
-            "/matches?error=" + quote(f"You've used your free {label}. Premium is unlimited."),
-            status_code=303)
+        msg = (f"You have used this month's {label} allowance; it resets on the 1st."
+               if user.is_premium
+               else f"You have used your free {label}.")
+        return RedirectResponse("/matches?error=" + quote(msg), status_code=303)
 
     from jobhunter.config import Settings as EngineSettings
     from jobhunter.generator import Generator
