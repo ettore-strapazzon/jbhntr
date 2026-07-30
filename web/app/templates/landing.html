@@ -96,27 +96,46 @@
   <div class="container">
     <div class="section-head">
       <p class="eyebrow">HOW IT WORKS</p>
-      <h2 id="how-title">One profile. One market scan. A reasoned shortlist.</h2>
+      <h2 id="how-title">How JBHNTR searches the job market for you</h2>
+      <p class="section-lede">Set your role, preferences and must-haves once. JBHNTR
+        scans across the market, evaluates fit in both directions, and gives you a
+        shortlist worth reviewing, plus tailored drafts when you decide to apply.</p>
     </div>
-    <div class="step-grid">
-      <article class="step">
-        <span class="step-no">01</span>
-        <h3>Say what a CV cannot.</h3>
-        <p>Upload your CV, choose where and how you will work, and describe the role
-          you actually want, including what you do not want.</p>
-      </article>
-      <article class="step">
-        <span class="step-no">02</span>
-        <h3>JBHNTR scans the market.</h3>
-        <p>It checks job boards, aggregators and direct employer career pages,
-          filters hard constraints and ranks by meaning rather than title alone.</p>
-      </article>
-      <article class="step">
-        <span class="step-no">03</span>
-        <h3>Review the case for and against.</h3>
-        <p>Every match shows role fit, requirements fit, the strongest reasons to
-          apply and the gaps to consider before you spend time.</p>
-      </article>
+    <div class="market-flow" aria-label="How JBHNTR works">
+      <ol class="market-flow-steps">
+        <li class="market-flow-step flow-profile">
+          <span class="flow-number">01</span>
+          <h3>Search profile</h3>
+          <p>Role, seniority, location, preferences and must-haves.</p>
+        </li>
+        <li class="market-flow-step flow-scan">
+          <span class="flow-number">02</span>
+          <div class="flow-sources" aria-hidden="true">
+            <span>Job boards</span><span>Career pages</span><span>ATS platforms</span></div>
+          <h3>Market scan</h3>
+          <p>Relevant postings are collected across multiple sources and filtered.</p>
+        </li>
+        <li class="market-flow-step flow-fit">
+          <span class="flow-number">03</span>
+          <div class="flow-fit-bars" aria-hidden="true">
+            <span><i style="width:88%"></i></span><span><i style="width:76%"></i></span></div>
+          <h3>Two-way fit</h3>
+          <p>How well you fit the role, and how well the role fits what you want.</p>
+        </li>
+        <li class="market-flow-step flow-shortlist">
+          <span class="flow-number">04</span>
+          <div class="flow-mini-list" aria-hidden="true">
+            <span><b>91</b> Best match</span><span><b>84</b> Strong match</span><span><b>78</b> Worth a look</span></div>
+          <h3>Ranked shortlist</h3>
+          <p>Review the strongest opportunities, with clear reasons for and against.</p>
+        </li>
+        <li class="market-flow-step flow-apply">
+          <span class="flow-number">05</span>
+          <div class="flow-docs" aria-hidden="true"><span>CV</span><span>CL</span></div>
+          <h3>Tailored application</h3>
+          <p>Create an editable CV and cover letter tailored to the role.</p>
+        </li>
+      </ol>
     </div>
     <p class="small"><a href="/how-it-works">Read the full method</a></p>
   </div>
@@ -199,22 +218,14 @@
 {# ==================== FREE AND PLANNED PREMIUM (HOME-009, L-04) ==================== #}
 <section class="section" id="pricing" aria-labelledby="pricing-title">
   <div class="container">
-    <div class="section-grid">
-      <div class="section-head">
-        <p class="eyebrow">FREE NOW · PREMIUM PLANNED</p>
-        <h2 id="pricing-title">Try the complete search free. Pay later for continuity.</h2>
-        <p class="cta"><a class="btn ghost" href="/pricing">See free and planned Premium</a></p>
-      </div>
-      <div class="panelstack">
-        <div class="panel"><p>The free version includes {{ config.free_searches }} full
-          market scans, {{ config.free_cvs }} tailored CV drafts and
-          {{ config.free_cover_letters }} cover-letter draft. No card is required.</p></div>
-        <div class="panel"><p>Planned Premium will keep the search running in the
-          background, scan more frequently, send a digest only when strong new matches
-          appear and expand the application workflow. It is not open yet, and no price
-          has been announced.</p></div>
-      </div>
+    <div class="section-head">
+      <p class="eyebrow">FREE AND PREMIUM</p>
+      <h2 id="pricing-title">Start free. Go Premium when you want JBHNTR working every day.</h2>
+      <p>Run {{ config.free_searches }} complete searches for free. Premium searches
+        every day, reaches further across company career pages, and gives you more
+        powerful matching and application tools.</p>
     </div>
+    {% include "partials/plan_block.html" %}
   </div>
 </section>
 

@@ -130,21 +130,21 @@ def test_premium_waitlist_htmx_swaps_button_and_sends_once(client, monkeypatch):
     signup(client, email="wl@example.com")
     r1 = client.post("/premium/waitlist", data={"region": "top"},
                      headers={"HX-Request": "true"})
-    assert r1.status_code == 200 and "You are on the list" in r1.text
+    assert r1.status_code == 200 and "You're on the Premium waitlist" in r1.text
     r2 = client.post("/premium/waitlist", data={"region": "top"},
                      headers={"HX-Request": "true"})
-    assert r2.status_code == 200 and "You are on the list" in r2.text
+    assert r2.status_code == 200 and "You're on the Premium waitlist" in r2.text
     assert len(sent) == 1                              # deduped: one email only
 
 
 def test_premium_page_has_banner_and_no_price(client):
-    """S-06: coming-soon banner present, no price anywhere on the page."""
+    """PREM-01: coming-soon signalled, waitlist CTA, no price anywhere."""
     signup(client, email="pp@example.com")
     r = client.get("/premium")
     assert r.status_code == 200
     assert "COMING SOON" in r.text
-    assert "Get early access" in r.text
-    assert "$" not in r.text                           # no price is quoted
+    assert "Join the Premium waitlist" in r.text
+    assert "$" not in r.text and "€" not in r.text   # no price is quoted
 
 
 def test_waitlist_email_renders_in_shell_and_carries_unsub():
@@ -1797,3 +1797,26 @@ def test_generation_blocked_when_free_quota_exhausted(client):
     db = SessionLocal()
     assert db.query(Document).filter_by(job_result_id=fourth).count() == 0   # nothing generated
     db.close()
+
+
+def test_landing_flow_steps_and_plan_metrics(client):
+    """HIW-01 five-step flow in order; PRC-01 config-driven plan metrics."""
+    from web.app.config import config
+    page = client.get("/").text
+    labels = ["<h3>Search profile</h3>", "<h3>Market scan</h3>", "<h3>Two-way fit</h3>",
+              "<h3>Ranked shortlist</h3>", "<h3>Tailored application</h3>"]
+    pos = [page.find(x) for x in labels]
+    assert all(p != -1 for p in pos), "all five flow labels present"
+    assert pos == sorted(pos), "flow labels in order"
+    assert f">{config.free_searches}</strong>" in page          # 3 searches
+    assert f">{config.premium_cvs_monthly}</strong>" in page     # 30 CVs
+    assert f">{config.premium_cover_letters_monthly}</strong>" in page  # 20 letters
+
+
+def test_pricing_and_premium_have_no_banned_plan_words(client):
+    for path in ("/pricing", "/"):
+        t = client.get(path).text.lower()
+        assert "unlimited" not in t
+        assert "affordable" not in t
+        for bad in ("2 tailored cv", "one cover letter", "cheap to keep"):
+            assert bad not in t

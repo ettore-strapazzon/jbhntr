@@ -4,19 +4,19 @@
    ahead: real waiting-list size (bottom variant renders it only above 50). #}
 <div id="ea-{{ region }}" class="ea ea-{{ region }}">
 {% if on_list %}
-  <button class="btn ea-done" type="button" disabled>You are on the list</button>
+  <button class="btn ea-done" type="button" disabled>You're on the Premium waitlist</button>
   <p class="small muted">Check the email we just sent.</p>
 {% else %}
   <form method="post" action="/premium/waitlist"
         hx-post="/premium/waitlist" hx-target="#ea-{{ region }}" hx-swap="outerHTML">
     <input type="hidden" name="region" value="{{ region }}">
     {% if region == "bottom" and ahead and ahead > 50 %}
-      <button class="btn" type="submit">Get early access</button>
+      <button class="btn" type="submit">Join the Premium waitlist</button>
       <span class="small muted ea-ahead">{{ ahead }} people ahead of you</span>
     {% else %}
-      <button class="btn" type="submit">Get early access</button>
+      <button class="btn" type="submit">Join the Premium waitlist</button>
       {% if region == "top" %}
-        <p class="small muted">Free while it is in testing. One email when it opens.</p>
+        <p class="small muted">No charge during testing. One email when Premium opens.</p>
       {% endif %}
     {% endif %}
   </form>

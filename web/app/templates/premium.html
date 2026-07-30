@@ -2,19 +2,16 @@
 {% block title %}Premium · JBHNTR{% endblock %}
 {% block content %}
 
-{# ===== coming-soon banner (S-06): pine strip, brass mark, mono label ===== #}
-<div class="soon-banner"><span class="soon-sq" aria-hidden="true"></span>COMING SOON</div>
-
-{# ===== header row: H1 + lede left, CTA top-right ===== #}
-<header class="prem-head">
-  <div class="prem-head-copy">
-    <h1>Premium will keep the search running between visits.</h1>
-    <p class="lede muted">The free version gives you {{ config.free_searches }} complete
-      scans you start yourself. Planned Premium adds recurring scans, useful digests, more
-      frequent freshness and a larger application workflow. It is not open yet and no price
-      has been announced.</p>
+{# ===== PREM-01 hero ===== #}
+<header class="premium-hero">
+  <div class="premium-hero-copy">
+    <p class="eyebrow">PREMIUM · COMING SOON</p>
+    <h1>Let JBHNTR search every day, across more of the market.</h1>
+    <p class="lede">Premium turns manual searches into an always-on process: daily
+      matching, wider company-career-page coverage, useful email digests and more
+      tailored application documents.</p>
   </div>
-  <div class="prem-head-cta">
+  <div class="premium-hero-cta">
     {% if user.is_premium %}
       <div class="notice ok" role="status">You are on premium{% if user.premium_until %}
         until {{ user.premium_until.strftime("%d %b %Y") }}{% endif %}. Thank you,
@@ -27,28 +24,70 @@
   </div>
 </header>
 
-{# ===== what premium adds: six cards, three across on desktop ===== #}
-<ul class="prem-features">
-  <li><b>Recurring market scans.</b> Run automatically on the schedule offered at launch,
-    within a published fair-use policy.</li>
-  <li><b>A digest only when there is something to review.</b> New roles that clear your
-    threshold, with reasons and original links.</li>
-  <li><b>Expanded application drafts.</b> A higher or included allowance for tailored CV
-    and cover-letter drafts.</li>
-  <li><b>Bring an external posting.</b> Planned: evaluate a role found elsewhere and
-    create the same reviewable drafts.</li>
-  <li><b>Deeper source and freshness options.</b> Planned where paid or licensed sources
-    add real coverage.</li>
-  <li><b>More search history and comparison.</b> Planned tools to understand what changed
-    and which sources produce useful roles.</li>
-</ul>
+{# ===== metric rail ===== #}
+<div class="premium-metric-rail">
+  <div><strong>Every day</strong><span>automatic market search</span></div>
+  <div><strong>{{ config.premium_cvs_monthly }}</strong><span>tailored CVs / month</span></div>
+  <div><strong>{{ config.premium_cover_letters_monthly }}</strong><span>cover letters / month</span></div>
+</div>
 
-{# ===== second CTA, after the grid ===== #}
+{# ===== Free -> Premium transformation ===== #}
+<section class="plan-transition" aria-label="Free compared with Premium">
+  <div class="plan-transition-free">
+    <h2>With Free</h2>
+    <ul>
+      <li>You start each search</li>
+      <li>{{ config.free_searches }} complete searches</li>
+      <li>{{ config.free_cvs }} tailored CVs</li>
+      <li>{{ config.free_cover_letters }} tailored cover letters</li>
+      <li>Core search sources</li>
+    </ul>
+  </div>
+  <div class="plan-transition-arrow" aria-hidden="true">&rarr;</div>
+  <div class="plan-transition-premium">
+    <h2>With Premium</h2>
+    <ul>
+      <li>JBHNTR searches every day</li>
+      <li>New and saved matches arrive by email</li>
+      <li>Wider company-career-page coverage</li>
+      <li>Advanced matching and tailoring models</li>
+      <li>{{ config.premium_cvs_monthly }} tailored CVs per month</li>
+      <li>{{ config.premium_cover_letters_monthly }} tailored cover letters per month</li>
+      <li>Tailor documents for a job found anywhere</li>
+    </ul>
+  </div>
+</section>
+
+{# ===== outcome cards ===== #}
+<section class="premium-outcomes">
+  <article>
+    <h3>Wake up to new matches</h3>
+    <p>A configurable digest brings together fresh matches and relevant roles you saved.</p>
+  </article>
+  <article>
+    <h3>Reach beyond aggregators</h3>
+    <p>Find roles published directly on company career pages across the wider market.</p>
+  </article>
+  <article>
+    <h3>Apply at higher volume</h3>
+    <p>Create up to {{ config.premium_cvs_monthly }} tailored CVs and
+      {{ config.premium_cover_letters_monthly }} tailored cover letters every month.</p>
+  </article>
+  <article>
+    <h3>Bring any job to JBHNTR</h3>
+    <p>Import an external job description and create tailored application documents for it.</p>
+  </article>
+</section>
+<p class="small muted premium-model-note">Premium uses the advanced matching and
+  document-tailoring models.</p>
+
+{# ===== final CTA ===== #}
 {% if not user.is_premium %}
-  <div class="prem-foot-cta">
+  <div class="premium-final-cta">
     {% with region = "bottom", on_list = (user.premium_requested_at is not none) %}
       {% include "_early_access.html" %}
     {% endwith %}
+    <p class="small muted">No charge during testing. One email when Premium opens.</p>
   </div>
 {% endif %}
 {% endblock %}
