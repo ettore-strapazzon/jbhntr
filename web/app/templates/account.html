@@ -10,18 +10,24 @@
     Searches used: {{ user.searches_used }} · Documents generated: {{ user.documents_used }}</p>
 </div>
 
-<div class="card" id="email">
-  <h2>Email</h2>
-  <p class="small muted" style="font-weight:600;margin-bottom:2px">New matches by email</p>
-  <form method="post" action="/account/digest" class="checks" style="margin:6px 0">
-    {% for value, label in [("daily","Every day"),("weekly","Once a week, Mondays"),("off","Never")] %}
-      <label><input type="radio" name="frequency" value="{{ value }}"
-        {% if user.digest == value %}checked{% endif %}> {{ label }}</label>
-    {% endfor %}
-    <button class="ghost" type="submit">Save</button>
-  </form>
-  <p class="small muted">We only send when there is something new. No email on the quiet days.
-    {% if not user.is_premium %}The daily digest is a premium feature.{% endif %}</p>
+<div class="card{% if not user.is_premium %} locked{% endif %}" id="email">
+  {% if not user.is_premium %}
+    <div class="premium-only"><span class="po-sq" aria-hidden="true"></span>PREMIUM ONLY</div>
+  {% endif %}
+  <div class="lock-body">
+    <h2>Email</h2>
+    <p class="small muted" style="font-weight:600;margin-bottom:2px">New matches by email</p>
+    <form method="post" action="/account/digest" class="checks" style="margin:6px 0">
+      {% for value, label in [("daily","Every day"),("weekly","Once a week, Mondays"),("off","Never")] %}
+        <label><input type="radio" name="frequency" value="{{ value }}"
+          {% if user.digest == value %}checked{% endif %}
+          {% if not user.is_premium %}disabled{% endif %}> {{ label }}</label>
+      {% endfor %}
+      <button class="ghost" type="submit"{% if not user.is_premium %} disabled{% endif %}>Save</button>
+    </form>
+    <p class="small muted">We only send when there is something new. No email on the quiet days.
+      {% if not user.is_premium %}A digest is part of Premium, which is not open yet.{% endif %}</p>
+  </div>
 </div>
 
 <div class="card">

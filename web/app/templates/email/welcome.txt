@@ -1,4 +1,4 @@
-Your JBHNTR account is ready.
+Welcome to JBHNTR.
 
 Welcome. JBHNTR is an AI job-search agent that reads across job sources and
 company career pages, then returns a reasoned shortlist.

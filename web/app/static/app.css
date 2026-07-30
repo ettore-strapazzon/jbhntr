@@ -397,6 +397,12 @@ footer a{color:var(--muted)}
   padding:9px 14px;margin:0 0 22px;border-radius:6px}
 .soon-sq{width:6px;height:6px;background:var(--brass);flex:none}  /* the one brass mark */
 
+/* premium-only lock (account email section): banner stays vivid, body greys out */
+.premium-only{display:flex;align-items:center;gap:9px;background:var(--accent);color:#fff;
+  font:700 11px/1 var(--mono);letter-spacing:.16em;padding:8px 12px;border-radius:8px;margin:0 0 14px}
+.premium-only .po-sq{width:6px;height:6px;background:var(--brass);flex:none}
+.locked .lock-body{opacity:.5;pointer-events:none}
+
 .prem-head{display:grid;gap:clamp(18px,3vw,40px);align-items:start;margin:0 0 8px;
   grid-template-columns:1fr}
 @media (min-width:820px){.prem-head{grid-template-columns:1.7fr 1fr}}

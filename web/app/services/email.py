@@ -144,7 +144,7 @@ def send_password_reset(email: str, token: str) -> bool:
 
 def send_welcome(email: str) -> bool:
     html, text = render("welcome", {"free_searches": config.free_searches})
-    return send(email, "Your JBHNTR account is ready", text, html)
+    return send(email, "Welcome to JBHNTR", text, html)
 
 
 def send_digest(email: str, ctx: dict, unsub_token: str) -> bool:

@@ -467,7 +467,7 @@ def test_welcome_email_on_signup(client, monkeypatch):
     monkeypatch.setattr(mail, "send",
                         lambda to, subject, text, html=None, headers=None: sent.append(subject) or True)
     signup(client, "welcome@example.com")
-    assert any("account is ready" in s for s in sent)   # EMAIL-001 welcome subject
+    assert any("Welcome to JBHNTR" in s for s in sent)   # welcome subject
 
 
 # ------------------------------- public ---------------------------------- #
@@ -1686,3 +1686,29 @@ def test_job_actions_and_milestones_record_events(client):
         assert n == 1
     finally:
         db.close()
+
+
+def test_reset_usage_clears_free_tier(client):
+    from web.app.db import SessionLocal
+    from web.app.models import Document, JobResult, Search, User
+    from web.app.services.reset_usage import reset
+    signup(client, "reset@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="reset@example.com").one()
+    u.searches_used, u.documents_used = 3, 2
+    s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+    jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="rr",
+                   tier=1, title="R", company="C")
+    db.add(jr); db.flush()
+    db.add(Document(user_id=u.id, job_result_id=jr.id, kind="cv", content="x"))
+    db.commit(); db.close()
+
+    assert reset("reset@example.com") is True
+
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="reset@example.com").one()
+    assert u.searches_used == 0 and u.documents_used == 0
+    assert db.query(Document).filter_by(user_id=u.id).count() == 0
+    db.close()
+    # unknown email is a safe no-op
+    assert reset("nobody@example.com") is False
