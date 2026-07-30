@@ -1703,7 +1703,8 @@ def test_reset_usage_clears_free_tier(client):
     db.add(Document(user_id=u.id, job_result_id=jr.id, kind="cv", content="x"))
     db.commit(); db.close()
 
-    assert reset("reset@example.com") is True
+    msg = reset("reset@example.com")
+    assert "searches_used 3 -> 0" in msg
 
     db = SessionLocal()
     u = db.query(User).filter_by(email="reset@example.com").one()
@@ -1711,4 +1712,24 @@ def test_reset_usage_clears_free_tier(client):
     assert db.query(Document).filter_by(user_id=u.id).count() == 0
     db.close()
     # unknown email is a safe no-op
-    assert reset("nobody@example.com") is False
+    assert "No user found" in reset("nobody@example.com")
+
+
+def test_admin_reset_usage_endpoint(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    signup(client, "areset@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="areset@example.com").one()
+    u.searches_used = 5; db.commit(); db.close()
+
+    r = client.post("/admin/reset-usage", data={"email": "areset@example.com"},
+                    auth=("op", "s3cret"), follow_redirects=False)
+    assert r.status_code == 303 and "reset_msg=" in r.headers["location"]
+    db = SessionLocal()
+    assert db.query(User).filter_by(email="areset@example.com").one().searches_used == 0
+    db.close()
+    # gated by admin auth
+    assert client.post("/admin/reset-usage", data={"email": "x@y.com"}).status_code == 401

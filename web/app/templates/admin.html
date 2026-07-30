@@ -13,6 +13,19 @@
   <div class="stat"><b>{{ waitlist|length }}</b><span>on the waiting list</span></div>
 </div>
 
+{# ===== operator actions ===== #}
+<div class="card">
+  <h2>Reset a user's free usage</h2>
+  <p class="small muted">Sets free searches and CV/cover-letter allowance back to
+    zero for one account (clears its generated documents). Nothing else is touched.</p>
+  {% if reset_msg %}<p class="notice ok" role="status">{{ reset_msg }}</p>{% endif %}
+  <form method="post" action="/admin/reset-usage" class="row" style="margin-top:8px">
+    <input type="email" name="email" placeholder="user@example.com" required
+           style="max-width:280px">
+    <button type="submit">Reset free usage</button>
+  </form>
+</div>
+
 {# ===== premium waiting list ===== #}
 <div class="card">
   <div class="admin-head">

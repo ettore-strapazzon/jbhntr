@@ -19,14 +19,16 @@ from ..db import SessionLocal
 from ..models import Document, User
 
 
-def reset(email: str) -> bool:
+def reset(email: str) -> str:
+    """Reset one user's free-tier usage. Returns a human-readable result line."""
     email = (email or "").strip().lower()
+    if not email:
+        return "No email given — nothing changed."
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.email == email).first()
         if not user:
-            print(f"No user found with email {email!r} — nothing changed.")
-            return False
+            return f"No user found with email {email!r} — nothing changed."
         before_s, before_d = user.searches_used, user.documents_used
         deleted = (db.query(Document)
                    .filter(Document.user_id == user.id)
@@ -34,10 +36,9 @@ def reset(email: str) -> bool:
         user.searches_used = 0
         user.documents_used = 0
         db.commit()
-        print(f"Reset {email}: searches_used {before_s} -> 0, "
-              f"documents_used {before_d} -> 0, deleted {deleted} generated documents. "
-              f"Free searches and CV/cover-letter allowance are fresh.")
-        return True
+        return (f"Reset {email}: searches_used {before_s} -> 0, "
+                f"documents_used {before_d} -> 0, deleted {deleted} generated documents. "
+                f"Free searches and CV/cover-letter allowance are fresh.")
     finally:
         db.close()
 
@@ -46,7 +47,7 @@ def main() -> None:
     if len(sys.argv) != 2:
         print("usage: python -m web.app.services.reset_usage <email>")
         raise SystemExit(2)
-    reset(sys.argv[1])
+    print(reset(sys.argv[1]))
 
 
 if __name__ == "__main__":

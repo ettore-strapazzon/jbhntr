@@ -16,8 +16,8 @@ import io
 import secrets
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy import func
 from sqlalchemy.orm import Session as DbSession
@@ -155,9 +155,19 @@ def _gather(db: DbSession) -> dict:
 
 @router.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, _: bool = Depends(require_admin),
-                    db: DbSession = Depends(get_session)):
+                    db: DbSession = Depends(get_session), reset_msg: str = ""):
     ctx = _gather(db)
-    return templates.TemplateResponse(request, "admin.html", {"request": request, **ctx})
+    return templates.TemplateResponse(request, "admin.html",
+        {"request": request, "reset_msg": reset_msg, **ctx})
+
+
+@router.post("/admin/reset-usage")
+def admin_reset_usage(_: bool = Depends(require_admin), email: str = Form(...)):
+    """Operator action: reset a user's free searches + CV/CL allowance."""
+    from ..services.reset_usage import reset
+    from urllib.parse import quote
+    msg = reset(email)
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
 @router.get("/admin/waitlist.csv")
