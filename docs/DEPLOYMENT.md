@@ -112,3 +112,26 @@ rather not embed on the box.)
   `reaper` its prune counts, `discover` companies added.
 - Rotate any key that was ever pasted into chat or a committed file before going
   public.
+
+## Troubleshooting: the cron ("nightly") deploy crashes
+
+The cron service runs `python -m web.app.services.cron` once per schedule and
+exits. A "Deploy Crashed" email means that run exited non-zero. Check the cron
+service's deploy logs:
+
+- **A Python traceback** — a code bug in one stage. As of the resilience change,
+  each stage (reaper, ingest, digests, page-view prune) is isolated, so one
+  stage's exception is logged and the run still exits 0. If you still see a
+  traceback, it is at import/startup, not inside a stage.
+- **Exit code 137 / "killed" / no traceback** — an **out-of-memory kill**. The
+  heaviest thing the cron does is embed newly-ingested jobs with the local
+  `fastembed` model (a ~150MB ONNX model). The web service survives because it
+  only embeds a few query texts per search; the cron embeds the whole new corpus.
+  `_embed_local` now processes in 32-text chunks to bound the working set. If it
+  still OOMs:
+  1. **Raise the cron service's memory** in Railway (Settings → resource limits).
+  2. Or **switch embeddings to a hosted endpoint**: set `EMBEDDING_BASE_URL` to an
+     OpenAI-compatible `/embeddings` API and `EMBEDDING_API_KEY`. This removes the
+     local model from the cron entirely (matching quality is unchanged).
+  3. If `EMBEDDING_BASE_URL` is unset/empty, embedding is a no-op — then the crash
+     is not embedding, look for a traceback instead.

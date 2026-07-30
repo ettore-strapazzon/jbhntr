@@ -34,30 +34,45 @@ def _prune_pageviews(db, days: int = PAGEVIEW_RETENTION_DAYS) -> int:
     return n
 
 
+def _stage(out: dict, name: str, fn):
+    """Run one maintenance stage; never let its failure abort the others.
+
+    A Python exception here is logged and recorded, so the cron process still
+    exits 0. (An OS-level OOM kill cannot be caught by this — see the embedding
+    note in docs/DEPLOYMENT.md.)
+    """
+    try:
+        out[name] = fn()
+    except Exception as exc:
+        log.exception("nightly stage %s failed", name)
+        out[name] = {"error": f"{type(exc).__name__}: {exc}"}
+
+
 def nightly(today: datetime.date | None = None) -> dict:
     """Run the scheduled maintenance. Weekly work only on WEEKLY_DAY.
 
     Order matters: reap first, then (weekly) grow the company registry and pull
     the metered sources, then the daily ingest, which polls the registry
-    (including anything just discovered) and embeds new jobs.
+    (including anything just discovered) and embeds new jobs. Each stage is
+    isolated so one failure cannot crash the whole nightly run.
     """
     day = today or datetime.datetime.utcnow().date()
     is_weekly = day.weekday() == WEEKLY_DAY
     out: dict = {"weekly": is_weekly}
 
-    out["reaper"] = reaper_run()
+    _stage(out, "reaper", reaper_run)
     if is_weekly:
-        out["discover"] = ingest_run("discover")
-        out["ingest_weekly"] = ingest_run("weekly")
-    out["ingest_daily"] = ingest_run("daily")
+        _stage(out, "discover", lambda: ingest_run("discover"))
+        _stage(out, "ingest_weekly", lambda: ingest_run("weekly"))
+    _stage(out, "ingest_daily", lambda: ingest_run("daily"))
 
     # Premium daily/weekly digest (R13.4). No-op unless SMTP is configured.
     from ..db import SessionLocal
     from .digest import run_digests
     db = SessionLocal()
     try:
-        out["digests"] = run_digests(db, is_weekly_day=is_weekly)
-        out["pageview_pruned"] = _prune_pageviews(db)
+        _stage(out, "digests", lambda: run_digests(db, is_weekly_day=is_weekly))
+        _stage(out, "pageview_pruned", lambda: _prune_pageviews(db))
     finally:
         db.close()
 

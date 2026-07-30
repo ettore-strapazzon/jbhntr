@@ -67,13 +67,25 @@ def _local_model(name: str):
     return _LOCAL_MODEL
 
 
+_LOCAL_BATCH = 32   # keep the fastembed/onnxruntime working set small (cron memory)
+
+
 def _embed_local(texts: list[str], settings: Settings) -> list[list[float]]:
-    """On-device embeddings via fastembed — free, no quota, no network."""
+    """On-device embeddings via fastembed — free, no quota, no network.
+
+    Embed in small chunks rather than handing the whole list to onnxruntime at
+    once: the model itself is a fixed cost, but a 1000-text call also holds every
+    input string and its intermediate tensors in memory, which is enough to OOM a
+    small cron container. Chunking bounds that to one batch at a time.
+    """
     name = model_name(settings)
     try:
         model = _local_model(name)
-        trimmed = [(t or "")[:_MAX_CHARS] or " " for t in texts]
-        return [vec.tolist() for vec in model.embed(trimmed)]
+        out: list[list[float]] = []
+        for i in range(0, len(texts), _LOCAL_BATCH):
+            chunk = [(t or "")[:_MAX_CHARS] or " " for t in texts[i : i + _LOCAL_BATCH]]
+            out.extend(vec.tolist() for vec in model.embed(chunk))
+        return out
     except Exception as exc:
         log.warning("Local embedding failed: %s", exc)
         return []
