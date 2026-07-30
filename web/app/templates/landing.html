@@ -59,6 +59,17 @@
   </div>
 </section>
 
+{# ============================ FUNNEL (V3) ============================ #}
+<section class="section" aria-labelledby="funnel-title">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">WHAT ONE SCAN DOES</p>
+      <h2 id="funnel-title">The whole market, narrowed to a decision.</h2>
+    </div>
+    {% include "partials/funnel.html" %}
+  </div>
+</section>
+
 {# ============================ PROBLEM (HOME-004) ============================ #}
 <section class="section" aria-labelledby="problem-title">
   <div class="container">
@@ -119,9 +130,22 @@
       <h2 id="diff-title">Judgement in two directions, not a longer feed.</h2>
     </div>
     <ul class="card-grid">
-      <li><b>Judges fit both ways.</b><p>A role can suit your goals and still be a
-        stretch on the requirements. Both scores are shown, with the reasoning,
-        instead of one number that hides the trade-off.</p></li>
+      <li class="quad-li">
+        <div class="quad-frame">
+          <span class="quad-axis quad-axis-y">You fit the role &rarr;</span>
+          <div class="quad-col">
+            <div class="quadrant-plot" role="img"
+                 aria-label="Two-way fit plot: the example role is strong on both axes, so it lands in Apply now">
+              <div class="quad-cell"><b>You fit, role does not fit you</b>Likely to get it, likely to regret it. This is why “Watch out” exists.</div>
+              <div class="quad-cell"><b>You fit, role fits you</b>Apply now.</div>
+              <div class="quad-cell muted-cell"><b>Neither</b>Dismissed before you see it.</div>
+              <div class="quad-cell"><b>You do not fit, role fits you</b>A stretch worth a tailored application.</div>
+              <span class="quad-dot" aria-hidden="true"></span>
+            </div>
+            <span class="quad-axis quad-axis-x">Role fits you &rarr;</span>
+          </div>
+        </div>
+      </li>
       <li><b>Understands the work, not only the title.</b><p>Semantic retrieval finds
         adjacent and equivalent roles, while hard constraints keep the list grounded
         in where and how you can actually work.</p></li>

@@ -1,0 +1,24 @@
+{# V3 funnel — labels only, bars sized by the stage's meaning (no invented
+   figures). Bars animate in on first view via app.js; CSS handles reduced-motion. #}
+<div class="funnel-block">
+<div class="funnel" aria-label="How a single scan narrows the market to a shortlist">
+  <div class="funnel-row">
+    <span class="funnel-label">Postings found across sources</span>
+    <div class="funnel-bar" style="width:100%"></div>
+  </div>
+  <div class="funnel-row">
+    <span class="funnel-label">Passed your hard filters</span>
+    <div class="funnel-bar" style="width:38%"></div>
+  </div>
+  <div class="funnel-row">
+    <span class="funnel-label">Semantically relevant to your work</span>
+    <div class="funnel-bar" style="width:16%"></div>
+  </div>
+  <div class="funnel-row">
+    <span class="funnel-label">Cleared your fit threshold</span>
+    <div class="funnel-bar" style="width:7%"></div>
+  </div>
+</div>
+<p class="funnel-note small muted">Every scan is different. The widths show the shape,
+  not a count.</p>
+</div>

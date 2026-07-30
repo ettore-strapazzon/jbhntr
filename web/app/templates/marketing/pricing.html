@@ -2,43 +2,54 @@
 {% block body_class %}home{% endblock %}
 {% block content %}
 <div class="container">
-  <article class="doc">
-    <p class="eyebrow">FREE NOW · PREMIUM PLANNED</p>
+  <div class="doc">
+    <p class="eyebrow">PRICING</p>
     <h1>Free to prove the search. Premium for continuity.</h1>
-    <p class="lede">Use the complete core search before deciding whether recurring
-      automation is worth paying for.</p>
+    <p class="lede">Everything JBHNTR does today is free while we build. Premium is
+      coming soon at an affordable price. In the meantime you can try every feature on
+      the free tier.</p>
+  </div>
 
-    <section aria-labelledby="s-free">
-      <h2 id="s-free">Free now</h2>
-      <ul>
-        <li>{{ config.free_searches }} complete market scans you start yourself.</li>
-        <li>The same core search method: hard filters, semantic retrieval, two-way fit
-          and explanations.</li>
-        <li>{{ config.free_cvs }} tailored CV drafts and {{ config.free_cover_letters }}
-          cover-letter draft.</li>
-        <li>Save, dismiss, rate and track applications.</li>
-        <li>No payment card required.</li>
+  <div class="plans">
+    <div class="plan">
+      <p class="plan-badge">Available now</p>
+      <h2 class="plan-name">Free</h2>
+      <p class="plan-price">&euro;0</p>
+      <p class="plan-price-note">No payment card required</p>
+      <p class="plan-for">For running a full search yourself, when you want to see the
+        whole market on your own schedule.</p>
+      <ul class="plan-list">
+        <li>{{ config.free_searches }} complete market scans you start yourself</li>
+        <li>The full core search: hard filters, semantic retrieval, two-way fit and explanations</li>
+        <li>{{ config.free_cvs }} tailored CV drafts and {{ config.free_cover_letters }} cover-letter draft</li>
+        <li>Save, dismiss, rate and track applications</li>
       </ul>
-    </section>
+      <a class="btn" href="/signup">Start your first scan</a>
+    </div>
 
-    <section aria-labelledby="s-prem">
-      <h2 id="s-prem">Premium: planned, not on sale</h2>
-      <p>Planned Premium is intended to add:</p>
-      <ul>
-        <li>automatic recurring scans;</li>
-        <li>more frequent checks against fresh postings;</li>
-        <li>a digest only when new roles clear the user's threshold;</li>
-        <li>many more tailored CVs and cover letters;</li>
-        <li>deeper application and search-history tools.</li>
+    <div class="plan plan--premium">
+      <p class="plan-badge">Coming soon</p>
+      <h2 class="plan-name">Premium</h2>
+      <p class="plan-price">Affordable</p>
+      <p class="plan-price-note">Price announced at launch</p>
+      <p class="plan-for">For when you stop searching and let the search run. JBHNTR keeps
+        watching the market and says something only when a role clears your bar.</p>
+      <p class="plan-carry">Everything in Free, plus:</p>
+      <ul class="plan-list">
+        <li>scans that run on their own</li>
+        <li>fresh postings checked more often</li>
+        <li>a digest only when a role clears your threshold</li>
+        <li>a larger tailored-document allowance</li>
+        <li>deeper application and search history</li>
       </ul>
-      <p>The price has not been announced. If payments later launch, the live checkout
-        configuration becomes the source of truth.</p>
       {% if user %}
-        <p class="cta"><a class="btn" href="/premium">Join the Premium waiting list</a></p>
+        <a class="btn" href="/premium">Say when Premium opens</a>
       {% else %}
-        <p class="cta"><a class="btn" href="/signup">Create an account to join the waiting list</a></p>
+        <a class="btn" href="/signup">Say when Premium opens</a>
       {% endif %}
-    </section>
-  </article>
+      <p class="plan-foot">Premium is coming soon at an affordable price. In the meantime
+        you can try every feature on the free tier.</p>
+    </div>
+  </div>
 </div>
 {% endblock %}

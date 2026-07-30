@@ -21,6 +21,26 @@
   }
 })();
 
+// Funnel bars (V3) animate in once, the first time they scroll into view.
+// Respects prefers-reduced-motion and degrades to "just show them" without
+// IntersectionObserver. Inline scripts are CSP-forbidden, so this lives here.
+(function () {
+  var funnels = document.querySelectorAll(".funnel");
+  if (!funnels.length) return;
+  var reduce = window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce || !("IntersectionObserver" in window)) {
+    funnels.forEach(function (f) { f.classList.add("in"); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+    });
+  }, { threshold: 0.35 });
+  funnels.forEach(function (f) { io.observe(f); });
+})();
+
 // Live counter for the 300-character feedback boxes.
 document.addEventListener("input", function (e) {
   if (e.target && e.target.matches("textarea[data-counter]")) {
