@@ -1,0 +1,19 @@
+{# Round 6: the single comparison-table component, used by the LinkedIn "Where they
+   differ" table and the Free/Premium pricing table. Same markup, same CSS — only the
+   headers and rows differ. Wrap is a horizontal-scroll container with a right-edge
+   fade; on mobile the first column stays pinned. Pass variant="pricing" to tint the
+   last column. `headers` is a list of strings; `rows` is a list of equal-length lists. #}
+{% macro compare_table(headers, rows, variant="") %}
+<div class="compare-scroll">
+  <table class="compare{% if variant %} compare--{{ variant }}{% endif %}">
+    <thead>
+      <tr>{% for h in headers %}<th scope="col">{{ h }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}

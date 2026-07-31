@@ -41,6 +41,38 @@
   funnels.forEach(function (f) { io.observe(f); });
 })();
 
+// Mobile full-nav sheet (Round 6). The button lives in the header; the panel is
+// in normal flow beneath it. CSP forbids inline handlers, so it is wired here.
+(function () {
+  var toggle = document.querySelector(".nav-toggle");
+  var menu = document.getElementById("mobile-menu");
+  if (!toggle || !menu) return;
+  function close() {
+    menu.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-label", "Open menu");
+  }
+  function open() {
+    menu.hidden = false;
+    toggle.setAttribute("aria-expanded", "true");
+    toggle.setAttribute("aria-label", "Close menu");
+  }
+  toggle.addEventListener("click", function () {
+    if (menu.hidden) { open(); } else { close(); }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !menu.hidden) { close(); toggle.focus(); }
+  });
+  document.addEventListener("click", function (e) {
+    if (menu.hidden) return;
+    if (menu.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+  menu.addEventListener("click", function (e) {
+    if (e.target.closest("a")) close();   // navigating away — collapse the sheet
+  });
+})();
+
 // Live counter for the 300-character feedback boxes.
 document.addEventListener("input", function (e) {
   if (e.target && e.target.matches("textarea[data-counter]")) {

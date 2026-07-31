@@ -4,6 +4,12 @@
 <h1>Account</h1>
 {% if error %}<div class="notice err">{{ error }}</div>{% endif %}
 
+{# Where people look for their plan — the first row, linking to Premium (Round 6.2) #}
+<a class="card plan-row" href="/premium">
+  <span><b>Your plan</b> · {{ "Premium" if user.is_premium else "Free" }}</span>
+  <span class="plan-row-chev" aria-hidden="true">&rsaquo;</span>
+</a>
+
 <div class="card">
   <p><b>{{ user.email }}</b></p>
   <p class="small muted">Plan: {{ "Premium" if user.is_premium else "Free" }} ·

@@ -1,54 +1,15 @@
-{# Shared capability comparison (Round 5b). One rule per row on the cells, sentence-
-   case row labels, muted values, tinted Premium column. Stacks below 720px. #}
-<table class="compare">
-  <thead>
-    <tr>
-      <th scope="col">Capability</th>
-      <th scope="col">Free</th>
-      <th scope="col">Premium</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th scope="row">Job-market searches</th>
-      <td data-plan="Free">{{ config.free_searches }} total</td>
-      <td data-plan="Premium">Runs automatically every day</td>
-    </tr>
-    <tr>
-      <th scope="row">Search coverage</th>
-      <td data-plan="Free">Core supported sources</td>
-      <td data-plan="Premium">Wider company-career-page coverage</td>
-    </tr>
-    <tr>
-      <th scope="row">Email digest</th>
-      <td data-plan="Free">Premium only</td>
-      <td data-plan="Premium">New and saved matches</td>
-    </tr>
-    <tr>
-      <th scope="row">Email preferences</th>
-      <td data-plan="Free">Premium only</td>
-      <td data-plan="Premium">Customisable</td>
-    </tr>
-    <tr>
-      <th scope="row">Matching and tailoring</th>
-      <td data-plan="Free">Standard models</td>
-      <td data-plan="Premium">Advanced models</td>
-    </tr>
-    <tr>
-      <th scope="row">Tailored CVs</th>
-      <td data-plan="Free">{{ config.free_cvs }} total</td>
-      <td data-plan="Premium">{{ config.premium_cvs_monthly }} per month</td>
-    </tr>
-    <tr>
-      <th scope="row">Tailored cover letters</th>
-      <td data-plan="Free">{{ config.free_cover_letters }} total</td>
-      <td data-plan="Premium">{{ config.premium_cover_letters_monthly }} per month</td>
-    </tr>
-    <tr>
-      <th scope="row">Import an external job</th>
-      <td data-plan="Free">Premium only</td>
-      <td data-plan="Premium">Included</td>
-    </tr>
-  </tbody>
-</table>
+{# Free/Premium capability comparison — rendered through the one shared table
+   component (Round 6). Copy is data only; the styling lives in .compare. #}
+{% from "partials/_compare_table.html" import compare_table %}
+{% set rows = [
+  ["Job-market searches", config.free_searches ~ " total", "Runs automatically every day"],
+  ["Search coverage", "Core supported sources", "Wider company-career-page coverage"],
+  ["Email digest", "Premium only", "New and saved matches"],
+  ["Email preferences", "Premium only", "Customisable"],
+  ["Matching and tailoring", "Standard models", "Advanced models"],
+  ["Tailored CVs", config.free_cvs ~ " total", config.premium_cvs_monthly ~ " per month"],
+  ["Tailored cover letters", config.free_cover_letters ~ " total", config.premium_cover_letters_monthly ~ " per month"],
+  ["Import an external job", "Premium only", "Included"],
+] %}
+{{ compare_table(["Capability", "Free", "Premium"], rows, variant="pricing") }}
 <p class="compare-note">JBHNTR does not mass-apply or send documents without your review.</p>

@@ -113,6 +113,10 @@
         </div>
         <span class="quota">{{ allow.cv }} of {{ cv_limit }} tailored CV{{ 's' if cv_limit != 1 }}{% if user.is_premium %} left this month{% else %} left{% endif %} ·
           {{ allow.cl }} of {{ cl_limit }} cover letter{{ 's' if cl_limit != 1 }}{% if user.is_premium %} left this month{% else %} left{% endif %}</span>
+        {# at the limit is the one moment the Premium pitch is wanted (Round 6.2) #}
+        {% if not user.is_premium and ((allow.cv or 0) <= 0 or (allow.cl or 0) <= 0) %}
+          <a class="quota-upsell" href="/premium">More tailored documents with Premium &rarr;</a>
+        {% endif %}
       </div>
 
       <div class="actiongroup triage">

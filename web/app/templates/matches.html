@@ -25,8 +25,8 @@
     {% if user.is_premium %}
       <span class="small muted">Up to {{ config.premium_searches_per_day }} scans a day under fair use</span>
     {% elif searches_left <= 0 %}
-      <span class="small muted">No free scans left. Your shortlist stays here.
-        <a href="/premium">See premium</a>.</span>
+      <span class="small muted">You have used all {{ config.free_searches }} free scans.
+        Your shortlist stays here. <a href="/premium">See Premium</a>.</span>
     {% else %}
       <span class="small muted">{{ searches_left }} of {{ config.free_searches }} free scans left</span>
     {% endif %}

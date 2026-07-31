@@ -1828,3 +1828,67 @@ def test_pricing_and_premium_have_no_banned_plan_words(client):
         assert "unlimited" not in t
         for bad in ("2 tailored cv", "one cover letter", "cheap to keep"):
             assert bad not in t
+
+
+# --------------------------- Round 6 -------------------------------------- #
+def test_compare_table_is_one_shared_component(client):
+    """Round 6.1: the LinkedIn 'Where they differ' table and the pricing table are
+    the same .compare component in a .compare-scroll wrapper. Only pricing is tinted,
+    and the LinkedIn table no longer carries the old .apptable style."""
+    pricing = client.get("/pricing").text
+    linkedin = client.get("/compare/linkedin-jobs").text
+    for page in (pricing, linkedin):
+        assert 'class="compare-scroll"' in page
+        assert '<table class="compare' in page
+    assert "compare--pricing" in pricing                 # Premium column tinted
+    assert "compare--pricing" not in linkedin            # LinkedIn table untinted
+    assert "apptable" not in linkedin                    # dropped the second table style
+    assert "Where they differ" in linkedin and "Dimension" in linkedin
+    assert "Job-market searches" in pricing              # a pricing row survives
+
+
+def test_benefits_boxes_on_premium(client):
+    """Round 6.3: the three numbered benefit boxes, under one eyebrow, no decorative
+    square, on the Premium pitch page."""
+    signup(client, email="ben@example.com")
+    page = client.get("/premium").text
+    assert "WHAT PREMIUM CHANGES" in page
+    for h in ("Always searching", "More of the market", "Ready to apply"):
+        assert h in page
+    assert 'class="benefit-num">01<' in page
+    assert 'class="benefit-num">02<' in page
+    assert 'class="benefit-num">03<' in page
+    assert "value-mark" not in page                      # the green square is gone
+
+
+def test_mobile_menu_carries_full_nav_with_premium(client):
+    """Round 6.2: authed pages expose the full site nav via a menu sheet the four-tab
+    bottom bar cannot hold; Premium leads it with the coming-soon badge."""
+    signup(client, email="mm@example.com")
+    page = client.get("/account").text
+    assert 'class="nav-toggle"' in page
+    assert 'id="mobile-menu"' in page
+    assert 'class="badge-soon">Coming soon' in page
+    for label in ("Pricing", "How it works", "Comparisons"):
+        assert label in page
+
+
+def test_bottombar_four_tabs_svg_icons_and_active(client):
+    """Round 6.2: the bottom bar keeps four tabs, drawn with one 24px SVG icon set,
+    and marks the current tab. Premium is not a tab."""
+    signup(client, email="bb@example.com")
+    page = client.get("/account").text
+    assert page.count('class="bb-i"') == 4               # one icon per tab, one set
+    assert page.count('<svg class="bb-i"') == 4
+    # the bottom bar itself lists exactly the four daily destinations, not Premium
+    bar = page.split('class="bottombar"', 1)[1].split("</nav>", 1)[0]
+    assert 'href="/premium"' not in bar
+    assert 'href="/account"' in bar and 'aria-current="page"' in bar
+
+
+def test_account_first_row_is_plan_link_to_premium(client):
+    """Round 6.2: the Account screen opens with 'Your plan', linking to Premium."""
+    signup(client, email="pl@example.com")
+    page = client.get("/account").text
+    assert 'class="card plan-row" href="/premium"' in page
+    assert "Your plan" in page

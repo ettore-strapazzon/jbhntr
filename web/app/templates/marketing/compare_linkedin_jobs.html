@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/_compare_table.html" import compare_table %}
 {% block body_class %}home{% endblock %}
 {% block content %}
 <div class="container">
@@ -13,28 +14,24 @@
 
     <section aria-labelledby="s-table">
       <h2 id="s-table">Where they differ</h2>
-      <div class="tablewrap">
-        <table class="apptable compare">
-          <thead><tr><th>Dimension</th><th>LinkedIn Jobs</th><th>JBHNTR</th></tr></thead>
-          <tbody>
-            <tr><td>Where roles come from</td>
-              <td>Its own inventory, posted by employers to the platform</td>
-              <td>25+ sources including direct employer career pages; not LinkedIn</td></tr>
-            <tr><td>Who the tool acts for</td>
-              <td>Candidates and employers, with recruiter products as the revenue base</td>
-              <td>The candidate. No recruiter product today, and any future one requires explicit opt-in</td></tr>
-            <tr><td>How fit is expressed</td>
-              <td>Relevance and match signals within the platform</td>
-              <td>Two scores, role fit and requirements fit, with reasons for and against</td></tr>
-            <tr><td>Profile visibility</td>
-              <td>A public professional profile is the core of the product</td>
-              <td>Private by default, not browsable</td></tr>
-            <tr><td>Best at</td>
-              <td>Network, employer presence, breadth of its own postings, being where recruiters look</td>
-              <td>Reading across sources you would not check yourself and saying which few are worth a decision</td></tr>
-          </tbody>
-        </table>
-      </div>
+      {% set rows = [
+        ["Where roles come from",
+         "Its own inventory, posted by employers to the platform",
+         "25+ sources including direct employer career pages; not LinkedIn"],
+        ["Who the tool acts for",
+         "Candidates and employers, with recruiter products as the revenue base",
+         "The candidate. No recruiter product today, and any future one requires explicit opt-in"],
+        ["How fit is expressed",
+         "Relevance and match signals within the platform",
+         "Two scores, role fit and requirements fit, with reasons for and against"],
+        ["Profile visibility",
+         "A public professional profile is the core of the product",
+         "Private by default, not browsable"],
+        ["Best at",
+         "Network, employer presence, breadth of its own postings, being where recruiters look",
+         "Reading across sources you would not check yourself and saying which few are worth a decision"],
+      ] %}
+      {{ compare_table(["Dimension", "LinkedIn Jobs", "JBHNTR"], rows) }}
     </section>
 
     <section aria-labelledby="s-when">
