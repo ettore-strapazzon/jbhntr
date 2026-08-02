@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ u.email }} · Operator · JBHNTR{% endblock %}
+{% block content %}
+{% macro chips(items) %}
+  {% if items %}{% for it in items %}<span class="au-chip">{{ it }}</span>{% endfor %}
+  {% else %}<span class="muted">—</span>{% endif %}
+{% endmacro %}
+
+<p class="small"><a href="/admin">&larr; Back to dashboard</a></p>
+<h1 style="overflow-wrap:anywhere">{{ u.email }}</h1>
+<p class="small muted">Operator view. Shows this user's own profile and CV so the
+  matching can be checked — do not share.</p>
+
+{# ===== account ===== #}
+<div class="card">
+  <h2>Account</h2>
+  <dl class="au-kv">
+    <dt>Plan</dt><dd>{{ u.plan }}{% if u.is_premium %} (active){% endif %}</dd>
+    <dt>Joined</dt><dd>{{ u.created_at.strftime("%d %b %Y, %H:%M") if u.created_at else "—" }}</dd>
+    <dt>Last login</dt><dd>{{ u.last_login_at.strftime("%d %b %Y, %H:%M") if u.last_login_at else "—" }}</dd>
+    <dt>Searches used</dt><dd>{{ u.searches_used }}</dd>
+    <dt>Documents used</dt><dd>{{ u.documents_used }}</dd>
+    <dt>Email digest</dt><dd>{{ u.digest }}</dd>
+    <dt>Premium waitlist</dt><dd>{{ u.premium_requested_at.strftime("%d %b %Y") if u.premium_requested_at else "no" }}</dd>
+    <dt>Via Google</dt><dd>{{ "yes" if u.google_sub else "no" }}</dd>
+  </dl>
+</div>
+
+{# ===== search preferences ===== #}
+<div class="card">
+  <h2>Search preferences</h2>
+  {% if profile %}
+    <dl class="au-kv">
+      <dt>Objective</dt><dd>{{ profile.objective or "—" }}</dd>
+      <dt>Seniority</dt><dd>{{ chips(profile.seniority) }}</dd>
+      <dt>Company type</dt><dd>{{ chips(profile.company_type) }}</dd>
+      <dt>Verticals</dt><dd>{{ chips(profile.verticals) }}</dd>
+      <dt>Work modes</dt><dd>{{ chips(profile.work_modes) }}</dd>
+      <dt>Countries</dt><dd>{{ chips(profile.countries) }}</dd>
+      <dt>Locations (engine)</dt><dd>{{ chips(profile.locations) }}</dd>
+      <dt>Job types</dt><dd>{{ chips(profile.job_type) }}</dd>
+      <dt>Search terms</dt><dd>{{ chips(profile.search_terms) }}</dd>
+      <dt>Salary floor (EUR)</dt><dd>{{ profile.salary_floor_eur or "—" }}</dd>
+      <dt>Seed companies</dt><dd>{{ chips(seeds) }}</dd>
+    </dl>
+    {% if profile.about_me %}
+      <details style="margin-top:10px"><summary class="small muted">About-me text</summary>
+        <p class="small" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ profile.about_me }}</p>
+      </details>
+    {% endif %}
+  {% else %}
+    <p class="muted small">No profile saved.</p>
+  {% endif %}
+</div>
+
+{# ===== materials ===== #}
+<div class="card">
+  <h2>Materials <span class="muted small">({{ materials|length }})</span></h2>
+  {% if materials %}
+    {% for m in materials %}
+      <details style="margin:0 0 8px">
+        <summary><b>{{ m.kind }}</b> · {{ m.filename }}
+          <span class="muted small">({{ (m.size_bytes / 1024) | round(1) }} KB, {{ m.text|length }} chars extracted)</span></summary>
+        <p class="small" style="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px">{{ m.text or "(no extracted text)" }}</p>
+      </details>
+    {% endfor %}
+  {% else %}
+    <p class="muted small">No documents uploaded.</p>
+  {% endif %}
+</div>
+
+{# ===== searches + results (the double-check) ===== #}
+<div class="card">
+  <h2>Searches &amp; results <span class="muted small">({{ runs|length }} run{{ '' if runs|length == 1 else 's' }})</span></h2>
+  {% if not runs %}
+    <p class="muted small">This user has not run a search yet.</p>
+  {% endif %}
+  {% for run in runs %}
+    {% set s = run.search %}
+    <div class="au-run">
+      <h3>Run #{{ s.id }} · {{ s.started_at.strftime("%d %b %Y, %H:%M") if s.started_at else "—" }}
+        <span class="muted small">{{ s.status }}</span></h3>
+      <p class="small muted" style="margin:0 0 4px">
+        {{ s.raw_count }} collected · {{ s.located_count }} in-region ·
+        {{ s.ranked_count }} shortlisted · {{ s.scored_count }} kept
+        {% if s.error %}· <span style="color:var(--err)">{{ s.error }}</span>{% endif %}</p>
+
+      {% for r in run.results %}
+        <div class="au-res">
+          <div class="au-res-head">
+            <span class="au-score">{{ r.score }}</span>
+            <span class="tier tier-{{ r.tier }}">{{ r.tier_label or ("tier " ~ r.tier) }}</span>
+            <b style="overflow-wrap:anywhere">{{ r.title }}</b>
+            <span class="muted small">@ {{ r.company }}{% if r.location %} · {{ r.location }}{% endif %}</span>
+            {% if ratings.get(r.id) %}<span class="au-userrate">user rated {{ ratings.get(r.id) }}/5</span>{% endif %}
+          </div>
+          <p class="au-fits">Fit — role {{ r.fit_role }} · candidate {{ r.fit_candidate }}
+            {% if r.source %} · {{ r.source }}{% endif %}
+            {% if r.tags %} · {{ r.tags | join(", ") }}{% endif %}</p>
+          <div class="au-why">
+            <div><h4>Why it fits</h4><p>{{ r.why_good or "—" }}</p></div>
+            <div><h4>Why it doesn't</h4><p>{{ r.why_bad or "—" }}</p></div>
+          </div>
+        </div>
+      {% else %}
+        <p class="muted small">No stored results for this run.</p>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

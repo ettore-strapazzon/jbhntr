@@ -21,6 +21,24 @@
   }
 })();
 
+// Alpha banner. Rendered visible by default (so it shows even before JS, and for
+// no-JS visitors); hidden here once the tester has dismissed it. CSP forbids
+// inline handlers, so the dismiss is wired here like the cookie notice.
+(function () {
+  var banner = document.getElementById("alpha-banner");
+  if (!banner) return;
+  var seen = false;
+  try { seen = !!localStorage.getItem("alpha-banner-seen"); } catch (e) {}
+  if (seen) { banner.hidden = true; return; }
+  var x = document.getElementById("alpha-dismiss");
+  if (x) {
+    x.addEventListener("click", function () {
+      try { localStorage.setItem("alpha-banner-seen", "1"); } catch (e) {}
+      banner.hidden = true;
+    });
+  }
+})();
+
 // Funnel bars (V3) animate in once, the first time they scroll into view.
 // Respects prefers-reduced-motion and degrades to "just show them" without
 // IntersectionObserver. Inline scripts are CSP-forbidden, so this lives here.

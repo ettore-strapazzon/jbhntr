@@ -403,3 +403,38 @@ class ProductEvent(Base):
     name: Mapped[str] = mapped_column(String(48), index=True)
     properties: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+# Whole-product survey shown during the alpha (distinct from per-match Feedback).
+# Each question is a 1-5 scale; label is what the tester reads.
+SITE_FEEDBACK_QUESTIONS = [
+    ("q_useful", "JBHNTR could be useful to me"),
+    ("q_easy", "It is easy to use and understand"),
+    ("q_look", "I like how it looks and feels"),
+    ("q_pay", "I would pay for Premium if I were job-hunting"),
+]
+
+
+class SiteFeedback(Base):
+    """Alpha/testing feedback on the product as a whole: four 1-5 ratings plus
+    open comments. Separate from the per-match `Feedback`. Anonymous-friendly —
+    user_id is nullable so a logged-out tester can still leave feedback.
+    """
+
+    __tablename__ = "site_feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, default=None)
+    # Four 1-5 ratings; None when the tester skipped that question.
+    q_useful: Mapped[int | None] = mapped_column(Integer, default=None)
+    q_easy: Mapped[int | None] = mapped_column(Integer, default=None)
+    q_look: Mapped[int | None] = mapped_column(Integer, default=None)
+    q_pay: Mapped[int | None] = mapped_column(Integer, default=None)
+    # Open text.
+    likes: Mapped[str] = mapped_column(Text, default="")
+    dislikes: Mapped[str] = mapped_column(Text, default="")
+    broken: Mapped[str] = mapped_column(Text, default="")
+    other: Mapped[str] = mapped_column(Text, default="")
+    path: Mapped[str] = mapped_column(String(255), default="")   # where they were
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

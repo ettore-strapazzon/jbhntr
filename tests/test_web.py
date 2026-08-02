@@ -1892,3 +1892,104 @@ def test_account_first_row_is_plan_link_to_premium(client):
     page = client.get("/account").text
     assert 'class="card plan-row" href="/premium"' in page
     assert "Your plan" in page
+
+
+# --------------------------- alpha feedback + operator audit --------------- #
+def test_alpha_banner_and_feedback_form(client):
+    """The alpha banner shows site-wide and links to the survey; the survey has
+    the four rating questions and the four open boxes."""
+    home = client.get("/").text
+    assert 'id="alpha-banner"' in home
+    assert "/feedback?from=" in home                 # CTA carries the origin path
+    form = client.get("/feedback").text
+    for name in ("q_useful", "q_easy", "q_look", "q_pay"):
+        assert f'name="{name}"' in form
+    for box in ("likes", "dislikes", "broken", "other"):
+        assert f'name="{box}"' in form
+
+
+def test_alpha_feedback_submit_stores_and_thanks(client):
+    """Anonymous submit is accepted, clamped, stored, and lands on a thank-you."""
+    from web.app.db import SessionLocal
+    from web.app.models import SiteFeedback
+    r = client.post("/feedback", data={
+        "q_useful": "5", "q_easy": "4", "q_look": "5", "q_pay": "9",  # 9 clamps to 5
+        "likes": "clean and clear", "dislikes": "", "broken": "search was slow",
+        "other": "", "path": "/matches",
+    }, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/feedback?sent=1"
+    assert "Feedback received" in client.get("/feedback?sent=1").text
+    db = SessionLocal()
+    try:
+        fb = db.query(SiteFeedback).order_by(SiteFeedback.id.desc()).first()
+        assert fb.q_useful == 5 and fb.q_pay == 5      # 9 was clamped to 5
+        assert fb.user_id is None                       # anonymous is allowed
+        assert fb.likes == "clean and clear" and fb.path == "/matches"
+    finally:
+        db.close()
+
+
+def test_alpha_feedback_blank_rating_is_null(client):
+    from web.app.db import SessionLocal
+    from web.app.models import SiteFeedback
+    client.post("/feedback", data={"q_useful": "", "likes": "just text"})
+    db = SessionLocal()
+    try:
+        fb = db.query(SiteFeedback).order_by(SiteFeedback.id.desc()).first()
+        assert fb.q_useful is None and fb.likes == "just text"
+    finally:
+        db.close()
+
+
+def test_admin_lists_users_and_alpha_feedback(client, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    signup(client, email="u1@example.com")
+    client.post("/feedback", data={"q_useful": "4", "likes": "love the two-way fit"})
+    page = client.get("/admin", auth=("op", "s3cret")).text
+    assert "love the two-way fit" in page                 # feedback text surfaced
+    assert "Alpha feedback" in page
+    # the user is listed with a link into the audit view
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    db = SessionLocal()
+    uid = db.query(User).filter_by(email="u1@example.com").one().id
+    db.close()
+    assert f'/admin/users/{uid}' in page
+
+
+def test_admin_user_audit_shows_prefs_and_why(client, monkeypatch):
+    """The per-user audit renders the profile/preferences and each result's score
+    and why-it-fits / why-it-doesn't."""
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, Profile, Search, User
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    signup(client, email="cand@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="cand@example.com").one()
+        prof = u.profile or Profile(user_id=u.id)
+        prof.objective = "Head of Strategy at a fintech"
+        prof.seniority = ["lead"]
+        prof.locations = ["Italy"]
+        db.add(prof)
+        s = Search(user_id=u.id, status="done", scored_count=1)
+        db.add(s); db.flush()
+        db.add(JobResult(search_id=s.id, user_id=u.id, position=1, short_id="job001",
+                         tier=1, tier_label="Apply now", score=88, fit_role=90,
+                         fit_candidate=80, title="Head of Strategy", company="Acme",
+                         why_good="Matches your fintech objective.",
+                         why_bad="Asks for 8 years you may not have."))
+        db.commit()
+        uid = u.id
+    finally:
+        db.close()
+    page = client.get(f"/admin/users/{uid}", auth=("op", "s3cret")).text
+    assert "Head of Strategy at a fintech" in page        # objective
+    assert "Search preferences" in page
+    assert "88" in page and "Matches your fintech objective." in page
+    assert "Asks for 8 years you may not have." in page   # why it doesn't
+    # gate + missing user
+    assert client.get(f"/admin/users/{uid}").status_code == 401
+    assert client.get("/admin/users/999999", auth=("op", "s3cret")).status_code == 404

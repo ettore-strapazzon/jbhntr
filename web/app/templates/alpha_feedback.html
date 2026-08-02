@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Share feedback · JBHNTR{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="doc">
+    {% if sent %}
+      {# Thank-you state after a successful submit. #}
+      <p class="eyebrow">THANK YOU</p>
+      <h1>Feedback received</h1>
+      <p class="lede">Genuinely, thank you for taking the time. Every note here
+        shapes what I build next.</p>
+      <p><a class="btn" href="/">Back to JBHNTR</a>
+        <a class="btn ghost" href="/feedback">Leave more feedback</a></p>
+    {% else %}
+      <p class="eyebrow">ALPHA FEEDBACK</p>
+      <h1>Tell me what you think</h1>
+      <p class="lede">JBHNTR is in early testing. Your honest read, good or bad, is
+        exactly what I need. Rate what you can, skip what you can't, and write as
+        little or as much as you like.</p>
+
+      <form method="post" action="/feedback" class="fb-form">
+        <input type="hidden" name="path" value="{{ origin }}">
+
+        <fieldset class="fb-scales">
+          <legend class="sr-only">Quick ratings, 1 (low) to 5 (high)</legend>
+          {% for name, label in questions %}
+            <div class="fb-scale">
+              <p class="fb-q">{{ label }}</p>
+              <div class="fb-scale-row" role="radiogroup" aria-label="{{ label }}">
+                <span class="fb-anchor">Not at all</span>
+                {% for n in range(1, 6) %}
+                  <label class="fb-dot">
+                    <input type="radio" name="{{ name }}" value="{{ n }}">
+                    <span>{{ n }}</span>
+                  </label>
+                {% endfor %}
+                <span class="fb-anchor">A lot</span>
+              </div>
+            </div>
+          {% endfor %}
+        </fieldset>
+
+        <div class="fb-boxes">
+          <label class="fb-box">
+            <span class="fb-q">What I like about it</span>
+            <textarea name="likes" rows="3" maxlength="4000"
+              placeholder="What worked, what felt good, what you'd keep."></textarea>
+          </label>
+          <label class="fb-box">
+            <span class="fb-q">What I don't like about it</span>
+            <textarea name="dislikes" rows="3" maxlength="4000"
+              placeholder="What annoyed you, confused you, or fell flat."></textarea>
+          </label>
+          <label class="fb-box">
+            <span class="fb-q">What doesn't work or needs fixing</span>
+            <textarea name="broken" rows="3" maxlength="4000"
+              placeholder="Bugs, dead ends, anything broken or missing."></textarea>
+          </label>
+          <label class="fb-box">
+            <span class="fb-q">Anything else</span>
+            <textarea name="other" rows="3" maxlength="4000"
+              placeholder="Ideas, questions, or whatever's on your mind."></textarea>
+          </label>
+        </div>
+
+        <div class="fb-submit">
+          <button class="btn" type="submit">Send feedback</button>
+          {% if not user %}<span class="small muted">You can send this without an account.</span>{% endif %}
+        </div>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

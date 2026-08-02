@@ -24,7 +24,10 @@ from sqlalchemy.orm import Session as DbSession
 
 from ..config import config
 from ..db import get_session
-from ..models import Document, Feedback, PageView, ProductEvent, Search, User, utcnow
+from ..models import (
+    SITE_FEEDBACK_QUESTIONS, Document, Feedback, JobResult, PageView,
+    ProductEvent, Search, SiteFeedback, User, utcnow,
+)
 from ..templating import templates
 
 router = APIRouter()
@@ -116,6 +119,36 @@ def _gather(db: DbSession) -> dict:
                  .group_by(PageView.path).order_by(func.count(PageView.id).desc())
                  .limit(12).all())
 
+    # --- every user, newest first, with their search count (for the audit links) ---
+    counts = dict(db.query(Search.user_id, func.count(Search.id))
+                  .group_by(Search.user_id).all())
+    users = [
+        {"id": u.id, "email": u.email, "plan": u.plan,
+         "created_at": u.created_at, "searches": counts.get(u.id, 0)}
+        for u in db.query(User).order_by(User.created_at.desc()).limit(200).all()
+    ]
+
+    # --- alpha feedback (SiteFeedback): averages + the latest submissions ---
+    fb_q = db.query(SiteFeedback)
+    fb_count = fb_q.count()
+    fb_avgs = []
+    for name, label in SITE_FEEDBACK_QUESTIONS:
+        col = getattr(SiteFeedback, name)
+        avg = db.query(func.avg(col)).filter(col.isnot(None)).scalar()
+        n = db.query(func.count(col)).filter(col.isnot(None)).scalar() or 0
+        fb_avgs.append({"label": label, "avg": round(avg, 2) if avg is not None else None, "n": n})
+    recent_fb = []
+    rows = (db.query(SiteFeedback, User.email)
+            .outerjoin(User, SiteFeedback.user_id == User.id)
+            .order_by(SiteFeedback.created_at.desc()).limit(50).all())
+    for fb, email in rows:
+        recent_fb.append({
+            "email": email or "anonymous", "created_at": fb.created_at, "path": fb.path,
+            "ratings": [(label, getattr(fb, name)) for name, label in SITE_FEEDBACK_QUESTIONS],
+            "likes": fb.likes, "dislikes": fb.dislikes,
+            "broken": fb.broken, "other": fb.other,
+        })
+
     # --- product events (PROOF-003): the activation funnel ---
     ev = dict(db.query(ProductEvent.name, func.count(ProductEvent.id))
               .filter(ProductEvent.created_at >= _since(30))
@@ -150,6 +183,8 @@ def _gather(db: DbSession) -> dict:
         "pv_7d": pv_7d, "pv_30d": pv_30d,
         "uv_7d": uv_7d, "uv_30d": uv_30d,
         "visitors_by_country": visitors_by_country, "top_paths": top_paths,
+        "users": users,
+        "fb_count": fb_count, "fb_avgs": fb_avgs, "recent_fb": recent_fb,
     }
 
 
@@ -159,6 +194,36 @@ def admin_dashboard(request: Request, _: bool = Depends(require_admin),
     ctx = _gather(db)
     return templates.TemplateResponse(request, "admin.html",
         {"request": request, "reset_msg": reset_msg, **ctx})
+
+
+@router.get("/admin/users/{user_id}", response_class=HTMLResponse)
+def admin_user(user_id: int, request: Request, _: bool = Depends(require_admin),
+               db: DbSession = Depends(get_session)):
+    """Backend double-check: one user's profile / search preferences and, for each
+    search, the results with score, two-way fit, and why-it-fits / why-it-doesn't.
+    Operator-only (behind the admin gate); it necessarily shows the user's own CV
+    and profile so matching can be evaluated."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404)
+
+    # Ratings this user gave their own matches, so we can show agreement/disagreement.
+    ratings = dict(db.query(Feedback.job_result_id, Feedback.rating)
+                   .filter(Feedback.user_id == user_id,
+                           Feedback.rating.isnot(None)).all())
+
+    # Searches newest-first, each with its results ordered best-first.
+    searches = sorted(user.searches, key=lambda s: s.started_at or utcnow(), reverse=True)
+    runs = []
+    for s in searches:
+        results = sorted(s.results, key=lambda r: (r.tier, -r.score))
+        runs.append({"search": s, "results": results})
+
+    return templates.TemplateResponse(request, "admin_user.html", {
+        "request": request, "u": user, "profile": user.profile,
+        "materials": list(user.materials), "seeds": [s.value for s in user.seeds],
+        "runs": runs, "ratings": ratings,
+    })
 
 
 @router.post("/admin/reset-usage")

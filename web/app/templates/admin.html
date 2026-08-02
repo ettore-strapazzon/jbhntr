@@ -13,6 +13,59 @@
   <div class="stat"><b>{{ waitlist|length }}</b><span>on the waiting list</span></div>
 </div>
 
+{# ===== users (backend double-check entry point) ===== #}
+<div class="card">
+  <h2>Users <span class="muted small">(open one to check its matching)</span></h2>
+  {% if users %}
+    <table class="apptable">
+      <thead><tr><th>Email</th><th>Plan</th><th>Searches</th><th>Joined</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td><a href="/admin/users/{{ u.id }}">{{ u.email }}</a></td>
+            <td class="muted">{{ u.plan }}</td>
+            <td>{{ u.searches }}</td>
+            <td class="muted">{{ u.created_at.strftime("%d %b %Y") if u.created_at else "—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="small muted">Open a user to see their profile, search preferences, and
+      every result with its score and why it fits or doesn't.</p>
+  {% else %}
+    <p class="muted small">No users yet.</p>
+  {% endif %}
+</div>
+
+{# ===== alpha feedback (whole-product survey) ===== #}
+<div class="card">
+  <h2>Alpha feedback <span class="muted small">({{ fb_count }} submission{{ '' if fb_count == 1 else 's' }})</span></h2>
+  <div class="admin-stats">
+    {% for a in fb_avgs %}
+      <div class="stat"><b>{% if a.avg is not none %}{{ a.avg }}{% else %}—{% endif %}</b>
+        <span>{{ a.label }} <span class="muted">({{ a.n }})</span></span></div>
+    {% endfor %}
+  </div>
+  {% if recent_fb %}
+    {% for fb in recent_fb %}
+      <div class="au-run">
+        <p class="small muted" style="margin:0 0 6px">
+          <b>{{ fb.email }}</b> · {{ fb.created_at.strftime("%d %b %Y, %H:%M") if fb.created_at else "—" }}
+          {% if fb.path %} · from {{ fb.path }}{% endif %}</p>
+        <p class="small" style="margin:0 0 6px">
+          {% for label, val in fb.ratings %}{{ label }}: <b>{{ val if val is not none else "—" }}</b>{% if not loop.last %} · {% endif %}{% endfor %}
+        </p>
+        {% if fb.likes %}<p class="small" style="margin:2px 0"><b>Likes:</b> {{ fb.likes }}</p>{% endif %}
+        {% if fb.dislikes %}<p class="small" style="margin:2px 0"><b>Dislikes:</b> {{ fb.dislikes }}</p>{% endif %}
+        {% if fb.broken %}<p class="small" style="margin:2px 0"><b>Needs fixing:</b> {{ fb.broken }}</p>{% endif %}
+        {% if fb.other %}<p class="small" style="margin:2px 0"><b>Other:</b> {{ fb.other }}</p>{% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="muted small">No product feedback yet. The alpha banner links here.</p>
+  {% endif %}
+</div>
+
 {# ===== operator actions ===== #}
 <div class="card">
   <h2>Reset a user's free usage</h2>

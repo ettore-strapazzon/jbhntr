@@ -16,8 +16,8 @@ from .config import ROOT, config
 from .db import SessionLocal, init_db
 from .models import PageView
 from .routes import (
-    account, admin, applications, auth_routes, documents, fields, job, legal,
-    marketing, matches, onboarding, profile, search,
+    account, admin, alpha, applications, auth_routes, documents, fields, job,
+    legal, marketing, matches, onboarding, profile, search,
 )
 from .templating import templates
 
@@ -130,6 +130,7 @@ app.include_router(search.router)
 app.include_router(job.router)
 app.include_router(account.router)
 app.include_router(legal.router)
+app.include_router(alpha.router)
 app.include_router(admin.router)
 app.include_router(marketing.router)   # homepage, robots.txt, sitemap.xml
 

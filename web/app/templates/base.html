@@ -41,6 +41,16 @@
 </head>
 <body class="{% block body_class %}{% endblock %}{% if user %} authed{% endif %}">
 <a class="skip-link" href="#main">Skip to content</a>
+
+{# Alpha-testing banner. Shown to everyone; app.js hides it once dismissed. The
+   CTA carries the current path so feedback is tagged with where the tester was. #}
+<div id="alpha-banner" class="alpha-banner">
+  <span class="alpha-msg"><span class="alpha-tag">ALPHA</span>
+    You are testing an early version of JBHNTR. Tell me what works and what doesn't.</span>
+  <a class="alpha-cta" href="/feedback?from={{ request.url.path | urlencode }}">Share feedback</a>
+  <button type="button" id="alpha-dismiss" class="alpha-x" aria-label="Dismiss this notice">&times;</button>
+</div>
+
 <header class="bar">
   <a class="brand" href="/">
     <img src="/static/logo.svg" width="26" height="18" alt="" aria-hidden="true">
