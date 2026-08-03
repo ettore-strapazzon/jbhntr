@@ -45,6 +45,52 @@ def test_prefilter_country_matching(pref, loc, keep):
 
 
 @pytest.mark.parametrize(
+    "loc, keep",
+    [
+        # Reported leaks: US city+state, Hong Kong, a UK town+county, all past an
+        # Italy-only filter. Must now be rejected.
+        ("Clearwater, FL", False),
+        ("Austin, TX", False),
+        ("Hong Kong", False),
+        ("Liss, Hampshire", False),
+        ("Fraserburgh, UK", False),
+        ("Dubai", False),
+        # Italian cities (incl. ones only just added) must stay.
+        ("Milano", True),
+        ("Bergamo", True),
+        ("Verona", True),
+        ("La Spezia", True),          # "la" is NOT a mapped state code (would false-reject)
+        ("Italy", True),
+        ("", True),                    # blank -> matcher decides
+    ],
+)
+def test_italy_filter_rejects_foreign_cities(loc, keep):
+    """Regression for the audit finding: FL / Hong Kong / UK-county postings were
+    ranking for an onsite Italy user."""
+    from jobhunter.dedup import prefilter
+    from jobhunter.models import JobPosting
+    p = Profile(raw={"locations": ["Italy"]})
+    assert prefilter(JobPosting(source="s", title="x", location=loc), p) is keep
+
+
+@pytest.mark.parametrize(
+    "loc, keep",
+    [
+        ("Clearwater, FL", True),      # US user keeps US cities+states
+        ("Austin, TX", True),
+        ("Boston, MA", True),
+        ("Houston", True),
+        ("Milan, Italy", False),       # ...but not an Italian one
+    ],
+)
+def test_us_filter_keeps_us_states(loc, keep):
+    from jobhunter.dedup import prefilter
+    from jobhunter.models import JobPosting
+    p = Profile(raw={"locations": ["United States"]})
+    assert prefilter(JobPosting(source="s", title="x", location=loc), p) is keep
+
+
+@pytest.mark.parametrize(
     "loc, remote, keep",
     [
         # A global corpus must not leak US jobs into an Italy / Remote-EU search.

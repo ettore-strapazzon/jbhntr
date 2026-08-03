@@ -86,7 +86,7 @@ SCORE_WORKERS = 6
 # Bump whenever the scoring PROMPT or MatchResult schema changes. It is part of
 # the score-cache key, so a bump cleanly invalidates every cached score — the
 # guard that lets matching keep being refined while caching is on.
-PROMPT_VERSION = 5
+PROMPT_VERSION = 6
 
 TRIAGE_SCHEMA = {
     "type": "object",
@@ -215,13 +215,31 @@ def _system_prompt(
         "operations, corporate development, founder's office, transformation) "
         "is not a blocker — that is tier 2-3 territory depending on how much of "
         "the day-job matches.",
-        "- LOCATION conflicts: the role requires being somewhere the candidate "
-        "did not list and is not remote-eligible for their region. Apply this "
-        "to locations you infer from the advert too, not just the stated field. "
-        "If location is genuinely unclear, treat it as an unknown (tier 3), not "
-        "as a conflict.",
+        "- LOCATION is a HARD blocker. If the advert states an on-site or hybrid "
+        "location in a country the candidate did NOT list, and offers no remote "
+        "option they could take from their own region, it is tier 5 — no matter "
+        "how good the role, company or title is. A dream on-site job in the wrong "
+        "country is still the wrong country: do NOT soften it to tier 3 or 4, and "
+        "do NOT let a strong role pull the tier back up. Infer the country from "
+        "the advert (a city, state or region names one) as well as the stated "
+        "field. Only when the location is genuinely absent or unresolvable is it "
+        "an unknown (tier 3) rather than a conflict; a clearly named foreign city "
+        "is NOT unclear.",
         "State any blocker explicitly in your reasons — never write 'no "
         "significant concerns' when one exists.",
+        "",
+        "SENIORITY — weigh it heavily, both ways. Judge the role's level against "
+        "BOTH the candidate's target seniority AND the seniority their CV actually "
+        "demonstrates. A role clearly BELOW that level — an individual-contributor, "
+        "analyst, associate, or ordinary manager role for a candidate who is, and "
+        "is seeking, executive / head / director / VP / C-level — is a weak match "
+        "however well the function or sector fits: score fit_role low and cap it at "
+        "tier 3, dropping to tier 4 when the gap is large (e.g. an analyst role for "
+        "a seasoned executive). A role clearly ABOVE the candidate's demonstrated "
+        "level is a stretch and should not sit in tier 1. Title words alone are not "
+        "proof of level — read the scope (team size, budget, P&L, reporting line) — "
+        "but when the advert's level plainly undershoots the candidate, say so in "
+        "the reasons and let it hold the tier down.",
         "Give THREE numbers, each 0-100:",
         "- `fit_role`: how well the JOB matches what the candidate wants "
         "(objective, seniority, company shape, sector, location). Judge desire, "

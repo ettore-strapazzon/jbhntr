@@ -54,8 +54,18 @@ _CITY_COUNTRY = {
     "seattle": "us", "austin": "us", "denver": "us", "miami": "us",
     "washington": "us", "atlanta": "us", "dallas": "us",
     "london": "gb", "manchester": "gb", "edinburgh": "gb", "bristol": "gb",
+    "leeds": "gb", "glasgow": "gb", "birmingham": "gb", "liverpool": "gb",
+    "sheffield": "gb", "cardiff": "gb", "belfast": "gb", "nottingham": "gb",
+    "newcastle": "gb", "southampton": "gb", "oxford": "gb", "cambridge": "gb",
+    "reading": "gb", "brighton": "gb", "aberdeen": "gb", "hampshire": "gb",
+    "surrey": "gb", "yorkshire": "gb",
     "milan": "it", "milano": "it", "rome": "it", "roma": "it", "turin": "it",
     "torino": "it", "bologna": "it", "florence": "it", "naples": "it",
+    "genoa": "it", "genova": "it", "palermo": "it", "catania": "it",
+    "venice": "it", "venezia": "it", "verona": "it", "padua": "it",
+    "padova": "it", "bari": "it", "brescia": "it", "modena": "it",
+    "parma": "it", "bergamo": "it", "trieste": "it",
+    "hong kong": "hk", "dubai": "ae", "abu dhabi": "ae",
     "berlin": "de", "munich": "de", "münchen": "de", "hamburg": "de",
     "frankfurt": "de", "cologne": "de",
     "paris": "fr", "lyon": "fr",
@@ -153,6 +163,18 @@ _CODE_TO_SHORT: dict[str, list[str]] = {}
 for _name, _code in _COUNTRY_ALIASES.items():
     if len(_name) <= 3 and _name.isalpha() and _name not in _AMBIGUOUS_SHORT:
         _CODE_TO_SHORT.setdefault(_code, []).append(_name)
+
+# US state abbreviations that appear in job locations ("Clearwater, FL"), mapped
+# to the US and matched as WHOLE WORDS. Curated to avoid (a) codes that clash with
+# a country we support (CA=Canada, IN=India, DE=Germany, ID~Indonesia) and (b) ones
+# that are ordinary words or appear inside place names (OR, OK, HI, ME, LA, MA, AL,
+# CO="County", OH), which as whole words would wrongly flag a home-country city.
+_US_STATE_CODES = [
+    "fl", "tx", "ny", "nj", "pa", "ga", "nc", "sc", "tn", "va", "wa", "wi",
+    "wv", "wy", "ut", "nv", "nm", "ne", "nh", "ks", "ky", "ct", "az", "ar",
+    "ak", "mn", "mo", "ms", "mt", "md", "ri", "vt", "nd", "sd",
+]
+_CODE_TO_SHORT.setdefault("us", []).extend(_US_STATE_CODES)
 
 
 def _names_short_code(loc_hay: str, code: str) -> bool:
