@@ -2009,3 +2009,101 @@ def test_admin_user_audit_shows_prefs_and_why(client, monkeypatch):
     # gate + missing user
     assert client.get(f"/admin/users/{uid}").status_code == 401
     assert client.get("/admin/users/999999", auth=("op", "s3cret")).status_code == 404
+
+
+# --------------------------- corpus country backfill ---------------------- #
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize(
+    "job_countries, remote_mode, target, remote_any, keep",
+    [
+        (["gb"], "onsite", {"it"}, False, False),   # confidently foreign -> drop
+        (["it"], "onsite", {"it"}, False, True),    # target country -> keep
+        ([], "onsite", {"it"}, False, True),        # untagged -> defer to prefilter
+        (["us"], "remote", {"it"}, True, True),     # remote + remote-anywhere -> keep
+        (["us"], "onsite", {"it"}, True, False),    # remote-anywhere but on-site abroad
+        (["gb"], "onsite", set(), False, True),     # user has no country constraint
+        (["it", "fr"], "onsite", {"it"}, False, True),  # one target among several
+    ],
+)
+def test_country_gate(job_countries, remote_mode, target, remote_any, keep):
+    from web.app.services.search_service import _country_allowed
+    assert _country_allowed(job_countries, remote_mode, target, remote_any) is keep
+
+
+def test_resolve_country_batch_parses_and_validates(monkeypatch):
+    """Codes are lowercased and aligned by index; anything not a 2-letter alpha
+    code (or an out-of-range index) is dropped to ''."""
+    from jobhunter import llm
+    from web.app.services import corpus_service
+
+    class _Fake:
+        def json(self, **kw):
+            return {"results": [
+                {"index": 0, "code": "GB"},
+                {"index": 1, "code": "usa"},     # 3 chars -> invalid
+                {"index": 2, "code": ""},         # unknown
+                {"index": 9, "code": "fr"},       # out of range -> ignored
+            ]}
+    monkeypatch.setattr(llm, "get_client", lambda s: _Fake())
+    out = corpus_service._resolve_country_batch(["London", "X", "Remote"], object())
+    assert out == ["gb", "", ""]
+
+
+def test_backfill_countries_only_asks_for_the_unresolvable(client, monkeypatch):
+    from jobhunter import llm
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import corpus_service
+
+    monkeypatch.setattr(llm, "is_configured", lambda s: True)
+    asked = []
+
+    def _fake_batch(locs, settings):
+        asked.append(list(locs))
+        return ["fr" for _ in locs]        # pretend the LLM placed them in France
+
+    monkeypatch.setattr(corpus_service, "_resolve_country_batch", _fake_batch)
+
+    rows = {}
+    db = SessionLocal()
+    try:
+        base = db.query(Job).count()
+        rows = {
+            "tagged":   Job(dedup_key="bf-tagged",  location="London",
+                            countries=["gb"], geo_checked=False),
+            "blank":    Job(dedup_key="bf-blank",   location="",
+                            countries=[], geo_checked=False),
+            "remote":   Job(dedup_key="bf-remote",  location="Remote, Anywhere",
+                            countries=[], geo_checked=False),
+            "mapfix":   Job(dedup_key="bf-mapfix",  location="Milano",
+                            countries=[], geo_checked=False),
+            "obscure":  Job(dedup_key="bf-obscure", location="Little Snoring, Norfolk shire town",
+                            countries=[], geo_checked=False),
+        }
+        for r in rows.values():
+            db.add(r)
+        db.commit()
+
+        placed = corpus_service.backfill_countries(db, object(), limit=base + 50)
+
+        for r in rows.values():
+            db.refresh(r)
+        # Only the genuinely-unresolvable location went to the LLM.
+        assert asked == [["Little Snoring, Norfolk shire town"]]
+        assert rows["obscure"].countries == ["fr"] and placed >= 1
+        assert rows["mapfix"].countries == ["it"]      # resolved by the (grown) maps
+        assert rows["tagged"].countries == ["gb"]       # left as-is
+        assert rows["blank"].countries == []            # legitimately country-less
+        assert rows["remote"].countries == []
+        # Everything is now settled, so a second pass asks nothing.
+        assert all(r.geo_checked for r in rows.values())
+        asked.clear()
+        corpus_service.backfill_countries(db, object(), limit=base + 50)
+        assert asked == []
+    finally:
+        for r in rows.values():
+            db.delete(r)
+        db.commit()
+        db.close()

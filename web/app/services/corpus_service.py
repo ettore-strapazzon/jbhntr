@@ -178,3 +178,118 @@ def _apply_tags(row: Job, tags: dict) -> None:
     row.salary_min = tags["salary_min"]
     row.salary_max = tags["salary_max"]
     row.has_salary = tags["has_salary"]
+
+
+# --------------------------------------------------------------------------- #
+# One-time country resolution for the long tail (a location the alias maps can't
+# place, e.g. an obscure town with no country marker). Done once per posting at
+# ingestion, cached on Job.countries + Job.geo_checked, shared by every user.
+_GEO_BATCH = 50
+
+_COUNTRY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "code": {
+                        "type": "string",
+                        "description": "ISO 3166-1 alpha-2 country code, lowercase "
+                                       "(e.g. 'gb', 'it', 'us'). Empty string if the "
+                                       "location is remote/global/anywhere or names "
+                                       "no identifiable country.",
+                    },
+                },
+                "required": ["index", "code"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["results"],
+    "additionalProperties": False,
+}
+
+_GEO_SYS = (
+    "You map job-posting location strings to a single country. For each numbered "
+    "location return its ISO 3166-1 alpha-2 code in lowercase. If the location is "
+    "remote/global/anywhere, or names no identifiable country, return an empty "
+    "string. Judge only the place named — do not guess from anything else. Return "
+    "exactly one result per input index."
+)
+
+
+def _resolve_country_batch(locations: list[str], settings) -> list[str]:
+    """LLM: location strings -> ISO alpha-2 codes (aligned to input order).
+
+    Returns "" for any it can't place. Never raises — a failed batch just yields
+    all-empty, so those rows are marked checked and simply carry no country tag.
+    """
+    from jobhunter import llm
+
+    listing = "\n".join(f"{i}. {loc}" for i, loc in enumerate(locations))
+    try:
+        data = llm.get_client(settings).json(
+            system=_GEO_SYS, user="Locations:\n" + listing,
+            schema=_COUNTRY_SCHEMA, tier=llm.SCORING, max_tokens=1500)
+    except Exception as exc:
+        log.warning("Country-resolve batch failed (%d locations): %s", len(locations), exc)
+        return ["" for _ in locations]
+
+    out = ["" for _ in locations]
+    for item in data.get("results", []):
+        i = item.get("index")
+        code = (item.get("code") or "").strip().lower()
+        if isinstance(i, int) and 0 <= i < len(out) and len(code) == 2 and code.isalpha():
+            out[i] = code
+    return out
+
+
+def backfill_countries(db: DbSession, settings, limit: int = 500) -> int:
+    """Settle the country of corpus jobs not yet geo-checked. Returns how many
+    got a country from the LLM lookup.
+
+    Order of resolution, cheapest first: the deterministic tagger already placed
+    most jobs at ingestion; blank/remote locations legitimately have no country;
+    only a genuinely-unresolvable real place costs an LLM call, batched. No-op
+    when no LLM is configured (the tag just stays empty, as before).
+    """
+    from jobhunter import geo, llm
+    from jobhunter.dedup import _is_generic_remote
+
+    if not llm.is_configured(settings):
+        return 0
+    rows = db.query(Job).filter(Job.geo_checked.is_(False)).limit(limit).all()
+    if not rows:
+        return 0
+
+    to_ask: list[Job] = []
+    for r in rows:
+        if r.countries:                       # deterministic tagger already placed it
+            r.geo_checked = True
+            continue
+        loc = (r.location or "").strip()
+        if not loc or _is_generic_remote(loc.lower()):
+            r.geo_checked = True              # legitimately country-less
+            continue
+        code = geo.country_of(loc)            # maps may have grown since ingestion
+        if code:
+            r.countries = [code]
+            r.geo_checked = True
+            continue
+        to_ask.append(r)
+    db.commit()
+
+    resolved = 0
+    for chunk in _chunks(to_ask, _GEO_BATCH):
+        codes = _resolve_country_batch([r.location for r in chunk], settings)
+        for r, code in zip(chunk, codes):
+            r.countries = [code] if code else []
+            r.geo_checked = True
+            resolved += 1 if code else 0
+        db.commit()
+    log.info("Geo backfill: %d checked, %d placed by lookup (%d asked)",
+             len(rows), resolved, len(to_ask))
+    return resolved

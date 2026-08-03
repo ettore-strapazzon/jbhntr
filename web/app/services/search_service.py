@@ -279,6 +279,21 @@ def _candidate_query_text(profile, candidate) -> str:
     return ". ".join(p for p in parts if p) or "job"
 
 
+def _country_allowed(job_countries, remote_mode, target_codes, remote_any) -> bool:
+    """Hard geo gate using the corpus country tag (which the nightly backfill now
+    fills for the long tail). True = keep.
+
+    Defers to the text prefilter when we can't decide: an untagged job, or a user
+    with no country constraint. Otherwise: keep only a job whose settled country
+    is one the user chose — or any remote job when the user takes remote-anywhere.
+    """
+    if not job_countries or not target_codes:
+        return True
+    if set(job_countries) & set(target_codes):
+        return True
+    return bool(remote_any and remote_mode == "remote")
+
+
 def _corpus_candidates(db, profile, candidate, settings, terms):
     """SQL-filter + cosine-rank the corpus into a top-K shortlist to score.
 
@@ -286,7 +301,7 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
     back to a live fetch — when embeddings are off, the profile can't be
     embedded, or the corpus is too thin for this user's geography.
     """
-    from jobhunter import embeddings
+    from jobhunter import embeddings, geo
     from ..models import Job
 
     if not embeddings.is_configured(settings):
@@ -300,9 +315,18 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
               .filter(Job.embedding.isnot(None), Job.last_seen_at >= aware(cutoff))
               .all())
 
-    # Same geography gate as live search, on the corpus rows.
+    # The user's target countries (from their location tokens) and whether they
+    # take remote-from-anywhere — the inputs to the hard country gate below.
+    target_codes = {geo.country_of(t) for t in (profile.locations or [])} - {""}
+    remote_any = "Remote-Anywhere" in (profile.locations or [])
+
+    # Geography gate: the resolved country tag first (a hard cut for jobs we've
+    # confidently placed in another country), then the text prefilter for the
+    # rest (remote tokens, cities, still-untagged rows).
     cands, vec_by_key = [], {}
     for r in rows:
+        if not _country_allowed(r.countries, r.remote_mode, target_codes, remote_any):
+            continue
         p = _job_to_posting(r)
         if prefilter(p, profile):
             cands.append(p)

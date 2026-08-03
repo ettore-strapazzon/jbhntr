@@ -205,10 +205,14 @@ def run(cadence: str = "daily") -> dict:
 
         added, updated = upsert_jobs(db, postings)
         # Embed freshly-added corpus jobs (no-op unless embeddings configured).
-        from .corpus_service import embed_new_jobs
+        from .corpus_service import backfill_countries, embed_new_jobs
         embedded = embed_new_jobs(db, settings)
+        # Settle the country of jobs the alias maps couldn't place — one cached
+        # LLM lookup per posting, shared by everyone (no-op without an LLM).
+        countried = backfill_countries(db, settings)
         result = {"cadence": cadence, "fetched": len(postings),
-                  "added": added, "updated": updated, "embedded": embedded}
+                  "added": added, "updated": updated, "embedded": embedded,
+                  "countried": countried}
         log.info("ingest done: %s", result)
         return result
     except Exception as exc:
