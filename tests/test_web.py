@@ -2107,3 +2107,66 @@ def test_backfill_countries_only_asks_for_the_unresolvable(client, monkeypatch):
             db.delete(r)
         db.commit()
         db.close()
+
+
+# --------------------------- ATS location correction ---------------------- #
+@_pytest.mark.parametrize("url, expected", [
+    ("https://jobs.ashbyhq.com/abundant/36aa28eb-uuid", ("ashby", "abundant", "36aa28eb-uuid")),
+    ("https://boards.greenhouse.io/acme/jobs/4567", ("greenhouse", "acme", "4567")),
+    ("https://job-boards.greenhouse.io/acme/jobs/99", ("greenhouse", "acme", "99")),
+    ("https://jobs.lever.co/acme/abc-def", ("lever", "acme", "abc-def")),
+    ("https://findwork.dev/jobs/1", ("", "", "")),
+])
+def test_parse_ats_job(url, expected):
+    from jobhunter.sources.ats import parse_ats_job
+    assert parse_ats_job(url) == expected
+
+
+def test_correct_ats_locations_overwrites_aggregator_guess(client, monkeypatch):
+    """A findwork job that links to Ashby but is mislabeled 'Remote' gets the
+    source's true SF/on-site/US, which the country gate then drops for Italy."""
+    from jobhunter.sources import ats as ats_mod
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import corpus_service
+    from web.app.services.search_service import _country_allowed
+
+    # Stand in for the live board fetch.
+    def _fake_index(ats, org):
+        assert (ats, org) == ("ashby", "abundant")
+        return {"jobid": {"location": "San Francisco", "remote_mode": "onsite",
+                          "countries": ["us"]}}
+    monkeypatch.setattr(ats_mod, "board_location_index", _fake_index)
+
+    rows = {}
+    db = SessionLocal()
+    try:
+        rows["ashby"] = Job(dedup_key="ats-ashby", source="api:findwork",
+                            url="https://jobs.ashbyhq.com/abundant/jobid",
+                            location="Remote", remote_mode="remote",
+                            countries=[], ats_checked=False)
+        rows["plain"] = Job(dedup_key="ats-plain", source="api:findwork",
+                            url="https://findwork.dev/jobs/1",
+                            location="Remote", remote_mode="remote",
+                            countries=[], ats_checked=False)
+        for r in rows.values():
+            db.add(r)
+        db.commit()
+
+        n = corpus_service.correct_ats_locations(db, limit=1000)
+        for r in rows.values():
+            db.refresh(r)
+
+        a = rows["ashby"]
+        assert n >= 1
+        assert a.location == "San Francisco" and a.remote_mode == "onsite"
+        assert a.countries == ["us"] and a.geo_checked and a.ats_checked
+        # The corrected job is now dropped for an onsite Italy user.
+        assert _country_allowed(a.countries, a.remote_mode, {"it"}, False) is False
+        # A non-ATS job is marked checked but left untouched.
+        assert rows["plain"].ats_checked and rows["plain"].location == "Remote"
+    finally:
+        for r in rows.values():
+            db.delete(r)
+        db.commit()
+        db.close()

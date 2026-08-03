@@ -247,6 +247,51 @@ def _resolve_country_batch(locations: list[str], settings) -> list[str]:
     return out
 
 
+def correct_ats_locations(db: DbSession, limit: int = 400) -> int:
+    """Overwrite aggregator-supplied locations with the true one from the source
+    ATS, for corpus jobs whose link is Ashby / Greenhouse / Lever.
+
+    Aggregators (findwork, jooble…) frequently mislabel these — e.g. an on-site SF
+    role tagged "Remote" — which then sails past a country filter. The ATS has the
+    structured truth, so one call per board corrects every one of that board's
+    postings. Grouped by board so a company with many roles costs a single fetch.
+    Marks `ats_checked` either way, so it never re-processes the same posting.
+    """
+    from collections import defaultdict
+
+    from jobhunter.sources.ats import board_location_index, parse_ats_job
+
+    rows = db.query(Job).filter(Job.ats_checked.is_(False)).limit(limit).all()
+    if not rows:
+        return 0
+
+    groups: dict[tuple, list] = defaultdict(list)
+    for r in rows:
+        ats, org, jid = parse_ats_job(r.url or "")
+        if ats and org and jid:
+            groups[(ats, org)].append((r, jid))
+        else:
+            r.ats_checked = True         # not an ATS link — nothing to correct
+    db.commit()
+
+    corrected = 0
+    for (ats, org), items in groups.items():
+        index = board_location_index(ats, org)
+        for r, jid in items:
+            info = index.get(jid) or index.get(str(jid))
+            if info and info.get("location"):
+                r.location = info["location"]
+                r.remote_mode = info["remote_mode"]
+                if info["countries"]:
+                    r.countries = info["countries"]
+                    r.geo_checked = True     # country settled from the source
+                corrected += 1
+            r.ats_checked = True
+        db.commit()
+    log.info("ATS location correction: %d checked, %d corrected", len(rows), corrected)
+    return corrected
+
+
 def backfill_countries(db: DbSession, settings, limit: int = 500) -> int:
     """Settle the country of corpus jobs not yet geo-checked. Returns how many
     got a country from the LLM lookup.

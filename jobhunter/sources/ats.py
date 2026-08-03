@@ -213,6 +213,99 @@ def _ashby(name: str, token: str) -> list[JobPosting]:
     return out
 
 
+# --------------------------------------------------------------------------- #
+# Location correction: aggregators (findwork, jooble…) often mislabel a job's
+# location — e.g. tag an on-site San Francisco role as "Remote". When the job
+# links to a known ATS, that ATS has the true, structured location. These helpers
+# read one board and return job_id -> the real location/remote/country, so the
+# corpus can overwrite the aggregator's guess.
+
+_ATS_JOB_URL = {
+    "ashby": re.compile(r"jobs\.ashbyhq\.com/([^/]+)/([^/?#]+)", re.I),
+    "greenhouse": re.compile(
+        r"(?:boards|job-boards)\.greenhouse\.io/([^/]+)/jobs/(\d+)", re.I),
+    "lever": re.compile(r"jobs\.lever\.co/([^/]+)/([^/?#]+)", re.I),
+}
+
+
+def parse_ats_job(url: str) -> tuple[str, str, str]:
+    """(ats, org, job_id) for a known-ATS job URL, else ('', '', '')."""
+    for ats, rx in _ATS_JOB_URL.items():
+        m = rx.search(url or "")
+        if m:
+            return ats, m.group(1), m.group(2)
+    return "", "", ""
+
+
+def _mode_from(text: str, workplace: str = "", is_remote=None) -> str:
+    """remote / hybrid / onsite / unknown from an ATS's flags + wording."""
+    wp = (workplace or "").lower()
+    if is_remote is True or "remote" in wp or "remote" in (text or "").lower():
+        return "remote"
+    if "hybrid" in wp or "hybrid" in (text or "").lower():
+        return "hybrid"
+    if wp or is_remote is False:
+        return "onsite"
+    return "unknown"
+
+
+def board_location_index(ats: str, org: str) -> dict[str, dict]:
+    """job_id -> {'location', 'remote_mode', 'countries'} for one ATS board.
+
+    Reads the board's public API once. Fail-soft: returns {} on any error, so a
+    correction pass simply leaves those rows untouched.
+    """
+    from .. import geo
+
+    def entry(location: str, mode: str, country_hint: str = "") -> dict:
+        code = ""
+        if country_hint and len(country_hint) == 2 and country_hint.isalpha():
+            code = country_hint.lower()
+        code = code or geo.country_of(country_hint) or geo.country_of(location)
+        return {"location": (location or "")[:200], "remote_mode": mode,
+                "countries": [code] if code else []}
+
+    try:
+        if ats == "ashby":
+            url = f"https://api.ashbyhq.com/posting-api/job-board/{org}"
+            with http_client(timeout=PER_REQUEST_TIMEOUT) as c:
+                data = c.get(url).raise_for_status().json()
+            idx = {}
+            for j in data.get("jobs", []):
+                addr = j.get("address") or {}
+                pa = addr.get("postalAddress") if isinstance(addr, dict) else None
+                country = (pa or addr or {}).get("addressCountry", "") if isinstance(addr, dict) else ""
+                idx[str(j.get("id") or "")] = entry(
+                    j.get("location", ""),
+                    _mode_from(j.get("location", ""), j.get("workplaceType", ""),
+                               j.get("isRemote")),
+                    country)
+            return idx
+        if ats == "lever":
+            url = f"https://api.lever.co/v0/postings/{org}"
+            with http_client(timeout=PER_REQUEST_TIMEOUT) as c:
+                data = c.get(url, params={"mode": "json"}).raise_for_status().json()
+            idx = {}
+            for j in data:
+                cats = j.get("categories") or {}
+                loc = cats.get("location", "") or ""
+                idx[str(j.get("id") or "")] = entry(
+                    loc, _mode_from(loc, j.get("workplaceType", "")), j.get("country", ""))
+            return idx
+        if ats == "greenhouse":
+            url = f"https://boards-api.greenhouse.io/v1/boards/{org}/jobs"
+            with http_client(timeout=PER_REQUEST_TIMEOUT) as c:
+                data = c.get(url).raise_for_status().json()
+            idx = {}
+            for j in data.get("jobs", []):
+                loc = (j.get("location") or {}).get("name", "") or ""
+                idx[str(j.get("id") or "")] = entry(loc, _mode_from(loc))
+            return idx
+    except Exception as exc:
+        log.warning("ATS location index failed (%s/%s): %s", ats, org, exc)
+    return {}
+
+
 def _workable(name: str, token: str) -> list[JobPosting]:
     """Workable: try the current v3 API, fall back to the legacy widget feed.
 
