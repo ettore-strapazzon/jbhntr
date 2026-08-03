@@ -119,11 +119,12 @@ def _gather(db: DbSession) -> dict:
                  .group_by(PageView.path).order_by(func.count(PageView.id).desc())
                  .limit(12).all())
 
-    # --- every user, newest first, with their search count (for the audit links) ---
+    # --- every user, newest first, with their search count (for the audit links).
+    # No email here: the audit flow is pseudonymous, users are referenced by number.
     counts = dict(db.query(Search.user_id, func.count(Search.id))
                   .group_by(Search.user_id).all())
     users = [
-        {"id": u.id, "email": u.email, "plan": u.plan,
+        {"id": u.id, "plan": u.plan,
          "created_at": u.created_at, "searches": counts.get(u.id, 0)}
         for u in db.query(User).order_by(User.created_at.desc()).limit(200).all()
     ]
@@ -138,12 +139,13 @@ def _gather(db: DbSession) -> dict:
         n = db.query(func.count(col)).filter(col.isnot(None)).scalar() or 0
         fb_avgs.append({"label": label, "avg": round(avg, 2) if avg is not None else None, "n": n})
     recent_fb = []
-    rows = (db.query(SiteFeedback, User.email)
-            .outerjoin(User, SiteFeedback.user_id == User.id)
-            .order_by(SiteFeedback.created_at.desc()).limit(50).all())
-    for fb, email in rows:
+    rows = (db.query(SiteFeedback).order_by(SiteFeedback.created_at.desc())
+            .limit(50).all())
+    for fb in rows:
+        # Pseudonymous author label — a user number, never the email.
+        who = f"User #{fb.user_id}" if fb.user_id else "anonymous"
         recent_fb.append({
-            "email": email or "anonymous", "created_at": fb.created_at, "path": fb.path,
+            "who": who, "created_at": fb.created_at, "path": fb.path,
             "ratings": [(label, getattr(fb, name)) for name, label in SITE_FEEDBACK_QUESTIONS],
             "likes": fb.likes, "dislikes": fb.dislikes,
             "broken": fb.broken, "other": fb.other,
@@ -219,9 +221,16 @@ def admin_user(user_id: int, request: Request, _: bool = Depends(require_admin),
         results = sorted(s.results, key=lambda r: (r.tier, -r.score))
         runs.append({"search": s, "results": results})
 
+    # Privacy: this view is for checking match quality, so it never renders the
+    # user's CV/cover-letter text, their filenames, their about-me prose, or their
+    # email. Materials are reduced to counts by kind (was a CV present at all?).
+    from collections import Counter
+    mat_counts = Counter(m.kind for m in user.materials)
+
     return templates.TemplateResponse(request, "admin_user.html", {
         "request": request, "u": user, "profile": user.profile,
-        "materials": list(user.materials), "seeds": [s.value for s in user.seeds],
+        "materials_summary": dict(mat_counts), "materials_total": sum(mat_counts.values()),
+        "seeds": [s.value for s in user.seeds],
         "runs": runs, "ratings": ratings,
     })
 

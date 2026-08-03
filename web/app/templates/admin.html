@@ -13,16 +13,16 @@
   <div class="stat"><b>{{ waitlist|length }}</b><span>on the waiting list</span></div>
 </div>
 
-{# ===== users (backend double-check entry point) ===== #}
+{# ===== users (backend double-check entry point) — pseudonymous by number ===== #}
 <div class="card">
   <h2>Users <span class="muted small">(open one to check its matching)</span></h2>
   {% if users %}
     <table class="apptable">
-      <thead><tr><th>Email</th><th>Plan</th><th>Searches</th><th>Joined</th></tr></thead>
+      <thead><tr><th>User</th><th>Plan</th><th>Searches</th><th>Joined</th></tr></thead>
       <tbody>
         {% for u in users %}
           <tr>
-            <td><a href="/admin/users/{{ u.id }}">{{ u.email }}</a></td>
+            <td><a href="/admin/users/{{ u.id }}">User #{{ u.id }}</a></td>
             <td class="muted">{{ u.plan }}</td>
             <td>{{ u.searches }}</td>
             <td class="muted">{{ u.created_at.strftime("%d %b %Y") if u.created_at else "—" }}</td>
@@ -30,8 +30,9 @@
         {% endfor %}
       </tbody>
     </table>
-    <p class="small muted">Open a user to see their profile, search preferences, and
-      every result with its score and why it fits or doesn't.</p>
+    <p class="small muted">Referenced by number, not email. Open one to see the search
+      preferences and every result with its score and why it fits or doesn't — no CV,
+      no cover letters, no email.</p>
   {% else %}
     <p class="muted small">No users yet.</p>
   {% endif %}
@@ -50,7 +51,7 @@
     {% for fb in recent_fb %}
       <div class="au-run">
         <p class="small muted" style="margin:0 0 6px">
-          <b>{{ fb.email }}</b> · {{ fb.created_at.strftime("%d %b %Y, %H:%M") if fb.created_at else "—" }}
+          <b>{{ fb.who }}</b> · {{ fb.created_at.strftime("%d %b %Y, %H:%M") if fb.created_at else "—" }}
           {% if fb.path %} · from {{ fb.path }}{% endif %}</p>
         <p class="small" style="margin:0 0 6px">
           {% for label, val in fb.ratings %}{{ label }}: <b>{{ val if val is not none else "—" }}</b>{% if not loop.last %} · {% endif %}{% endfor %}

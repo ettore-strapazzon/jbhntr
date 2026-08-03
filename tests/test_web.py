@@ -1956,14 +1956,18 @@ def test_admin_lists_users_and_alpha_feedback(client, monkeypatch):
     uid = db.query(User).filter_by(email="u1@example.com").one().id
     db.close()
     assert f'/admin/users/{uid}' in page
+    # pseudonymous: the dashboard references users by number, never their email
+    assert f"User #{uid}" in page
+    assert "u1@example.com" not in page
 
 
 def test_admin_user_audit_shows_prefs_and_why(client, monkeypatch):
     """The per-user audit renders the profile/preferences and each result's score
-    and why-it-fits / why-it-doesn't."""
+    and why-it-fits / why-it-doesn't — while withholding the email, CV/CL content,
+    filenames and about-me prose (privacy: it is a match-quality view only)."""
     from web.app.config import config
     from web.app.db import SessionLocal
-    from web.app.models import JobResult, Profile, Search, User
+    from web.app.models import JobResult, Material, Profile, Search, User
     monkeypatch.setattr(config, "admin_token", "s3cret")
     signup(client, email="cand@example.com")
     db = SessionLocal()
@@ -1971,9 +1975,13 @@ def test_admin_user_audit_shows_prefs_and_why(client, monkeypatch):
         u = db.query(User).filter_by(email="cand@example.com").one()
         prof = u.profile or Profile(user_id=u.id)
         prof.objective = "Head of Strategy at a fintech"
+        prof.about_me = "SECRET_ABOUTME my name is Jane and I worked at BigCo"
         prof.seniority = ["lead"]
         prof.locations = ["Italy"]
         db.add(prof)
+        db.add(Material(user_id=u.id, kind="cv", filename="Jane_Doe_CV.pdf",
+                        mime="application/pdf", size_bytes=2048, ciphertext=b"x",
+                        text="SECRET_CV_TEXT confidential resume body"))
         s = Search(user_id=u.id, status="done", scored_count=1)
         db.add(s); db.flush()
         db.add(JobResult(search_id=s.id, user_id=u.id, position=1, short_id="job001",
@@ -1986,10 +1994,18 @@ def test_admin_user_audit_shows_prefs_and_why(client, monkeypatch):
     finally:
         db.close()
     page = client.get(f"/admin/users/{uid}", auth=("op", "s3cret")).text
-    assert "Head of Strategy at a fintech" in page        # objective
+    # what SHOULD be visible: criteria + results
+    assert f"User #{uid}" in page                          # pseudonym header
+    assert "Head of Strategy at a fintech" in page         # objective
     assert "Search preferences" in page
     assert "88" in page and "Matches your fintech objective." in page
-    assert "Asks for 8 years you may not have." in page   # why it doesn't
+    assert "Asks for 8 years you may not have." in page    # why it doesn't
+    assert "cv (1)" in page                                # material count, no content
+    # what MUST NOT be visible: email, CV text, filename, about-me
+    assert "cand@example.com" not in page
+    assert "SECRET_CV_TEXT" not in page
+    assert "Jane_Doe_CV.pdf" not in page
+    assert "SECRET_ABOUTME" not in page
     # gate + missing user
     assert client.get(f"/admin/users/{uid}").status_code == 401
     assert client.get("/admin/users/999999", auth=("op", "s3cret")).status_code == 404

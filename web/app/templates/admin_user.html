@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ u.email }} · Operator · JBHNTR{% endblock %}
+{% block title %}User #{{ u.id }} · Operator · JBHNTR{% endblock %}
 {% block content %}
 {% macro chips(items) %}
   {% if items %}{% for it in items %}<span class="au-chip">{{ it }}</span>{% endfor %}
@@ -7,9 +7,10 @@
 {% endmacro %}
 
 <p class="small"><a href="/admin">&larr; Back to dashboard</a></p>
-<h1 style="overflow-wrap:anywhere">{{ u.email }}</h1>
-<p class="small muted">Operator view. Shows this user's own profile and CV so the
-  matching can be checked — do not share.</p>
+<h1>User #{{ u.id }}</h1>
+<p class="small muted">Pseudonymised match-quality view: search criteria and results
+  only. It does not show the email, the uploaded CV or cover letters, or the
+  free-text about-me.</p>
 
 {# ===== account ===== #}
 <div class="card">
@@ -43,29 +44,20 @@
       <dt>Salary floor (EUR)</dt><dd>{{ profile.salary_floor_eur or "—" }}</dd>
       <dt>Seed companies</dt><dd>{{ chips(seeds) }}</dd>
     </dl>
-    {% if profile.about_me %}
-      <details style="margin-top:10px"><summary class="small muted">About-me text</summary>
-        <p class="small" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ profile.about_me }}</p>
-      </details>
-    {% endif %}
   {% else %}
     <p class="muted small">No profile saved.</p>
   {% endif %}
 </div>
 
-{# ===== materials ===== #}
+{# ===== materials (counts only — the CV/CL content is deliberately not shown) ===== #}
 <div class="card">
-  <h2>Materials <span class="muted small">({{ materials|length }})</span></h2>
-  {% if materials %}
-    {% for m in materials %}
-      <details style="margin:0 0 8px">
-        <summary><b>{{ m.kind }}</b> · {{ m.filename }}
-          <span class="muted small">({{ (m.size_bytes / 1024) | round(1) }} KB, {{ m.text|length }} chars extracted)</span></summary>
-        <p class="small" style="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px">{{ m.text or "(no extracted text)" }}</p>
-      </details>
-    {% endfor %}
+  <h2>Materials on file <span class="muted small">({{ materials_total }})</span></h2>
+  {% if materials_total %}
+    <p>{% for kind, n in materials_summary.items() %}<span class="au-chip">{{ kind }} ({{ n }})</span>{% endfor %}</p>
+    <p class="small muted">Whether documents are present affects match quality, so the
+      counts are shown; the CV and cover-letter text itself is not.</p>
   {% else %}
-    <p class="muted small">No documents uploaded.</p>
+    <p class="muted small">No documents uploaded — matches run on the profile alone.</p>
   {% endif %}
 </div>
 
