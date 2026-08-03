@@ -24,6 +24,16 @@ def _job(company, i=0, title=None):
         ("Italy", "Milano", True),
         ("Italy", "Berlin", False),                   # earlier leak stays closed
         ("Germany", "Frankfurt", True),
+        # Bare short country codes must be caught as whole words (the reported
+        # leak: an Italy filter let a "UK" posting through).
+        ("Italy", "UK", False),
+        ("Italy", "US", False),
+        ("Italy", "London, UK", False),
+        ("United States", "UK", False),               # names UK
+        ("United States", "US", True),                # own code, kept
+        ("Italy", "Milan, IT", True),                 # own code (ambiguous short) still via city
+        ("United States", "Houston TX US", True),     # own bare code, still kept
+        ("Italy", "Houston", True),                   # "us" NOT a word here -> not rejected
     ],
 )
 def test_prefilter_country_matching(pref, loc, keep):

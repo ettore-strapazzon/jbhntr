@@ -142,6 +142,26 @@ for _city, _code in _CITY_COUNTRY.items():
     if len(_city) >= 4:
         _CODE_TO_ALIASES.setdefault(_code, []).append(_city)
 
+# Short country codes that DO appear in real job locations ("London, UK",
+# "Remote US"). Matched only as WHOLE WORDS, so they catch a bare "UK"/"US"
+# without the substring false positives above. The ambiguous ones — "de"/"es"/
+# "it", which are ordinary words inside place names ("Rio de Janeiro") — are
+# deliberately left out; those countries are still caught by their full name or
+# a city. This closes the leak where a bare "UK" slipped past an Italy filter.
+_AMBIGUOUS_SHORT = {"de", "es", "it"}
+_CODE_TO_SHORT: dict[str, list[str]] = {}
+for _name, _code in _COUNTRY_ALIASES.items():
+    if len(_name) <= 3 and _name.isalpha() and _name not in _AMBIGUOUS_SHORT:
+        _CODE_TO_SHORT.setdefault(_code, []).append(_name)
+
+
+def _names_short_code(loc_hay: str, code: str) -> bool:
+    """True if `loc_hay` contains a whole-word short alias for `code`."""
+    for short in _CODE_TO_SHORT.get(code, []):
+        if re.search(r"\b" + re.escape(short) + r"\b", loc_hay):
+            return True
+    return False
+
 
 def is_country_name(token: str) -> bool:
     """True if `token` names a country, not merely a city.
@@ -187,6 +207,10 @@ def names_other_country(loc_hay: str, token: str) -> bool:
         if code == own:
             continue
         if any(a in loc_hay for a in aliases):
+            return True
+    # Bare short codes ("UK", "US"), matched as whole words only.
+    for code in _CODE_TO_SHORT:
+        if code != own and _names_short_code(loc_hay, code):
             return True
     return False
 
