@@ -15,6 +15,7 @@ used — no instructions from the page are followed.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urljoin, urlparse
 
 from .. import llm
@@ -29,6 +30,8 @@ CAREERS_PATHS = ("careers", "jobs", "careers/open-positions", "company/careers",
                  "about/careers", "join-us", "work-with-us")
 _MAX_HTML = 40_000    # cap the text handed to the LLM
 _MAX_JOBS = 40        # per company, per scrape
+_DESC_WORKERS = 6     # concurrent detail-page fetches (HTTP only, no LLM)
+_DESC_CAP = 8_000     # matches the corpus description cap
 
 _SCHEMA = {
     "type": "object",
@@ -89,7 +92,33 @@ def _fetch_first(urls: list[str]) -> tuple[str, str]:
     return "", ""
 
 
-def scrape_careers(domain_or_url: str, company: str, settings: Settings) -> list[JobPosting]:
+def _fill_descriptions(postings: list[JobPosting], listing_url: str) -> None:
+    """Fetch each job's own detail page and strip its body into `description`.
+
+    HTTP only — no LLM — so a full description is essentially free: the text is
+    already on the page. Concurrent and fail-soft; a body we can't fetch just
+    stays empty. This is what makes scraped jobs score like ATS jobs instead of
+    being marked down for missing information.
+    """
+    targets = [p for p in postings if p.url and p.url != listing_url]
+    if not targets:
+        return
+    with http_client() as c:
+        def _one(p: JobPosting) -> None:
+            try:
+                r = c.get(p.url, follow_redirects=True)
+                if r.status_code == 200:
+                    body = strip_html(r.text)
+                    if len(body) > 120:            # ignore empty/JS-shell pages
+                        p.description = body[:_DESC_CAP]
+            except Exception:
+                pass
+        with ThreadPoolExecutor(max_workers=_DESC_WORKERS) as pool:
+            list(pool.map(_one, targets))
+
+
+def scrape_careers(domain_or_url: str, company: str, settings: Settings,
+                   with_descriptions: bool = True) -> list[JobPosting]:
     """Return the openings found on a company's careers page. [] on any failure."""
     if not llm.is_configured(settings):
         return []
@@ -122,5 +151,9 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings) -> list
             title=title, company=company,
             location=(j.get("location") or "").strip(),
             description="", url=url or page_url))
+    # Fill each opening's description from its own page (HTTP only), so embedding
+    # and scoring work on the full job content — not just the title.
+    if with_descriptions:
+        _fill_descriptions(out, page_url)
     log.info("Careers scrape %s (%s): %d openings", company, host, len(out))
     return out

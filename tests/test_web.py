@@ -2292,12 +2292,45 @@ def test_scrape_careers_builds_postings(monkeypatch):
             ]}
     monkeypatch.setattr(llm, "get_client", lambda s: _Fake())
 
-    out = cs.scrape_careers("scalapay.com", "Scalapay", object())
+    # with_descriptions=False: test the extraction only, no per-job HTTP fetches.
+    out = cs.scrape_careers("scalapay.com", "Scalapay", object(), with_descriptions=False)
     assert len(out) == 2
     assert out[0].title == "Head of Ops" and out[0].location == "Milan, Italy"
     assert out[0].url == "https://scalapay.com/jobs/1"          # made absolute
     assert out[0].source == "scrape:scalapay.com"
     assert out[1].url == "https://x.co/pm"                       # already absolute
+
+
+def test_fill_descriptions_from_detail_pages(monkeypatch):
+    """Each opening's body is fetched from its own page (HTTP only, no LLM)."""
+    from jobhunter.models import JobPosting
+    from jobhunter.sources import careers_scrape as cs
+
+    bodies = {
+        "https://scalapay.com/jobs/1": "<html><body><h1>Head of Ops</h1><p>Lead "
+            "operations across Italy and the EU. You will own the P&L, scale the "
+            "team, run the numbers, and report to the CEO. Fintech experience is a "
+            "strong plus for this senior leadership role.</p></body></html>",
+    }
+
+    class _Resp:
+        def __init__(self, url):
+            self.status_code = 200 if url in bodies else 404
+            self.text = bodies.get(url, "")
+
+    class _Client:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url, **kw): return _Resp(url)
+
+    monkeypatch.setattr(cs, "http_client", lambda *a, **k: _Client())
+    jobs = [JobPosting(source="scrape:x", title="Head of Ops", company="Scalapay",
+                       location="Milan", url="https://scalapay.com/jobs/1"),
+            JobPosting(source="scrape:x", title="Gone", company="Scalapay",
+                       location="Milan", url="https://scalapay.com/jobs/404")]
+    cs._fill_descriptions(jobs, "https://scalapay.com/careers")
+    assert "Lead operations across Italy" in jobs[0].description   # body pulled in
+    assert jobs[1].description == ""                               # 404 -> left empty
 
 
 def test_upsert_custom_company_normalises_and_dedupes(client):
