@@ -422,6 +422,25 @@ SITE_FEEDBACK_QUESTIONS = [
 ]
 
 
+class CorpusStat(Base):
+    """One row per nightly maintenance run: corpus size and the day's churn, so
+    'how many jobs live in the corpus, and how many are added / deprecated per
+    day' is answerable over time (the reaper deletes rows, so past churn is only
+    knowable if recorded here). Written by services/cron.nightly()."""
+
+    __tablename__ = "corpus_stats"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    total: Mapped[int] = mapped_column(Integer, default=0)          # corpus size after the run
+    added: Mapped[int] = mapped_column(Integer, default=0)          # new postings ingested
+    updated: Mapped[int] = mapped_column(Integer, default=0)        # refreshed (still live)
+    ttl_deleted: Mapped[int] = mapped_column(Integer, default=0)    # pruned: unseen too long
+    gone_deleted: Mapped[int] = mapped_column(Integer, default=0)   # pruned: link 404/410/dead
+    checked: Mapped[int] = mapped_column(Integer, default=0)        # link-checks this run
+    embedded: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class SiteFeedback(Base):
     """Alpha/testing feedback on the product as a whole: four 1-5 ratings plus
     open comments. Separate from the per-match `Feedback`. Anonymous-friendly —

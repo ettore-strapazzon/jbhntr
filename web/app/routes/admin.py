@@ -25,8 +25,8 @@ from sqlalchemy.orm import Session as DbSession
 from ..config import config
 from ..db import get_session
 from ..models import (
-    SITE_FEEDBACK_QUESTIONS, Document, Feedback, JobResult, PageView,
-    ProductEvent, Search, SiteFeedback, User, utcnow,
+    SITE_FEEDBACK_QUESTIONS, CorpusStat, Document, Feedback, Job, JobResult,
+    PageView, ProductEvent, Search, SiteFeedback, User, aware, utcnow,
 )
 from ..templating import templates
 
@@ -170,9 +170,29 @@ def _gather(db: DbSession) -> dict:
         ("premium_waitlist_joined", "Joined the waitlist"),
     )]
 
+    # --- corpus health: size, freshness, coverage, top sources, daily churn ---
+    corpus_total = db.query(Job).count()
+    fresh_1d = db.query(Job).filter(Job.last_seen_at >= aware(_since(1))).count()
+    fresh_7d = db.query(Job).filter(Job.last_seen_at >= aware(_since(7))).count()
+    fresh_30d = db.query(Job).filter(Job.last_seen_at >= aware(_since(30))).count()
+    stale_45d = db.query(Job).filter(Job.last_seen_at < aware(_since(45))).count()
+    embedded_n = db.query(Job).filter(Job.embedding.isnot(None)).count()
+    unchecked_n = db.query(Job).filter(Job.last_checked_at.is_(None)).count()
+    remote_mix = dict(db.query(Job.remote_mode, func.count(Job.id))
+                      .group_by(Job.remote_mode).all())
+    top_sources = (db.query(Job.source, func.count(Job.id).label("n"))
+                   .group_by(Job.source).order_by(func.count(Job.id).desc())
+                   .limit(20).all())
+    corpus_daily = (db.query(CorpusStat)
+                    .order_by(CorpusStat.created_at.desc()).limit(14).all())
+
     return {
         "now": now,
         "funnel": funnel,
+        "corpus_total": corpus_total, "fresh_1d": fresh_1d, "fresh_7d": fresh_7d,
+        "fresh_30d": fresh_30d, "stale_45d": stale_45d, "embedded_n": embedded_n,
+        "unchecked_n": unchecked_n, "remote_mix": remote_mix,
+        "top_sources": top_sources, "corpus_daily": corpus_daily,
         "total_users": total_users, "google_users": google_users,
         "premium_users": premium_users, "waitlist": waitlist,
         "total_searches": total_searches, "searches_7d": searches_7d,

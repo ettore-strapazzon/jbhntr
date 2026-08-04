@@ -112,6 +112,52 @@
   <p class="small muted">The number that matters is signed up → completed a scan.</p>
 </div>
 
+{# ===== corpus health ===== #}
+<div class="card">
+  <h2>Corpus &amp; sources</h2>
+  <div class="admin-stats">
+    <div class="stat"><b>{{ corpus_total }}</b><span>jobs in corpus</span></div>
+    <div class="stat"><b>{{ fresh_1d }}</b><span>seen in 24h</span></div>
+    <div class="stat"><b>{{ fresh_7d }}</b><span>seen in 7d</span></div>
+    <div class="stat"><b>{{ stale_45d }}</b><span>stale (&gt;45d, will prune)</span></div>
+  </div>
+  <p class="small muted">Freshness: {{ fresh_30d }} seen in 30d ·
+    embedded {{ embedded_n }}/{{ corpus_total }} ·
+    never link-checked {{ unchecked_n }} ·
+    modes: {% for m, n in remote_mix.items() %}{{ m }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+
+  <div class="admin-two">
+    <div>
+      <h3>Top sources <span class="muted small">(live rows in corpus)</span></h3>
+      <table class="apptable"><tbody>
+        {% for src, n in top_sources %}
+          <tr><td>{{ src or "—" }}</td><td>{{ n }}</td></tr>
+        {% else %}<tr><td class="muted">corpus is empty</td><td></td></tr>{% endfor %}
+      </tbody></table>
+      <p class="small muted">"api:*" = aggregators/keyed APIs · "ats:*" = company career pages.</p>
+    </div>
+    <div>
+      <h3>Daily churn <span class="muted small">(added vs deprecated, per nightly run)</span></h3>
+      <table class="apptable">
+        <thead><tr><th>Date</th><th>Total</th><th>Added</th><th>Deprecated</th><th>Checked</th></tr></thead>
+        <tbody>
+          {% for s in corpus_daily %}
+            <tr>
+              <td class="muted">{{ s.created_at.strftime("%d %b") if s.created_at else "—" }}</td>
+              <td>{{ s.total }}</td>
+              <td>+{{ s.added }}</td>
+              <td>−{{ s.ttl_deleted + s.gone_deleted }}</td>
+              <td>{{ s.checked }}</td>
+            </tr>
+          {% else %}<tr><td class="muted" colspan="5">no nightly runs recorded yet</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      <p class="small muted">Deprecated = pruned as unseen &gt;45d, plus link-checked
+        dead (404/410). Link-check covers up to 200 jobs a night.</p>
+    </div>
+  </div>
+</div>
+
 {# ===== searches ===== #}
 <div class="card">
   <h2>Searches</h2>

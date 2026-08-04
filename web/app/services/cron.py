@@ -73,11 +73,35 @@ def nightly(today: datetime.date | None = None) -> dict:
     try:
         _stage(out, "digests", lambda: run_digests(db, is_weekly_day=is_weekly))
         _stage(out, "pageview_pruned", lambda: _prune_pageviews(db))
+        _stage(out, "corpus_stat", lambda: _record_corpus_stat(db, out))
     finally:
         db.close()
 
     log.info("nightly done (weekly=%s): %s", is_weekly, out)
     return out
+
+
+def _record_corpus_stat(db, out: dict) -> int:
+    """Persist the night's corpus size + churn so daily trends are visible in
+    /admin. Reads counts from the stage results already gathered in `out`."""
+    from ..models import CorpusStat, Job
+
+    def g(stage: str, key: str) -> int:
+        v = out.get(stage)
+        return int(v.get(key, 0)) if isinstance(v, dict) else 0
+
+    row = CorpusStat(
+        total=db.query(Job).count(),
+        added=g("ingest_daily", "added") + g("ingest_weekly", "added"),
+        updated=g("ingest_daily", "updated") + g("ingest_weekly", "updated"),
+        ttl_deleted=g("reaper", "ttl_deleted"),
+        gone_deleted=g("reaper", "gone_deleted"),
+        checked=g("reaper", "checked"),
+        embedded=g("ingest_daily", "embedded") + g("ingest_weekly", "embedded"),
+    )
+    db.add(row)
+    db.commit()
+    return row.total
 
 
 def main() -> None:

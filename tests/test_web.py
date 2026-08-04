@@ -2170,3 +2170,42 @@ def test_correct_ats_locations_overwrites_aggregator_guess(client, monkeypatch):
             db.delete(r)
         db.commit()
         db.close()
+
+
+# --------------------------- corpus health panel -------------------------- #
+def test_admin_corpus_panel(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import CorpusStat, Job
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    db = SessionLocal()
+    try:
+        db.add(Job(dedup_key="cs-1", source="api:adzuna", title="X", location="Milan"))
+        db.add(CorpusStat(total=1234, added=50, ttl_deleted=7, gone_deleted=3, checked=200))
+        db.commit()
+    finally:
+        db.close()
+    page = client.get("/admin", auth=("op", "s3cret")).text
+    assert "Corpus &amp; sources" in page
+    assert "jobs in corpus" in page
+    assert "api:adzuna" in page                    # top-source breakdown
+    assert "1234" in page and "\u2212" in page + "-"  # a churn row rendered
+
+
+def test_cron_records_corpus_stat():
+    from web.app.db import SessionLocal
+    from web.app.models import CorpusStat
+    from web.app.services.cron import _record_corpus_stat
+    out = {
+        "reaper": {"ttl_deleted": 5, "gone_deleted": 2, "checked": 200},
+        "ingest_daily": {"added": 40, "updated": 10, "embedded": 40},
+    }
+    db = SessionLocal()
+    try:
+        before = db.query(CorpusStat).count()
+        _record_corpus_stat(db, out)
+        row = db.query(CorpusStat).order_by(CorpusStat.id.desc()).first()
+        assert db.query(CorpusStat).count() == before + 1
+        assert row.added == 40 and row.ttl_deleted == 5 and row.gone_deleted == 2
+    finally:
+        db.close()
