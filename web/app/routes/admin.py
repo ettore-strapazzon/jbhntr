@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import secrets
+import threading
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -32,6 +34,7 @@ from ..templating import templates
 
 router = APIRouter()
 _basic = HTTPBasic(auto_error=False)
+log = logging.getLogger("jbhntr.admin")
 
 
 def require_admin(credentials: HTTPBasicCredentials | None = Depends(_basic)) -> bool:
@@ -321,6 +324,29 @@ def admin_set_plan(_: bool = Depends(require_admin), email: str = Form(...),
         user.premium_until = None   # no expiry while payments are off
         db.commit()
         msg = f"{user.email} is now {plan}."
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
+@router.post("/admin/run-maintenance")
+def admin_run_maintenance(_: bool = Depends(require_admin)):
+    """Operator: run the reaper now and record a corpus snapshot in the background,
+    so the churn/growth charts get a data point without waiting for the nightly
+    cron. Bounded (the reaper caps its own work)."""
+    from urllib.parse import quote
+
+    from ..services.cron import _record_corpus_stat
+    from ..services.reaper import run as reaper_run
+
+    def _work():
+        try:
+            res = reaper_run()
+            _record_corpus_stat({"reaper": res})
+            log.info("manual maintenance: %s", res)
+        except Exception:
+            log.exception("manual maintenance failed")
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = "Maintenance started (reaper + corpus snapshot). Refresh in a minute."
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 

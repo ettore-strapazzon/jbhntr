@@ -73,35 +73,45 @@ def nightly(today: datetime.date | None = None) -> dict:
     try:
         _stage(out, "digests", lambda: run_digests(db, is_weekly_day=is_weekly))
         _stage(out, "pageview_pruned", lambda: _prune_pageviews(db))
-        _stage(out, "corpus_stat", lambda: _record_corpus_stat(db, out))
     finally:
         db.close()
+
+    # Record the night's corpus stat on its OWN session — so a failure in an
+    # earlier stage (e.g. digests) can't poison the transaction and silently drop
+    # the row, which is what left the churn table empty.
+    _stage(out, "corpus_stat", lambda: _record_corpus_stat(out))
 
     log.info("nightly done (weekly=%s): %s", is_weekly, out)
     return out
 
 
-def _record_corpus_stat(db, out: dict) -> int:
+def _record_corpus_stat(out: dict) -> int:
     """Persist the night's corpus size + churn so daily trends are visible in
-    /admin. Reads counts from the stage results already gathered in `out`."""
+    /admin. Reads counts from the stage results already gathered in `out`. Owns
+    its own DB session so it is independent of the other stages."""
+    from ..db import SessionLocal
     from ..models import CorpusStat, Job
 
     def g(stage: str, key: str) -> int:
         v = out.get(stage)
         return int(v.get(key, 0)) if isinstance(v, dict) else 0
 
-    row = CorpusStat(
-        total=db.query(Job).count(),
-        added=g("ingest_daily", "added") + g("ingest_weekly", "added"),
-        updated=g("ingest_daily", "updated") + g("ingest_weekly", "updated"),
-        ttl_deleted=g("reaper", "ttl_deleted"),
-        gone_deleted=g("reaper", "gone_deleted"),
-        checked=g("reaper", "checked"),
-        embedded=g("ingest_daily", "embedded") + g("ingest_weekly", "embedded"),
-    )
-    db.add(row)
-    db.commit()
-    return row.total
+    db = SessionLocal()
+    try:
+        row = CorpusStat(
+            total=db.query(Job).count(),
+            added=g("ingest_daily", "added") + g("ingest_weekly", "added"),
+            updated=g("ingest_daily", "updated") + g("ingest_weekly", "updated"),
+            ttl_deleted=g("reaper", "ttl_deleted"),
+            gone_deleted=g("reaper", "gone_deleted"),
+            checked=g("reaper", "checked"),
+            embedded=g("ingest_daily", "embedded") + g("ingest_weekly", "embedded"),
+        )
+        db.add(row)
+        db.commit()
+        return row.total
+    finally:
+        db.close()
 
 
 def main() -> None:

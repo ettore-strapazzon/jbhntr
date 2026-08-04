@@ -2193,7 +2193,7 @@ def test_admin_corpus_panel(client, monkeypatch):
     assert "1234" in page and "\u2212" in page + "-"  # a churn row rendered
 
 
-def test_cron_records_corpus_stat():
+def test_cron_records_corpus_stat(client):
     from web.app.db import SessionLocal
     from web.app.models import CorpusStat
     from web.app.services.cron import _record_corpus_stat
@@ -2201,10 +2201,10 @@ def test_cron_records_corpus_stat():
         "reaper": {"ttl_deleted": 5, "gone_deleted": 2, "checked": 200},
         "ingest_daily": {"added": 40, "updated": 10, "embedded": 40},
     }
+    db = SessionLocal(); before = db.query(CorpusStat).count(); db.close()
+    _record_corpus_stat(out)                            # owns its own session now
     db = SessionLocal()
     try:
-        before = db.query(CorpusStat).count()
-        _record_corpus_stat(db, out)
         row = db.query(CorpusStat).order_by(CorpusStat.id.desc()).first()
         assert db.query(CorpusStat).count() == before + 1
         assert row.added == 40 and row.ttl_deleted == 5 and row.gone_deleted == 2
@@ -2644,3 +2644,11 @@ def test_admin_growth_charts(client, monkeypatch):
     assert "New jobs added per day" in page
     assert 'class="barchart"' in page
     assert "height:100%" in page                        # today's peak bar rendered
+
+
+def test_admin_run_maintenance(client, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    r = client.post("/admin/run-maintenance", auth=("op", "s3cret"), follow_redirects=False)
+    assert r.status_code == 303 and "Maintenance" in r.headers["location"]   # url-encoded msg
+    assert client.post("/admin/run-maintenance").status_code == 401     # gated

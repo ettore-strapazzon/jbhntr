@@ -195,7 +195,12 @@
         </tbody>
       </table>
       <p class="small muted">Deprecated = pruned as unseen &gt;45d, plus link-checked
-        dead (404/410). Link-check covers up to 200 jobs a night.</p>
+        dead (404/410/walls). Link-check covers up to 500 jobs a night.</p>
+      <form method="post" action="/admin/run-maintenance" style="margin-top:6px">
+        <button class="ghost" type="submit">Run maintenance now</button>
+        <span class="small muted">Reaper + a corpus snapshot, so a row shows up
+          without waiting for the nightly cron.</span>
+      </form>
     </div>
   </div>
 </div>
