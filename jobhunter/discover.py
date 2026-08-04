@@ -407,7 +407,9 @@ def discover(
     criteria = derive_criteria(profile, [s.label() for s in seed_objs], settings)
 
     verified: list[dict] = []
-    rejected: list[str] = []
+    # Rejected = proposed companies with no readable public ATS. Kept WITH their
+    # domain so the caller can scrape their own careers page (Phase: custom scrape).
+    rejected: list[dict] = []
     dry_rounds = 0
     round_no = 0
 
@@ -466,7 +468,10 @@ def discover(
                     exemplars.append(c["name"])  # successes steer later rounds
                     found_this_round += 1
                 else:
-                    rejected.append(c.get("name", "?"))
+                    rejected.append({"name": c.get("name", ""),
+                                     "domain": c.get("domain", ""),
+                                     "slug": c.get("slug", ""),
+                                     "why": c.get("why", "")})
 
         log.info("  round %d added %d verified companies", round_no, found_this_round)
         dry_rounds = dry_rounds + 1 if found_this_round == 0 else 0
@@ -628,7 +633,8 @@ def main(argv=None) -> int:
     if rejected:
         print(f"\n{len(rejected)} could not be verified (no public board found, or "
               f"not hiring) and were dropped:")
-        print("  " + ", ".join(rejected[:25]) + (" ..." if len(rejected) > 25 else ""))
+        print("  " + ", ".join(r.get("name", "?") for r in rejected[:25])
+              + (" ..." if len(rejected) > 25 else ""))
 
     total = sum(v["jobs"] for v in verified)
     print(f"\nThose companies expose ~{total:,} job postings in total.")

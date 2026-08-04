@@ -188,10 +188,15 @@ def run(cadence: str = "daily") -> dict:
         # 'discover' is a registry-refresh only (pricey LLM+web-search); it
         # writes companies, not jobs, so daily Lane C then polls them.
         if cadence == "discover":
-            from .companies_service import discover_all_active
+            from .companies_service import (
+                discover_all_active, scrape_custom_companies,
+            )
             res = discover_all_active(db)
-            log.info("ingest discover: %s", res)
-            return {"cadence": "discover", **res}
+            # Scrape the careers pages of non-ATS companies discovery registered
+            # (premium-sourced, but the jobs land in the shared corpus for all).
+            scraped = scrape_custom_companies(db, settings)
+            log.info("ingest discover: %s | custom-scrape: %s", res, scraped)
+            return {"cadence": "discover", **res, "custom_scrape": scraped}
 
         postings: list = []
         if cadence == "daily":

@@ -71,6 +71,32 @@ def upsert_company(db: DbSession, ats: str, token: str, name: str,
     return True
 
 
+CUSTOM_ATS = "custom"          # a company scraped from its own careers page
+MAX_CUSTOM_PER_RUN = 20        # cap new custom companies registered per discovery run
+
+
+def upsert_custom_company(db: DbSession, name: str, domain: str,
+                          user_id: int | None = None) -> bool:
+    """Register a non-ATS company (scraped from its careers page) keyed by domain.
+
+    Separate from `upsert_company`, which only accepts known ATS platforms.
+    """
+    domain = (domain or "").strip().lower()
+    for pre in ("https://", "http://", "www."):
+        if domain.startswith(pre):
+            domain = domain[len(pre):]
+    domain = domain.strip("/").split("/")[0]
+    if not domain or "." not in domain:
+        return False
+    row = (db.query(Company)
+             .filter(Company.ats == CUSTOM_ATS, Company.ats_token == domain).first())
+    if row:
+        return False
+    db.add(Company(ats=CUSTOM_ATS, ats_token=domain[:120], name=(name or domain)[:200],
+                   source="scraped", discovered_for=user_id))
+    return True
+
+
 def seed_registry(db: DbSession) -> int:
     """Ensure the config seed companies are in the registry. Idempotent."""
     added = 0
@@ -110,22 +136,30 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
                         .filter(Company.discovered_for == user.id).count())
         if remaining == 0:
             return {"discovered": 0, "added": 0, "reason": "target reached"}
-        verified, _rejected = discover_mod.discover(
+        verified, rejected = discover_mod.discover(
             profile, settings, target=remaining, seeds=seeds,
             max_rounds=DISCOVER_MAX_ROUNDS, exclude=already)
 
-        added = 0
+        added = custom = 0
         for c in verified:
             if upsert_company(db, c.get("ats", ""), c.get("token", ""),
                               c.get("name", ""), source="discovered", user_id=user.id):
                 added += 1
+        # Companies with no readable ATS but a known domain: register them for a
+        # careers-page scrape (bounded per run so one user can't flood the table).
+        for c in rejected:
+            if custom >= MAX_CUSTOM_PER_RUN:
+                break
+            if upsert_custom_company(db, c.get("name", ""), c.get("domain", ""),
+                                     user_id=user.id):
+                custom += 1
         # Record what this run was based on, so the next cadence check can tell
         # whether the profile has since changed materially.
         user.last_discovery_at = utcnow()
         user.discovery_seeds = list(seeds)
         user.discovery_verticals = list(verticals)
         db.commit()
-        result = {"discovered": len(verified), "added": added}
+        result = {"discovered": len(verified), "added": added, "custom": custom}
         log.info("Discovery for user %s: %s", user.id, result)
         return result
     except Exception as exc:
@@ -157,6 +191,49 @@ def discover_all_active(db: DbSession) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+def scrape_custom_companies(db: DbSession, settings: Settings | None = None,
+                            limit: int = 30) -> dict:
+    """Scrape the careers pages of registered non-ATS companies into the corpus.
+
+    Runs on the slow (weekly) cadence — each company is one LLM extraction — and
+    rotates oldest-polled-first so all custom companies get refreshed over time.
+    Jobs are written through with `deterministic_tags`, so they are tagged and
+    matched exactly like any other corpus posting, for every user. No-op without
+    an LLM. Never raises.
+    """
+    from jobhunter import llm
+    from jobhunter.sources.careers_scrape import scrape_careers
+
+    settings = settings or Settings.from_env()
+    if not llm.is_configured(settings):
+        return {"companies": 0, "jobs": 0, "reason": "no llm"}
+    companies = (db.query(Company).filter(Company.ats == CUSTOM_ATS)
+                 .order_by(Company.last_polled_at.is_(None).desc(),
+                           Company.last_polled_at.asc())
+                 .limit(limit).all())
+    if not companies:
+        return {"companies": 0, "jobs": 0}
+
+    postings: list[JobPosting] = []
+    now = utcnow()
+    for c in companies:
+        try:
+            jobs = scrape_careers(c.ats_token, c.name, settings)
+        except Exception as exc:
+            log.debug("Custom scrape %s failed: %s", c.ats_token, exc)
+            jobs = []
+        c.jobs_count = len(jobs)
+        c.last_polled_at = now
+        postings.extend(jobs)
+    db.commit()
+
+    if postings:
+        from .corpus_service import upsert_jobs
+        upsert_jobs(db, postings)
+    log.info("Custom scrape: %d companies -> %d postings", len(companies), len(postings))
+    return {"companies": len(companies), "jobs": len(postings)}
+
+
 def poll_all(db: DbSession, settings: Settings | None = None) -> list[JobPosting]:
     """Lane C: fetch every registry company's public ATS board, concurrently.
 
@@ -164,7 +241,9 @@ def poll_all(db: DbSession, settings: Settings | None = None) -> list[JobPosting
     for the caller to write through to the corpus.
     """
     seed_registry(db)
-    companies = db.query(Company).all()
+    # Only companies on a known ATS are polled here (public JSON/XML feeds).
+    # Custom (careers-page) companies are scraped separately on the weekly cadence.
+    companies = db.query(Company).filter(Company.ats.in_(list(FETCHERS))).all()
     if not companies:
         return []
 

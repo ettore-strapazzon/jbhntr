@@ -2272,3 +2272,82 @@ def test_discover_for_user_is_premium_gated(client):
         assert res.get("reason") == "not premium" and res.get("added") == 0
     finally:
         db.close()
+
+
+# --------------------------- custom careers scraping ---------------------- #
+def test_scrape_careers_builds_postings(monkeypatch):
+    from jobhunter import llm
+    from jobhunter.sources import careers_scrape as cs
+
+    monkeypatch.setattr(llm, "is_configured", lambda s: True)
+    monkeypatch.setattr(cs, "_fetch_first",
+                        lambda urls: ("https://scalapay.com/careers", "<html>" + "x" * 600 + "</html>"))
+
+    class _Fake:
+        def json(self, **kw):
+            return {"jobs": [
+                {"title": "Head of Ops", "location": "Milan, Italy", "url": "/jobs/1"},
+                {"title": "", "location": "", "url": ""},               # dropped: no title
+                {"title": "PM", "location": "Remote", "url": "https://x.co/pm"},
+            ]}
+    monkeypatch.setattr(llm, "get_client", lambda s: _Fake())
+
+    out = cs.scrape_careers("scalapay.com", "Scalapay", object())
+    assert len(out) == 2
+    assert out[0].title == "Head of Ops" and out[0].location == "Milan, Italy"
+    assert out[0].url == "https://scalapay.com/jobs/1"          # made absolute
+    assert out[0].source == "scrape:scalapay.com"
+    assert out[1].url == "https://x.co/pm"                       # already absolute
+
+
+def test_upsert_custom_company_normalises_and_dedupes(client):
+    from web.app.db import SessionLocal
+    from web.app.models import Company
+    from web.app.services.companies_service import CUSTOM_ATS, upsert_custom_company
+    db = SessionLocal()
+    try:
+        assert upsert_custom_company(db, "Scalapay", "https://www.scalapay.com/careers") is True
+        db.commit()
+        row = db.query(Company).filter_by(ats=CUSTOM_ATS, ats_token="scalapay.com").one()
+        assert row.name == "Scalapay" and row.source == "scraped"
+        # same domain, any form -> no duplicate
+        assert upsert_custom_company(db, "Scalapay", "scalapay.com") is False
+        # not a domain -> rejected
+        assert upsert_custom_company(db, "X", "not-a-domain") is False
+    finally:
+        db.query(Company).filter_by(ats=CUSTOM_ATS).delete()
+        db.commit(); db.close()
+
+
+def test_scrape_custom_companies_writes_to_corpus(client, monkeypatch):
+    from web.app.db import SessionLocal
+    from web.app.models import Company, Job
+    from web.app.services import companies_service as csvc
+    from jobhunter import llm
+    from jobhunter.models import JobPosting
+
+    monkeypatch.setattr(llm, "is_configured", lambda s: True)
+
+    def _fake_scrape(domain, name, settings):
+        return [JobPosting(source=f"scrape:{domain}", title="Head of Ops",
+                           company=name, location="Milan, Italy",
+                           url=f"https://{domain}/jobs/1")]
+    monkeypatch.setattr("jobhunter.sources.careers_scrape.scrape_careers", _fake_scrape)
+
+    db = SessionLocal()
+    try:
+        db.add(Company(ats=csvc.CUSTOM_ATS, ats_token="scalapay.com",
+                       name="Scalapay", source="scraped"))
+        db.commit()
+        res = csvc.scrape_custom_companies(db, object(), limit=10)
+        assert res["companies"] >= 1 and res["jobs"] >= 1
+        # the scraped job is now a corpus row, tagged like any other
+        job = db.query(Job).filter_by(source="scrape:scalapay.com").first()
+        assert job is not None and job.title == "Head of Ops"
+        assert job.countries == ["it"]                          # tagged from "Milan, Italy"
+        c = db.query(Company).filter_by(ats=csvc.CUSTOM_ATS, ats_token="scalapay.com").one()
+        assert c.last_polled_at is not None and c.jobs_count == 1
+    finally:
+        db.query(Job).filter_by(source="scrape:scalapay.com").delete()
+        db.query(Company).filter_by(ats=csvc.CUSTOM_ATS).delete()
+        db.commit(); db.close()
