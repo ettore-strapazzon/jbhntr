@@ -132,8 +132,27 @@ def generate(result_id: int, kind: str, request: Request,
     eng_profile = build_engine_profile(db, user)
     eng_materials = build_engine_materials(db, user)
     note = ""
+    content = ""
+
+    # Premium: a multi-model panel (drafts -> cross-critique -> vote -> synthesise)
+    # for a stronger result than any single model can give — and it keeps the
+    # candidate's own CV structure. Free users, and any panel failure, fall back
+    # to the single-model path below.
+    if user.is_premium:
+        try:
+            from ..services import panel
+            pr = panel.deliberate(kind, eng_materials, posting, settings, config)
+            if pr and pr.get("content"):
+                content = pr["content"]
+                note = (f"Refined by a {pr['models']}-model panel "
+                        f"({int(pr['agreement'] * 100)}% agreement).")
+        except Exception:
+            log.exception("Panel generation failed; using single model")
+
     try:
-        if kind == "cl":
+        if content:
+            pass
+        elif kind == "cl":
             # Cover letters get a company-tone read plus a short note explaining it.
             out = gen.cover_letter(eng_profile, eng_materials, posting)
             content = (out or {}).get("cover_letter", "")

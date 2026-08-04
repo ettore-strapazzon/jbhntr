@@ -2652,3 +2652,107 @@ def test_admin_run_maintenance(client, monkeypatch):
     r = client.post("/admin/run-maintenance", auth=("op", "s3cret"), follow_redirects=False)
     assert r.status_code == 303 and "Maintenance" in r.headers["location"]   # url-encoded msg
     assert client.post("/admin/run-maintenance").status_code == 401     # gated
+
+
+# --------------------------- multi-model panel ---------------------------- #
+def _panel_cfg(monkeypatch, models, rounds=1, thresh=0.75, enabled=True):
+    from web.app.config import config
+    monkeypatch.setattr(config, "panel_enabled", enabled)
+    monkeypatch.setattr(config, "panel_models", models)
+    monkeypatch.setattr(config, "panel_synth_model", "")
+    monkeypatch.setattr(config, "panel_rounds", rounds)
+    monkeypatch.setattr(config, "panel_threshold", thresh)
+    return config
+
+
+def _panel_job():
+    from jobhunter.models import JobPosting
+    return JobPosting(source="s", title="Head of Ops", company="Acme",
+                      description="Lead operations.")
+
+
+def test_panel_converges_when_models_agree(monkeypatch):
+    from jobhunter import llm
+    from jobhunter.config import Materials
+    from web.app.services import panel
+
+    cfg = _panel_cfg(monkeypatch, ["m1", "m2", "m3"])
+    calls = {"draft": 0, "vote": 0, "synth": 0}
+
+    class _Fake:
+        def json(self, **kw):
+            props = kw["schema"]["properties"]
+            if "rationale" in props:
+                calls["draft"] += 1
+                return {"content": f"draft-{kw['model']}", "rationale": "strong"}
+            if "ready" in props:
+                calls["vote"] += 1
+                return {"ready": True, "feedback": ""}        # all agree
+            calls["synth"] += 1
+            return {"content": "FINAL CV"}
+    monkeypatch.setattr(llm, "get_client", lambda s: _Fake())
+
+    res = panel.deliberate("cv", Materials(base_cv="Jane Doe\nExperience: ..."),
+                           _panel_job(), object(), cfg)
+    assert res["content"] == "FINAL CV" and res["models"] == 3
+    assert res["agreement"] == 1.0
+    assert calls["draft"] == 3 and calls["vote"] == 3 and calls["synth"] == 1  # no re-synth
+
+
+def test_panel_revises_when_below_threshold(monkeypatch):
+    from jobhunter import llm
+    from jobhunter.config import Materials
+    from web.app.services import panel
+
+    cfg = _panel_cfg(monkeypatch, ["m1", "m2", "m3"], rounds=1, thresh=0.75)
+    synths = []
+
+    class _Fake:
+        def json(self, **kw):
+            props = kw["schema"]["properties"]
+            if "rationale" in props:
+                return {"content": "draft", "rationale": "x"}
+            if "ready" in props:
+                return {"ready": False, "feedback": "tighten the summary"}  # nobody agrees
+            synths.append(kw["user"])
+            return {"content": "REVISED"}
+    monkeypatch.setattr(llm, "get_client", lambda s: _Fake())
+
+    res = panel.deliberate("cl", Materials(), _panel_job(), object(), cfg)
+    assert res["agreement"] == 0.0                     # 0/3 ready
+    # initial synthesis + one revise (rounds=1, didn't converge)
+    assert len(synths) == 2
+    assert "tighten the summary" in synths[-1]         # feedback fed back in
+
+
+def test_panel_disabled_or_too_few_models_returns_none(monkeypatch):
+    from jobhunter.config import Materials
+    from web.app.services import panel
+    cfg = _panel_cfg(monkeypatch, ["m1", "m2"], enabled=False)
+    assert panel.deliberate("cv", Materials(), _panel_job(), object(), cfg) is None
+    cfg = _panel_cfg(monkeypatch, ["only-one"])        # needs >= 2 for a panel
+    assert panel.deliberate("cv", Materials(), _panel_job(), object(), cfg) is None
+
+
+def test_panel_drops_a_failing_model(monkeypatch):
+    from jobhunter import llm
+    from jobhunter.config import Materials
+    from web.app.services import panel
+
+    cfg = _panel_cfg(monkeypatch, ["good1", "bad", "good2"])
+
+    class _Fake:
+        def json(self, **kw):
+            if kw.get("model") == "bad" and "rationale" in kw["schema"]["properties"]:
+                raise RuntimeError("model unavailable")
+            props = kw["schema"]["properties"]
+            if "rationale" in props:
+                return {"content": "d", "rationale": "x"}
+            if "ready" in props:
+                return {"ready": True, "feedback": ""}
+            return {"content": "FINAL"}
+    monkeypatch.setattr(llm, "get_client", lambda s: _Fake())
+
+    res = panel.deliberate("cv", Materials(), _panel_job(), object(), cfg)
+    assert res["models"] == 2                          # bad model dropped, 2 drafts survive
+    assert res["content"] == "FINAL"

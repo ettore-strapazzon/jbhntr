@@ -81,7 +81,8 @@ class BaseClient:
     supports_web_search = False
 
     def json(self, *, system: str, user: str, schema: dict, tier: str = SCORING,
-             max_tokens: int = 2000, cache_system: bool = True) -> dict:
+             max_tokens: int = 2000, cache_system: bool = True,
+             model: Optional[str] = None) -> dict:
         raise NotImplementedError
 
     def text(self, *, user: str, tier: str = GENERATION, max_tokens: int = 16000,
@@ -107,14 +108,14 @@ class AnthropicClient(BaseClient):
                 else self.settings.scoring_model)
 
     def json(self, *, system, user, schema, tier=SCORING, max_tokens=2000,
-             cache_system=True) -> dict:
+             cache_system=True, model=None) -> dict:
         system = _styled(system)
         system_blocks: list[dict[str, Any]] = [{"type": "text", "text": system}]
         if cache_system:
             system_blocks[0]["cache_control"] = {"type": "ephemeral"}
 
         resp = self.client.messages.create(
-            model=self._model(tier),
+            model=model or self._model(tier),
             max_tokens=max_tokens,
             system=system_blocks,
             messages=[{"role": "user", "content": user}],
@@ -184,9 +185,9 @@ class OpenAICompatibleClient(BaseClient):
         return model
 
     def json(self, *, system, user, schema, tier=SCORING, max_tokens=2000,
-             cache_system=True) -> dict:
+             cache_system=True, model=None) -> dict:
         system = _styled(system)
-        model = self._model(tier)
+        model = model or self._model(tier)
         # The scoring system prompt is identical across every job in a search,
         # so mark it cacheable: on Anthropic (via OpenRouter) this caches the
         # prefix and bills the repeats at a fraction of the input cost. Only

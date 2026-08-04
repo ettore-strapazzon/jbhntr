@@ -22,6 +22,21 @@ def _int(key: str, default: int) -> int:
     return int(raw) if raw.isdigit() else default
 
 
+def _float(key: str, default: float) -> float:
+    raw = (os.environ.get(key) or "").strip()
+    try:
+        return float(raw) if raw else default
+    except ValueError:
+        return default
+
+
+def _csv(key: str, default: str) -> list[str]:
+    """Comma-separated env list -> [str], trimmed, empties dropped."""
+    raw = os.environ.get(key)
+    raw = default if raw is None else raw
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
 @dataclass
 class WebConfig:
     # --- core ---
@@ -61,6 +76,20 @@ class WebConfig:
     premium_scoring_model: str = os.environ.get(
         "PREMIUM_SCORING_MODEL", "anthropic/claude-haiku-4.5"
     )
+
+    # --- premium multi-model "panel" for CV / cover-letter generation ---
+    # Diverse models each draft a version, critique each other, revise, and vote;
+    # a synthesiser merges the best once they agree (>= threshold) or rounds run
+    # out. Premium-only — free keeps the single-model path. Every knob is env
+    # tunable. Set PANEL_MODELS to OpenRouter model IDs your account can reach; a
+    # model that errors is simply dropped from the panel for that document.
+    panel_enabled: bool = _b("PANEL_ENABLED", "true")
+    panel_models: list[str] = field(default_factory=lambda: _csv(
+        "PANEL_MODELS",
+        "anthropic/claude-3.7-sonnet,openai/gpt-4o,google/gemini-2.0-flash-001"))
+    panel_synth_model: str = os.environ.get("PANEL_SYNTH_MODEL", "")  # "" -> first panel model
+    panel_rounds: int = _int("PANEL_ROUNDS", 1)         # critique/revise rounds after drafts
+    panel_threshold: float = _float("PANEL_THRESHOLD", 0.75)
 
     # --- profile completeness ---
     # Required before a search may run (see docs/ARCHITECTURE.md).
