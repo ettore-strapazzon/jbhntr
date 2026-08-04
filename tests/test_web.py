@@ -2351,3 +2351,42 @@ def test_scrape_custom_companies_writes_to_corpus(client, monkeypatch):
         db.query(Job).filter_by(source="scrape:scalapay.com").delete()
         db.query(Company).filter_by(ats=csvc.CUSTOM_ATS).delete()
         db.commit(); db.close()
+
+
+# --------------------------- serpapi EU fix + scrape panel ---------------- #
+@_pytest.mark.parametrize("loc, gl, hl", [
+    ("Italy", "it", "it"),
+    ("Milan", "it", "it"),
+    ("United States", "us", "en"),
+    ("Berlin", "de", "de"),
+    ("France", "fr", "fr"),
+    ("Nowhereland", "", "en"),
+])
+def test_google_locale(loc, gl, hl):
+    from jobhunter import geo
+    assert geo.google_locale(loc) == (gl, hl)
+
+
+def test_serpapi_is_enabled_in_ingest():
+    from web.app.services.ingest import KEYED_SOURCES, SOURCE_CADENCE
+    assert "serpapi" in KEYED_SOURCES
+    assert SOURCE_CADENCE["serpapi"] == "weekly"      # paid/metered -> weekly
+
+
+def test_admin_shows_scrape_line(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import Company, Job
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    db = SessionLocal()
+    try:
+        db.add(Job(dedup_key="sc-1", source="scrape:scalapay.com", title="Ops",
+                   location="Milan"))
+        db.add(Company(ats="custom", ats_token="scalapay.com", name="Scalapay",
+                       source="scraped"))
+        db.commit()
+    finally:
+        db.close()
+    page = client.get("/admin", auth=("op", "s3cret")).text
+    assert "jobs from custom scraping" in page
+    assert "custom career pages" in page

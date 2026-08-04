@@ -218,10 +218,14 @@ def _serpapi(profile: Profile, s: Settings) -> list[JobPosting]:
     with http_client(timeout=30.0) as c:
         for term in _terms(profile)[: s.serpapi_max_terms]:
             for loc in locations:
-                r = c.get("https://serpapi.com/search", params={
-                    "engine": "google_jobs", "q": term, "location": loc,
-                    "api_key": s.serpapi_key, "hl": "en",
-                })
+                # Country + language for the location, so a non-English market
+                # (Italy → gl=it, hl=it) isn't served US/English results (empty).
+                gl, hl = geo.google_locale(loc)
+                params = {"engine": "google_jobs", "q": term, "location": loc,
+                          "api_key": s.serpapi_key, "hl": hl}
+                if gl:
+                    params["gl"] = gl
+                r = c.get("https://serpapi.com/search", params=params)
                 if r.status_code != 200:
                     log.warning("SerpApi %s/%s: HTTP %s", term, loc, r.status_code)
                     continue

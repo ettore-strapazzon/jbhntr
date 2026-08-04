@@ -37,7 +37,11 @@ log = logging.getLogger("jbhntr.ingest")
 LANE_A_AGGREGATORS = ["adzuna", "remotive", "remoteok", "arbeitnow"]
 
 # Lane B — metered/keyed sources: name -> (settings attr that enables it, fn).
-# SerpApi is intentionally excluded (EU-empty, disabled).
+# Each only runs if its key is set, so listing one is harmless when unconfigured.
+# SerpApi (Google-for-Jobs) is included again now its query sends the country +
+# language (gl/hl) — it previously came back empty for the EU because it defaulted
+# to US/English. It is paid + metered, so it runs weekly and stays tightly capped
+# (serpapi_max_terms × serpapi_max_locations).
 KEYED_SOURCES = {
     "careerjet": ("careerjet_affid", keyed._careerjet),
     "jooble": ("jooble_key", keyed._jooble),
@@ -46,6 +50,7 @@ KEYED_SOURCES = {
     "web3career": ("web3career_key", keyed._web3career),
     "usajobs": ("usajobs_key", keyed._usajobs),
     "jsearch": ("jsearch_key", keyed._jsearch),
+    "serpapi": ("serpapi_key", keyed._serpapi),
 }
 
 # The metered ceilings run weekly; everything else daily (§11b). Findwork's
@@ -54,7 +59,7 @@ KEYED_SOURCES = {
 SOURCE_CADENCE = {
     "careerjet": "daily", "jooble": "weekly", "reed": "daily",
     "findwork": "weekly", "web3career": "daily", "usajobs": "daily",
-    "jsearch": "weekly",
+    "jsearch": "weekly", "serpapi": "weekly",
 }
 
 # Single-country sources ignore the active-user country set.

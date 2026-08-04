@@ -131,6 +131,19 @@ def countries(profile: Profile, limit: int = 3) -> list[str]:
     return out
 
 
+def google_locale(location: str) -> tuple[str, str]:
+    """(gl, hl) for Google-for-Jobs: the country code and UI language for a place.
+
+    Without these, SerpApi's google_jobs defaults toward US/English and returns
+    nothing for a non-English market — an Italy search needs gl=it, hl=it.
+    """
+    code = _country_of(location)
+    if not code:
+        return ("", "en")
+    locale = _CAREERJET_LOCALE.get(code, "en_" + code.upper())
+    return (code, locale.split("_")[0])
+
+
 def careerjet_locale(profile: Profile, default: str = "en_GB") -> str:
     """Careerjet locale for the profile's primary country."""
     for loc in profile.locations:

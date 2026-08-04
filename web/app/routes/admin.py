@@ -25,8 +25,8 @@ from sqlalchemy.orm import Session as DbSession
 from ..config import config
 from ..db import get_session
 from ..models import (
-    SITE_FEEDBACK_QUESTIONS, CorpusStat, Document, Feedback, Job, JobResult,
-    PageView, ProductEvent, Search, SiteFeedback, User, aware, utcnow,
+    SITE_FEEDBACK_QUESTIONS, Company, CorpusStat, Document, Feedback, Job,
+    JobResult, PageView, ProductEvent, Search, SiteFeedback, User, aware, utcnow,
 )
 from ..templating import templates
 
@@ -186,6 +186,13 @@ def _gather(db: DbSession) -> dict:
     corpus_daily = (db.query(CorpusStat)
                     .order_by(CorpusStat.created_at.desc()).limit(14).all())
 
+    # Discovery / custom-scrape footprint (the new premium-sourced companies).
+    scraped_jobs = db.query(Job).filter(Job.source.like("scrape:%")).count()
+    companies_total = db.query(Company).count()
+    companies_custom = db.query(Company).filter(Company.ats == "custom").count()
+    companies_polled = (db.query(Company)
+                        .filter(Company.last_polled_at >= aware(_since(2))).count())
+
     return {
         "now": now,
         "funnel": funnel,
@@ -193,6 +200,8 @@ def _gather(db: DbSession) -> dict:
         "fresh_30d": fresh_30d, "stale_45d": stale_45d, "embedded_n": embedded_n,
         "unchecked_n": unchecked_n, "remote_mix": remote_mix,
         "top_sources": top_sources, "corpus_daily": corpus_daily,
+        "scraped_jobs": scraped_jobs, "companies_total": companies_total,
+        "companies_custom": companies_custom, "companies_polled": companies_polled,
         "total_users": total_users, "google_users": google_users,
         "premium_users": premium_users, "waitlist": waitlist,
         "total_searches": total_searches, "searches_7d": searches_7d,
