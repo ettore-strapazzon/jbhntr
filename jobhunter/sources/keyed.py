@@ -35,6 +35,10 @@ log = logging.getLogger("jobhunter.sources.keyed")
 
 MAX_TERMS = 5          # queries per API per run, to bound cost
 RESULTS_PER_QUERY = 50
+# Result pages per query. Careerjet is free + generous (our top source), so page
+# deep; Jooble is metered (~500 calls/month), so stay shallow.
+CAREERJET_PAGES = 3
+JOOBLE_PAGES = 2
 
 
 # "Remote-EU"/"Remote-Anywhere" name no country a jobs API can search.
@@ -75,30 +79,34 @@ def _careerjet(profile: Profile, s: Settings) -> list[JobPosting]:
     location = (_cities(profile) or [""])[0]
     with http_client() as c:
         for term in _terms(profile):
-            r = c.get(
-                "http://public.api.careerjet.net/search",
-                params={
-                    "keywords": term, "location": location,
-                    "affid": s.careerjet_affid, "user_ip": "127.0.0.1",
-                    "user_agent": "Mozilla/5.0", "url": s.careerjet_referer,
-                    "locale_code": locale, "pagesize": 50,
-                },
-                # Careerjet rejects calls without a Referer.
-                headers={"Referer": s.careerjet_referer},
-            )
-            if r.status_code != 200:
-                log.warning("Careerjet %s: HTTP %s", term, r.status_code)
-                continue
-            for j in r.json().get("jobs", []) or []:
-                out.append(JobPosting(
-                    source="api:careerjet",
-                    title=j.get("title", ""),
-                    company=j.get("company", ""),
-                    location=j.get("locations", ""),
-                    description=strip_html(j.get("description", "")),
-                    url=j.get("url", ""),
-                    salary_text=j.get("salary", "") or "",
-                ))
+            for page in range(1, CAREERJET_PAGES + 1):
+                r = c.get(
+                    "http://public.api.careerjet.net/search",
+                    params={
+                        "keywords": term, "location": location,
+                        "affid": s.careerjet_affid, "user_ip": "127.0.0.1",
+                        "user_agent": "Mozilla/5.0", "url": s.careerjet_referer,
+                        "locale_code": locale, "pagesize": 50, "page": page,
+                    },
+                    # Careerjet rejects calls without a Referer.
+                    headers={"Referer": s.careerjet_referer},
+                )
+                if r.status_code != 200:
+                    log.warning("Careerjet %s p%d: HTTP %s", term, page, r.status_code)
+                    break
+                page_jobs = r.json().get("jobs", []) or []
+                for j in page_jobs:
+                    out.append(JobPosting(
+                        source="api:careerjet",
+                        title=j.get("title", ""),
+                        company=j.get("company", ""),
+                        location=j.get("locations", ""),
+                        description=strip_html(j.get("description", "")),
+                        url=j.get("url", ""),
+                        salary_text=j.get("salary", "") or "",
+                    ))
+                if len(page_jobs) < 50:
+                    break                       # last page for this term
     return out
 
 
@@ -107,24 +115,28 @@ def _jooble(profile: Profile, s: Settings) -> list[JobPosting]:
     location = (_cities(profile) or [""])[0]
     with http_client() as c:
         for term in _terms(profile):
-            r = c.post(
-                f"https://jooble.org/api/{s.jooble_key}",
-                json={"keywords": term, "location": location},
-                headers={"Content-Type": "application/json"},
-            )
-            if r.status_code != 200:
-                log.warning("Jooble %s: HTTP %s", term, r.status_code)
-                continue
-            for j in r.json().get("jobs", []) or []:
-                out.append(JobPosting(
-                    source="api:jooble",
-                    title=j.get("title", ""),
-                    company=j.get("company", ""),
-                    location=j.get("location", ""),
-                    description=strip_html(j.get("snippet", "")),
-                    url=j.get("link", ""),
-                    salary_text=j.get("salary", "") or "",
-                ))
+            for page in range(1, JOOBLE_PAGES + 1):
+                r = c.post(
+                    f"https://jooble.org/api/{s.jooble_key}",
+                    json={"keywords": term, "location": location, "page": page},
+                    headers={"Content-Type": "application/json"},
+                )
+                if r.status_code != 200:
+                    log.warning("Jooble %s p%d: HTTP %s", term, page, r.status_code)
+                    break
+                page_jobs = r.json().get("jobs", []) or []
+                for j in page_jobs:
+                    out.append(JobPosting(
+                        source="api:jooble",
+                        title=j.get("title", ""),
+                        company=j.get("company", ""),
+                        location=j.get("location", ""),
+                        description=strip_html(j.get("snippet", "")),
+                        url=j.get("link", ""),
+                        salary_text=j.get("salary", "") or "",
+                    ))
+                if not page_jobs:
+                    break                       # no more results for this term
     return out
 
 

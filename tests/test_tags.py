@@ -19,7 +19,10 @@ def _job(**kw):
         ({"location": "Remote - EU"}, "remote"),
         ({"description": "Fully remote, work from home"}, "remote"),
         ({"location": "Milan, Italy", "description": "on-site role"}, "onsite"),
-        ({"location": "Milan, Italy"}, "unknown"),
+        # A posting naming a real place with no remote/hybrid signal is inferred
+        # on-site (was "unknown" — most of the corpus).
+        ({"location": "Milan, Italy"}, "onsite"),
+        ({"location": ""}, "unknown"),                 # no place at all -> unknown
         # Hybrid wins even when the ad also says remote.
         ({"description": "hybrid / remote flexible"}, "hybrid"),
     ],
@@ -49,7 +52,7 @@ def test_deterministic_tags_shape():
              salary_text="150000-200000", is_remote=False)
     t = deterministic_tags(j)
     assert t["countries"] == ["us"]
-    assert t["remote_mode"] == "unknown"
+    assert t["remote_mode"] == "onsite"       # names Austin -> inferred on-site
     assert t["salary_min"] == 150000 and t["salary_max"] == 200000
     assert t["has_salary"] is True
 

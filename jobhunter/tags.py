@@ -45,6 +45,11 @@ def remote_mode(job: JobPosting) -> str:
         return "remote"
     if any(w in blob for w in _ONSITE):
         return "onsite"
+    # A posting that names a real, specific place and says nothing about remote or
+    # hybrid is almost always on-site there. Inferring this (instead of leaving the
+    # bulk of the corpus "unknown") makes on-site/hybrid filtering actually work.
+    if geo.country_of(job.location):
+        return "onsite"
     return "unknown"
 
 

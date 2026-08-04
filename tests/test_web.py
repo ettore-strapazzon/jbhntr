@@ -2479,3 +2479,45 @@ def test_corpus_terms_and_countries_keep_every_user(client):
         db.query(ProfileRow).filter_by(user_id=u.id).delete()
         db.query(User).filter_by(id=u.id).delete()
         db.commit(); db.close()
+
+
+@_pytest.mark.parametrize("location, desc, is_remote, expected", [
+    ("Milan, Italy", "Great role", False, "onsite"),   # names a place, no remote word
+    ("London", "", False, "onsite"),
+    ("Remote", "work from anywhere", False, "remote"),
+    ("Berlin", "hybrid schedule", False, "hybrid"),
+    ("Anywhere", "", True, "remote"),                  # source flag
+    ("Europe", "", False, "unknown"),                  # region, not a specific place
+    ("", "no location given", False, "unknown"),
+])
+def test_remote_mode_infers_onsite_from_a_real_place(location, desc, is_remote, expected):
+    from jobhunter.models import JobPosting
+    from jobhunter.tags import remote_mode
+    j = JobPosting(source="s", title="Ops", location=location, description=desc,
+                   is_remote=is_remote)
+    assert remote_mode(j) == expected
+
+
+def test_careerjet_paginates_and_stops(monkeypatch):
+    from jobhunter.config import Profile, Settings
+    from jobhunter.sources import keyed
+
+    pages_hit = []
+
+    class _Resp:
+        def __init__(self, n): self.status_code = 200; self._n = n
+        def json(self):
+            return {"jobs": [{"title": f"j{i}", "company": "C", "locations": "Milan",
+                              "description": "d", "url": f"u{i}"} for i in range(self._n)]}
+
+    class _Client:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url, params=None, headers=None):
+            pages_hit.append(params["page"])
+            return _Resp(50 if params["page"] == 1 else 12)   # page 2 short -> stop
+
+    monkeypatch.setattr(keyed, "http_client", lambda *a, **k: _Client())
+    prof = Profile(raw={"locations": ["Italy"], "sources": {"search_terms": ["ops"]}})
+    jobs = keyed._careerjet(prof, Settings(careerjet_affid="x", careerjet_referer="http://x"))
+    assert len(jobs) == 62 and pages_hit == [1, 2]     # 50 + 12, stopped before page 3
