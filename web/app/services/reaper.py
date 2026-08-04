@@ -35,7 +35,9 @@ log = logging.getLogger("jbhntr.reaper")
 
 _UA = "Mozilla/5.0 (compatible; JBHNTR-linkcheck/1.0)"
 
-# A 200 page containing any of these is treated as a closed posting.
+# A 200 page containing any of these is treated as a closed posting — either
+# genuinely closed, or a login/registration wall that hides the real posting
+# (which is a dead end for the user, so we drop it the same way).
 DEAD_MARKERS = (
     "no longer available", "no longer accepting", "no longer open",
     "position has been filled", "has been filled", "this position is closed",
@@ -43,6 +45,10 @@ DEAD_MARKERS = (
     "job is no longer", "position is no longer", "job has expired",
     "this job has expired", "job not found", "page not found",
     "the job you are looking for", "not currently accepting",
+    # registration / login walls that gate the actual posting
+    "create an account to view", "sign in to view the full",
+    "log in to view this job", "register to see the full",
+    "sign up to view full", "account to view full job",
 )
 
 
@@ -77,7 +83,17 @@ def sweep(
 ) -> dict:
     """One reaper pass. Returns counts. Never raises (logs and returns)."""
     try:
+        from .corpus_service import GATED_HOSTS
+
         now = utcnow()
+
+        # 0. Purge any job whose apply URL is a gated/dead-end host — it should
+        #    never have been stored, and this cleans out ones ingested earlier.
+        gated_deleted = 0
+        for host in GATED_HOSTS:
+            gated_deleted += (db.query(Job).filter(Job.url.like(f"%{host}%"))
+                              .delete(synchronize_session=False))
+        db.commit()
 
         # 1. TTL: gone from every fresh search for too long -> delete, no I/O.
         stale_before = now - timedelta(days=stale_days)
@@ -119,8 +135,9 @@ def sweep(
                     job.last_checked_at = now
             db.commit()
 
-        result = {"ttl_deleted": ttl_deleted, "checked": checked,
-                  "gone_deleted": gone, "remaining": db.query(Job).count()}
+        result = {"ttl_deleted": ttl_deleted + gated_deleted, "checked": checked,
+                  "gone_deleted": gone, "gated_deleted": gated_deleted,
+                  "remaining": db.query(Job).count()}
         log.info("Reaper: %s", result)
         return result
     except Exception as exc:

@@ -2543,3 +2543,48 @@ def test_corpus_terms_includes_derived_roles(client):
         db.query(ProfileRow).filter_by(user_id=u.id).delete()
         db.query(User).filter_by(id=u.id).delete()
         db.commit(); db.close()
+
+
+# --------------------------- link quality --------------------------------- #
+def test_gated_urls_rejected_and_reaped(client):
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import corpus_service, reaper
+    from jobhunter.models import JobPosting
+
+    assert corpus_service.is_gated_url("https://findwork.dev/nvD6/chief-of-staff") is True
+    assert corpus_service.is_gated_url("https://boards.greenhouse.io/acme/jobs/1") is False
+
+    db = SessionLocal()
+    try:
+        # ingestion drops the gated one, keeps the good one
+        added, _ = corpus_service.upsert_jobs(db, [
+            JobPosting(source="api:findwork", title="Gated", company="X",
+                       url="https://findwork.dev/abc/role"),
+            JobPosting(source="ats:greenhouse:acme", title="Good", company="Acme",
+                       url="https://boards.greenhouse.io/acme/jobs/9"),
+        ])
+        assert added == 1
+        assert db.query(Job).filter(Job.url.like("%findwork.dev%")).count() == 0
+        # a leftover gated row from before the filter is cleaned by the reaper
+        db.add(Job(dedup_key="leftover", source="api:findwork", title="Old",
+                   url="https://findwork.dev/xyz/role"))
+        db.commit()
+        res = reaper.sweep(db, check_limit=0)
+        assert res["gated_deleted"] >= 1
+        assert db.query(Job).filter(Job.url.like("%findwork.dev%")).count() == 0
+    finally:
+        db.query(Job).filter(Job.url.like("%greenhouse.io%")).delete()
+        db.commit(); db.close()
+
+
+def test_reaper_treats_registration_wall_as_gone(monkeypatch):
+    from web.app.services import reaper
+
+    class _Resp:
+        status_code = 200
+        text = "Join the #1 remote job site. Create an account to view full job details."
+    class _Client:
+        def get(self, url, follow_redirects=True): return _Resp()
+
+    assert reaper.check_url("https://weworkremotely.com/x", _Client()) == "gone"

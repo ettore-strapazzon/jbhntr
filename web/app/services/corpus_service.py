@@ -11,6 +11,7 @@ See docs/ARCHITECTURE.md → "Scaling: the shared job corpus".
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session as DbSession
 
@@ -22,6 +23,18 @@ from ..models import Job, aware, utcnow
 log = logging.getLogger("jbhntr.corpus")
 
 _FRESH_DAYS = 30   # match the search-time freshness window
+
+# Hosts that never lead to a usable application page: they gate the posting
+# behind a login/registration wall and/or serve an ephemeral page that 404s once
+# the listing rotates. A job whose apply URL is one of these is dropped at
+# ingestion and cleaned from the corpus (see reaper), so we never send a user
+# to a dead end.
+GATED_HOSTS = ("findwork.dev",)
+
+
+def is_gated_url(url: str) -> bool:
+    host = urlparse(url or "").netloc.lower()
+    return any(host == h or host.endswith("." + h) for h in GATED_HOSTS)
 
 
 def count_matching(db: DbSession, profile) -> int:
@@ -72,6 +85,8 @@ def upsert_jobs(db: DbSession, postings: list[JobPosting]) -> tuple[int, int]:
     try:
         by_key: dict[str, JobPosting] = {}
         for p in postings:
+            if is_gated_url(p.url):               # never store a walled/dead-end link
+                continue
             by_key.setdefault(p.dedup_key(), p)   # collapse within-batch dups
         if not by_key:
             return (0, 0)

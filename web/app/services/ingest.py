@@ -46,19 +46,20 @@ KEYED_SOURCES = {
     "careerjet": ("careerjet_affid", keyed._careerjet),
     "jooble": ("jooble_key", keyed._jooble),
     "reed": ("reed_key", keyed._reed),
-    "findwork": ("findwork_key", keyed._findwork),
     "web3career": ("web3career_key", keyed._web3career),
     "usajobs": ("usajobs_key", keyed._usajobs),
     "jsearch": ("jsearch_key", keyed._jsearch),
     "serpapi": ("serpapi_key", keyed._serpapi),
 }
+# Findwork removed: its links are its own findwork.dev pages, which are
+# profile-gated AND ephemeral (they 404 once the listing rotates), so a user
+# clicking through hits a wall or a dead page. findwork.dev is also on
+# GATED_HOSTS, so any leftover rows get cleaned out.
 
-# The metered ceilings run weekly; everything else daily (§11b). Findwork's
-# free tier 429s under any real term load, so it's weekly too (low value —
-# tech-only — so not worth chasing a higher limit).
+# The metered ceilings run weekly; everything else daily (§11b).
 SOURCE_CADENCE = {
     "careerjet": "daily", "jooble": "weekly", "reed": "daily",
-    "findwork": "weekly", "web3career": "daily", "usajobs": "daily",
+    "web3career": "daily", "usajobs": "daily",
     "jsearch": "weekly", "serpapi": "weekly",
 }
 
