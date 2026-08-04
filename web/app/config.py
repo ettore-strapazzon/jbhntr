@@ -47,6 +47,10 @@ class WebConfig:
     # Premium runs one automatic search a day; the manual fair-use cap stays too.
     premium_auto_searches_per_day: int = _int("PREMIUM_AUTO_SEARCHES_PER_DAY", 1)
     premium_searches_per_day: int = _int("PREMIUM_SEARCHES_PER_DAY", 2)
+    # Premium similar-company discovery: how often it re-runs per user, and how many
+    # newly-added seeds count as a material profile change that triggers it early.
+    discovery_interval_days: int = _int("DISCOVERY_INTERVAL_DAYS", 7)
+    discovery_new_seeds_trigger: int = _int("DISCOVERY_NEW_SEEDS_TRIGGER", 3)
     max_upload_bytes: int = 1024 * 1024          # 1 MB, per the spec
     max_feedback_chars: int = 300
 

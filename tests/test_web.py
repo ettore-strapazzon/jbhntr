@@ -973,7 +973,8 @@ def test_discover_for_user_upserts_verified_companies(monkeypatch):
     db = SessionLocal()
     try:
         db.query(Company).delete(); db.commit()
-        u = User(email="disc@example.com"); db.add(u); db.flush()
+        u = User(email="disc@example.com", plan="premium")  # discovery is premium-only
+        db.add(u); db.flush()
         db.add(ProfileRow(user_id=u.id))
         db.add(SeedCompany(user_id=u.id, value="stripe.com"))
         db.commit(); db.refresh(u)
@@ -2228,3 +2229,46 @@ def test_admin_set_plan(client, monkeypatch):
         db.close()
     # gate: no auth -> 401
     assert client.post("/admin/set-plan", data={"email": "x", "plan": "premium"}).status_code == 401
+
+
+# --------------------------- premium discovery cadence -------------------- #
+def test_due_for_discovery_rules():
+    from datetime import timedelta
+    from web.app.models import User, utcnow
+    from web.app.services.companies_service import due_for_discovery
+
+    now = utcnow()
+    free = User(plan="free")
+    prem = User(plan="premium")
+
+    # free never qualifies
+    assert due_for_discovery(free, ["A", "B", "C", "D"], ["ai"], now) is False
+    # premium, never run -> due
+    assert due_for_discovery(prem, ["A"], ["ai"], now) is True
+    # ran just now, nothing changed -> not due
+    prem.last_discovery_at = now
+    prem.discovery_seeds = ["A", "B"]
+    prem.discovery_verticals = ["ai"]
+    assert due_for_discovery(prem, ["A", "B"], ["ai"], now) is False
+    # cadence elapsed (>7d) -> due
+    assert due_for_discovery(prem, ["A", "B"], ["ai"], now + timedelta(days=8)) is True
+    # 3 new seeds since last run -> due early
+    assert due_for_discovery(prem, ["A", "B", "C", "D", "E"], ["ai"], now) is True
+    # only 2 new seeds -> not enough
+    assert due_for_discovery(prem, ["A", "B", "C", "D"], ["ai"], now) is False
+    # any new vertical -> due
+    assert due_for_discovery(prem, ["A", "B"], ["ai", "fintech"], now) is True
+
+
+def test_discover_for_user_is_premium_gated(client):
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services.companies_service import discover_for_user
+    signup(client, email="freeuser@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="freeuser@example.com").one()
+        res = discover_for_user(db, u)
+        assert res.get("reason") == "not premium" and res.get("added") == 0
+    finally:
+        db.close()

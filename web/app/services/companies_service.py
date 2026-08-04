@@ -20,13 +20,36 @@ from jobhunter.config import Settings, load_companies
 from jobhunter.models import JobPosting
 from jobhunter.sources.ats import FETCHERS
 
-from ..models import Company, User, utcnow
+from ..config import config
+from ..models import Company, User, aware, utcnow
 
 log = logging.getLogger("jbhntr.companies")
 
 DISCOVER_TARGET = 100     # similar companies to accumulate per user, over time
 DISCOVER_MAX_ROUNDS = 2   # per call — keep a scheduled run short; accumulate across runs
 POLL_WORKERS = 12
+
+
+def due_for_discovery(user: User, seeds: list[str], verticals: list[str],
+                      now=None) -> bool:
+    """Should premium discovery run for this user now?
+
+    Premium only. Due when it has never run, when the cadence window has elapsed,
+    or when the profile changed materially since the last run — at least N new
+    seed companies, or any new vertical.
+    """
+    from datetime import timedelta
+    if not user.is_premium:
+        return False
+    now = now or utcnow()
+    last = aware(user.last_discovery_at)
+    if last is None:
+        return True
+    if now - last >= timedelta(days=config.discovery_interval_days):
+        return True
+    new_seeds = set(seeds) - set(user.discovery_seeds or [])
+    new_verticals = set(verticals) - set(user.discovery_verticals or [])
+    return len(new_seeds) >= config.discovery_new_seeds_trigger or bool(new_verticals)
 
 
 # --------------------------------------------------------------------------- #
@@ -71,9 +94,12 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
     from .profile_service import build_engine_profile, seed_values
 
     try:
+        if not user.is_premium:
+            return {"discovered": 0, "added": 0, "reason": "not premium"}
         seeds = seed_values(db, user)
         if not seeds:
             return {"discovered": 0, "added": 0, "reason": "no seeds"}
+        verticals = list(user.profile.verticals or []) if user.profile else []
         profile = build_engine_profile(db, user)
         settings = Settings.from_env()
         # Exclude companies already in the shared registry so each short run
@@ -93,6 +119,11 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
             if upsert_company(db, c.get("ats", ""), c.get("token", ""),
                               c.get("name", ""), source="discovered", user_id=user.id):
                 added += 1
+        # Record what this run was based on, so the next cadence check can tell
+        # whether the profile has since changed materially.
+        user.last_discovery_at = utcnow()
+        user.discovery_seeds = list(seeds)
+        user.discovery_verticals = list(verticals)
         db.commit()
         result = {"discovered": len(verified), "added": added}
         log.info("Discovery for user %s: %s", user.id, result)
@@ -104,10 +135,20 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
 
 
 def discover_all_active(db: DbSession) -> dict:
-    """Run discovery for every user with a completed profile (scheduled refresh)."""
-    totals = {"users": 0, "added": 0}
+    """Scheduled refresh: run discovery for every PREMIUM user who is due (cadence
+    elapsed or profile changed materially). Free users are skipped — this is a
+    premium feature — but the companies it finds feed everyone's corpus."""
+    from .profile_service import seed_values
+
+    totals = {"users": 0, "skipped": 0, "added": 0}
     for user in db.query(User).all():
-        if not user.profile:
+        if not user.profile or not user.is_premium:
+            totals["skipped"] += 1
+            continue
+        seeds = seed_values(db, user)
+        verticals = list(user.profile.verticals or [])
+        if not due_for_discovery(user, seeds, verticals):
+            totals["skipped"] += 1
             continue
         res = discover_for_user(db, user)
         totals["users"] += 1
