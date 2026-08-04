@@ -2209,3 +2209,22 @@ def test_cron_records_corpus_stat():
         assert row.added == 40 and row.ttl_deleted == 5 and row.gone_deleted == 2
     finally:
         db.close()
+
+
+def test_admin_set_plan(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    signup(client, email="prem@example.com")
+    r = client.post("/admin/set-plan", data={"email": "prem@example.com", "plan": "premium"},
+                    auth=("op", "s3cret"), follow_redirects=False)
+    assert r.status_code == 303
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="prem@example.com").one()
+        assert u.plan == "premium" and u.is_premium
+    finally:
+        db.close()
+    # gate: no auth -> 401
+    assert client.post("/admin/set-plan", data={"email": "x", "plan": "premium"}).status_code == 401

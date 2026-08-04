@@ -78,6 +78,14 @@
            style="max-width:280px">
     <button type="submit">Reset free usage</button>
   </form>
+  <h2 style="margin-top:20px">Set a plan <span class="muted small">(grant a tester Premium)</span></h2>
+  <form method="post" action="/admin/set-plan" class="row" style="margin-top:8px">
+    <input type="email" name="email" placeholder="user@example.com" required
+           style="max-width:280px">
+    <select name="plan" aria-label="Plan"><option value="premium">premium</option>
+      <option value="free">free</option></select>
+    <button type="submit">Set plan</button>
+  </form>
 </div>
 
 {# ===== premium waiting list ===== #}

@@ -264,6 +264,24 @@ def admin_reset_usage(_: bool = Depends(require_admin), email: str = Form(...)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/set-plan")
+def admin_set_plan(_: bool = Depends(require_admin), email: str = Form(...),
+                   plan: str = Form(...), db: DbSession = Depends(get_session)):
+    """Operator action: put an account on Premium (or back on Free) — used while
+    payments are disabled to grant testers access."""
+    from urllib.parse import quote
+    plan = plan if plan in ("free", "premium") else "free"
+    user = db.query(User).filter(User.email == email.strip().lower()).first()
+    if not user:
+        msg = f"No account for {email}."
+    else:
+        user.plan = plan
+        user.premium_until = None   # no expiry while payments are off
+        db.commit()
+        msg = f"{user.email} is now {plan}."
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.get("/admin/waitlist.csv")
 def waitlist_csv(_: bool = Depends(require_admin),
                  db: DbSession = Depends(get_session)):
