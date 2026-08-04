@@ -2625,3 +2625,22 @@ def test_verify_links_drops_dead_and_purges_corpus(client, monkeypatch):
         db.query(Job).filter(Job.dedup_key.in_(
             [good.dedup_key(), dead.dedup_key()])).delete(synchronize_session=False)
         db.commit(); db.close()
+
+
+def test_admin_growth_charts(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import CorpusStat
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    signup(client, email="grow@example.com")          # a user created today
+    db = SessionLocal()
+    try:
+        db.add(CorpusStat(total=15000, added=250))
+        db.commit()
+    finally:
+        db.close()
+    page = client.get("/admin", auth=("op", "s3cret")).text
+    assert "New users per day" in page
+    assert "New jobs added per day" in page
+    assert 'class="barchart"' in page
+    assert "height:100%" in page                        # today's peak bar rendered

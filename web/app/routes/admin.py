@@ -50,8 +50,40 @@ def _since(days: int):
     return utcnow() - timedelta(days=days)
 
 
+def _chart(day_counts: dict, days: int = 30) -> dict:
+    """Turn {date: count} into a bar-chart spec for the last `days` days, oldest
+    first and zero-filled, with each bar's height as a percentage of the peak."""
+    today = utcnow().date()
+    order = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
+    vals = [int(day_counts.get(d, 0)) for d in order]
+    peak = max(vals) if vals else 0
+    bars = [{"label": d.strftime("%d %b"), "v": v,
+             "pct": round(v / peak * 100) if peak else 0}
+            for d, v in zip(order, vals)]
+    return {"bars": bars, "peak": peak, "total": sum(vals), "days": days}
+
+
+def _bucket_by_day(rows, value_attr=None):
+    """{date: count-or-summed-value} keyed by each row's created_at date. With
+    `value_attr` it sums that attribute (e.g. 'added'); otherwise counts rows."""
+    out: dict = {}
+    for r in rows:
+        ts = aware(r.created_at)
+        if not ts:
+            continue
+        d = ts.date()
+        out[d] = out.get(d, 0) + (getattr(r, value_attr) if value_attr else 1)
+    return out
+
+
 def _gather(db: DbSession) -> dict:
     now = utcnow()
+
+    # --- growth over time (daily bar charts) ---
+    signup_rows = db.query(User).filter(User.created_at >= aware(_since(30))).all()
+    signups_chart = _chart(_bucket_by_day(signup_rows))
+    stat_rows = db.query(CorpusStat).filter(CorpusStat.created_at >= aware(_since(30))).all()
+    jobs_added_chart = _chart(_bucket_by_day(stat_rows, "added"))
 
     # --- people ---
     total_users = db.query(User).count()
@@ -196,6 +228,7 @@ def _gather(db: DbSession) -> dict:
     return {
         "now": now,
         "funnel": funnel,
+        "signups_chart": signups_chart, "jobs_added_chart": jobs_added_chart,
         "corpus_total": corpus_total, "fresh_1d": fresh_1d, "fresh_7d": fresh_7d,
         "fresh_30d": fresh_30d, "stale_45d": stale_45d, "embedded_n": embedded_n,
         "unchecked_n": unchecked_n, "remote_mix": remote_mix,
