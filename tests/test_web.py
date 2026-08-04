@@ -2588,3 +2588,40 @@ def test_reaper_treats_registration_wall_as_gone(monkeypatch):
         def get(self, url, follow_redirects=True): return _Resp()
 
     assert reaper.check_url("https://weworkremotely.com/x", _Client()) == "gone"
+
+
+def test_verify_links_drops_dead_and_purges_corpus(client, monkeypatch):
+    """The top results are link-checked before showing: dead/gated links are
+    dropped from the shortlist and deleted from the corpus; survivors are stamped."""
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import reaper, search_service
+    from jobhunter.models import JobPosting, MatchResult
+
+    good = JobPosting(source="ats:greenhouse:acme", title="Good", company="Acme",
+                      url="https://boards.greenhouse.io/acme/jobs/1")
+    dead = JobPosting(source="api:careerjet", title="Dead", company="X",
+                      url="https://example.com/dead")
+    m = MatchResult(tier=1, score=90, reasons="ok")
+
+    # classify the dead URL as gone, the good one as active
+    monkeypatch.setattr(reaper, "check_url",
+                        lambda url, c: "gone" if "dead" in url else "active")
+
+    db = SessionLocal()
+    try:
+        for p in (good, dead):
+            db.add(Job(dedup_key=p.dedup_key(), source=p.source, title=p.title,
+                       url=p.url, last_checked_at=None))
+        db.commit()
+
+        kept = search_service._verify_links(db, [(good, m), (dead, m)])
+        titles = [j.title for j, _ in kept]
+        assert titles == ["Good"]                                  # dead dropped
+        assert db.query(Job).filter_by(dedup_key=dead.dedup_key()).count() == 0  # purged
+        surv = db.query(Job).filter_by(dedup_key=good.dedup_key()).one()
+        assert surv.last_checked_at is not None                     # stamped checked
+    finally:
+        db.query(Job).filter(Job.dedup_key.in_(
+            [good.dedup_key(), dead.dedup_key()])).delete(synchronize_session=False)
+        db.commit(); db.close()

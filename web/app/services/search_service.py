@@ -183,6 +183,12 @@ def _run_search(search_id: int, user_id: int) -> None:
         long_shots = sorted([(j, m) for j, m in scored if m.tier == 4], key=by_rank)[:MAX_LONGSHOTS]
         ranked = ranked + long_shots
 
+        # Verify the links the user will actually see are live and ungated, so no
+        # one clicks into a 404 or a login wall. Drops the dead ones and purges
+        # them from the shared corpus. Fail-soft — never blocks a search.
+        _set(db, search, stage="Checking links…")
+        ranked = _verify_links(db, ranked)
+
         _set(db, search, stage="Saving results…")
         for i, (job, match) in enumerate(ranked, start=1):
             good, bad = _split_reasons(match.reasons)
@@ -283,6 +289,53 @@ def _candidate_query_text(profile, candidate) -> str:
         " ".join(candidate.skills or []),
     ]
     return ". ".join(p for p in parts if p) or "job"
+
+
+VERIFY_LIMIT = 30    # top results to link-check before showing (bounds latency)
+_VERIFY_UA = "Mozilla/5.0 (compatible; JBHNTR-linkcheck/1.0)"
+
+
+def _verify_links(db: DbSession, ranked: list) -> list:
+    """Link-check the top results; drop the dead/gated ones and purge them from
+    the shared corpus, so a user never sees a 404 or a login-wall. Survivors are
+    stamped checked so the nightly reaper skips them. Fail-soft: any trouble and
+    the unmodified list is returned (a working search beats a perfect one)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    import httpx
+
+    from ..models import Job
+    from .reaper import check_url
+
+    head = ranked[:VERIFY_LIMIT]
+    if not head:
+        return ranked
+    try:
+        with httpx.Client(timeout=12.0, headers={"User-Agent": _VERIFY_UA}) as client:
+            def _one(pair):
+                job, _m = pair
+                return job.dedup_key(), check_url(job.url, client)
+            with ThreadPoolExecutor(max_workers=10) as pool:
+                verdicts = dict(pool.map(_one, head))
+    except Exception as exc:
+        log.warning("Link verification skipped: %s", exc)
+        return ranked
+
+    dead = {k for k, v in verdicts.items() if v == "gone"}
+    live = [k for k, v in verdicts.items() if v != "gone"]
+    if dead or live:
+        try:
+            if dead:
+                db.query(Job).filter(Job.dedup_key.in_(dead)).delete(synchronize_session=False)
+            if live:
+                db.query(Job).filter(Job.dedup_key.in_(live)).update(
+                    {Job.last_checked_at: utcnow()}, synchronize_session=False)
+            db.commit()
+        except Exception:
+            db.rollback()
+    if dead:
+        log.info("Search: dropped %d dead/gated links from the shortlist", len(dead))
+    return [(j, m) for (j, m) in ranked if j.dedup_key() not in dead]
 
 
 def _country_allowed(job_countries, remote_mode, target_codes, remote_any) -> bool:
