@@ -78,8 +78,14 @@ DEFAULT_TERMS = [
 ]
 DEFAULT_COUNTRIES = ["United States", "United Kingdom", "Italy", "Germany", "France"]
 
-TERMS_CAP = 25
-COUNTRIES_CAP = 6
+# Floors give a cold/small corpus broad coverage; ceilings bound API-call volume
+# (countries × terms × pages × sources). Between them, EVERY active user's own
+# countries and terms are always included — so a new profile's country/term is
+# ingested from the next run, never crowded out by the defaults.
+TERMS_CAP = 25          # pad user terms up to this with defaults
+TERMS_MAX = 40          # absolute ceiling
+COUNTRIES_CAP = 6       # pad user countries up to this with defaults
+COUNTRIES_MAX = 10      # absolute ceiling
 
 # code -> display name, built from the picker list so provider locations resolve.
 _CODE_TO_NAME: dict[str, str] = {}
@@ -94,34 +100,36 @@ def _chunks(seq: list, n: int):
         yield seq[i : i + n]
 
 
-def corpus_terms(db, cap: int = TERMS_CAP) -> list[str]:
-    """Union of users' typed search terms (by demand) + broad defaults."""
+def corpus_terms(db) -> list[str]:
+    """Every active user's typed search terms (by demand) first, padded with broad
+    defaults up to the floor. All user terms are kept (up to the ceiling), so a
+    user's niche role is never dropped from the shared corpus."""
     counter: Counter[str] = Counter()
     for p in db.query(ProfileRow):
         for t in (p.search_terms or []):
             t = (t or "").strip()
             if t:
                 counter[t] += 1
-    out: list[str] = [t for t, _ in counter.most_common()]
+    out: list[str] = [t for t, _ in counter.most_common()]   # user terms, prioritised
     for d in DEFAULT_TERMS:
-        if d not in out:
+        if d not in out and len(out) < TERMS_CAP:            # pad to the floor only
             out.append(d)
-    return out[:cap]
+    return out[:TERMS_MAX]
 
 
-def corpus_countries(db, cap: int = COUNTRIES_CAP) -> list[str]:
-    """Country display names implied by users' locations + broad defaults."""
+def corpus_countries(db) -> list[str]:
+    """Every active user's countries first, padded with broad defaults up to the
+    floor. All user countries are kept (up to the ceiling)."""
     out: list[str] = []
     for p in db.query(ProfileRow):
         for loc in (p.locations or []):
-            code = geo.country_of(loc)
-            name = _CODE_TO_NAME.get(code)
+            name = _CODE_TO_NAME.get(geo.country_of(loc))
             if name and name not in out:
                 out.append(name)
     for d in DEFAULT_COUNTRIES:
-        if d not in out:
+        if d not in out and len(out) < COUNTRIES_CAP:        # pad to the floor only
             out.append(d)
-    return out[:cap]
+    return out[:COUNTRIES_MAX]
 
 
 def _fetch(label: str, fn, *args) -> list:

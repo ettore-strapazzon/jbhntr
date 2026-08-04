@@ -277,6 +277,7 @@ class Settings:
     adzuna_app_id: str = ""
     adzuna_app_key: str = ""
     adzuna_country: str = "gb"
+    adzuna_pages: int = 3        # result pages per (country, term) — 50 jobs each
 
     # ---- Optional aggregator APIs (each activates when its key is set) ----
     careerjet_affid: str = ""
@@ -331,6 +332,7 @@ class Settings:
             adzuna_app_id=g("ADZUNA_APP_ID"),
             adzuna_app_key=g("ADZUNA_APP_KEY"),
             adzuna_country=g("ADZUNA_COUNTRY", "gb"),
+            adzuna_pages=int(g("ADZUNA_PAGES", "3") or "3"),
             careerjet_affid=g("CAREERJET_AFFID"),
             careerjet_locale=g("CAREERJET_LOCALE", "en_GB"),
             careerjet_referer=g("CAREERJET_REFERER", "http://localhost"),

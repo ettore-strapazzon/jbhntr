@@ -2423,3 +2423,59 @@ def test_admin_shows_scrape_line(client, monkeypatch):
     page = client.get("/admin", auth=("op", "s3cret")).text
     assert "jobs from custom scraping" in page
     assert "custom career pages" in page
+
+
+# --------------------------- ingest breadth ------------------------------- #
+def test_adzuna_paginates_and_stops_on_short_page(monkeypatch):
+    from jobhunter.config import Profile, Settings
+    from jobhunter.sources import adzuna
+
+    seen_urls = []
+
+    class _Resp:
+        def __init__(self, n):
+            self.status_code = 200
+            self._n = n
+        def raise_for_status(self): pass
+        def json(self):
+            return {"results": [{"title": f"job{i}", "company": {"display_name": "C"},
+                                 "location": {"display_name": "Milan"}} for i in range(self._n)]}
+
+    class _Client:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url, params=None):
+            seen_urls.append(url)
+            return _Resp(50 if url.endswith("/search/1") else 20)   # page 2 short -> stop
+
+    monkeypatch.setattr(adzuna, "http_client", lambda *a, **k: _Client())
+    monkeypatch.setattr(adzuna.time, "sleep", lambda *_: None)
+    prof = Profile(raw={"locations": ["Italy"], "sources": {"search_terms": ["ops"]}})
+    s = Settings(adzuna_app_id="x", adzuna_app_key="y", adzuna_pages=3)
+    jobs = adzuna.fetch(prof, s)
+    assert len(jobs) == 70                                   # 50 + 20, then stopped
+    assert seen_urls[-2:] == ["https://api.adzuna.com/v1/api/jobs/it/search/1",
+                              "https://api.adzuna.com/v1/api/jobs/it/search/2"]
+
+
+def test_corpus_terms_and_countries_keep_every_user(client):
+    from web.app.db import SessionLocal
+    from web.app.models import Profile as ProfileRow, User
+    from web.app.services import ingest
+    db = SessionLocal()
+    try:
+        u = User(email="niche@example.com"); db.add(u); db.flush()
+        # a niche role + a country not in the defaults
+        db.add(ProfileRow(user_id=u.id, search_terms=["Quantum Hardware Lead"],
+                          locations=["Portugal"]))
+        db.commit()
+        terms = ingest.corpus_terms(db)
+        countries = ingest.corpus_countries(db)
+        assert "Quantum Hardware Lead" in terms              # user's niche term kept
+        assert "Portugal" in countries                       # user's country kept
+        assert "Italy" in countries                          # defaults still pad breadth
+        assert len(countries) <= ingest.COUNTRIES_MAX
+    finally:
+        db.query(ProfileRow).filter_by(user_id=u.id).delete()
+        db.query(User).filter_by(id=u.id).delete()
+        db.commit(); db.close()

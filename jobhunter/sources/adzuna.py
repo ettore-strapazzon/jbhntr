@@ -7,6 +7,7 @@ One request per search term. Fails soft (returns []) if keys are missing.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 
 from .. import geo
@@ -17,6 +18,27 @@ from .base import http_client, strip_html
 log = logging.getLogger("jobhunter.sources.adzuna")
 
 RESULTS_PER_PAGE = 50
+_PACE = 0.25       # polite gap between calls; the free tier limits ~25/min
+_MAX_429 = 4       # retries when rate-limited, with exponential backoff
+
+
+def _get_page(client, url: str, params: dict) -> dict | None:
+    """One Adzuna page, backing off on 429 (the free tier's rate limit). Returns
+    the JSON, or None on a non-recoverable error."""
+    for attempt in range(_MAX_429):
+        try:
+            resp = client.get(url, params=params)
+            if resp.status_code == 429:          # rate limited — wait and retry
+                time.sleep(2 ** attempt)
+                continue
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            if attempt == _MAX_429 - 1:
+                log.warning("Adzuna %s failed: %s", url, exc)
+                return None
+            time.sleep(2 ** attempt)
+    return None
 
 # The endpoint is already scoped to one country, so "where=Italy" on the /it/
 # endpoint matches nothing and silently returns zero results. Only a city or
@@ -70,31 +92,36 @@ def fetch(profile: Profile, settings: Settings) -> list[JobPosting]:
         if not profile.search_terms:
             log.warning("Adzuna: no search terms configured, skipping.")
             return []
+        pages = max(1, settings.adzuna_pages)
         for country in country_list:
             location = _where(profile, country)
             for term in profile.search_terms:
-                url = f"https://api.adzuna.com/v1/api/jobs/{country}/search/1"
-                params = {
-                    "app_id": settings.adzuna_app_id,
-                    "app_key": settings.adzuna_app_key,
-                    "results_per_page": RESULTS_PER_PAGE,
-                    "what": term,
-                    "content-type": "application/json",
-                }
-                if location:
-                    params["where"] = location
-                try:
-                    resp = client.get(url, params=params)
-                    resp.raise_for_status()
-                    data = resp.json()
-                except Exception as exc:
-                    log.warning("Adzuna %s/%r failed: %s", country, term, exc)
-                    continue
+                # Page through results (was: only page 1 = 50 jobs/term), so we
+                # capture far more of Adzuna's inventory per query. Stop early on
+                # the last page. Paced + 429-backed-off to respect the free tier.
+                for page in range(1, pages + 1):
+                    url = f"https://api.adzuna.com/v1/api/jobs/{country}/search/{page}"
+                    params = {
+                        "app_id": settings.adzuna_app_id,
+                        "app_key": settings.adzuna_app_key,
+                        "results_per_page": RESULTS_PER_PAGE,
+                        "what": term,
+                        "content-type": "application/json",
+                    }
+                    if location:
+                        params["where"] = location
+                    data = _get_page(client, url, params)
+                    if data is None:
+                        break
+                    results = data.get("results", [])
+                    for item in results:
+                        jobs.append(_to_posting(item))
+                    if len(results) < RESULTS_PER_PAGE:
+                        break               # no more pages for this query
+                    time.sleep(_PACE)
 
-                for item in data.get("results", []):
-                    jobs.append(_to_posting(item))
-
-    log.info("Adzuna: %d postings across %s", len(jobs), ", ".join(country_list))
+    log.info("Adzuna: %d postings across %s (%d pages/query)",
+             len(jobs), ", ".join(country_list), pages)
     return jobs
 
 
