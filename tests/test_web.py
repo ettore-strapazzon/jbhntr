@@ -2521,3 +2521,25 @@ def test_careerjet_paginates_and_stops(monkeypatch):
     prof = Profile(raw={"locations": ["Italy"], "sources": {"search_terms": ["ops"]}})
     jobs = keyed._careerjet(prof, Settings(careerjet_affid="x", careerjet_referer="http://x"))
     assert len(jobs) == 62 and pages_hit == [1, 2]     # 50 + 12, stopped before page 3
+
+
+def test_corpus_terms_includes_derived_roles(client):
+    """Roles derived from the objective+CV (stored on the profile at search time)
+    are queried by the corpus ingest, not just the titles the user typed."""
+    from web.app.db import SessionLocal
+    from web.app.models import Profile as ProfileRow, User
+    from web.app.services import ingest
+    db = SessionLocal()
+    try:
+        u = User(email="derived@example.com"); db.add(u); db.flush()
+        db.add(ProfileRow(user_id=u.id, search_terms=["Chief of Staff"],
+                          derived_roles=["Business Operations", "Founder's Office"]))
+        db.commit()
+        terms = ingest.corpus_terms(db)
+        assert "Chief of Staff" in terms                 # typed
+        assert "Business Operations" in terms            # derived from objective/CV
+        assert "Founder's Office" in terms
+    finally:
+        db.query(ProfileRow).filter_by(user_id=u.id).delete()
+        db.query(User).filter_by(id=u.id).delete()
+        db.commit(); db.close()

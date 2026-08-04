@@ -101,12 +101,13 @@ def _chunks(seq: list, n: int):
 
 
 def corpus_terms(db) -> list[str]:
-    """Every active user's typed search terms (by demand) first, padded with broad
-    defaults up to the floor. All user terms are kept (up to the ceiling), so a
-    user's niche role is never dropped from the shared corpus."""
+    """Every active user's terms (by demand) first, padded with broad defaults up
+    to the floor. Includes BOTH the titles they typed and the roles the engine
+    derived from their objective + CV, so the corpus is built around what people
+    actually want. All user terms are kept (up to the ceiling)."""
     counter: Counter[str] = Counter()
     for p in db.query(ProfileRow):
-        for t in (p.search_terms or []):
+        for t in list(p.search_terms or []) + list(p.derived_roles or []):
             t = (t or "").strip()
             if t:
                 counter[t] += 1

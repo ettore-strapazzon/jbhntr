@@ -105,6 +105,10 @@ class Profile(Base):
     locations: Mapped[list] = mapped_column(JSON, default=list)
     job_type: Mapped[list] = mapped_column(JSON, default=list)
     search_terms: Mapped[list] = mapped_column(JSON, default=list)
+    # Target roles the engine derived from the objective + CV (not typed by the
+    # user). Stored so the shared corpus can be built around what people actually
+    # want, not only the titles they happened to type. Refreshed each search.
+    derived_roles: Mapped[list] = mapped_column(JSON, default=list)
     salary_floor_eur: Mapped[int | None] = mapped_column(Integer, default=None)
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow,

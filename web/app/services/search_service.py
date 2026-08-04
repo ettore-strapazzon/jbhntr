@@ -127,6 +127,12 @@ def _run_search(search_id: int, user_id: int) -> None:
             profile.raw.setdefault("sources", {})["search_terms"] = merged
             log.info("Search terms for user %s: %s", user.id, merged)
 
+        # Persist the derived roles (from objective + CV) so the shared corpus
+        # ingest queries them too — not just the titles the user typed. Free: the
+        # derive call above already ran. Committed with the search's next _set.
+        if user.profile is not None and candidate.target_roles:
+            user.profile.derived_roles = list(dict.fromkeys(candidate.target_roles))[:15]
+
         terms = list(profile.search_terms) + list(candidate.target_roles or [])
         company_profile = derive_company_profile(labels, settings)
         criteria = derive_criteria(profile, labels, settings)

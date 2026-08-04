@@ -104,7 +104,8 @@ def _add_missing_columns() -> None:
     # (column type, default SQL clause or "" for nullable-no-default)
     wanted = {
         "profiles": {"work_modes": ("TEXT", "DEFAULT '[]'"),
-                     "countries": ("TEXT", "DEFAULT '[]'")},
+                     "countries": ("TEXT", "DEFAULT '[]'"),
+                     "derived_roles": ("TEXT", "DEFAULT '[]'")},
         "jobs": {"last_checked_at": ("TIMESTAMP", ""),
                  "embedding": ("TEXT", ""),
                  "embedding_model": ("TEXT", "DEFAULT ''"),
