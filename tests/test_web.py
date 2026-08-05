@@ -2756,3 +2756,37 @@ def test_panel_drops_a_failing_model(monkeypatch):
     res = panel.deliberate("cv", Materials(), _panel_job(), object(), cfg)
     assert res["models"] == 2                          # bad model dropped, 2 drafts survive
     assert res["content"] == "FINAL"
+
+
+def test_admin_reset_clears_premium_daily_cap(client, monkeypatch):
+    from datetime import timedelta
+
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import Search, User, utcnow
+    from web.app.services.reset_usage import reset
+    from web.app.services.search_service import QuotaError, check_quota
+    monkeypatch.setattr(config, "premium_searches_per_day", 2)
+    signup(client, email="cap@example.com")
+    earlier = utcnow() - timedelta(minutes=1)            # clearly before the reset
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="cap@example.com").one()
+        u.plan = "premium"
+        db.add(Search(user_id=u.id, status="done", started_at=earlier))  # two today = at cap
+        db.add(Search(user_id=u.id, status="done", started_at=earlier))
+        db.commit()
+        with __import__("pytest").raises(QuotaError):
+            check_quota(db, u)                            # fair-use cap hit
+    finally:
+        db.close()
+
+    reset("cap@example.com")                              # operator reset
+
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="cap@example.com").one()
+        assert u.usage_reset_at is not None
+        check_quota(db, u)                                # daily cap cleared -> no raise
+    finally:
+        db.close()

@@ -16,7 +16,7 @@ from __future__ import annotations
 import sys
 
 from ..db import SessionLocal
-from ..models import Document, User
+from ..models import Document, User, utcnow
 
 
 def reset(email: str) -> str:
@@ -35,10 +35,13 @@ def reset(email: str) -> str:
                    .delete(synchronize_session=False))
         user.searches_used = 0
         user.documents_used = 0
+        # Also clear the premium daily fair-use cap: it only counts searches
+        # started after this point, so the user can search again immediately.
+        user.usage_reset_at = utcnow()
         db.commit()
         return (f"Reset {email}: searches_used {before_s} -> 0, "
-                f"documents_used {before_d} -> 0, deleted {deleted} generated documents. "
-                f"Free searches and CV/cover-letter allowance are fresh.")
+                f"documents_used {before_d} -> 0, deleted {deleted} generated documents, "
+                f"and cleared the daily search cap. Free and premium usage are fresh.")
     finally:
         db.close()
 

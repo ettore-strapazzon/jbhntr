@@ -48,6 +48,9 @@ class User(Base):
     premium_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     searches_used: Mapped[int] = mapped_column(Integer, default=0)
     documents_used: Mapped[int] = mapped_column(Integer, default=0)
+    # An operator "reset usage" sets this to now; the premium daily fair-use cap
+    # only counts searches started after it, so a reset also clears the daily cap.
+    usage_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     tos_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     marketing_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -113,6 +113,7 @@ def _add_missing_columns() -> None:
                  "ats_checked": ("BOOLEAN", "DEFAULT false")},
         "users": {"premium_requested_at": ("TIMESTAMP", ""),
                   "digest": ("TEXT", "DEFAULT 'daily'"),
+                  "usage_reset_at": ("TIMESTAMP", ""),
                   "last_discovery_at": ("TIMESTAMP", ""),
                   "discovery_seeds": ("TEXT", "DEFAULT '[]'"),
                   "discovery_verticals": ("TEXT", "DEFAULT '[]'")},

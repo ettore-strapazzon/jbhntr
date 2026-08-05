@@ -43,8 +43,12 @@ def check_quota(db: DbSession, user: User) -> None:
     """Raise QuotaError if this user may not start another search."""
     if user.is_premium:
         # Premium runs a daily automatic search plus manual runs under a
-        # fair-use ceiling — see docs/ARCHITECTURE.md.
+        # fair-use ceiling — see docs/ARCHITECTURE.md. An operator reset moves the
+        # window start forward (usage_reset_at), so it also clears this daily cap.
         since = utcnow() - timedelta(days=1)
+        reset_at = aware(user.usage_reset_at)
+        if reset_at and reset_at > since:
+            since = reset_at
         today = (
             db.query(Search)
             .filter(Search.user_id == user.id, Search.started_at >= since)
