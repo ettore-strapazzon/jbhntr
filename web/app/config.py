@@ -74,6 +74,13 @@ class WebConfig:
     # and batched (memory-bounded), so this can be large; it only costs CPU time.
     corpus_topk: int = _int("CORPUS_TOPK", 60)
     embed_limit: int = _int("EMBED_LIMIT", 20000)
+    # Country tagging + ATS location correction per nightly ingest. Like embedding,
+    # these must outpace the daily ingest or the untagged backlog grows — and
+    # untagged rows can't be geo-filtered, so they hurt in-country recall. Country
+    # backfill resolves most locations for free (geo maps); only genuinely
+    # unresolvable places cost a (batched) LLM call.
+    geo_backfill_limit: int = _int("GEO_BACKFILL_LIMIT", 6000)
+    ats_correct_limit: int = _int("ATS_CORRECT_LIMIT", 4000)
     max_upload_bytes: int = 1024 * 1024          # 1 MB, per the spec
     max_feedback_chars: int = 300
 
