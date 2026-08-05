@@ -455,6 +455,20 @@ class CorpusStat(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
+class OpsLog(Base):
+    """One row per operator background job (discovery, embed, maintenance, deep
+    clean). These run fire-and-forget in a thread, so without this the operator
+    can't tell whether a button did anything, was skipped, or errored. `detail`
+    holds a compact human-readable outcome. Read on the /admin dashboard."""
+
+    __tablename__ = "ops_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(40), default="", index=True)
+    detail: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class SiteFeedback(Base):
     """Alpha/testing feedback on the product as a whole: four 1-5 ratings plus
     open comments. Separate from the per-match `Feedback`. Anonymous-friendly —

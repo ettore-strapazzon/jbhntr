@@ -178,13 +178,18 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
         user.discovery_seeds = list(seeds)
         user.discovery_verticals = list(verticals)
         db.commit()
-        result = {"discovered": len(verified), "added": added, "custom": custom}
+        # verified_n/rejected_n expose WHERE a run produced nothing: both 0 means
+        # the LLM/web-search suggested nothing; verified 0 + rejected >0 means
+        # companies were found but none had a readable public ATS; added 0 with
+        # verified >0 means they were all already in the registry.
+        result = {"seeds": len(seeds), "verified_n": len(verified),
+                  "rejected_n": len(rejected), "added": added, "custom": custom}
         log.info("Discovery for user %s: %s", user.id, result)
         return result
     except Exception as exc:
         log.warning("Discovery for user %s failed: %s", user.id, exc)
         db.rollback()
-        return {"error": str(exc)}
+        return {"error": str(exc)[:200]}
 
 
 def discover_all_active(db: DbSession, force: bool = False) -> dict:
@@ -197,19 +202,31 @@ def discover_all_active(db: DbSession, force: bool = False) -> dict:
     """
     from .profile_service import seed_values
 
-    totals = {"users": 0, "skipped": 0, "added": 0}
+    totals = {"users": 0, "skipped": 0, "added": 0, "premium": 0, "per_user": []}
     for user in db.query(User).all():
         if not user.profile or not user.is_premium:
             totals["skipped"] += 1
             continue
+        totals["premium"] += 1
         seeds = seed_values(db, user)
         verticals = list(user.profile.verticals or [])
         if not force and not due_for_discovery(user, seeds, verticals):
             totals["skipped"] += 1
+            totals["per_user"].append(f"{user.email}: not due")
             continue
         res = discover_for_user(db, user)
         totals["users"] += 1
         totals["added"] += res.get("added", 0)
+        # A compact per-user trace so the operator can see exactly what happened.
+        if "error" in res:
+            totals["per_user"].append(f"{user.email}: error {res['error']}")
+        elif not res.get("seeds"):
+            totals["per_user"].append(f"{user.email}: no seed companies")
+        else:
+            totals["per_user"].append(
+                f"{user.email}: seeds {res['seeds']} -> suggested "
+                f"{res['verified_n'] + res['rejected_n']} (ATS-readable "
+                f"{res['verified_n']}, +{res['added']} new, +{res['custom']} to scrape)")
     return totals
 
 

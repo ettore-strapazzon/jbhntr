@@ -2774,6 +2774,27 @@ def test_admin_run_discovery(client, monkeypatch):
     assert client.post("/admin/run-discovery").status_code == 401       # gated
 
 
+def test_admin_embed_now(client, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    r = client.post("/admin/embed-now", auth=("op", "s3cret"), follow_redirects=False)
+    assert r.status_code == 303 and "Embedding" in r.headers["location"]
+    assert client.post("/admin/embed-now").status_code == 401           # gated
+
+
+def test_record_op_shows_on_dashboard(client, monkeypatch):
+    """A background job's outcome is persisted and surfaced on /admin, so a
+    fire-and-forget button is no longer a mystery."""
+    from web.app.config import config
+    from web.app.routes.admin import record_op
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    record_op("discovery", "LLM configured: True | premium users: 1")
+    r = client.get("/admin", auth=("op", "s3cret"))
+    assert r.status_code == 200
+    assert "Background job log" in r.text
+    assert "LLM configured: True" in r.text
+
+
 def test_discover_all_active_force_ignores_cadence(monkeypatch):
     """force=True runs discovery for a premium user even when the cadence has not
     elapsed — the operator's manual 'run now' trigger."""

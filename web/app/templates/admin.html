@@ -202,11 +202,27 @@
         <span class="small muted">One-time full sweep of the whole corpus — slow,
           runs in the background.</span>
       </form>
+      <form method="post" action="/admin/embed-now" style="margin-top:6px">
+        <button class="ghost" type="submit">Embed backlog now</button>
+        <span class="small muted">Vectorise unembedded jobs so they become
+          searchable ({{ embedded_n }}/{{ corpus_total }} embedded now).</span>
+      </form>
       <form method="post" action="/admin/run-discovery" style="margin-top:6px">
         <button class="ghost" type="submit">Run similar-company discovery now</button>
         <span class="small muted">Finds &amp; scrapes similar companies for premium
           users with seed companies (weekly by default). Needs an LLM key.</span>
       </form>
+
+      <h3 style="margin-top:14px">Background job log <span class="muted small">(what the buttons actually did)</span></h3>
+      <table class="apptable"><tbody>
+        {% for op in ops_recent %}
+          <tr>
+            <td class="muted" style="white-space:nowrap">{{ op.created_at.strftime("%d %b %H:%M") if op.created_at else "—" }}</td>
+            <td><code>{{ op.kind }}</code></td>
+            <td class="small">{{ op.detail }}</td>
+          </tr>
+        {% else %}<tr><td class="muted" colspan="3">no operator jobs run yet</td></tr>{% endfor %}
+      </tbody></table>
     </div>
   </div>
 </div>

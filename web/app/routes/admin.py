@@ -28,11 +28,28 @@ from ..config import config
 from ..db import get_session
 from ..models import (
     SITE_FEEDBACK_QUESTIONS, Company, CorpusStat, Document, Feedback, Job,
-    JobResult, PageView, ProductEvent, Search, SiteFeedback, User, aware, utcnow,
+    JobResult, OpsLog, PageView, ProductEvent, Search, SiteFeedback, User,
+    aware, utcnow,
 )
 from ..templating import templates
 
 router = APIRouter()
+
+
+def record_op(kind: str, detail: str) -> None:
+    """Persist the outcome of a fire-and-forget operator job so it shows on the
+    dashboard — otherwise a background thread's result is invisible. Own session
+    (called from worker threads); never raises."""
+    from ..db import SessionLocal
+    db = SessionLocal()
+    try:
+        db.add(OpsLog(kind=kind, detail=(detail or "")[:2000]))
+        db.commit()
+    except Exception:
+        log.exception("record_op failed")
+        db.rollback()
+    finally:
+        db.close()
 _basic = HTTPBasic(auto_error=False)
 log = logging.getLogger("jbhntr.admin")
 
@@ -287,6 +304,11 @@ def _gather(db: DbSession) -> dict:
     corpus_countries = country_counts.most_common(12)
     searchable_n = len(searchable_rows)
 
+    # Outcomes of the last operator background jobs (discovery/embed/maintenance),
+    # so a fire-and-forget button's result is visible instead of a mystery.
+    ops_recent = (db.query(OpsLog)
+                  .order_by(OpsLog.created_at.desc()).limit(8).all())
+
     # Discovery / custom-scrape footprint (the new premium-sourced companies).
     scraped_jobs = db.query(Job).filter(Job.source.like("scrape:%")).count()
     companies_total = db.query(Company).count()
@@ -306,7 +328,7 @@ def _gather(db: DbSession) -> dict:
         "companies_custom": companies_custom, "companies_polled": companies_polled,
         "corpus_countries": corpus_countries, "searchable_n": searchable_n,
         "untagged_country": untagged_country, "blank_location": blank_location,
-        "untagged_and_blank": untagged_and_blank,
+        "untagged_and_blank": untagged_and_blank, "ops_recent": ops_recent,
         "total_users": total_users, "google_users": google_users,
         "premium_users": premium_users, "waitlist": waitlist,
         "total_searches": total_searches, "searches_7d": searches_7d,
@@ -396,6 +418,37 @@ def admin_set_plan(_: bool = Depends(require_admin), email: str = Form(...),
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/embed-now")
+def admin_embed_now(_: bool = Depends(require_admin)):
+    """Operator: embed the corpus backlog right now instead of waiting for the
+    nightly ingest. Only embedded jobs are searchable, so a large unembedded
+    backlog means most of the corpus is invisible to search. Local fastembed is
+    free and batched; slow but memory-safe. Runs in the background."""
+    from urllib.parse import quote
+
+    from jobhunter.config import Settings
+    from ..config import config as web_config
+    from ..db import SessionLocal
+    from ..services.corpus_service import embed_new_jobs
+
+    def _work():
+        db = SessionLocal()
+        try:
+            n = embed_new_jobs(db, Settings.from_env(), limit=web_config.embed_limit)
+            log.info("manual embed: %d embedded", n)
+            record_op("embed", f"embedded {n} jobs")
+        except Exception as exc:
+            log.exception("manual embed failed")
+            record_op("embed", f"failed: {str(exc)[:200]}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = ("Embedding the backlog now (up to {:,} jobs). This makes them searchable; "
+           "refresh the corpus panel in a few minutes.").format(web_config.embed_limit)
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/run-maintenance")
 def admin_run_maintenance(_: bool = Depends(require_admin)):
     """Operator: run the reaper now and record a corpus snapshot in the background,
@@ -411,8 +464,10 @@ def admin_run_maintenance(_: bool = Depends(require_admin)):
             res = reaper_run()
             _record_corpus_stat({"reaper": res})
             log.info("manual maintenance: %s", res)
-        except Exception:
+            record_op("maintenance", str(res)[:400])
+        except Exception as exc:
             log.exception("manual maintenance failed")
+            record_op("maintenance", f"failed: {str(exc)[:200]}")
 
     threading.Thread(target=_work, daemon=True).start()
     msg = "Maintenance started (reaper + corpus snapshot). Refresh in a minute."
@@ -434,8 +489,10 @@ def admin_deep_clean(_: bool = Depends(require_admin)):
             res = reaper_run(check_limit=0)      # 0 = check all due jobs
             _record_corpus_stat({"reaper": res})
             log.info("deep clean: %s", res)
-        except Exception:
+            record_op("deep-clean", str(res)[:400])
+        except Exception as exc:
             log.exception("deep clean failed")
+            record_op("deep-clean", f"failed: {str(exc)[:200]}")
 
     threading.Thread(target=_work, daemon=True).start()
     msg = ("Deep clean started: checking every stored link (this can take a while). "
@@ -460,11 +517,26 @@ def admin_run_discovery(_: bool = Depends(require_admin)):
     def _work():
         db = SessionLocal()
         try:
+            from jobhunter import llm
+            llm_ok = llm.is_configured(Settings.from_env())
             found = discover_all_active(db, force=True)
             scraped = scrape_custom_companies(db, Settings.from_env())
             log.info("manual discovery: %s | scrape: %s", found, scraped)
-        except Exception:
+            # A compact, diagnostic trace: LLM reachable? premium users seen?
+            # per-user outcome (seeds, suggested, verified, added)?
+            lines = [
+                f"LLM configured: {llm_ok}",
+                f"premium users: {found.get('premium', 0)}, "
+                f"ran: {found.get('users', 0)}, added companies: {found.get('added', 0)}",
+                f"custom scrape: {scraped.get('companies', 0)} companies, "
+                f"{scraped.get('jobs', 0)} jobs" + (f" ({scraped['reason']})"
+                                                    if scraped.get("reason") else ""),
+            ]
+            lines += found.get("per_user", [])
+            record_op("discovery", " | ".join(lines))
+        except Exception as exc:
             log.exception("manual discovery failed")
+            record_op("discovery", f"failed: {str(exc)[:300]}")
         finally:
             db.close()
 
