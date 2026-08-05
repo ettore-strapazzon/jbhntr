@@ -2803,6 +2803,31 @@ def test_record_op_shows_on_dashboard(client, monkeypatch):
     assert "LLM configured: True" in r.text
 
 
+def test_upsert_company_dedupes_same_run_without_poisoning():
+    """Two proposals in one run resolving to the same (ats, token) must not abort
+    the whole transaction (the uq_company_ats UniqueViolation that killed
+    discovery). The duplicate is skipped; the commit and later inserts still work."""
+    from web.app.db import SessionLocal
+    from web.app.models import Company
+    from web.app.services.companies_service import upsert_company
+
+    db = SessionLocal()
+    try:
+        db.query(Company).filter(Company.ats_token.in_(["acme", "beta"])).delete(
+            synchronize_session=False)
+        db.commit()
+        assert upsert_company(db, "greenhouse", "acme", "Acme One") is True
+        assert upsert_company(db, "greenhouse", "acme", "Acme Two") is False   # same token
+        assert upsert_company(db, "lever", "beta", "Beta") is True             # different
+        db.commit()                                                            # must NOT raise
+        assert db.query(Company).filter_by(ats="greenhouse", ats_token="acme").count() == 1
+        assert db.query(Company).filter_by(ats="lever", ats_token="beta").count() == 1
+    finally:
+        db.query(Company).filter(Company.ats_token.in_(["acme", "beta"])).delete(
+            synchronize_session=False)
+        db.commit(); db.close()
+
+
 def test_engine_settings_fills_model_on_openrouter(monkeypatch):
     """On a non-Anthropic provider Settings.from_env() leaves scoring_model empty,
     which made discovery/scrape/country-lookup raise and silently no-op. The helper

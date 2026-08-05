@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from jobhunter.config import Settings, load_companies
@@ -72,6 +73,35 @@ def due_for_discovery(user: User, seeds: list[str], verticals: list[str],
 
 
 # --------------------------------------------------------------------------- #
+def _insert_company_safe(db: DbSession, *, ats: str, token: str, name: str,
+                         source: str, user_id: int | None) -> bool:
+    """Insert one Company, returning True only if a new row was created.
+
+    A single discovery run proposes many companies and commits once at the end.
+    Two of them can resolve to the SAME (ats, token) — verify() guesses board
+    handles, so distinct names can land on one token — and with autoflush off the
+    in-run existence check below doesn't see the first, still-pending insert. Both
+    then get added and the final commit trips uq_company_ats, which in Postgres
+    aborts the WHOLE transaction ("rolled back due to a previous exception"),
+    losing every company in the run. Guard each insert with a SAVEPOINT and flush
+    inside it, so a duplicate rolls back just that one row and the run continues.
+    """
+    row = (db.query(Company)
+             .filter(Company.ats == ats, Company.ats_token == token).first())
+    if row:
+        if not row.name and name:
+            row.name = name[:200]
+        return False
+    try:
+        with db.begin_nested():          # savepoint
+            db.add(Company(ats=ats, ats_token=token, name=(name or token)[:200],
+                           source=source, discovered_for=user_id))
+            db.flush()                   # surface a duplicate now, inside the savepoint
+        return True
+    except IntegrityError:
+        return False                     # raced/duplicate (ats, token) — skip, keep going
+
+
 def upsert_company(db: DbSession, ats: str, token: str, name: str,
                    source: str = "discovered", user_id: int | None = None) -> bool:
     """Insert a company if new. Returns True if inserted. Deduped on (ats, token)."""
@@ -79,15 +109,8 @@ def upsert_company(db: DbSession, ats: str, token: str, name: str,
     token = (token or "").strip()
     if not (ats and token and ats in FETCHERS):
         return False
-    row = (db.query(Company)
-             .filter(Company.ats == ats, Company.ats_token == token).first())
-    if row:
-        if not row.name and name:
-            row.name = name[:200]
-        return False
-    db.add(Company(ats=ats, ats_token=token, name=(name or token)[:200],
-                   source=source, discovered_for=user_id))
-    return True
+    return _insert_company_safe(db, ats=ats, token=token, name=name,
+                                source=source, user_id=user_id)
 
 
 CUSTOM_ATS = "custom"          # a company scraped from its own careers page
@@ -107,13 +130,8 @@ def upsert_custom_company(db: DbSession, name: str, domain: str,
     domain = domain.strip("/").split("/")[0]
     if not domain or "." not in domain:
         return False
-    row = (db.query(Company)
-             .filter(Company.ats == CUSTOM_ATS, Company.ats_token == domain).first())
-    if row:
-        return False
-    db.add(Company(ats=CUSTOM_ATS, ats_token=domain[:120], name=(name or domain)[:200],
-                   source="scraped", discovered_for=user_id))
-    return True
+    return _insert_company_safe(db, ats=CUSTOM_ATS, token=domain[:120], name=name,
+                                source="scraped", user_id=user_id)
 
 
 def seed_registry(db: DbSession) -> int:
