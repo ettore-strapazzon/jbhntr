@@ -2774,6 +2774,14 @@ def test_admin_run_discovery(client, monkeypatch):
     assert client.post("/admin/run-discovery").status_code == 401       # gated
 
 
+def test_admin_discovery_selftest(client, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    r = client.post("/admin/discovery-selftest", auth=("op", "s3cret"), follow_redirects=False)
+    assert r.status_code == 303 and "self-test" in r.headers["location"]
+    assert client.post("/admin/discovery-selftest").status_code == 401     # gated
+
+
 def test_admin_embed_now(client, monkeypatch):
     from web.app.config import config
     monkeypatch.setattr(config, "admin_token", "s3cret")

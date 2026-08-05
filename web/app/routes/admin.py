@@ -547,6 +547,69 @@ def admin_run_discovery(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/discovery-selftest")
+def admin_discovery_selftest(_: bool = Depends(require_admin)):
+    """Operator diagnostic: run each discovery sub-step in isolation for the first
+    premium user with seeds, capturing the EXACT error of each. discover() swallows
+    suggestion errors as a dry round ("suggested 0"), so this is the only way to
+    see why nothing is proposed — is web search rejecting the model, does the
+    model-knowledge JSON call fail, or does it genuinely return an empty list?"""
+    from urllib.parse import quote
+
+    from ..db import SessionLocal
+
+    def _work():
+        db = SessionLocal()
+        try:
+            from jobhunter import discover as dm, llm
+            from ..services.profile_service import (
+                build_engine_profile, engine_settings, seed_values,
+            )
+            user = next((u for u in db.query(User).all()
+                         if u.is_premium and u.profile and seed_values(db, u)), None)
+            if not user:
+                record_op("selftest", "no premium user with seed companies found")
+                return
+            settings = engine_settings(premium=True)
+            seeds = seed_values(db, user)
+            profile = build_engine_profile(db, user)
+            client = llm.get_client(settings)
+            lines = [f"user={user.email} provider={settings.llm_provider} "
+                     f"scoring_model={settings.scoring_model!r} "
+                     f"web_search_supported={client.supports_web_search} seeds={len(seeds)}"]
+
+            # Stage A: model-knowledge suggestion (no web search) — the reliable path.
+            try:
+                mk = dm.suggest(profile, settings, 5, exemplars=seeds,
+                                exclude=[], web_search=False)
+                names = ", ".join(c.get("name", "?") for c in mk[:5])
+                lines.append(f"[A] model-knowledge suggest -> {len(mk)}: {names or '(empty list)'}")
+            except Exception as e:
+                lines.append(f"[A] model-knowledge suggest ERROR {type(e).__name__}: {str(e)[:400]}")
+
+            # Stage B: live web research (only if the provider claims support).
+            if client.supports_web_search:
+                try:
+                    notes = dm.research(profile, settings, 5, seeds)
+                    lines.append(f"[B] web research -> {len(notes)} chars")
+                    try:
+                        ex = dm.extract_companies(notes, settings, [])
+                        lines.append(f"[C] extract -> {len(ex)} companies")
+                    except Exception as e:
+                        lines.append(f"[C] extract ERROR {type(e).__name__}: {str(e)[:400]}")
+                except Exception as e:
+                    lines.append(f"[B] web research ERROR {type(e).__name__}: {str(e)[:400]}")
+            record_op("selftest", " | ".join(lines))
+        except Exception as e:
+            record_op("selftest", f"selftest crashed {type(e).__name__}: {str(e)[:400]}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = "Discovery self-test started. Refresh the Background job log in ~30s for the exact result."
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/clear-board")
 def admin_clear_board(_: bool = Depends(require_admin), email: str = Form(...),
                       db: DbSession = Depends(get_session)):

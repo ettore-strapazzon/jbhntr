@@ -212,6 +212,11 @@
         <span class="small muted">Finds &amp; scrapes similar companies for premium
           users with seed companies (weekly by default). Needs an LLM key.</span>
       </form>
+      <form method="post" action="/admin/discovery-selftest" style="margin-top:6px">
+        <button class="ghost" type="submit">Discovery self-test</button>
+        <span class="small muted">Runs each discovery sub-step once and logs the
+          exact error/result below — use when discovery returns 0.</span>
+      </form>
 
       <h3 style="margin-top:14px">Background job log <span class="muted small">(what the buttons actually did)</span></h3>
       <table class="apptable"><tbody>
