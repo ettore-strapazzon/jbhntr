@@ -501,18 +501,34 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
     # Geography gate: the resolved country tag first (a hard cut for jobs we've
     # confidently placed in another country), then the text prefilter for the
     # rest (remote tokens, cities, still-untagged rows).
-    cands, vec_by_key = [], {}
+    #
+    # Split the survivors by CONFIDENCE, not just pass/fail. A job is "confirmed"
+    # when it affirmatively matches the user's geography — its country tag is one
+    # they chose, or its non-blank location matched a location token. A job that
+    # passed only because BOTH its country tag and location were blank slipped
+    # through by deferral: we cannot actually place it ("ambiguous"). With
+    # thousands of untagged rows in the corpus, the ambiguous set otherwise
+    # dominates the cosine shortlist and buries real in-country jobs — e.g. 953
+    # Italy jobs pushed out of the top-K by 7k untagged rows, so nothing Italian
+    # ever reaches the scorer and the search returns empty. Rank confirmed first;
+    # fall back to ambiguous only to reach a workable shortlist size.
+    confirmed, ambiguous, vec_by_key = [], [], {}
     for r in rows:
         if not _country_allowed(r.countries, r.remote_mode, target_codes, remote_any):
             continue
         p = _job_to_posting(r)
-        if prefilter(p, profile):
-            cands.append(p)
-            vec_by_key[p.dedup_key()] = r.embedding
-    if len(cands) < CORPUS_MIN_KEEP:
+        if not prefilter(p, profile):
+            continue
+        vec_by_key[p.dedup_key()] = r.embedding
+        placed = (bool(set(r.countries or []) & target_codes)
+                  or bool((r.location or "").strip()))
+        (confirmed if placed else ambiguous).append(p)
+
+    pool = confirmed if len(confirmed) >= CORPUS_MIN_KEEP else confirmed + ambiguous
+    if len(pool) < CORPUS_MIN_KEEP:
         return None, len(rows)
 
-    capped = cap_per_company(cands, terms=terms)
+    capped = cap_per_company(pool, terms=terms)
     capped.sort(key=lambda p: -embeddings.cosine(pvec, vec_by_key.get(p.dedup_key(), [])))
     return capped[:config.corpus_topk], len(rows)
 

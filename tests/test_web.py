@@ -863,6 +863,52 @@ def test_corpus_candidates_ranks_by_cosine(monkeypatch):
         db.query(Job).delete(); db.commit(); db.close()
 
 
+def test_corpus_candidates_prefers_geo_confirmed_over_untagged(monkeypatch):
+    """Geo-confirmed Italy jobs must reach the shortlist even when many untagged,
+    blank-location rows have HIGHER cosine — the real cause of the '0 results'
+    with 953 Italy jobs buried under 7k untagged rows."""
+    from jobhunter import embeddings
+    from jobhunter.config import Profile, Settings
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Job, utcnow
+    from web.app.services import search_service as ss
+
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(Job).delete(); db.commit()
+        now = utcnow()
+        # 25 confirmed Italy jobs, but with LOW cosine (far from the query vector).
+        for i in range(25):
+            db.add(Job(dedup_key=f"it:{i}", source="s", title=f"IT{i}", company=f"ItCo{i}",
+                       location="Milan, Italy", countries=["it"], remote_mode="unknown",
+                       embedding=[0.1, 0.99], embedding_model="m", last_seen_at=now))
+        # 100 untagged, blank-location rows with HIGHER cosine (aligned to query).
+        for i in range(100):
+            db.add(Job(dedup_key=f"amb:{i}", source="s", title=f"AMB{i}", company=f"AmbCo{i}",
+                       location="", countries=[], remote_mode="unknown",
+                       embedding=[1.0, 0.0], embedding_model="m", last_seen_at=now))
+        db.commit()
+
+        monkeypatch.setattr(embeddings, "is_configured", lambda s: True)
+        monkeypatch.setattr(embeddings, "embed_one", lambda text, s: [1.0, 0.0])
+
+        class Cand:
+            headline = "operator"; target_roles = ["chief of staff"]; skills = []
+
+        jobs, scanned = ss._corpus_candidates(
+            db, Profile(raw={"locations": ["Italy"]}), Cand(),
+            Settings(embedding_base_url="x", embedding_api_key="k"), ["chief of staff"])
+
+        assert jobs is not None
+        # Despite lower cosine, ONLY the confirmed Italy jobs are shortlisted; the
+        # high-cosine untagged blank-location rows are excluded.
+        assert jobs, "expected the confirmed Italy jobs, got nothing"
+        assert all(j.title.startswith("IT") for j in jobs)
+    finally:
+        db.query(Job).delete(); db.commit(); db.close()
+
+
 def test_location_gate_drops_foreign_job_scored_with_blank_location():
     """A posting that reached scoring with a BLANK location field (so the country
     tag and prefilter both deferred) is dropped once the LLM surfaces its real,
