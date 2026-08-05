@@ -410,6 +410,26 @@ def split_list(text: str, limit: int = 20) -> list[str]:
     return items[:limit]
 
 
+def engine_settings(premium: bool = True):
+    """Engine Settings with the web-configured LLM models filled in.
+
+    `Settings.from_env()` leaves scoring/generation_model EMPTY on a non-Anthropic
+    provider (e.g. OpenRouter) — the web app otherwise sets them programmatically
+    per search. Any background engine LLM call that resolves a model tier
+    (company discovery, careers scraping, the country-tag LLM lookup) would then
+    raise "No scoring model configured" and be silently swallowed. Fill the models
+    from web config so those paths use the same model search scoring uses.
+    """
+    from jobhunter.config import Settings as EngineSettings
+    s = EngineSettings.from_env()
+    fallback = config.premium_scoring_model if premium else config.free_scoring_model
+    if not s.scoring_model:
+        s.scoring_model = fallback
+    if not s.generation_model:
+        s.generation_model = fallback
+    return s
+
+
 def build_engine_profile(db: Session, user: User) -> EngineProfile:
     """Turn DB rows into the Profile object the engine expects."""
     p = user.profile

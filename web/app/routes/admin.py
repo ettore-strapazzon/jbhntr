@@ -518,9 +518,10 @@ def admin_run_discovery(_: bool = Depends(require_admin)):
         db = SessionLocal()
         try:
             from jobhunter import llm
-            llm_ok = llm.is_configured(Settings.from_env())
+            from ..services.profile_service import engine_settings
+            llm_ok = llm.is_configured(engine_settings())
             found = discover_all_active(db, force=True)
-            scraped = scrape_custom_companies(db, Settings.from_env())
+            scraped = scrape_custom_companies(db, engine_settings())
             log.info("manual discovery: %s | scrape: %s", found, scraped)
             # A compact, diagnostic trace: LLM reachable? premium users seen?
             # per-user outcome (seeds, suggested, verified, added)?

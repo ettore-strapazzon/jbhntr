@@ -2795,6 +2795,24 @@ def test_record_op_shows_on_dashboard(client, monkeypatch):
     assert "LLM configured: True" in r.text
 
 
+def test_engine_settings_fills_model_on_openrouter(monkeypatch):
+    """On a non-Anthropic provider Settings.from_env() leaves scoring_model empty,
+    which made discovery/scrape/country-lookup raise and silently no-op. The helper
+    fills it from web config so those background LLM paths have a model."""
+    from web.app.config import config
+    from web.app.services.profile_service import engine_settings
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compatible")
+    monkeypatch.delenv("JOBHUNTER_SCORING_MODEL", raising=False)
+    monkeypatch.setattr(config, "premium_scoring_model", "anthropic/claude-haiku-4.5")
+
+    from jobhunter.config import Settings
+    assert Settings.from_env().scoring_model == ""          # the bug: empty
+    s = engine_settings(premium=True)
+    assert s.scoring_model == "anthropic/claude-haiku-4.5"  # fixed
+    assert s.generation_model                                # also non-empty
+
+
 def test_discover_all_active_force_ignores_cadence(monkeypatch):
     """force=True runs discovery for a premium user even when the cadence has not
     elapsed — the operator's manual 'run now' trigger."""

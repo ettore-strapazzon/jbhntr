@@ -195,7 +195,11 @@ def run(cadence: str = "daily") -> dict:
     """One ingestion cycle. Owns its DB session. Never raises."""
     db = SessionLocal()
     try:
-        settings = Settings.from_env()
+        # engine_settings (not raw from_env) so the country-tag LLM lookup has a
+        # model on OpenRouter — otherwise it raises and every unresolvable place
+        # stays untagged.
+        from .profile_service import engine_settings
+        settings = engine_settings(premium=True)
         terms = corpus_terms(db)
         countries = corpus_countries(db)
         log.info("ingest %s: %d terms x %d countries", cadence, len(terms), len(countries))

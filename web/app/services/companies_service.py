@@ -146,7 +146,8 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
             return {"discovered": 0, "added": 0, "reason": "no seeds"}
         verticals = list(user.profile.verticals or []) if user.profile else []
         profile = build_engine_profile(db, user)
-        settings = Settings.from_env()
+        from .profile_service import engine_settings
+        settings = engine_settings(premium=True)   # from_env() leaves the model empty on OpenRouter
         # Exclude companies already in the shared registry so each short run
         # finds NEW ones; results accumulate toward `target` across scheduled
         # runs rather than blocking for minutes in one pass.
@@ -243,8 +244,9 @@ def scrape_custom_companies(db: DbSession, settings: Settings | None = None,
     """
     from jobhunter import llm
     from jobhunter.sources.careers_scrape import scrape_careers
+    from .profile_service import engine_settings
 
-    settings = settings or Settings.from_env()
+    settings = settings or engine_settings(premium=True)
     if not llm.is_configured(settings):
         return {"companies": 0, "jobs": 0, "reason": "no llm"}
     companies = (db.query(Company).filter(Company.ats == CUSTOM_ATS)
