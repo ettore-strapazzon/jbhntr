@@ -413,20 +413,22 @@ def split_list(text: str, limit: int = 20) -> list[str]:
 def engine_settings(premium: bool = True):
     """Engine Settings with the web-configured LLM models filled in.
 
-    `Settings.from_env()` leaves scoring/generation_model EMPTY on a non-Anthropic
-    provider (e.g. OpenRouter) — the web app otherwise sets them programmatically
-    per search. Any background engine LLM call that resolves a model tier
-    (company discovery, careers scraping, the country-tag LLM lookup) would then
-    raise "No scoring model configured" and be silently swallowed. Fill the models
-    from web config so those paths use the same model search scoring uses.
+    The web app's canonical model config is PREMIUM/FREE_SCORING_MODEL — search
+    scoring already overrides Settings per request from it. Background engine LLM
+    calls (company discovery, careers scraping, the country-tag LLM lookup) used
+    raw Settings.from_env(), so they instead picked up the engine-native
+    JOBHUNTER_SCORING_MODEL. On a non-Anthropic provider that is empty (-> "No
+    scoring model configured", silently swallowed) or, worse, a stray value in the
+    Anthropic-direct format ("claude-haiku-4-5") that OpenRouter rejects with a
+    400. Make the web config authoritative here too: always set scoring_model from
+    it so these paths match search and a leftover JOBHUNTER_SCORING_MODEL can't
+    break them.
     """
     from jobhunter.config import Settings as EngineSettings
     s = EngineSettings.from_env()
-    fallback = config.premium_scoring_model if premium else config.free_scoring_model
-    if not s.scoring_model:
-        s.scoring_model = fallback
+    s.scoring_model = config.premium_scoring_model if premium else config.free_scoring_model
     if not s.generation_model:
-        s.generation_model = fallback
+        s.generation_model = s.scoring_model
     return s
 
 

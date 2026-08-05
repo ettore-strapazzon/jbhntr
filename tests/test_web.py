@@ -2811,14 +2811,21 @@ def test_engine_settings_fills_model_on_openrouter(monkeypatch):
     from web.app.services.profile_service import engine_settings
 
     monkeypatch.setenv("LLM_PROVIDER", "openai_compatible")
-    monkeypatch.delenv("JOBHUNTER_SCORING_MODEL", raising=False)
     monkeypatch.setattr(config, "premium_scoring_model", "anthropic/claude-haiku-4.5")
 
+    # Empty env -> "No scoring model" would raise; web config supplies it.
+    monkeypatch.delenv("JOBHUNTER_SCORING_MODEL", raising=False)
     from jobhunter.config import Settings
-    assert Settings.from_env().scoring_model == ""          # the bug: empty
+    assert Settings.from_env().scoring_model == ""          # the empty-model bug
+    assert engine_settings(premium=True).scoring_model == "anthropic/claude-haiku-4.5"
+
+    # A stray Anthropic-direct value that OpenRouter 400s must NOT win — the web
+    # config is authoritative (this is the real JOBHUNTER_SCORING_MODEL footgun).
+    monkeypatch.setenv("JOBHUNTER_SCORING_MODEL", "claude-haiku-4-5")
+    assert Settings.from_env().scoring_model == "claude-haiku-4-5"     # engine picks it up
     s = engine_settings(premium=True)
-    assert s.scoring_model == "anthropic/claude-haiku-4.5"  # fixed
-    assert s.generation_model                                # also non-empty
+    assert s.scoring_model == "anthropic/claude-haiku-4.5"  # overridden by web config
+    assert s.generation_model                                # non-empty
 
 
 def test_discover_all_active_force_ignores_cadence(monkeypatch):
