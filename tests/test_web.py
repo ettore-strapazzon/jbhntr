@@ -872,12 +872,12 @@ def test_location_gate_drops_foreign_job_scored_with_blank_location():
     from web.app.services import search_service as ss
 
     class M:
-        def __init__(self, loc): self.location = loc
+        def __init__(self, loc, remote=""): self.location = loc; self.remote = remote
 
-    p = Profile(raw={"locations": ["Italy"]})
+    p = Profile(raw={"locations": ["Italy"]})            # Italy, on-site only
     blank = JobPosting(source="adzuna", title="Chief of Staff", company="ExitPath",
                        location="", url="http://x")
-    # LLM extracted a US city from the description -> hard mismatch -> drop.
+    # LLM extracted a US city from the description -> on-site hard mismatch -> drop.
     assert ss._location_ok(blank, M("Albany, New York, USA"), p) is False
     # An Italian location the LLM surfaced is kept.
     assert ss._location_ok(blank, M("Milan, Italy"), p) is True
@@ -885,9 +885,15 @@ def test_location_gate_drops_foreign_job_scored_with_blank_location():
     assert ss._location_ok(blank, M(""), p) is True
     assert ss._location_ok(blank, M("Albany, New York, USA"),
                            Profile(raw={"locations": []})) is True
-    # Remote is fine when the user takes remote-anywhere.
-    assert ss._location_ok(blank, M("Remote"),
-                           Profile(raw={"locations": ["Italy", "Remote-Anywhere"]})) is True
+
+    # A user open to remote (Italy hybrid+remote). Remote roles are NOT re-judged
+    # on their nominal city — the whole point of choosing remote.
+    pr = Profile(raw={"locations": ["Italy", "Remote-Italy"]})
+    assert ss._location_ok(blank, M("Remote"), pr) is True
+    assert ss._location_ok(blank, M("Remote, Germany"), pr) is True     # remote -> keep
+    assert ss._location_ok(blank, M("", "remote"), pr) is True          # LLM flagged remote
+    # But a foreign ON-SITE job is still dropped even for the remote-friendly user.
+    assert ss._location_ok(blank, M("Albany, New York, USA"), pr) is False
 
 
 def test_discovery_change_trigger_occasions(monkeypatch):

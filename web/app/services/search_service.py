@@ -412,27 +412,49 @@ def _verify_links(db: DbSession, ranked: list) -> list:
 def _location_ok(job, match, profile) -> bool:
     """Final hard location gate, run AFTER scoring on the best location we have.
 
-    The corpus country tag and the cheap prefilter both *defer* when a posting's
-    location field is blank (adzuna often omits it) — so an on-site foreign job
-    with its city buried in the description slips through to the scorer, which
-    then treats the empty location as "unknown" and scores it on role fit. By the
-    time results are built we have `match.location`, the location the LLM pulled
-    out of the description ("Albany, New York, USA"). Re-run the prefilter's geo
-    logic against that enriched location so those leaks are dropped, not shown.
+    Targets one specific leak: a place-BOUND (on-site/hybrid) foreign job that
+    reached scoring with a blank location field (adzuna often omits it), so the
+    country tag and the cheap prefilter both deferred and the scorer — shown an
+    empty location — scored it on role fit. By results time we have
+    `match.location`, the location the LLM pulled out of the description
+    ("Albany, New York, USA"); re-run the prefilter's geo logic against it so the
+    on-site foreign leak is dropped, not shown.
 
-    Keeps the job when the enriched location is still blank (nothing to judge) or
-    the user set no location constraint — same deferral the prefilter makes.
+    Deliberately does NOT re-judge remote roles. A remote job is location-
+    independent, and if the user accepts remote (any "Remote-*" token) the earlier
+    pipeline already governed which remote postings were eligible — second-
+    guessing them here on their nominal city ("Remote, Germany") wrongly drops the
+    remote work they explicitly asked for. Also keeps the job when the enriched
+    location is blank (nothing to judge) or the user set no location constraint.
     """
-    if not (profile.locations or []):
+    locs = profile.locations or []
+    if not locs:
         return True
     loc = ((getattr(match, "location", "") or "") or (getattr(job, "location", "") or "")).strip()
     if not loc:
+        return True
+    # Remote role + user open to remote -> not a location conflict; leave it.
+    accepts_remote = any(str(t).lower().startswith("remote") for t in locs)
+    if accepts_remote and _is_remote_job(job, match, loc):
         return True
     try:
         probe = job.model_copy(update={"location": loc})
     except Exception:
         return True
     return prefilter(probe, profile)
+
+
+def _is_remote_job(job, match, loc: str) -> bool:
+    """Best-effort: is this posting actually remote? Uses the LLM's read, the
+    posting's own signal, and the location text — any one is enough."""
+    if "remote" in (loc or "").lower():
+        return True
+    if "remote" in str(getattr(match, "remote", "") or "").lower():
+        return True
+    try:
+        return bool(job.looks_remote())
+    except Exception:
+        return False
 
 
 def _country_allowed(job_countries, remote_mode, target_codes, remote_any) -> bool:
