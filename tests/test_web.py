@@ -857,9 +857,65 @@ def test_corpus_candidates_ranks_by_cosine(monkeypatch):
 
         assert jobs is not None and scanned == 25
         assert jobs[0].title == "BEST"           # highest cosine ranks first
-        assert len(jobs) <= ss.CORPUS_TOPK
+        from web.app.config import config as web_config
+        assert len(jobs) <= web_config.corpus_topk
     finally:
         db.query(Job).delete(); db.commit(); db.close()
+
+
+def test_location_gate_drops_foreign_job_scored_with_blank_location():
+    """A posting that reached scoring with a BLANK location field (so the country
+    tag and prefilter both deferred) is dropped once the LLM surfaces its real,
+    foreign location — location is a hard requirement."""
+    from jobhunter.config import Profile
+    from jobhunter.models import JobPosting
+    from web.app.services import search_service as ss
+
+    class M:
+        def __init__(self, loc): self.location = loc
+
+    p = Profile(raw={"locations": ["Italy"]})
+    blank = JobPosting(source="adzuna", title="Chief of Staff", company="ExitPath",
+                       location="", url="http://x")
+    # LLM extracted a US city from the description -> hard mismatch -> drop.
+    assert ss._location_ok(blank, M("Albany, New York, USA"), p) is False
+    # An Italian location the LLM surfaced is kept.
+    assert ss._location_ok(blank, M("Milan, Italy"), p) is True
+    # Genuinely unresolvable / no constraint -> keep (defer, don't over-filter).
+    assert ss._location_ok(blank, M(""), p) is True
+    assert ss._location_ok(blank, M("Albany, New York, USA"),
+                           Profile(raw={"locations": []})) is True
+    # Remote is fine when the user takes remote-anywhere.
+    assert ss._location_ok(blank, M("Remote"),
+                           Profile(raw={"locations": ["Italy", "Remote-Anywhere"]})) is True
+
+
+def test_discovery_change_trigger_occasions(monkeypatch):
+    """Occasions 1-3 fire on the user's next search; the weekly cadence does not."""
+    from datetime import timedelta
+    from web.app.models import User, utcnow
+    from web.app.services import companies_service as cs
+
+    def prem(**kw):
+        u = User(email="x", plan="premium", premium_until=utcnow() + timedelta(days=30))
+        for k, v in kw.items():
+            setattr(u, k, v)
+        return u
+
+    # 1) never run -> first search triggers it.
+    assert cs.discovery_change_trigger(prem(last_discovery_at=None), [], []) is True
+    # 2) >= N new seed companies since last run.
+    base = dict(last_discovery_at=utcnow(), discovery_seeds=["a"], discovery_verticals=["fin"])
+    u2 = prem(**base)
+    assert cs.discovery_change_trigger(u2, ["a", "b", "c", "d"], ["fin"]) is True   # 3 new
+    assert cs.discovery_change_trigger(u2, ["a", "b"], ["fin"]) is False            # 1 new
+    # 3) any new vertical.
+    assert cs.discovery_change_trigger(prem(**base), ["a"], ["fin", "health"]) is True
+    # No change and just ran -> the change trigger stays quiet (Monday cron covers it).
+    assert cs.discovery_change_trigger(prem(**base), ["a"], ["fin"]) is False
+    # Free users never trigger it.
+    free = User(email="y", plan="free", last_discovery_at=None)
+    assert cs.discovery_change_trigger(free, [], []) is False
 
 
 # ---------------------------- corpus embeddings --------------------------- #
@@ -2656,6 +2712,55 @@ def test_admin_run_maintenance(client, monkeypatch):
     r = client.post("/admin/run-maintenance", auth=("op", "s3cret"), follow_redirects=False)
     assert r.status_code == 303 and "Maintenance" in r.headers["location"]   # url-encoded msg
     assert client.post("/admin/run-maintenance").status_code == 401     # gated
+
+
+def test_admin_run_discovery(client, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    r = client.post("/admin/run-discovery", auth=("op", "s3cret"), follow_redirects=False)
+    assert r.status_code == 303 and "Discovery" in r.headers["location"]
+    assert client.post("/admin/run-discovery").status_code == 401       # gated
+
+
+def test_discover_all_active_force_ignores_cadence(monkeypatch):
+    """force=True runs discovery for a premium user even when the cadence has not
+    elapsed — the operator's manual 'run now' trigger."""
+    from web.app.db import SessionLocal
+    from web.app.models import User, utcnow
+    from web.app.services import companies_service as cs
+
+    db = SessionLocal()
+    try:
+        from datetime import timedelta
+        from web.app.models import Profile
+        # Just ran, and seeds/verticals unchanged since -> genuinely not due.
+        u = User(email="force@example.com", plan="premium",
+                 premium_until=utcnow() + timedelta(days=30),   # premium
+                 last_discovery_at=utcnow(),
+                 discovery_seeds=["stripe"], discovery_verticals=["fintech"])
+        db.add(u); db.commit()
+        db.add(Profile(user_id=u.id, verticals=["fintech"])); db.commit()
+        db.refresh(u)
+
+        from web.app.services import profile_service
+        # Only this user's seeds match its stored discovery_seeds (others in the
+        # shared test DB will look "changed" and stay due regardless of force).
+        monkeypatch.setattr(profile_service, "seed_values",
+                            lambda db, user: ["stripe"] if user.id == u.id else [])
+        called = []            # emails discover_for_user was invoked for
+        monkeypatch.setattr(cs, "discover_for_user",
+                            lambda db, user: (called.append(user.email), {"added": 2})[1])
+
+        cs.discover_all_active(db, force=False)
+        assert "force@example.com" not in called      # cadence blocks this user
+        cs.discover_all_active(db, force=True)
+        assert "force@example.com" in called           # force overrides cadence
+    finally:
+        uid = db.query(User.id).filter(User.email == "force@example.com").scalar()
+        if uid is not None:
+            db.query(Profile).filter(Profile.user_id == uid).delete()
+        db.query(User).filter(User.email == "force@example.com").delete()
+        db.commit(); db.close()
 
 
 # --------------------------- multi-model panel ---------------------------- #

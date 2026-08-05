@@ -228,7 +228,8 @@ def run(cadence: str = "daily") -> dict:
         from .corpus_service import (
             backfill_countries, correct_ats_locations, embed_new_jobs,
         )
-        embedded = embed_new_jobs(db, settings)
+        from ..config import config as web_config
+        embedded = embed_new_jobs(db, settings, limit=web_config.embed_limit)
         # Correct aggregator location errors from the source ATS (Ashby/Greenhouse
         # /Lever), then settle any remaining unplaceable country via one LLM lookup.
         corrected = correct_ats_locations(db)

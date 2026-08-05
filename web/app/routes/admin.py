@@ -415,6 +415,37 @@ def admin_deep_clean(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/run-discovery")
+def admin_run_discovery(_: bool = Depends(require_admin)):
+    """Operator: run similar-company discovery + custom careers-page scraping now,
+    instead of waiting for the weekly cron. Premium users with seed companies get
+    processed; the companies found feed everyone's corpus. Needs an LLM key on this
+    service. Slow — runs in the background."""
+    from urllib.parse import quote
+
+    from jobhunter.config import Settings
+    from ..db import SessionLocal
+    from ..services.companies_service import (
+        discover_all_active, scrape_custom_companies,
+    )
+
+    def _work():
+        db = SessionLocal()
+        try:
+            found = discover_all_active(db, force=True)
+            scraped = scrape_custom_companies(db, Settings.from_env())
+            log.info("manual discovery: %s | scrape: %s", found, scraped)
+        except Exception:
+            log.exception("manual discovery failed")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = ("Discovery + scraping started (premium users with seed companies). "
+           "Needs an LLM key on this service. Refresh the corpus panel in a few minutes.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/clear-board")
 def admin_clear_board(_: bool = Depends(require_admin), email: str = Form(...),
                       db: DbSession = Depends(get_session)):

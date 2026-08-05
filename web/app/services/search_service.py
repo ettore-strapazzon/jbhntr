@@ -96,6 +96,38 @@ def _set(db: DbSession, search: Search, **fields) -> None:
     db.commit()
 
 
+def _trigger_discovery_if_changed(user_id: int) -> None:
+    """Fire per-user similar-company discovery (occasions 1-3) in the background.
+
+    Runs when this premium user searches for the first time after setting up their
+    profile, after adding 3+ seed companies, or after adding a new vertical. Owns
+    its own DB session and never blocks or fails the search — the companies it
+    finds enrich the shared corpus for subsequent searches. The weekly Monday cron
+    still handles the periodic refresh (occasion 4) for everyone.
+    """
+    def _work():
+        db = SessionLocal()
+        try:
+            from .companies_service import (
+                discover_for_user, discovery_change_trigger,
+            )
+            user = db.get(User, user_id)
+            if not user or not user.is_premium:
+                return
+            seeds = seed_values(db, user)
+            verticals = list(user.profile.verticals or []) if user.profile else []
+            if not discovery_change_trigger(user, seeds, verticals):
+                return
+            res = discover_for_user(db, user)
+            log.info("search-triggered discovery for user %s: %s", user_id, res)
+        except Exception:
+            log.exception("search-triggered discovery failed for user %s", user_id)
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+
+
 def _run_search(search_id: int, user_id: int) -> None:
     """Background worker. Owns its own DB session."""
     db = SessionLocal()
@@ -110,6 +142,11 @@ def _run_search(search_id: int, user_id: int) -> None:
         settings.scoring_model = (
             config.premium_scoring_model if user.is_premium else config.free_scoring_model
         )
+
+        # Premium: if the profile just changed materially (first run, 3+ new seed
+        # companies, or a new vertical), kick off similar-company discovery in the
+        # background so its finds land in the corpus for the next search.
+        _trigger_discovery_if_changed(user_id)
 
         profile = build_engine_profile(db, user)
         materials = build_engine_materials(db, user)
@@ -178,6 +215,17 @@ def _run_search(search_id: int, user_id: int) -> None:
         feedback = _feedback_examples(db, user)
         scored = _score_cached(db, matcher, jobs, profile, materials, feedback,
                                company_profile, criteria, settings)
+
+        # Hard location gate, now that the LLM has surfaced the real location for
+        # postings that reached scoring with a blank location field. Location is a
+        # hard requirement, so a job the enriched location places in a country the
+        # user didn't choose (with no remote they could take) is dropped outright,
+        # not shown as a long shot.
+        before = len(scored)
+        scored = [(j, m) for (j, m) in scored if _location_ok(j, m, profile)]
+        if before != len(scored):
+            log.info("Search %s: location gate dropped %d of %d scored",
+                     search.id, before - len(scored), before)
 
         # Tier 1-3 are the real matches; tier 4 are "long shots" shown in a
         # collapsed section so the list has more to offer without diluting the
@@ -265,8 +313,9 @@ def _merge_terms(user_terms: list[str], derived: list[str], cap: int = 10) -> li
 
 
 CORPUS_FRESH_DAYS = 30    # ignore corpus jobs not seen in a fresh ingest since
-CORPUS_TOPK = 60          # generous — cosine ranks, the LLM scorer decides
 CORPUS_MIN_KEEP = 20      # below this the corpus is too thin -> live fallback
+# How many geo-matched, cosine-ranked jobs go to the paid scorer (config.corpus_topk,
+# default 60). The per-search cost lever — raise for more matches, at more LLM spend.
 
 
 def _job_to_posting(row) -> object:
@@ -360,6 +409,32 @@ def _verify_links(db: DbSession, ranked: list) -> list:
     return [(j, m) for (j, m) in ranked if j.dedup_key() not in dead]
 
 
+def _location_ok(job, match, profile) -> bool:
+    """Final hard location gate, run AFTER scoring on the best location we have.
+
+    The corpus country tag and the cheap prefilter both *defer* when a posting's
+    location field is blank (adzuna often omits it) — so an on-site foreign job
+    with its city buried in the description slips through to the scorer, which
+    then treats the empty location as "unknown" and scores it on role fit. By the
+    time results are built we have `match.location`, the location the LLM pulled
+    out of the description ("Albany, New York, USA"). Re-run the prefilter's geo
+    logic against that enriched location so those leaks are dropped, not shown.
+
+    Keeps the job when the enriched location is still blank (nothing to judge) or
+    the user set no location constraint — same deferral the prefilter makes.
+    """
+    if not (profile.locations or []):
+        return True
+    loc = ((getattr(match, "location", "") or "") or (getattr(job, "location", "") or "")).strip()
+    if not loc:
+        return True
+    try:
+        probe = job.model_copy(update={"location": loc})
+    except Exception:
+        return True
+    return prefilter(probe, profile)
+
+
 def _country_allowed(job_countries, remote_mode, target_codes, remote_any) -> bool:
     """Hard geo gate using the corpus country tag (which the nightly backfill now
     fills for the long tail). True = keep.
@@ -417,7 +492,7 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
 
     capped = cap_per_company(cands, terms=terms)
     capped.sort(key=lambda p: -embeddings.cosine(pvec, vec_by_key.get(p.dedup_key(), [])))
-    return capped[:CORPUS_TOPK], len(rows)
+    return capped[:config.corpus_topk], len(rows)
 
 
 def _score_cached(db, matcher, jobs, profile, materials, feedback,

@@ -66,6 +66,14 @@ class WebConfig:
     # newly-added seeds count as a material profile change that triggers it early.
     discovery_interval_days: int = _int("DISCOVERY_INTERVAL_DAYS", 7)
     discovery_new_seeds_trigger: int = _int("DISCOVERY_NEW_SEEDS_TRIGGER", 3)
+    # Corpus search shape. `corpus_topk` = how many geo-matched, cosine-ranked jobs
+    # get sent to the paid LLM scorer per search (the "60 to score" number the user
+    # sees): the main per-search cost lever. `embed_limit` = how many corpus jobs get
+    # embedded per nightly ingest — must exceed the daily ingest rate or the
+    # searchable fraction of the corpus shrinks over time. Local fastembed is free
+    # and batched (memory-bounded), so this can be large; it only costs CPU time.
+    corpus_topk: int = _int("CORPUS_TOPK", 60)
+    embed_limit: int = _int("EMBED_LIMIT", 20000)
     max_upload_bytes: int = 1024 * 1024          # 1 MB, per the spec
     max_feedback_chars: int = 300
 

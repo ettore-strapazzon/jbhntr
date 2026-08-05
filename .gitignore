@@ -36,3 +36,6 @@ Thumbs.db
 # Personal reference notes, not part of the project
 Job Aggregator & Board APIs.md
 Job Hunting Websites.md
+
+# Local Claude Code config (machine-specific: launch.json, etc.)
+.claude/

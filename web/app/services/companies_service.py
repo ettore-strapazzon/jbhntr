@@ -30,13 +30,34 @@ DISCOVER_MAX_ROUNDS = 2   # per call — keep a scheduled run short; accumulate 
 POLL_WORKERS = 12
 
 
+def discovery_change_trigger(user: User, seeds: list[str],
+                             verticals: list[str]) -> bool:
+    """Per-user profile changes that should run discovery on this user's NEXT
+    search (occasions 1-3), independent of the weekly cadence:
+
+      1. first run — the profile was just set up (discovery has never run),
+      2. at least N new seed companies added since the last run, or
+      3. any new vertical added since the last run.
+
+    Premium only. Excludes the weekly refresh (occasion 4), which the Monday cron
+    applies to everyone via `due_for_discovery`.
+    """
+    if not user.is_premium:
+        return False
+    if aware(user.last_discovery_at) is None:
+        return True
+    new_seeds = set(seeds) - set(user.discovery_seeds or [])
+    new_verticals = set(verticals) - set(user.discovery_verticals or [])
+    return len(new_seeds) >= config.discovery_new_seeds_trigger or bool(new_verticals)
+
+
 def due_for_discovery(user: User, seeds: list[str], verticals: list[str],
                       now=None) -> bool:
-    """Should premium discovery run for this user now?
+    """Should premium discovery run for this user on the scheduled (Monday) sweep?
 
-    Premium only. Due when it has never run, when the cadence window has elapsed,
-    or when the profile changed materially since the last run — at least N new
-    seed companies, or any new vertical.
+    Premium only. Due when it has never run, when the weekly cadence window has
+    elapsed (occasion 4), or when the profile changed materially since the last
+    run (occasions 1-3, `discovery_change_trigger`).
     """
     from datetime import timedelta
     if not user.is_premium:
@@ -47,9 +68,7 @@ def due_for_discovery(user: User, seeds: list[str], verticals: list[str],
         return True
     if now - last >= timedelta(days=config.discovery_interval_days):
         return True
-    new_seeds = set(seeds) - set(user.discovery_seeds or [])
-    new_verticals = set(verticals) - set(user.discovery_verticals or [])
-    return len(new_seeds) >= config.discovery_new_seeds_trigger or bool(new_verticals)
+    return discovery_change_trigger(user, seeds, verticals)
 
 
 # --------------------------------------------------------------------------- #
@@ -168,10 +187,14 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
         return {"error": str(exc)}
 
 
-def discover_all_active(db: DbSession) -> dict:
+def discover_all_active(db: DbSession, force: bool = False) -> dict:
     """Scheduled refresh: run discovery for every PREMIUM user who is due (cadence
     elapsed or profile changed materially). Free users are skipped — this is a
-    premium feature — but the companies it finds feed everyone's corpus."""
+    premium feature — but the companies it finds feed everyone's corpus.
+
+    `force=True` (operator "run now") ignores the cadence so a premium user with
+    seeds is processed immediately instead of waiting for the weekly window.
+    """
     from .profile_service import seed_values
 
     totals = {"users": 0, "skipped": 0, "added": 0}
@@ -181,7 +204,7 @@ def discover_all_active(db: DbSession) -> dict:
             continue
         seeds = seed_values(db, user)
         verticals = list(user.profile.verticals or [])
-        if not due_for_discovery(user, seeds, verticals):
+        if not force and not due_for_discovery(user, seeds, verticals):
             totals["skipped"] += 1
             continue
         res = discover_for_user(db, user)
