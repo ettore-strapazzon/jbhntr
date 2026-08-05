@@ -2873,3 +2873,52 @@ def test_verify_links_drops_unrecoverable_gated(client, monkeypatch):
     finally:
         db.query(Job).filter_by(dedup_key=gated.dedup_key()).delete()
         db.commit(); db.close()
+
+
+def test_reaper_check_limit_zero_checks_all(client, monkeypatch):
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import reaper
+    seen = []
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: seen.append(url) or "active")
+    db = SessionLocal()
+    try:
+        for i in range(7):                       # 7 never-checked jobs
+            db.add(Job(dedup_key=f"dc-{i}", source="s", title="x",
+                       url=f"https://example.com/{i}", last_checked_at=None))
+        db.commit()
+        reaper.sweep(db, check_limit=0, workers=2)   # 0 = check every due job
+        # every one of the 7 due jobs is checked (not capped at a limit)
+        assert all(f"https://example.com/{i}" in seen for i in range(7))
+    finally:
+        for i in range(7):
+            db.query(Job).filter_by(dedup_key=f"dc-{i}").delete()
+        db.commit(); db.close()
+
+
+def test_admin_clear_board(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, Search, User
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    signup(client, email="board@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="board@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        db.add(JobResult(search_id=s.id, user_id=u.id, position=1, short_id="j1",
+                         title="Old", company="X"))
+        db.commit(); uid = u.id
+    finally:
+        db.close()
+    r = client.post("/admin/clear-board", data={"email": "board@example.com"},
+                    auth=("op", "s3cret"), follow_redirects=False)
+    assert r.status_code == 303
+    db = SessionLocal()
+    try:
+        assert db.query(JobResult).filter_by(user_id=uid).count() == 0
+        assert db.query(Search).filter_by(user_id=uid).count() == 0
+    finally:
+        db.close()
+    assert client.post("/admin/clear-board", data={"email": "x"}).status_code == 401
+    assert client.post("/admin/deep-clean").status_code == 401       # both gated

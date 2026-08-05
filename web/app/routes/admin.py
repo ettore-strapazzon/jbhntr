@@ -391,6 +391,52 @@ def admin_run_maintenance(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/deep-clean")
+def admin_deep_clean(_: bool = Depends(require_admin)):
+    """Operator: link-check EVERY due job now (not just the nightly 5k) and record
+    a snapshot, to clear out accumulated dead/404 links in one pass. Slow — runs
+    in the background."""
+    from urllib.parse import quote
+
+    from ..services.cron import _record_corpus_stat
+    from ..services.reaper import run as reaper_run
+
+    def _work():
+        try:
+            res = reaper_run(check_limit=0)      # 0 = check all due jobs
+            _record_corpus_stat({"reaper": res})
+            log.info("deep clean: %s", res)
+        except Exception:
+            log.exception("deep clean failed")
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = ("Deep clean started: checking every stored link (this can take a while). "
+           "Refresh the churn table in a few minutes.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
+@router.post("/admin/clear-board")
+def admin_clear_board(_: bool = Depends(require_admin), email: str = Form(...),
+                      db: DbSession = Depends(get_session)):
+    """Operator: wipe a user's stored search results so their board starts empty
+    and the next search shows only fresh, verified matches. Saved/applied state
+    (JobState) is kept."""
+    from urllib.parse import quote
+
+    user = db.query(User).filter(User.email == email.strip().lower()).first()
+    if not user:
+        msg = f"No account for {email}."
+    else:
+        r = db.query(JobResult).filter(JobResult.user_id == user.id).delete(
+            synchronize_session=False)
+        s = db.query(Search).filter(Search.user_id == user.id).delete(
+            synchronize_session=False)
+        db.commit()
+        msg = (f"Cleared {user.email}: {r} results across {s} searches removed. "
+               f"Their board is empty; the next search shows only fresh matches.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.get("/admin/waitlist.csv")
 def waitlist_csv(_: bool = Depends(require_admin),
                  db: DbSession = Depends(get_session)):

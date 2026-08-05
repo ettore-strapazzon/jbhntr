@@ -96,6 +96,14 @@
       <option value="free">free</option></select>
     <button type="submit">Set plan</button>
   </form>
+  <h2 style="margin-top:20px">Clear a user's board <span class="muted small">(fresh matches only)</span></h2>
+  <p class="small muted">Wipes stored search results so the next search shows only
+    fresh, verified matches. Saved/applied jobs are kept.</p>
+  <form method="post" action="/admin/clear-board" class="row" style="margin-top:8px">
+    <input type="email" name="email" placeholder="user@example.com" required
+           style="max-width:280px">
+    <button type="submit">Clear board</button>
+  </form>
 </div>
 
 {# ===== premium waiting list ===== #}
@@ -178,8 +186,12 @@
         real link is recovered at search time. Link-check covers up to 5,000/night.</p>
       <form method="post" action="/admin/run-maintenance" style="margin-top:6px">
         <button class="ghost" type="submit">Run maintenance now</button>
-        <span class="small muted">Reaper + a corpus snapshot, so a row shows up
-          without waiting for the nightly cron.</span>
+        <span class="small muted">Reaper + a corpus snapshot (up to 5,000 checks).</span>
+      </form>
+      <form method="post" action="/admin/deep-clean" style="margin-top:6px">
+        <button class="ghost" type="submit">Deep clean (check every link)</button>
+        <span class="small muted">One-time full sweep of the whole corpus — slow,
+          runs in the background.</span>
       </form>
     </div>
   </div>

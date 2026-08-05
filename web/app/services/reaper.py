@@ -84,7 +84,7 @@ def check_url(url: str, client: httpx.Client) -> str:
 def sweep(
     db: DbSession,
     stale_days: int = 45,
-    check_limit: int = 5000,  # link-checks per nightly run (chips through the corpus)
+    check_limit: int = 5000,  # link-checks per run (chips through the corpus); 0 = all
     recheck_days: int = 7,
     workers: int = 16,        # concurrency, to keep 5k checks to a sane wall-clock
 ) -> dict:
@@ -113,15 +113,16 @@ def sweep(
         # 2. Link-check a bounded batch: never-checked or checked long ago,
         #    oldest first, so a daily run chips through the whole corpus.
         recheck_before = now - timedelta(days=recheck_days)
-        batch = (
+        q = (
             db.query(Job)
             .filter(or_(Job.last_checked_at.is_(None),
                         Job.last_checked_at < recheck_before))
             .order_by(Job.last_checked_at.is_(None).desc(),
                       Job.last_checked_at.asc())
-            .limit(check_limit)
-            .all()
         )
+        if check_limit and check_limit > 0:
+            q = q.limit(check_limit)     # 0 = check every due job (one-time deep clean)
+        batch = q.all()
 
         checked = gone = 0
         if batch:
