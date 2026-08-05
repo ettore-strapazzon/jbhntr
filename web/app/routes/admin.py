@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import os
 import secrets
 import threading
 from datetime import timedelta
@@ -329,6 +330,8 @@ def _gather(db: DbSession) -> dict:
         "corpus_countries": corpus_countries, "searchable_n": searchable_n,
         "untagged_country": untagged_country, "blank_location": blank_location,
         "untagged_and_blank": untagged_and_blank, "ops_recent": ops_recent,
+        "deployed_sha": (os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+                         or os.environ.get("GIT_COMMIT_SHA") or "")[:7],
         "total_users": total_users, "google_users": google_users,
         "premium_users": premium_users, "waitlist": waitlist,
         "total_searches": total_searches, "searches_7d": searches_7d,

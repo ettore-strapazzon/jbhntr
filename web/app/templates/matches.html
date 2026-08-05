@@ -33,6 +33,19 @@
   </div>
 </div>
 
+{# ---- premium: import & score a job from a link ---- #}
+{% if user.is_premium and not running %}
+  <form method="post" action="/matches/import" class="import-bar"
+        style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 14px">
+    <input type="url" name="url" required placeholder="Paste a job link to score it…"
+           style="flex:1; min-width:220px; padding:8px 10px"
+           oninvalid="this.setCustomValidity('Paste a full http(s) job URL')"
+           oninput="this.setCustomValidity('')">
+    <button type="submit" class="ghost">Import &amp; score</button>
+    <span class="small muted">Premium · scores one posting into a card on your board.</span>
+  </form>
+{% endif %}
+
 {# ---- gate / progress / failure ---- #}
 {% if not state.can_search %}
   <div class="notice warn">

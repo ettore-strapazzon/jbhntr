@@ -39,6 +39,28 @@ def run_search(request: Request, user: User = Depends(require_user),
     return RedirectResponse("/matches", status_code=303)
 
 
+@router.post("/matches/import")
+def import_from_url(request: Request, url: str = Form(...),
+                    user: User = Depends(require_user),
+                    db: DbSession = Depends(get_session)):
+    """Premium: paste a job URL, score it, and show it as a card on the board."""
+    if not user.is_premium:
+        return RedirectResponse(
+            "/matches?error=" + quote("Importing a job by link is a Premium feature."),
+            status_code=303)
+    from ..services.import_service import JobImportError, import_job
+    try:
+        _, search_id = import_job(db, user, url)
+    except JobImportError as exc:
+        return RedirectResponse("/matches?error=" + quote(str(exc)), status_code=303)
+    except Exception:
+        log.exception("Job import failed")
+        return RedirectResponse(
+            "/matches?error=" + quote("Import failed — please try again."), status_code=303)
+    # Show the board filtered to this one-off run so the imported card is front and centre.
+    return RedirectResponse(f"/matches?run={search_id}", status_code=303)
+
+
 @router.get("/search/{search_id}/status", response_class=HTMLResponse)
 def status(search_id: int, request: Request, user: User = Depends(require_user),
            db: DbSession = Depends(get_session)):

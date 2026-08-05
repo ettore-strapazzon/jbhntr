@@ -178,16 +178,30 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
             profile, settings, target=remaining, seeds=seeds,
             max_rounds=DISCOVER_MAX_ROUNDS, exclude=already)
 
+        # Dedupe within the run BEFORE inserting: distinct proposed names can
+        # resolve to the same (ats, token), and inserting the same key twice is
+        # what tripped uq_company_ats. (upsert_* also savepoint-guards each insert;
+        # this just avoids the wasted attempt.)
         added = custom = 0
+        seen_ats: set[tuple[str, str]] = set()
         for c in verified:
+            key = ((c.get("ats") or "").strip().lower(), (c.get("token") or "").strip())
+            if key in seen_ats:
+                continue
+            seen_ats.add(key)
             if upsert_company(db, c.get("ats", ""), c.get("token", ""),
                               c.get("name", ""), source="discovered", user_id=user.id):
                 added += 1
         # Companies with no readable ATS but a known domain: register them for a
         # careers-page scrape (bounded per run so one user can't flood the table).
+        seen_dom: set[str] = set()
         for c in rejected:
             if custom >= MAX_CUSTOM_PER_RUN:
                 break
+            dom = (c.get("domain") or "").strip().lower()
+            if dom and dom in seen_dom:
+                continue
+            seen_dom.add(dom)
             if upsert_custom_company(db, c.get("name", ""), c.get("domain", ""),
                                      user_id=user.id):
                 custom += 1

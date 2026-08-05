@@ -3,7 +3,8 @@
 {% block content %}
 <h1>Operator dashboard</h1>
 <p class="small muted">Snapshot at {{ now.strftime("%d %b %Y, %H:%M UTC") }}. Read-only,
-  aggregate figures. No IP addresses are stored anywhere.</p>
+  aggregate figures. No IP addresses are stored anywhere.
+  {% if deployed_sha %}· deployed commit <code>{{ deployed_sha }}</code>{% endif %}</p>
 
 {# ===== overview ===== #}
 <div class="admin-stats">

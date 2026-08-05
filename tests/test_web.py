@@ -2803,6 +2803,69 @@ def test_record_op_shows_on_dashboard(client, monkeypatch):
     assert "LLM configured: True" in r.text
 
 
+def test_import_job_creates_scored_card(client, monkeypatch):
+    """import_job structures a posting, scores it, and stores a JobResult that will
+    render as a normal match card (any tier)."""
+    from jobhunter.matcher import MatchResult
+    from jobhunter.models import JobPosting
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, User, utcnow
+    from web.app.services import import_service
+
+    signup(client, email="imp@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="imp@example.com").one()
+        from datetime import timedelta
+        u.plan = "premium"; u.premium_until = utcnow() + timedelta(days=30)
+        db.commit()
+
+        # Stub the network+LLM extraction and the scorer — no external calls.
+        monkeypatch.setattr(import_service, "_extract_posting",
+            lambda url, s: JobPosting(source="import", title="Head of Ops",
+                                      company="Acme", location="Milan, Italy",
+                                      description="Lead operations.", url=url))
+        monkeypatch.setattr(import_service, "build_engine_profile", lambda db, u: object())
+        monkeypatch.setattr(import_service, "build_engine_materials", lambda db, u: object())
+        monkeypatch.setattr(import_service, "derive_company_profile", lambda *a, **k: object())
+        monkeypatch.setattr(import_service, "derive_criteria", lambda *a, **k: object())
+        monkeypatch.setattr(import_service, "seed_values", lambda db, u: [])
+        monkeypatch.setattr(import_service, "engine_settings", lambda premium=True: object())
+
+        class FakeMatcher:
+            def __init__(self, s): pass
+            def score(self, jobs, *a, **k):
+                m = MatchResult(tier=2, score=78, fit_role=80, fit_candidate=75,
+                                role="Head of Ops", company="Acme",
+                                location="Milan, Italy", remote="onsite",
+                                reasons="Strong operator fit. However, salary undisclosed.",
+                                tags=["ops"])
+                return [(jobs[0], m)]
+        monkeypatch.setattr(import_service, "Matcher", FakeMatcher)
+
+        jr, sid = import_service.import_job(db, u, "https://acme.com/jobs/head-of-ops")
+        assert jr.tier == 2 and jr.score == 78 and jr.source == "import"
+        assert jr.why_good and jr.why_bad                      # reasons split for the card
+        stored = db.get(JobResult, jr.id)
+        assert stored is not None and stored.title == "Head of Ops"
+    finally:
+        from web.app.models import Profile, Search
+        uid = db.query(User.id).filter_by(email="imp@example.com").scalar()
+        if uid is not None:
+            db.query(JobResult).filter_by(user_id=uid).delete(synchronize_session=False)
+            db.query(Search).filter_by(user_id=uid).delete(synchronize_session=False)
+            db.query(Profile).filter_by(user_id=uid).delete(synchronize_session=False)
+        db.query(User).filter_by(email="imp@example.com").delete()
+        db.commit(); db.close()
+
+
+def test_import_route_is_premium_gated(client, monkeypatch):
+    signup(client, email="free-imp@example.com")     # free user
+    r = client.post("/matches/import", data={"url": "https://x.com/job"},
+                    follow_redirects=False)
+    assert r.status_code == 303 and "Premium" in r.headers["location"]
+
+
 def test_upsert_company_dedupes_same_run_without_poisoning():
     """Two proposals in one run resolving to the same (ats, token) must not abort
     the whole transaction (the uq_company_ats UniqueViolation that killed
