@@ -262,6 +262,31 @@ def _gather(db: DbSession) -> dict:
     corpus_daily = (db.query(CorpusStat)
                     .order_by(CorpusStat.created_at.desc()).limit(14).all())
 
+    # Country coverage of the *searchable* corpus (fresh + embedded) — the exact
+    # set a corpus search ranks over. Answers "is <country> simply thin?" and
+    # exposes the leak-prone crowd: jobs with no country tag AND no location, which
+    # nothing can geo-filter early so they eat shortlist slots then get tier-5'd.
+    from collections import Counter
+    searchable_rows = (db.query(Job.countries, Job.location)
+                       .filter(Job.embedding.isnot(None),
+                               Job.last_seen_at >= aware(_since(30))).all())
+    country_counts: Counter = Counter()
+    untagged_country = blank_location = untagged_and_blank = 0
+    for countries, location in searchable_rows:
+        cs = countries or []
+        if cs:
+            for c in cs:
+                country_counts[str(c).lower()] += 1
+        else:
+            untagged_country += 1
+        loc_blank = not (location or "").strip()
+        if loc_blank:
+            blank_location += 1
+        if not cs and loc_blank:
+            untagged_and_blank += 1
+    corpus_countries = country_counts.most_common(12)
+    searchable_n = len(searchable_rows)
+
     # Discovery / custom-scrape footprint (the new premium-sourced companies).
     scraped_jobs = db.query(Job).filter(Job.source.like("scrape:%")).count()
     companies_total = db.query(Company).count()
@@ -279,6 +304,9 @@ def _gather(db: DbSession) -> dict:
         "top_sources": top_sources, "corpus_daily": corpus_daily,
         "scraped_jobs": scraped_jobs, "companies_total": companies_total,
         "companies_custom": companies_custom, "companies_polled": companies_polled,
+        "corpus_countries": corpus_countries, "searchable_n": searchable_n,
+        "untagged_country": untagged_country, "blank_location": blank_location,
+        "untagged_and_blank": untagged_and_blank,
         "total_users": total_users, "google_users": google_users,
         "premium_users": premium_users, "waitlist": waitlist,
         "total_searches": total_searches, "searches_7d": searches_7d,

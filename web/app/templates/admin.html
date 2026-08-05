@@ -155,6 +155,15 @@
     ({{ companies_custom }} custom career pages, polled {{ companies_polled }} in 48h) ·
     <b>{{ scraped_jobs }}</b> jobs from custom scraping (source <code>scrape:*</code>).</p>
 
+  <p class="small muted"><b>Searchable corpus by country</b>
+    <span class="muted">(fresh + embedded — the set a search actually ranks; {{ searchable_n }} jobs)</span>:<br>
+    {% for code, n in corpus_countries %}<code>{{ code }}</code> {{ n }}{% if not loop.last %} · {% endif %}{% else %}<span class="muted">none tagged</span>{% endfor %}<br>
+    <b>{{ untagged_country }}</b> have no country tag ·
+    <b>{{ blank_location }}</b> have no location text ·
+    <b>{{ untagged_and_blank }}</b> have neither (these can't be geo-filtered early —
+    they eat shortlist slots then get scored-out, the usual cause of "0 results" for a
+    thin-inventory country).</p>
+
   <div class="admin-two">
     <div>
       <h3>Top sources <span class="muted small">(live rows in corpus)</span></h3>
