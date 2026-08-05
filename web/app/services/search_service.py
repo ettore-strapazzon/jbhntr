@@ -311,6 +311,8 @@ def _verify_links(db: DbSession, ranked: list) -> list:
     from ..models import Job
     from .reaper import check_url
 
+    from .recover import recover_apply_url
+
     head = ranked[:VERIFY_LIMIT]
     if not head:
         return ranked
@@ -325,20 +327,36 @@ def _verify_links(db: DbSession, ranked: list) -> list:
         log.warning("Link verification skipped: %s", exc)
         return ranked
 
-    dead = {k for k, v in verdicts.items() if v == "gone"}
-    live = [k for k, v in verdicts.items() if v != "gone"]
-    if dead or live:
-        try:
-            if dead:
-                db.query(Job).filter(Job.dedup_key.in_(dead)).delete(synchronize_session=False)
-            if live:
-                db.query(Job).filter(Job.dedup_key.in_(live)).update(
-                    {Job.last_checked_at: utcnow()}, synchronize_session=False)
-            db.commit()
-        except Exception:
-            db.rollback()
-    if dead:
-        log.info("Search: dropped %d dead/gated links from the shortlist", len(dead))
+    # Gated (login-walled) jobs are usually still live — try to recover the real
+    # apply link from the company's own ATS before giving up. Recovered jobs keep
+    # their place with the new URL; the rest of the gated ones are dropped.
+    recovered = 0
+    for job, _m in head:
+        if verdicts.get(job.dedup_key()) != "gated":
+            continue
+        new_url = recover_apply_url(job.company, job.title)
+        if new_url:
+            job.url = new_url
+            verdicts[job.dedup_key()] = "active"
+            recovered += 1
+
+    dead = {k for k, v in verdicts.items() if v in ("gone", "gated")}
+    live = {k for k, v in verdicts.items() if k not in dead}
+    by_key = {j.dedup_key(): j for j, _ in head}
+    try:
+        for k in dead:                       # dead-end links: purge from the corpus
+            db.query(Job).filter(Job.dedup_key == k).delete(synchronize_session=False)
+        for k in live:                       # keep; stamp checked (+ save any recovered URL)
+            vals = {Job.last_checked_at: utcnow()}
+            if k in by_key and by_key[k].url:
+                vals[Job.url] = by_key[k].url[:1000]
+            db.query(Job).filter(Job.dedup_key == k).update(vals, synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+    if dead or recovered:
+        log.info("Search: %d dead/gated links dropped, %d recovered from ATS",
+                 len(dead), recovered)
     return [(j, m) for (j, m) in ranked if j.dedup_key() not in dead]
 
 

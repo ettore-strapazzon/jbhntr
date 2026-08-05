@@ -35,9 +35,7 @@ log = logging.getLogger("jbhntr.reaper")
 
 _UA = "Mozilla/5.0 (compatible; JBHNTR-linkcheck/1.0)"
 
-# A 200 page containing any of these is treated as a closed posting — either
-# genuinely closed, or a login/registration wall that hides the real posting
-# (which is a dead end for the user, so we drop it the same way).
+# A 200 page containing any of these is a genuinely closed/removed posting.
 DEAD_MARKERS = (
     "no longer available", "no longer accepting", "no longer open",
     "position has been filled", "has been filled", "this position is closed",
@@ -45,18 +43,25 @@ DEAD_MARKERS = (
     "job is no longer", "position is no longer", "job has expired",
     "this job has expired", "job not found", "page not found",
     "the job you are looking for", "not currently accepting",
-    # registration / login walls that gate the actual posting
+)
+
+# A login/registration wall hides the real posting. Unlike a 404, the job is
+# usually still live — so this is 'gated' (recoverable), not 'gone'.
+WALL_MARKERS = (
     "create an account to view", "sign in to view the full",
     "log in to view this job", "register to see the full",
     "sign up to view full", "account to view full job",
+    "create an account to see", "sign up to see the full",
 )
 
 
 def check_url(url: str, client: httpx.Client) -> str:
-    """Classify a posting URL as 'active', 'gone', or 'unknown'.
+    """Classify a posting URL as 'active', 'gone', 'gated', or 'unknown'.
 
-    Conservative: only 404/410 or an explicit closed-posting page count as
-    gone. Anything ambiguous (timeout, 403, redirect) is 'unknown' — kept.
+    Conservative: only 404/410 or an explicit closed-posting page count as gone;
+    a registration/login wall is 'gated' (the job likely still exists, so the
+    caller can try to recover the real link). Anything ambiguous (timeout, 403,
+    redirect) is 'unknown' — kept.
     """
     if not url:
         return "unknown"
@@ -71,6 +76,8 @@ def check_url(url: str, client: httpx.Client) -> str:
     body = r.text.lower()
     if any(m in body for m in DEAD_MARKERS):
         return "gone"
+    if any(m in body for m in WALL_MARKERS):
+        return "gated"
     return "active"
 
 

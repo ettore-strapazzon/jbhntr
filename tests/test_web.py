@@ -2578,16 +2578,21 @@ def test_gated_urls_rejected_and_reaped(client):
         db.commit(); db.close()
 
 
-def test_reaper_treats_registration_wall_as_gone(monkeypatch):
+def test_reaper_marks_registration_wall_as_gated_not_gone(monkeypatch):
     from web.app.services import reaper
 
-    class _Resp:
+    class _Wall:
         status_code = 200
         text = "Join the #1 remote job site. Create an account to view full job details."
+    class _Dead:
+        status_code = 200
+        text = "Sorry, this position has been filled and is no longer available."
     class _Client:
-        def get(self, url, follow_redirects=True): return _Resp()
+        def __init__(self, r): self.r = r
+        def get(self, url, follow_redirects=True): return self.r
 
-    assert reaper.check_url("https://weworkremotely.com/x", _Client()) == "gone"
+    assert reaper.check_url("https://x/y", _Client(_Wall())) == "gated"   # recoverable
+    assert reaper.check_url("https://x/y", _Client(_Dead())) == "gone"    # truly closed
 
 
 def test_verify_links_drops_dead_and_purges_corpus(client, monkeypatch):
@@ -2789,3 +2794,82 @@ def test_admin_reset_clears_premium_daily_cap(client, monkeypatch):
         check_quota(db, u)                                # daily cap cleared -> no raise
     finally:
         db.close()
+
+
+# --------------------------- gated-link recovery -------------------------- #
+def test_title_match_and_recover(monkeypatch):
+    from jobhunter.models import JobPosting
+    from jobhunter.sources import ats
+    from web.app.services import recover
+
+    assert recover._title_match("Chief of Staff",
+                                "Chief of Staff (Future Founder/VC)") == 1.0
+    assert recover._title_match("Head of Ops", "Warehouse Picker") < 0.5
+
+    # Ashby board returns the real role -> its direct URL is recovered by title.
+    def _fake_ashby(name, token):
+        assert token == "abundant"
+        return [JobPosting(source="ats:ashby:Abundant", title="Chief of Staff (Future Founder/VC)",
+                           company="Abundant", url="https://jobs.ashbyhq.com/abundant/REAL")]
+    monkeypatch.setitem(ats.FETCHERS, "greenhouse", lambda n, t: [])
+    monkeypatch.setitem(ats.FETCHERS, "lever", lambda n, t: [])
+    monkeypatch.setitem(ats.FETCHERS, "ashby", _fake_ashby)
+
+    assert recover.recover_apply_url("Abundant", "Chief of Staff") == \
+        "https://jobs.ashbyhq.com/abundant/REAL"
+    # no confident match -> None (better than a wrong link)
+    assert recover.recover_apply_url("Abundant", "Senior Data Engineer") is None
+
+
+def test_verify_links_recovers_gated_before_dropping(client, monkeypatch):
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import reaper, recover, search_service
+    from jobhunter.models import JobPosting, MatchResult
+
+    gated = JobPosting(source="api:wwr", title="Chief of Staff", company="Abundant",
+                       url="https://weworkremotely.com/gated")
+    m = MatchResult(tier=1, score=88, reasons="ok")
+
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: "gated")
+    monkeypatch.setattr(recover, "recover_apply_url",
+                        lambda company, title: "https://jobs.ashbyhq.com/abundant/REAL")
+
+    db = SessionLocal()
+    try:
+        db.add(Job(dedup_key=gated.dedup_key(), source=gated.source,
+                   title=gated.title, url=gated.url))
+        db.commit()
+        kept = search_service._verify_links(db, [(gated, m)])
+        assert len(kept) == 1                                  # not dropped
+        assert kept[0][0].url == "https://jobs.ashbyhq.com/abundant/REAL"   # recovered
+        row = db.query(Job).filter_by(dedup_key=gated.dedup_key()).one()
+        assert row.url == "https://jobs.ashbyhq.com/abundant/REAL"          # corpus updated
+    finally:
+        db.query(Job).filter_by(dedup_key=gated.dedup_key()).delete()
+        db.commit(); db.close()
+
+
+def test_verify_links_drops_unrecoverable_gated(client, monkeypatch):
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import reaper, recover, search_service
+    from jobhunter.models import JobPosting, MatchResult
+
+    gated = JobPosting(source="api:wwr", title="Obscure Role", company="NoAtsCo",
+                       url="https://weworkremotely.com/gated2")
+    m = MatchResult(tier=1, score=70, reasons="ok")
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: "gated")
+    monkeypatch.setattr(recover, "recover_apply_url", lambda company, title: None)
+
+    db = SessionLocal()
+    try:
+        db.add(Job(dedup_key=gated.dedup_key(), source=gated.source,
+                   title=gated.title, url=gated.url))
+        db.commit()
+        kept = search_service._verify_links(db, [(gated, m)])
+        assert kept == []                                      # dropped (unrecoverable)
+        assert db.query(Job).filter_by(dedup_key=gated.dedup_key()).count() == 0
+    finally:
+        db.query(Job).filter_by(dedup_key=gated.dedup_key()).delete()
+        db.commit(); db.close()
