@@ -77,9 +77,9 @@ def check_url(url: str, client: httpx.Client) -> str:
 def sweep(
     db: DbSession,
     stale_days: int = 45,
-    check_limit: int = 500,   # link-checks per nightly run (chips through the corpus)
+    check_limit: int = 5000,  # link-checks per nightly run (chips through the corpus)
     recheck_days: int = 7,
-    workers: int = 8,
+    workers: int = 16,        # concurrency, to keep 5k checks to a sane wall-clock
 ) -> dict:
     """One reaper pass. Returns counts. Never raises (logs and returns)."""
     try:

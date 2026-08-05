@@ -2627,23 +2627,22 @@ def test_verify_links_drops_dead_and_purges_corpus(client, monkeypatch):
         db.commit(); db.close()
 
 
-def test_admin_growth_charts(client, monkeypatch):
+def test_admin_growth_chart(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal
-    from web.app.models import CorpusStat
+    from web.app.models import CorpusStat, PageView
     monkeypatch.setattr(config, "admin_token", "s3cret")
-    signup(client, email="grow@example.com")          # a user created today
     db = SessionLocal()
     try:
-        db.add(CorpusStat(total=15000, added=250))
+        db.add(CorpusStat(total=15000, added=250))     # a jobs-added data point
+        db.add(PageView(path="/", visitor="v-abc"))     # a visitor data point
         db.commit()
     finally:
         db.close()
     page = client.get("/admin", auth=("op", "s3cret")).text
-    assert "New users per day" in page
-    assert "New jobs added per day" in page
-    assert 'class="barchart"' in page
-    assert "height:100%" in page                        # today's peak bar rendered
+    assert "Growth" in page
+    assert "<polyline" in page and "<svg" in page       # dual-axis line chart rendered
+    assert "Unique visitors (left)" in page and "Jobs added (right)" in page
 
 
 def test_admin_run_maintenance(client, monkeypatch):

@@ -53,40 +53,81 @@ def _since(days: int):
     return utcnow() - timedelta(days=days)
 
 
-def _chart(day_counts: dict, days: int = 30) -> dict:
-    """Turn {date: count} into a bar-chart spec for the last `days` days, oldest
-    first and zero-filled, with each bar's height as a percentage of the peak."""
-    today = utcnow().date()
-    order = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
-    vals = [int(day_counts.get(d, 0)) for d in order]
-    peak = max(vals) if vals else 0
-    bars = [{"label": d.strftime("%d %b"), "v": v,
-             "pct": round(v / peak * 100) if peak else 0}
-            for d, v in zip(order, vals)]
-    return {"bars": bars, "peak": peak, "total": sum(vals), "days": days}
+def _fmt(n: float) -> str:
+    n = int(round(n))
+    if n >= 1_000_000:
+        return f"{n / 1e6:.1f}M".replace(".0M", "M")
+    if n >= 1_000:
+        return f"{n / 1e3:.1f}k".replace(".0k", "k")
+    return str(n)
 
 
-def _bucket_by_day(rows, value_attr=None):
-    """{date: count-or-summed-value} keyed by each row's created_at date. With
-    `value_attr` it sums that attribute (e.g. 'added'); otherwise counts rows."""
-    out: dict = {}
-    for r in rows:
-        ts = aware(r.created_at)
-        if not ts:
-            continue
-        d = ts.date()
-        out[d] = out.get(d, 0) + (getattr(r, value_attr) if value_attr else 1)
-    return out
+def _dual_line_svg(dates, left, right, left_label, right_label,
+                   left_color="#174b3e", right_color="#c08a2e") -> str:
+    """A dual-axis daily line chart as inline SVG (CSP-safe: no JS/chart libs).
+
+    `dates` are short x labels; `left`/`right` are the two daily series, plotted
+    against independent Y axes (left labels + right labels) so a small metric and
+    a large one can share the same time axis."""
+    W, H, ml, mr, mt, mb = 700, 260, 48, 56, 26, 34
+    iw, ih = W - ml - mr, H - mt - mb
+    n = max(1, len(dates))
+    xs = [ml + (iw * i / (n - 1) if n > 1 else iw / 2) for i in range(n)]
+    lmax = max(left) or 1
+    rmax = max(right) or 1
+    ly = lambda v: mt + ih - (v / lmax) * ih
+    ry = lambda v: mt + ih - (v / rmax) * ih
+
+    p = [f'<svg viewBox="0 0 {W} {H}" width="100%" style="max-width:{W}px;'
+         f'font:11px system-ui,sans-serif" xmlns="http://www.w3.org/2000/svg">']
+    # gridlines + both Y axes' tick values
+    for f in (0, 0.25, 0.5, 0.75, 1):
+        y = mt + ih - f * ih
+        p.append(f'<line x1="{ml}" y1="{y:.0f}" x2="{ml + iw}" y2="{y:.0f}" stroke="#e5e2dc"/>')
+        p.append(f'<text x="{ml - 6}" y="{y + 3:.0f}" text-anchor="end" '
+                 f'fill="{left_color}">{_fmt(lmax * f)}</text>')
+        p.append(f'<text x="{ml + iw + 6}" y="{y + 3:.0f}" text-anchor="start" '
+                 f'fill="{right_color}">{_fmt(rmax * f)}</text>')
+    # x-axis date ticks (~6)
+    step = max(1, (n - 1) // 6) if n > 1 else 1
+    for i in range(0, n, step):
+        p.append(f'<text x="{xs[i]:.0f}" y="{H - 14}" text-anchor="middle" '
+                 f'fill="#5e5b55">{dates[i]}</text>')
+    # the two series
+    lp = " ".join(f"{xs[i]:.1f},{ly(left[i]):.1f}" for i in range(n))
+    rp = " ".join(f"{xs[i]:.1f},{ry(right[i]):.1f}" for i in range(n))
+    p.append(f'<polyline points="{lp}" fill="none" stroke="{left_color}" stroke-width="2"/>')
+    p.append(f'<polyline points="{rp}" fill="none" stroke="{right_color}" stroke-width="2"/>')
+    # legend
+    p.append(f'<rect x="{ml}" y="6" width="11" height="11" rx="2" fill="{left_color}"/>')
+    p.append(f'<text x="{ml + 16}" y="15" fill="#1c1b19">{left_label} (left)</text>')
+    lx = ml + 16 + int(len(left_label) * 6.2) + 46
+    p.append(f'<rect x="{lx}" y="6" width="11" height="11" rx="2" fill="{right_color}"/>')
+    p.append(f'<text x="{lx + 16}" y="15" fill="#1c1b19">{right_label} (right)</text>')
+    p.append("</svg>")
+    return "".join(p)
 
 
 def _gather(db: DbSession) -> dict:
     now = utcnow()
 
-    # --- growth over time (daily bar charts) ---
-    signup_rows = db.query(User).filter(User.created_at >= aware(_since(30))).all()
-    signups_chart = _chart(_bucket_by_day(signup_rows))
-    stat_rows = db.query(CorpusStat).filter(CorpusStat.created_at >= aware(_since(30))).all()
-    jobs_added_chart = _chart(_bucket_by_day(stat_rows, "added"))
+    # --- growth over time: unique visitors/day + jobs-added/day (dual-axis line) ---
+    order = [now.date() - timedelta(days=i) for i in range(29, -1, -1)]
+    vday = func.date(PageView.created_at)
+    vrows = (db.query(vday, func.count(func.distinct(PageView.visitor)))
+             .filter(PageView.created_at >= aware(_since(30)),
+                     PageView.visitor.isnot(None), PageView.visitor != "")
+             .group_by(vday).all())
+    vmap = {str(d)[:10]: int(c or 0) for d, c in vrows}
+    jday = func.date(CorpusStat.created_at)
+    jrows = (db.query(jday, func.sum(CorpusStat.added))
+             .filter(CorpusStat.created_at >= aware(_since(30))).group_by(jday).all())
+    jmap = {str(d)[:10]: int(c or 0) for d, c in jrows}
+    growth_svg = _dual_line_svg(
+        [d.strftime("%d %b") for d in order],
+        [vmap.get(d.isoformat(), 0) for d in order],
+        [jmap.get(d.isoformat(), 0) for d in order],
+        "Unique visitors", "Jobs added")
 
     # --- people ---
     total_users = db.query(User).count()
@@ -231,7 +272,7 @@ def _gather(db: DbSession) -> dict:
     return {
         "now": now,
         "funnel": funnel,
-        "signups_chart": signups_chart, "jobs_added_chart": jobs_added_chart,
+        "growth_svg": growth_svg,
         "corpus_total": corpus_total, "fresh_1d": fresh_1d, "fresh_7d": fresh_7d,
         "fresh_30d": fresh_30d, "stale_45d": stale_45d, "embedded_n": embedded_n,
         "unchecked_n": unchecked_n, "remote_mix": remote_mix,

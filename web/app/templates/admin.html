@@ -1,16 +1,5 @@
 {% extends "base.html" %}
 {% block title %}Operator · JBHNTR{% endblock %}
-{% macro barchart(chart) %}
-  <div class="barchart" role="img" aria-label="Daily bar chart, last {{ chart.days }} days">
-    {% for b in chart.bars %}
-      <div class="bar-col" title="{{ b.label }}: {{ b.v }}">
-        <div class="bar" style="height:{{ b.pct }}%"></div>
-      </div>
-    {% endfor %}
-  </div>
-  <p class="small muted">last {{ chart.days }} days · peak {{ chart.peak }}/day ·
-    {{ chart.total }} total</p>
-{% endmacro %}
 {% block content %}
 <h1>Operator dashboard</h1>
 <p class="small muted">Snapshot at {{ now.strftime("%d %b %Y, %H:%M UTC") }}. Read-only,
@@ -24,24 +13,13 @@
   <div class="stat"><b>{{ waitlist|length }}</b><span>on the waiting list</span></div>
 </div>
 
-{# ===== growth over time ===== #}
+{# ===== growth over time (dual-axis daily line chart) ===== #}
 <div class="card">
-  <h2>Growth</h2>
-  <div class="admin-two">
-    <div>
-      <h3>New users per day</h3>
-      {{ barchart(signups_chart) }}
-    </div>
-    <div>
-      <h3>New jobs added per day <span class="muted small">(nightly ingest)</span></h3>
-      {% if jobs_added_chart.total %}
-        {{ barchart(jobs_added_chart) }}
-      {% else %}
-        <p class="muted small">No nightly runs recorded yet — this fills in after
-          the corpus cron runs.</p>
-      {% endif %}
-    </div>
-  </div>
+  <h2>Growth <span class="muted small">(last 30 days, daily)</span></h2>
+  {{ growth_svg | safe }}
+  <p class="small muted">Unique visitors per day (left axis, pine) and new jobs
+    added to the corpus per day (right axis, brass). Jobs-added fills in from the
+    nightly ingest.</p>
 </div>
 
 {# ===== users (backend double-check entry point) — pseudonymous by number ===== #}
@@ -196,7 +174,7 @@
         </tbody>
       </table>
       <p class="small muted">Deprecated = pruned as unseen &gt;45d, plus link-checked
-        dead (404/410/walls). Link-check covers up to 500 jobs a night.</p>
+        dead (404/410/walls). Link-check covers up to 5,000 jobs a night.</p>
       <form method="post" action="/admin/run-maintenance" style="margin-top:6px">
         <button class="ghost" type="submit">Run maintenance now</button>
         <span class="small muted">Reaper + a corpus snapshot, so a row shows up
