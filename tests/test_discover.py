@@ -12,6 +12,38 @@ def _v(name, ats, token, jobs=5, why=""):
     return {"name": name, "ats": ats, "token": token, "jobs": jobs, "why": why}
 
 
+def _c(name):
+    return {"name": name, "slug": name.lower(), "domain": "", "why": ""}
+
+
+def test_suggest_merges_web_and_model_knowledge(monkeypatch):
+    """Web research and model knowledge are UNIONED (deduped), so an empty
+    extraction no longer drops the whole round — the fix for '[C] extract -> 0'
+    silently discarding everything."""
+    from jobhunter import discover as dm
+    from jobhunter import llm
+    from jobhunter.config import Profile, Settings
+
+    monkeypatch.setattr(dm, "research", lambda *a, **k: "notes naming companies")
+    monkeypatch.setattr(dm, "extract_companies", lambda *a, **k: [_c("WebCo"), _c("Shared")])
+
+    class FakeClient:
+        supports_web_search = True
+        def json(self, **kw):
+            return {"companies": [_c("Shared"), _c("ModelCo")]}
+        def text(self, **kw):
+            return "notes"
+    monkeypatch.setattr(llm, "get_client", lambda s: FakeClient())
+
+    out = dm.suggest(Profile(), Settings(), 5, exemplars=[], exclude=[], web_search=True)
+    assert sorted(c["name"] for c in out) == ["ModelCo", "Shared", "WebCo"]   # Shared once
+
+    # Even when web extraction returns nothing, model knowledge still carries.
+    monkeypatch.setattr(dm, "extract_companies", lambda *a, **k: [])
+    out2 = dm.suggest(Profile(), Settings(), 5, exemplars=[], exclude=[], web_search=True)
+    assert sorted(c["name"] for c in out2) == ["ModelCo", "Shared"]
+
+
 # ------------------------------- writer -------------------------------- #
 def test_writes_new_file_with_verified_companies(tmp_path):
     p = tmp_path / "companies.yaml"

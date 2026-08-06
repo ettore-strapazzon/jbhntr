@@ -187,24 +187,36 @@ def extract_companies(notes: str, settings: Settings, exclude: list[str]) -> lis
     combined with the citations that web search returns.
     """
     prompt = [
-        "Extract every distinct company mentioned in these research notes.",
-        "For each: name, `slug` (lowercase no-spaces handle used in careers URLs),",
-        "`domain` (website domain, or empty string if not stated), and `why`.",
-        "Include only real companies. Do not invent any that aren't in the notes.",
+        "The research notes below name real companies a job-seeker should watch — "
+        "usually a mix of named companies, funding announcements and careers links.",
+        "List EVERY distinct company named anywhere in the notes. There are normally "
+        "10-40; only return an empty list if the notes genuinely name no company.",
+        "For each company give:",
+        "- `name`: the company name as written;",
+        "- `slug`: a lowercase, no-spaces handle for its careers URL (e.g. 'satispay');",
+        "- `domain`: its website domain if the notes give one, else \"\";",
+        "- `why`: the one-line reason it appears (funding, sector, hiring, etc.).",
+        "Include a company even if only its name is given. Do not invent any that "
+        "are not named in the notes.",
     ]
     if exclude:
-        prompt += ["", "Skip these, already known:", ", ".join(exclude[:MAX_EXCLUSIONS])]
+        prompt += ["", "Skip these (already known), but DO include every other company:",
+                   ", ".join(exclude[:MAX_EXCLUSIONS])]
     prompt += ["", "## Research notes", notes[:60000]]
 
     data = llm.get_client(settings).json(
-        system="You extract structured company lists from research notes.",
+        system="You extract structured company lists from research notes. You are "
+               "thorough: you never omit a company the notes clearly name.",
         user="\n".join(prompt),
         schema=SUGGEST_SCHEMA,
         tier=llm.SCORING,
         max_tokens=16000,
         cache_system=False,
     )
-    return data.get("companies", [])
+    found = data.get("companies", [])
+    log.info("extract_companies: %d chars of notes -> %d companies",
+             len(notes or ""), len(found))
+    return found
 
 
 def suggest(
@@ -218,26 +230,37 @@ def suggest(
 ) -> list[dict]:
     """Propose companies matching the profile. Unverified at this point.
 
-    With `web_search` we research the live web first (much better for small,
-    recent or country-specific companies); otherwise we fall back to the
-    model's own knowledge.
+    Uses BOTH the live web (best for small, recent or country-specific companies)
+    AND the model's own knowledge, then unions the two — deduped by name. Web
+    research alone was fragile (a single empty extraction dropped the whole round
+    to nothing); model knowledge alone misses local/new firms. Combining is both
+    more robust and broader.
     """
+    merged: list[dict] = []
+    seen: set[str] = set()
+
+    def _add(companies: list[dict]) -> None:
+        for c in companies or []:
+            key = _slugify(c.get("name", ""))
+            if key and key not in seen:
+                seen.add(key)
+                merged.append(c)
+
     if web_search:
         if not llm.get_client(settings).supports_web_search:
             log.info(
-                "Provider has no web search; using model knowledge. "
+                "Provider has no web search; using model knowledge only. "
                 "(On OpenRouter, live search works via ':online' models.)"
             )
         else:
             try:
                 notes = research(profile, settings, n, exemplars, criteria)
                 if notes.strip():
-                    found = extract_companies(notes, settings, exclude)
-                    if found:
-                        return found
-                log.warning("Web research returned nothing usable; using model knowledge.")
+                    _add(extract_companies(notes, settings, exclude))
+                if not merged:
+                    log.warning("Web research yielded no companies; model knowledge only.")
             except Exception as exc:
-                log.warning("Web search unavailable (%s); using model knowledge.", exc)
+                log.warning("Web search unavailable (%s); model knowledge only.", exc)
 
     parts = [
         f"List {n} real companies a candidate with this job search should watch.",
@@ -276,15 +299,20 @@ def suggest(
         "- Never repeat a company, within this list or from the exclusions.",
     ]
 
-    data = llm.get_client(settings).json(
-        system="You suggest real companies matching a candidate's job search.",
-        user="\n".join(parts),
-        schema=SUGGEST_SCHEMA,
-        tier=llm.SCORING,
-        max_tokens=16000,
-        cache_system=False,
-    )
-    return data.get("companies", [])
+    try:
+        data = llm.get_client(settings).json(
+            system="You suggest real companies matching a candidate's job search.",
+            user="\n".join(parts),
+            schema=SUGGEST_SCHEMA,
+            tier=llm.SCORING,
+            max_tokens=16000,
+            cache_system=False,
+        )
+        _add(data.get("companies", []))
+    except Exception as exc:
+        log.warning("Model-knowledge suggestion failed (%s)", exc)
+    log.info("suggest: %d companies (web + model knowledge, deduped)", len(merged))
+    return merged
 
 
 # --------------------------------------------------------------------------- #

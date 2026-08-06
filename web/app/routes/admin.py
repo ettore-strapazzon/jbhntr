@@ -628,10 +628,12 @@ def admin_discovery_selftest(_: bool = Depends(require_admin)):
             if client.supports_web_search:
                 try:
                     notes = dm.research(profile, settings, 5, seeds)
-                    lines.append(f"[B] web research -> {len(notes)} chars")
+                    preview = " ".join((notes or "").split())[:300]
+                    lines.append(f"[B] web research -> {len(notes)} chars; preview: {preview!r}")
                     try:
                         ex = dm.extract_companies(notes, settings, [])
-                        lines.append(f"[C] extract -> {len(ex)} companies")
+                        names = ", ".join(c.get("name", "?") for c in ex[:8])
+                        lines.append(f"[C] extract -> {len(ex)}: {names or '(empty)'}")
                     except Exception as e:
                         lines.append(f"[C] extract ERROR {type(e).__name__}: {str(e)[:400]}")
                 except Exception as e:
