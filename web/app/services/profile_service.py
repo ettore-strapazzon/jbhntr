@@ -45,7 +45,7 @@ FIELDS: dict[str, tuple[str, bool]] = {
     "job_type":     ("Job type",                   True),
     "cover_letter": ("A cover letter",             False),
     "linkedin":     ("LinkedIn profile export",    False),
-    "seeds":        ("Companies you admire",       False),
+    "seeds":        ("Companies you'd work for",   False),
     "search_terms": ("Job titles to search",       False),
     "salary_floor": ("Salary floor",               False),
 }
@@ -234,7 +234,7 @@ def strength(db: Session, user: User) -> Strength:
         Signal("About you", DEPTH_LABELS[about_d], "Matching · CV · cover letters",
                2 if about_d >= 3 else 1 if about_d >= 1 else 0),
         Signal("LinkedIn export", "Yes" if linkedin else "No", "Matching", 2 if linkedin else 0),
-        Signal("Companies you admire", str(seeds_n), "Matching · reach", lvl(seeds_n, 1, 5)),
+        Signal("Companies you'd work for", str(seeds_n), "Matching · reach", lvl(seeds_n, 1, 5)),
         Signal("Feedback given", str(votes_n), "Matching", lvl(votes_n, 1, 10)),
     ]
 
@@ -262,7 +262,7 @@ def strength(db: Session, user: User) -> Strength:
                           "it fills in history a one-page CV usually trims",
                           "/profile#documents")
         elif seeds_n < 5:
-            nudge = Nudge("companies you admire",
+            nudge = Nudge("companies you'd work for",
                           "a few names pulls in roles from places like them",
                           "/profile#targets")
         elif votes_n < 10:

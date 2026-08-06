@@ -100,23 +100,22 @@ def _trigger_discovery_if_changed(user_id: int) -> None:
     """Fire per-user similar-company discovery (occasions 1-3) in the background.
 
     Runs when this premium user searches for the first time after setting up their
-    profile, after adding 3+ seed companies, or after adding a new vertical. Owns
-    its own DB session and never blocks or fails the search — the companies it
-    finds enrich the shared corpus for subsequent searches. The weekly Monday cron
-    still handles the periodic refresh (occasion 4) for everyone.
+    profile, after adding 3+ seed companies, or after changing a market signal (a
+    new vertical, company type or target country). Owns its own DB session and
+    never blocks or fails the search — the companies it finds enrich the shared
+    corpus for subsequent searches. The weekly Monday cron still handles the
+    periodic refresh (occasion 4) for everyone.
     """
     def _work():
         db = SessionLocal()
         try:
             from .companies_service import (
-                discover_for_user, discovery_change_trigger,
+                discover_for_user, discovery_change_trigger, discovery_signals,
             )
             user = db.get(User, user_id)
             if not user or not user.is_premium:
                 return
-            seeds = seed_values(db, user)
-            verticals = list(user.profile.verticals or []) if user.profile else []
-            if not discovery_change_trigger(user, seeds, verticals):
+            if not discovery_change_trigger(user, discovery_signals(db, user)):
                 return
             res = discover_for_user(db, user)
             log.info("search-triggered discovery for user %s: %s", user_id, res)

@@ -179,7 +179,7 @@
     </div>
 
     <div class="field">
-      <label for="seeds">Companies you admire <span class="muted small">(one per line — a website works best)</span></label>
+      <label for="seeds">Companies you'd work for <span class="muted small">(optional — one per line, a website works best; helps discovery find similar ones)</span></label>
       <textarea id="seeds" name="seeds" style="min-height:90px"
         placeholder="https://stripe.com&#10;notion.so">{{ seeds | map(attribute="value") | join("\n") }}</textarea>
       <span class="hint">Used to discover related employers and add context about the

@@ -62,11 +62,13 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     # Premium similar-company discovery: when it last ran for this user, and the
-    # seed/vertical sets it ran against — so a material profile change (>=3 new
-    # seeds, or any new vertical) can trigger a fresh run before the cadence.
+    # profile signals it ran against — so a material change (>=3 new seeds, or any
+    # new vertical / company type / market) can trigger a fresh run before the cadence.
     last_discovery_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     discovery_seeds: Mapped[list] = mapped_column(JSON, default=list)
     discovery_verticals: Mapped[list] = mapped_column(JSON, default=list)
+    discovery_company_types: Mapped[list] = mapped_column(JSON, default=list)
+    discovery_countries: Mapped[list] = mapped_column(JSON, default=list)
 
     profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False,
                                               cascade="all, delete-orphan")

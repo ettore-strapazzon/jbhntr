@@ -954,20 +954,27 @@ def test_discovery_change_trigger_occasions(monkeypatch):
             setattr(u, k, v)
         return u
 
+    def sig(seeds=(), verticals=(), company_types=(), countries=()):
+        return {"seeds": list(seeds), "verticals": list(verticals),
+                "company_types": list(company_types), "countries": list(countries)}
+
+    T = cs.discovery_change_trigger
     # 1) never run -> first search triggers it.
-    assert cs.discovery_change_trigger(prem(last_discovery_at=None), [], []) is True
+    assert T(prem(last_discovery_at=None), sig()) is True
     # 2) >= N new seed companies since last run.
-    base = dict(last_discovery_at=utcnow(), discovery_seeds=["a"], discovery_verticals=["fin"])
+    base = dict(last_discovery_at=utcnow(), discovery_seeds=["a"], discovery_verticals=["fin"],
+                discovery_company_types=["startup"], discovery_countries=["it"])
     u2 = prem(**base)
-    assert cs.discovery_change_trigger(u2, ["a", "b", "c", "d"], ["fin"]) is True   # 3 new
-    assert cs.discovery_change_trigger(u2, ["a", "b"], ["fin"]) is False            # 1 new
-    # 3) any new vertical.
-    assert cs.discovery_change_trigger(prem(**base), ["a"], ["fin", "health"]) is True
+    assert T(u2, sig(["a", "b", "c", "d"], ["fin"], ["startup"], ["it"])) is True   # 3 new seeds
+    assert T(u2, sig(["a", "b"], ["fin"], ["startup"], ["it"])) is False            # 1 new seed
+    # 3) any new market signal — vertical, company type OR country.
+    assert T(prem(**base), sig(["a"], ["fin", "health"], ["startup"], ["it"])) is True   # +vertical
+    assert T(prem(**base), sig(["a"], ["fin"], ["startup", "scaleup"], ["it"])) is True  # +type
+    assert T(prem(**base), sig(["a"], ["fin"], ["startup"], ["it", "de"])) is True       # +country
     # No change and just ran -> the change trigger stays quiet (Monday cron covers it).
-    assert cs.discovery_change_trigger(prem(**base), ["a"], ["fin"]) is False
+    assert T(prem(**base), sig(["a"], ["fin"], ["startup"], ["it"])) is False
     # Free users never trigger it.
-    free = User(email="y", plan="free", last_discovery_at=None)
-    assert cs.discovery_change_trigger(free, [], []) is False
+    assert T(User(email="y", plan="free", last_discovery_at=None), sig()) is False
 
 
 # ---------------------------- corpus embeddings --------------------------- #
@@ -1115,6 +1122,50 @@ def test_discover_for_user_upserts_verified_companies(monkeypatch):
         db.query(SeedCompany).filter_by(user_id=u.id).delete()
         db.query(ProfileRow).filter_by(user_id=u.id).delete()
         db.query(User).filter_by(id=u.id).delete()
+        db.commit(); db.close()
+
+
+def test_discover_for_user_runs_without_seeds_from_market_profile(monkeypatch):
+    """Seeds are optional: a premium user with a market profile (verticals/company
+    type) but NO seed companies still discovers from those signals. A truly empty
+    profile bails."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Company, Profile as ProfileRow, User
+    from web.app.services import companies_service as cs
+
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(Company).delete(); db.commit()
+        u = User(email="noseed@example.com", plan="premium")
+        db.add(u); db.flush()
+        db.add(ProfileRow(user_id=u.id, verticals=["fintech"], company_type=["startup"]))
+        db.commit(); db.refresh(u)
+
+        captured = {}
+        import jobhunter.discover as discover_mod
+        def fake_discover(profile, settings, **k):
+            captured["seeds"] = k.get("seeds")
+            return ([{"name": "Qonto", "ats": "lever", "token": "qonto"}], [])
+        monkeypatch.setattr(discover_mod, "discover", fake_discover)
+
+        res = cs.discover_for_user(db, u)
+        assert res["added"] == 1                          # ran despite no seeds
+        assert captured["seeds"] == []                    # discovered from market profile
+
+        # A user with neither seeds nor market profile bails clearly.
+        u2 = User(email="empty@example.com", plan="premium")
+        db.add(u2); db.flush()
+        db.add(ProfileRow(user_id=u2.id)); db.commit(); db.refresh(u2)
+        res2 = cs.discover_for_user(db, u2)
+        assert res2["added"] == 0 and "no seeds" in res2["reason"]
+    finally:
+        db.query(Company).delete()
+        for em in ("noseed@example.com", "empty@example.com"):
+            uid = db.query(User.id).filter_by(email=em).scalar()
+            if uid is not None:
+                db.query(ProfileRow).filter_by(user_id=uid).delete()
+                db.query(User).filter_by(id=uid).delete()
         db.commit(); db.close()
 
 
@@ -2345,27 +2396,31 @@ def test_due_for_discovery_rules():
     from web.app.models import User, utcnow
     from web.app.services.companies_service import due_for_discovery
 
+    def sig(seeds=(), verticals=("ai",), company_types=(), countries=()):
+        return {"seeds": list(seeds), "verticals": list(verticals),
+                "company_types": list(company_types), "countries": list(countries)}
+
     now = utcnow()
     free = User(plan="free")
     prem = User(plan="premium")
 
     # free never qualifies
-    assert due_for_discovery(free, ["A", "B", "C", "D"], ["ai"], now) is False
+    assert due_for_discovery(free, sig(["A", "B", "C", "D"]), now) is False
     # premium, never run -> due
-    assert due_for_discovery(prem, ["A"], ["ai"], now) is True
+    assert due_for_discovery(prem, sig(["A"]), now) is True
     # ran just now, nothing changed -> not due
     prem.last_discovery_at = now
     prem.discovery_seeds = ["A", "B"]
     prem.discovery_verticals = ["ai"]
-    assert due_for_discovery(prem, ["A", "B"], ["ai"], now) is False
+    assert due_for_discovery(prem, sig(["A", "B"]), now) is False
     # cadence elapsed (>7d) -> due
-    assert due_for_discovery(prem, ["A", "B"], ["ai"], now + timedelta(days=8)) is True
+    assert due_for_discovery(prem, sig(["A", "B"]), now + timedelta(days=8)) is True
     # 3 new seeds since last run -> due early
-    assert due_for_discovery(prem, ["A", "B", "C", "D", "E"], ["ai"], now) is True
+    assert due_for_discovery(prem, sig(["A", "B", "C", "D", "E"]), now) is True
     # only 2 new seeds -> not enough
-    assert due_for_discovery(prem, ["A", "B", "C", "D"], ["ai"], now) is False
+    assert due_for_discovery(prem, sig(["A", "B", "C", "D"]), now) is False
     # any new vertical -> due
-    assert due_for_discovery(prem, ["A", "B"], ["ai", "fintech"], now) is True
+    assert due_for_discovery(prem, sig(["A", "B"], ["ai", "fintech"]), now) is True
 
 
 def test_discover_for_user_is_premium_gated(client):

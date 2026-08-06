@@ -31,14 +31,28 @@ DISCOVER_MAX_ROUNDS = 2   # per call — keep a scheduled run short; accumulate 
 POLL_WORKERS = 12
 
 
-def discovery_change_trigger(user: User, seeds: list[str],
-                             verticals: list[str]) -> bool:
+def discovery_signals(db: DbSession, user: User) -> dict:
+    """The profile inputs discovery keys off: seed companies plus the market
+    signals (verticals, company types, countries). Used both to decide whether a
+    fresh run is due and to record what a run was based on."""
+    from .profile_service import seed_values
+    p = user.profile
+    return {
+        "seeds": seed_values(db, user),
+        "verticals": list(p.verticals or []) if p else [],
+        "company_types": list(p.company_type or []) if p else [],
+        "countries": list(p.countries or []) if p else [],
+    }
+
+
+def discovery_change_trigger(user: User, signals: dict) -> bool:
     """Per-user profile changes that should run discovery on this user's NEXT
     search (occasions 1-3), independent of the weekly cadence:
 
       1. first run — the profile was just set up (discovery has never run),
-      2. at least N new seed companies added since the last run, or
-      3. any new vertical added since the last run.
+      2. any new market signal since the last run — a new vertical, company type
+         or target country, or
+      3. at least N new seed companies added since the last run.
 
     Premium only. Excludes the weekly refresh (occasion 4), which the Monday cron
     applies to everyone via `due_for_discovery`.
@@ -47,13 +61,15 @@ def discovery_change_trigger(user: User, seeds: list[str],
         return False
     if aware(user.last_discovery_at) is None:
         return True
-    new_seeds = set(seeds) - set(user.discovery_seeds or [])
-    new_verticals = set(verticals) - set(user.discovery_verticals or [])
-    return len(new_seeds) >= config.discovery_new_seeds_trigger or bool(new_verticals)
+    new_seeds = set(signals["seeds"]) - set(user.discovery_seeds or [])
+    new_verticals = set(signals["verticals"]) - set(user.discovery_verticals or [])
+    new_types = set(signals["company_types"]) - set(user.discovery_company_types or [])
+    new_countries = set(signals["countries"]) - set(user.discovery_countries or [])
+    return (len(new_seeds) >= config.discovery_new_seeds_trigger
+            or bool(new_verticals or new_types or new_countries))
 
 
-def due_for_discovery(user: User, seeds: list[str], verticals: list[str],
-                      now=None) -> bool:
+def due_for_discovery(user: User, signals: dict, now=None) -> bool:
     """Should premium discovery run for this user on the scheduled (Monday) sweep?
 
     Premium only. Due when it has never run, when the weekly cadence window has
@@ -69,7 +85,7 @@ def due_for_discovery(user: User, seeds: list[str], verticals: list[str],
         return True
     if now - last >= timedelta(days=config.discovery_interval_days):
         return True
-    return discovery_change_trigger(user, seeds, verticals)
+    return discovery_change_trigger(user, signals)
 
 
 # --------------------------------------------------------------------------- #
@@ -154,16 +170,22 @@ def discover_for_user(db: DbSession, user: User, target: int | None = None) -> d
     search. Returns counts. Never raises.
     """
     from jobhunter import discover as discover_mod
-    from .profile_service import build_engine_profile, seed_values
+    from .profile_service import build_engine_profile
 
     target = target or config.discover_target
     try:
         if not user.is_premium:
             return {"discovered": 0, "added": 0, "reason": "not premium"}
-        seeds = seed_values(db, user)
-        if not seeds:
-            return {"discovered": 0, "added": 0, "reason": "no seeds"}
-        verticals = list(user.profile.verticals or []) if user.profile else []
+        # Seeds are the strongest signal but NOT required: discovery can run from
+        # the market profile alone (objective, verticals, company types, countries).
+        # Only bail when there is no usable signal at all.
+        signals = discovery_signals(db, user)
+        seeds = signals["seeds"]
+        p = user.profile
+        has_signal = bool(seeds or (p and (p.objective or p.verticals or p.company_type)))
+        if not has_signal:
+            return {"discovered": 0, "added": 0,
+                    "reason": "no seeds or market profile to search from"}
         profile = build_engine_profile(db, user)
         from .profile_service import engine_settings
         settings = engine_settings(premium=True)   # from_env() leaves the model empty on OpenRouter
@@ -208,10 +230,13 @@ def discover_for_user(db: DbSession, user: User, target: int | None = None) -> d
                                      user_id=user.id):
                 custom += 1
         # Record what this run was based on, so the next cadence check can tell
-        # whether the profile has since changed materially.
+        # whether the profile has since changed materially (seeds, verticals,
+        # company types or markets).
         user.last_discovery_at = utcnow()
-        user.discovery_seeds = list(seeds)
-        user.discovery_verticals = list(verticals)
+        user.discovery_seeds = list(signals["seeds"])
+        user.discovery_verticals = list(signals["verticals"])
+        user.discovery_company_types = list(signals["company_types"])
+        user.discovery_countries = list(signals["countries"])
         db.commit()
         # verified_n/rejected_n expose WHERE a run produced nothing: both 0 means
         # the LLM/web-search suggested nothing; verified 0 + rejected >0 means
@@ -235,17 +260,14 @@ def discover_all_active(db: DbSession, force: bool = False) -> dict:
     `force=True` (operator "run now") ignores the cadence so a premium user with
     seeds is processed immediately instead of waiting for the weekly window.
     """
-    from .profile_service import seed_values
-
     totals = {"users": 0, "skipped": 0, "added": 0, "premium": 0, "per_user": []}
     for user in db.query(User).all():
         if not user.profile or not user.is_premium:
             totals["skipped"] += 1
             continue
         totals["premium"] += 1
-        seeds = seed_values(db, user)
-        verticals = list(user.profile.verticals or [])
-        if not force and not due_for_discovery(user, seeds, verticals):
+        signals = discovery_signals(db, user)
+        if not force and not due_for_discovery(user, signals):
             totals["skipped"] += 1
             totals["per_user"].append(f"{user.email}: not due")
             continue
