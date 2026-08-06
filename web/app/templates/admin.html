@@ -208,6 +208,11 @@
         <span class="small muted">Vectorise unembedded jobs so they become
           searchable ({{ embedded_n }}/{{ corpus_total }} embedded now).</span>
       </form>
+      <form method="post" action="/admin/retag" style="margin-top:6px">
+        <button class="ghost" type="submit">Re-tag work modes &amp; countries now</button>
+        <span class="small muted">Reclassify the {{ "{:,}".format(untagged_country) }} untagged
+          countries and stale <code>unknown</code> work modes without waiting for tonight.</span>
+      </form>
       <form method="post" action="/admin/run-discovery" style="margin-top:6px">
         <button class="ghost" type="submit">Run similar-company discovery now</button>
         <span class="small muted">Finds &amp; scrapes similar companies for premium

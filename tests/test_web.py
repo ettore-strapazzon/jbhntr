@@ -2790,6 +2790,14 @@ def test_admin_embed_now(client, monkeypatch):
     assert client.post("/admin/embed-now").status_code == 401           # gated
 
 
+def test_admin_retag(client, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    r = client.post("/admin/retag", auth=("op", "s3cret"), follow_redirects=False)
+    assert r.status_code == 303 and "tagging" in r.headers["location"].lower()
+    assert client.post("/admin/retag").status_code == 401               # gated
+
+
 def test_record_op_shows_on_dashboard(client, monkeypatch):
     """A background job's outcome is persisted and surfaced on /admin, so a
     fire-and-forget button is no longer a mystery."""

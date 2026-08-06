@@ -452,6 +452,40 @@ def admin_embed_now(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/retag")
+def admin_retag(_: bool = Depends(require_admin)):
+    """Operator: re-tag stale corpus tags now instead of waiting for the nightly
+    ingest. Recomputes 'unknown' work modes (free, deterministic) and settles
+    still-untagged countries (geo maps first, LLM for the unresolvable). Both fix
+    the same problem: tags set once at ingestion before geo/descriptions grew."""
+    from urllib.parse import quote
+
+    from ..config import config as web_config
+    from ..db import SessionLocal
+    from ..services.corpus_service import backfill_countries, backfill_remote_modes
+    from ..services.profile_service import engine_settings
+
+    def _work():
+        db = SessionLocal()
+        try:
+            remoded = backfill_remote_modes(db, limit=web_config.remote_backfill_limit)
+            countried = backfill_countries(db, engine_settings(),
+                                           limit=web_config.geo_backfill_limit)
+            log.info("manual retag: %d modes, %d countries", remoded, countried)
+            record_op("retag", f"work modes reclassified: {remoded} · "
+                               f"countries placed by lookup: {countried}")
+        except Exception as exc:
+            log.exception("manual retag failed")
+            record_op("retag", f"failed: {str(exc)[:200]}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = ("Re-tagging corpus now (work modes + countries). "
+           "Refresh the corpus panel and Background job log in a few minutes.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/run-maintenance")
 def admin_run_maintenance(_: bool = Depends(require_admin)):
     """Operator: run the reaper now and record a corpus snapshot in the background,
