@@ -148,7 +148,7 @@ def seed_registry(db: DbSession) -> int:
 
 
 # --------------------------------------------------------------------------- #
-def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) -> dict:
+def discover_for_user(db: DbSession, user: User, target: int | None = None) -> dict:
     """Find companies similar to a user's seeds and add readable ones to the
     registry. Pricey (LLM + web search), so call on a slow cadence, not per
     search. Returns counts. Never raises.
@@ -156,6 +156,7 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
     from jobhunter import discover as discover_mod
     from .profile_service import build_engine_profile, seed_values
 
+    target = target or config.discover_target
     try:
         if not user.is_premium:
             return {"discovered": 0, "added": 0, "reason": "not premium"}
@@ -170,10 +171,11 @@ def discover_for_user(db: DbSession, user: User, target: int = DISCOVER_TARGET) 
         # finds NEW ones; results accumulate toward `target` across scheduled
         # runs rather than blocking for minutes in one pass.
         already = [c.name for c in db.query(Company).all() if c.name]
-        remaining = max(0, target - db.query(Company)
-                        .filter(Company.discovered_for == user.id).count())
+        have = db.query(Company).filter(Company.discovered_for == user.id).count()
+        remaining = max(0, target - have)
         if remaining == 0:
-            return {"discovered": 0, "added": 0, "reason": "target reached"}
+            return {"discovered": 0, "added": 0, "seeds": len(seeds),
+                    "reason": f"target reached ({have}/{target} discovered)"}
         verified, rejected = discover_mod.discover(
             profile, settings, target=remaining, seeds=seeds,
             max_rounds=DISCOVER_MAX_ROUNDS, exclude=already)
@@ -253,13 +255,15 @@ def discover_all_active(db: DbSession, force: bool = False) -> dict:
         # A compact per-user trace so the operator can see exactly what happened.
         if "error" in res:
             totals["per_user"].append(f"{user.email}: error {res['error']}")
-        elif not res.get("seeds"):
-            totals["per_user"].append(f"{user.email}: no seed companies")
-        else:
+        elif res.get("reason"):                       # not premium / no seeds / target reached
+            totals["per_user"].append(f"{user.email}: {res['reason']}")
+        elif res.get("seeds"):
             totals["per_user"].append(
                 f"{user.email}: seeds {res['seeds']} -> suggested "
                 f"{res['verified_n'] + res['rejected_n']} (ATS-readable "
                 f"{res['verified_n']}, +{res['added']} new, +{res['custom']} to scrape)")
+        else:
+            totals["per_user"].append(f"{user.email}: no companies suggested")
     return totals
 
 

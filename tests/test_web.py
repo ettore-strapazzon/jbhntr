@@ -1109,7 +1109,7 @@ def test_discover_for_user_upserts_verified_companies(monkeypatch):
 
         # Second call short-circuits once the per-user target is reached (2 now).
         res2 = cs.discover_for_user(db, u, target=2)
-        assert res2["added"] == 0 and res2.get("reason") == "target reached"
+        assert res2["added"] == 0 and res2.get("reason", "").startswith("target reached")
     finally:
         db.query(Company).delete()
         db.query(SeedCompany).filter_by(user_id=u.id).delete()

@@ -66,6 +66,9 @@ class WebConfig:
     # newly-added seeds count as a material profile change that triggers it early.
     discovery_interval_days: int = _int("DISCOVERY_INTERVAL_DAYS", 7)
     discovery_new_seeds_trigger: int = _int("DISCOVERY_NEW_SEEDS_TRIGGER", 3)
+    # How many similar companies to accumulate per user before discovery stops
+    # finding new ones. Raised now that live web research surfaces real local firms.
+    discover_target: int = _int("DISCOVER_TARGET", 300)
     # Live-web-research model for discovery. A general model + ':online' emits
     # tool-call markup instead of searching; a native search model returns clean
     # results. Must be a model your OpenRouter key can reach.
