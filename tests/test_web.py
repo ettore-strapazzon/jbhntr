@@ -2899,6 +2899,39 @@ def test_upsert_company_dedupes_same_run_without_poisoning():
         db.commit(); db.close()
 
 
+def test_backfill_remote_modes_uses_country_tag():
+    """A job stuck at 'unknown' whose location the maps can't resolve, but which
+    now has a settled country tag, is on-site in that country. No tag stays
+    unknown."""
+    from web.app.db import SessionLocal
+    from web.app.models import Job, utcnow
+    from web.app.services.corpus_service import backfill_remote_modes
+
+    db = SessionLocal()
+    try:
+        db.query(Job).filter(Job.dedup_key.in_(["rm:tagged", "rm:bare"])).delete(
+            synchronize_session=False)
+        now = utcnow()
+        # Unresolvable location string, no remote wording — but a settled country.
+        db.add(Job(dedup_key="rm:tagged", source="s", title="Ops Lead", company="Co",
+                   location="Zona Industriale 4", countries=["it"],
+                   remote_mode="unknown", last_seen_at=now))
+        # No country, no wording, unresolvable location -> genuinely unknown.
+        db.add(Job(dedup_key="rm:bare", source="s", title="Ops Lead", company="Co",
+                   location="Zona Industriale 4", countries=[],
+                   remote_mode="unknown", last_seen_at=now))
+        db.commit()
+
+        changed = backfill_remote_modes(db, limit=1000)
+        assert changed >= 1
+        assert db.query(Job).filter_by(dedup_key="rm:tagged").one().remote_mode == "onsite"
+        assert db.query(Job).filter_by(dedup_key="rm:bare").one().remote_mode == "unknown"
+    finally:
+        db.query(Job).filter(Job.dedup_key.in_(["rm:tagged", "rm:bare"])).delete(
+            synchronize_session=False)
+        db.commit(); db.close()
+
+
 def test_engine_settings_fills_model_on_openrouter(monkeypatch):
     """On a non-Anthropic provider Settings.from_env() leaves scoring_model empty,
     which made discovery/scrape/country-lookup raise and silently no-op. The helper

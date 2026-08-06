@@ -229,7 +229,7 @@
         <table class="apptable" style="table-layout:fixed; width:100%"><tbody>
           {% for op in ops_recent %}
             <tr>
-              <td class="muted" style="white-space:nowrap; width:90px; vertical-align:top">{{ op.created_at.strftime("%d %b %H:%M") if op.created_at else "—" }}</td>
+              <td class="muted" style="white-space:nowrap; width:110px; vertical-align:top">{{ op.created_at.strftime("%d %b %H:%M") ~ " UTC" if op.created_at else "—" }}</td>
               <td style="width:80px; vertical-align:top"><code>{{ op.kind }}</code></td>
               <td class="small" style="word-break:break-word; overflow-wrap:anywhere">{{ op.detail }}</td>
             </tr>

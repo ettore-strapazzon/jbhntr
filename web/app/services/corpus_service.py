@@ -377,6 +377,13 @@ def backfill_remote_modes(db: DbSession, limit: int = 20000) -> int:
                        company=r.company or "", location=r.location or "",
                        description=r.description or "", url=r.url or "")
         mode = remote_mode(p)
+        # remote_mode() infers onsite only when geo.country_of(location) resolves.
+        # Many of these jobs have a location the maps can't resolve (which is why
+        # they needed the LLM country lookup) — but the backfill has since SETTLED
+        # their country tag. A settled country + no remote/hybrid wording is an
+        # on-site role in that country, so use the tag as the fallback signal.
+        if mode == "unknown" and r.countries:
+            mode = "onsite"
         if mode != "unknown":
             r.remote_mode = mode
             changed += 1

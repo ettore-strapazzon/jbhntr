@@ -468,12 +468,14 @@ def admin_retag(_: bool = Depends(require_admin)):
     def _work():
         db = SessionLocal()
         try:
-            remoded = backfill_remote_modes(db, limit=web_config.remote_backfill_limit)
+            # Countries FIRST — the work-mode backfill uses the settled country tag
+            # to infer on-site, so it must run after the tags are placed.
             countried = backfill_countries(db, engine_settings(),
                                            limit=web_config.geo_backfill_limit)
-            log.info("manual retag: %d modes, %d countries", remoded, countried)
-            record_op("retag", f"work modes reclassified: {remoded} · "
-                               f"countries placed by lookup: {countried}")
+            remoded = backfill_remote_modes(db, limit=web_config.remote_backfill_limit)
+            log.info("manual retag: %d countries, %d modes", countried, remoded)
+            record_op("retag", f"countries placed by lookup: {countried} · "
+                               f"work modes reclassified: {remoded}")
         except Exception as exc:
             log.exception("manual retag failed")
             record_op("retag", f"failed: {str(exc)[:200]}")
