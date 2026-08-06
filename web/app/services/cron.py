@@ -60,7 +60,10 @@ def nightly(today: datetime.date | None = None) -> dict:
     is_weekly = day.weekday() == WEEKLY_DAY
     out: dict = {"weekly": is_weekly}
 
-    _stage(out, "reaper", reaper_run)
+    # Link-check EVERY due job each night (never-checked, or last checked >6 days
+    # ago) instead of a fixed 5k slice — so the whole corpus stays verified within
+    # a rolling 6-day window rather than a random subset. check_limit=0 = no cap.
+    _stage(out, "reaper", lambda: reaper_run(check_limit=0, recheck_days=6))
     if is_weekly:
         _stage(out, "discover", lambda: ingest_run("discover"))
         _stage(out, "ingest_weekly", lambda: ingest_run("weekly"))

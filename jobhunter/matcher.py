@@ -45,6 +45,10 @@ MATCH_SCHEMA = {
                            "Ignores whether they'd want it.",
         },
         "reasons": {"type": "string"},
+        "strengths": {"type": "array", "items": {"type": "string"},
+                      "description": "1-3 short positive points — genuine fit only"},
+        "concerns": {"type": "array", "items": {"type": "string"},
+                     "description": "0-3 short negative points — gaps / watch-outs"},
         "role": {"type": "string"},
         "company": {"type": "string"},
         "location": {"type": "string"},
@@ -59,6 +63,8 @@ MATCH_SCHEMA = {
         "fit_role",
         "fit_candidate",
         "reasons",
+        "strengths",
+        "concerns",
         "role",
         "company",
         "location",
@@ -86,7 +92,7 @@ SCORE_WORKERS = 6
 # Bump whenever the scoring PROMPT or MatchResult schema changes. It is part of
 # the score-cache key, so a bump cleanly invalidates every cached score — the
 # guard that lets matching keep being refined while caching is on.
-PROMPT_VERSION = 6
+PROMPT_VERSION = 7
 
 TRIAGE_SCHEMA = {
     "type": "object",
@@ -253,6 +259,12 @@ def _system_prompt(
         "side — but use judgement.",
         "Then a 1-3 sentence reason, and extract "
         "role/company/location/vertical/seniority/remote.",
+        "Also give `strengths` and `concerns` as SEPARATE short bullet lists: "
+        "`strengths` = only genuine positives (why it fits); `concerns` = the gaps, "
+        "mismatches and watch-outs. Never put a gap or misalignment in `strengths`. "
+        "A poor match may have an empty `strengths` list and several `concerns`; a "
+        "great one may have no `concerns`. Each bullet is a short phrase, not a "
+        "paragraph.",
         "",
         "## Candidate objective",
         profile.objective or "(not specified)",

@@ -1,6 +1,6 @@
 {# The result list: count line, grouped cards, long shots, and the empty states.
    Rendered on the page and re-rendered alone by the live filter bar (R7/R16). #}
-{% set has_results = m.groups or m.long_shots %}
+{% set has_results = m.groups or m.long_shots or m.imported %}
 {% if not has_results %}
   {% if not m.latest and state.can_search %}
     <section class="emptybox">
@@ -40,6 +40,14 @@
 
 {% else %}
   {% if m.shown != m.total %}<p class="small muted">{{ m.shown }} of {{ m.total }} shown.</p>{% endif %}
+
+  {% if m.imported %}
+    <h2 class="grouplabel">Imported <span class="muted small">— jobs you added by link</span></h2>
+    {% for card in m.imported %}
+      {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}
+      {% include "partials/job_card.html" %}
+    {% endfor %}
+  {% endif %}
 
   {% for group in m.groups %}
     <h2 class="grouplabel">{{ group.label }}</h2>

@@ -96,7 +96,7 @@ def _extract_posting(url: str, settings) -> JobPosting:
 
 def import_job(db: DbSession, user: User, url: str) -> tuple[JobResult, int]:
     """Import, score, and store one job. Returns (JobResult, search_id), any tier."""
-    from .search_service import _company_url, _split_reasons
+    from .search_service import _company_url, _reasons_for_card
 
     url = (url or "").strip()
     if not re.match(r"^https?://", url):
@@ -122,7 +122,7 @@ def import_job(db: DbSession, user: User, url: str) -> tuple[JobResult, int]:
         raise JobImportError("Couldn't score that job — try again.")
 
     job, match = scored[0]
-    good, bad = _split_reasons(match.reasons)
+    good, bad = _reasons_for_card(match)
     search = Search(user_id=user.id, status="done", stage="Imported job",
                     raw_count=1, located_count=1, ranked_count=1, scored_count=1,
                     finished_at=utcnow())

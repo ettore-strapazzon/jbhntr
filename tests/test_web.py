@@ -1125,7 +1125,7 @@ def test_nightly_runs_daily_always_and_weekly_on_monday(monkeypatch):
     from web.app.services import cron
 
     calls = []
-    monkeypatch.setattr(cron, "reaper_run", lambda: calls.append("reaper") or {})
+    monkeypatch.setattr(cron, "reaper_run", lambda **kw: calls.append("reaper") or {})
     monkeypatch.setattr(cron, "ingest_run", lambda cadence: calls.append(cadence) or {})
 
     # A Tuesday: daily only.

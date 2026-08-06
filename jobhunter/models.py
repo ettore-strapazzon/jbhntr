@@ -104,6 +104,12 @@ class MatchResult(BaseModel):
     fit_role: int = Field(default=0, ge=0, le=100)
     fit_candidate: int = Field(default=0, ge=0, le=100)
     reasons: str = Field(description="1-3 sentences: why this tier/score")
+    # Separated for the card's FITS vs WATCH-OUT columns, so a gap never lands
+    # under strengths. Optional (older cached rows fall back to splitting reasons).
+    strengths: list[str] = Field(default_factory=list,
+                                 description="short positive points (fit)")
+    concerns: list[str] = Field(default_factory=list,
+                                description="short negative points (gaps / watch-outs)")
     # Structured fields the matcher extracts for the output sheet.
     role: str = ""
     company: str = ""

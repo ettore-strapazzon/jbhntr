@@ -243,7 +243,7 @@ def _run_search(search_id: int, user_id: int) -> None:
 
         _set(db, search, stage="Saving results…")
         for i, (job, match) in enumerate(ranked, start=1):
-            good, bad = _split_reasons(match.reasons)
+            good, bad = _reasons_for_card(match)
             db.add(JobResult(
                 search_id=search.id, user_id=user.id, position=i,
                 short_id=job.short_id(), dedup_key=job.dedup_key(), tier=match.tier,
@@ -587,6 +587,17 @@ def _enrich(jobs) -> None:
         return
     with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(enrich_description, missing))
+
+
+def _reasons_for_card(match) -> tuple[str, str]:
+    """(why_good, why_bad) for the card. Prefer the scorer's separate strengths/
+    concerns lists; fall back to splitting the single reasons blob for older
+    cached scores that predate those fields."""
+    strengths = [s for s in (getattr(match, "strengths", None) or []) if s.strip()]
+    concerns = [s for s in (getattr(match, "concerns", None) or []) if s.strip()]
+    if strengths or concerns:
+        return "\n".join(strengths), "\n".join(concerns)
+    return _split_reasons(match.reasons)
 
 
 def _split_reasons(reasons: str) -> tuple[str, str]:

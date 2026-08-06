@@ -230,7 +230,8 @@ def run(cadence: str = "daily") -> dict:
         added, updated = upsert_jobs(db, postings)
         # Embed freshly-added corpus jobs (no-op unless embeddings configured).
         from .corpus_service import (
-            backfill_countries, correct_ats_locations, embed_new_jobs,
+            backfill_countries, backfill_remote_modes, correct_ats_locations,
+            embed_new_jobs,
         )
         from ..config import config as web_config
         embedded = embed_new_jobs(db, settings, limit=web_config.embed_limit)
@@ -238,9 +239,12 @@ def run(cadence: str = "daily") -> dict:
         # /Lever), then settle any remaining unplaceable country via one LLM lookup.
         corrected = correct_ats_locations(db, limit=web_config.ats_correct_limit)
         countried = backfill_countries(db, settings, limit=web_config.geo_backfill_limit)
+        # Re-tag work mode for jobs stuck at 'unknown' now that geo/descriptions grew.
+        remoded = backfill_remote_modes(db, limit=web_config.remote_backfill_limit)
         result = {"cadence": cadence, "fetched": len(postings),
                   "added": added, "updated": updated, "embedded": embedded,
-                  "ats_corrected": corrected, "countried": countried}
+                  "ats_corrected": corrected, "countried": countried,
+                  "remoded": remoded}
         log.info("ingest done: %s", result)
         return result
     except Exception as exc:

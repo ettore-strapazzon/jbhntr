@@ -353,3 +353,33 @@ def backfill_countries(db: DbSession, settings, limit: int = 500) -> int:
     log.info("Geo backfill: %d checked, %d placed by lookup (%d asked)",
              len(rows), resolved, len(to_ask))
     return resolved
+
+
+def backfill_remote_modes(db: DbSession, limit: int = 20000) -> int:
+    """Recompute remote_mode for jobs still tagged 'unknown'. Returns how many
+    were reclassified.
+
+    The mode is set once at ingestion, so a job ingested with a blank or then-
+    unresolvable location (or before its description was enriched) is stuck at
+    'unknown' even after its country later gets filled. Re-run the deterministic
+    tagger — geo maps have grown and descriptions have been fetched since — so the
+    on-site inference (a resolvable place with no remote/hybrid wording => onsite)
+    now applies. Pure function, no LLM; jobs that are genuinely location-less stay
+    'unknown'.
+    """
+    from jobhunter.models import JobPosting
+    from jobhunter.tags import remote_mode
+
+    rows = db.query(Job).filter(Job.remote_mode == "unknown").limit(limit).all()
+    changed = 0
+    for r in rows:
+        p = JobPosting(source=r.source or "", title=r.title or "",
+                       company=r.company or "", location=r.location or "",
+                       description=r.description or "", url=r.url or "")
+        mode = remote_mode(p)
+        if mode != "unknown":
+            r.remote_mode = mode
+            changed += 1
+    db.commit()
+    log.info("Remote-mode backfill: %d of %d reclassified", changed, len(rows))
+    return changed

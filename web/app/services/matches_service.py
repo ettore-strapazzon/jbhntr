@@ -55,6 +55,7 @@ class Matches:
     run: Search | None      # a single selected run, or None for the accumulation
     groups: list            # [Group] for tiers 1-3
     long_shots: list        # [Card] tier 4-5
+    imported: list          # [Card] user-imported jobs — shown at any tier
     sources: list           # distinct sources present (filter options)
     total: int              # matches after state filtering, before facet filters
     shown: int              # matches actually rendered
@@ -113,16 +114,21 @@ def build(db: DbSession, user, *, run_id: int | None = None,
 
     cards.sort(key=SORTS.get(sort, SORTS["best"]))
 
+    # User-imported jobs get their own section and are ALWAYS shown, whatever they
+    # scored — the user explicitly asked to see that specific posting judged.
+    imported = [c for c in cards if c.r.source == "import"]
+    scanned = [c for c in cards if c.r.source != "import"]
+
     groups = []
     for tier, label in TIER_GROUPS:
-        g = [c for c in cards if c.r.tier == tier]
+        g = [c for c in scanned if c.r.tier == tier]
         if g:
             groups.append(Group(label=label, cards=g))
-    long_shots = [c for c in cards if c.r.tier >= 4]
+    long_shots = [c for c in scanned if c.r.tier >= 4]
 
     return Matches(
         searches=runs, latest=latest, run=selected,
-        groups=groups, long_shots=long_shots,
+        groups=groups, long_shots=long_shots, imported=imported,
         sources=sorted(sources), total=total, shown=len(cards),
         new_count=sum(1 for c in cards if c.is_new),
         has_prior_run=len(runs) > 1,

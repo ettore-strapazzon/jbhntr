@@ -81,6 +81,9 @@ class WebConfig:
     # unresolvable places cost a (batched) LLM call.
     geo_backfill_limit: int = _int("GEO_BACKFILL_LIMIT", 6000)
     ats_correct_limit: int = _int("ATS_CORRECT_LIMIT", 4000)
+    # Recompute stale 'unknown' remote_mode tags (pure function, no LLM — safe to
+    # run large). Jobs ingested before geo maps/descriptions filled stay unknown.
+    remote_backfill_limit: int = _int("REMOTE_BACKFILL_LIMIT", 20000)
     max_upload_bytes: int = 1024 * 1024          # 1 MB, per the spec
     max_feedback_chars: int = 300
 
