@@ -183,7 +183,7 @@ def _run_search(search_id: int, user_id: int) -> None:
         # corpus is cold/thin for this user or embeddings are off, so a search
         # never returns empty during rollout.
         _set(db, search, stage="Searching the job corpus…")
-        jobs, scanned = _corpus_candidates(db, profile, candidate, settings, terms)
+        jobs, scanned, matched = _corpus_candidates(db, profile, candidate, settings, terms)
 
         if jobs is None:
             _set(db, search, stage="Collecting job postings…")
@@ -203,9 +203,11 @@ def _run_search(search_id: int, user_id: int) -> None:
                 _set(db, search, stage=f"Shortlisting {len(jobs)} jobs…")
                 jobs = matcher.triage(jobs, profile, candidate, company_profile)
         else:
-            located = len(jobs)   # the corpus already filtered by location
-            log.info("Search %s: corpus mode (%d scanned -> %d to score)",
-                     search.id, scanned, len(jobs))
+            # `matched` is the full set of jobs in the user's geography; `jobs` is
+            # the cosine-ranked top-K sent to scoring. Show the true located count.
+            located = matched
+            log.info("Search %s: corpus mode (%d scanned, %d located -> %d to score)",
+                     search.id, scanned, matched, len(jobs))
 
         _set(db, search, raw_count=scanned, located_count=located, ranked_count=len(jobs))
 
@@ -443,17 +445,20 @@ def _location_ok(job, match, profile) -> bool:
     return prefilter(probe, profile)
 
 
+_GENERIC_REMOTE_LOCS = {"remote", "fully remote", "anywhere", "worldwide", "global"}
+
+
 def _is_remote_job(job, match, loc: str) -> bool:
-    """Best-effort: is this posting actually remote? Uses the LLM's read, the
-    posting's own signal, and the location text — any one is enough."""
-    if "remote" in (loc or "").lower():
+    """Genuinely remote — NOT a place-based foreign job that merely mentions
+    'remote' in its description. Trust the scorer's structured `remote` field
+    (it read the whole posting and classified it) first; else a location whose
+    PRIMARY token is remote ("Remote", "Remote - EU"). Deliberately does NOT use
+    the crude description keyword scan (`looks_remote`), which kept on-site foreign
+    jobs — e.g. a Boston role whose text says 'remote-friendly'."""
+    if str(getattr(match, "remote", "") or "").strip().lower() == "remote":
         return True
-    if "remote" in str(getattr(match, "remote", "") or "").lower():
-        return True
-    try:
-        return bool(job.looks_remote())
-    except Exception:
-        return False
+    l = (loc or "").lower().strip()
+    return l.startswith("remote") or l in _GENERIC_REMOTE_LOCS
 
 
 def _country_allowed(job_countries, remote_mode, target_codes, remote_any) -> bool:
@@ -482,10 +487,10 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
     from ..models import Job
 
     if not embeddings.is_configured(settings):
-        return None, 0
+        return None, 0, 0
     pvec = embeddings.embed_one(_candidate_query_text(profile, candidate), settings)
     if not pvec:
-        return None, 0
+        return None, 0, 0
 
     cutoff = utcnow() - timedelta(days=CORPUS_FRESH_DAYS)
     rows = (db.query(Job)
@@ -525,11 +530,14 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
 
     pool = confirmed if len(confirmed) >= CORPUS_MIN_KEEP else confirmed + ambiguous
     if len(pool) < CORPUS_MIN_KEEP:
-        return None, len(rows)
+        return None, len(rows), 0
 
     capped = cap_per_company(pool, terms=terms)
     capped.sort(key=lambda p: -embeddings.cosine(pvec, vec_by_key.get(p.dedup_key(), [])))
-    return capped[:config.corpus_topk], len(rows)
+    # Third value: how many jobs actually matched the user's geography (the full
+    # located set), NOT the capped shortlist — so the progress UI can show the true
+    # "in your countries" count rather than the top-K sent to scoring.
+    return capped[:config.corpus_topk], len(rows), len(pool)
 
 
 def _score_cached(db, matcher, jobs, profile, materials, feedback,

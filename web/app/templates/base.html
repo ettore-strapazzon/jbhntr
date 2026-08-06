@@ -51,6 +51,9 @@
   <button type="button" id="alpha-dismiss" class="alpha-x" aria-label="Dismiss this notice">&times;</button>
 </div>
 
+{# Current path, used to mark the active nav item (header + bottom bar). Defined
+   here so both navs below can read it. #}
+{% set cur = request.url.path if request else "" %}
 <header class="bar">
   <a class="brand" href="/">
     <img src="/static/logo.svg" width="26" height="18" alt="" aria-hidden="true">
@@ -58,11 +61,11 @@
   </a>
   <nav aria-label="Main">
     {% if user %}
-      <a href="/matches">Matches</a>
-      <a href="/applications">Applications</a>
-      <a href="/profile">Profile</a>
+      <a href="/matches"{% if cur.startswith('/matches') or cur == '/search' %} aria-current="page"{% endif %}>Matches</a>
+      <a href="/applications"{% if cur.startswith('/applications') %} aria-current="page"{% endif %}>My Jobs</a>
+      <a href="/profile"{% if cur.startswith('/profile') %} aria-current="page"{% endif %}>Profile</a>
       <a href="/premium" class="pill">{% if user.is_premium %}<span class="pill-dot" aria-hidden="true"></span>{% endif %}Premium</a>
-      <a href="/account">Account</a>
+      <a href="/account"{% if cur.startswith('/account') %} aria-current="page"{% endif %}>Account</a>
       <a href="/logout">Log out</a>
     {% else %}
       <a href="/how-it-works">How it works</a>
@@ -107,12 +110,11 @@
    Hidden on desktop, where the header nav is used instead. Icons are one 24px
    outline set at one stroke weight (Round 6.2); the current tab is marked
    aria-current and painted in the accent. #}
-{% set cur = request.url.path if request else "" %}
 <nav class="bottombar" aria-label="Primary">
   <a href="/matches"{% if cur.startswith('/matches') or cur == '/search' %} aria-current="page"{% endif %}>
     <svg class="bb-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7"/><path d="M3 12.5h18"/></svg>Matches</a>
   <a href="/applications"{% if cur.startswith('/applications') %} aria-current="page"{% endif %}>
-    <svg class="bb-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 13l2.2 2.2 4.8-4.8"/></svg>Applications</a>
+    <svg class="bb-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6a1 1 0 0 1 1 1V6a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M8.5 13l2.2 2.2 4.8-4.8"/></svg>My Jobs</a>
   <a href="/profile"{% if cur.startswith('/profile') or cur.startswith('/onboarding') %} aria-current="page"{% endif %}>
     <svg class="bb-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c0-4 3.4-6 7.5-6s7.5 2 7.5 6"/></svg>Profile</a>
   <a href="/account"{% if cur.startswith('/account') %} aria-current="page"{% endif %}>

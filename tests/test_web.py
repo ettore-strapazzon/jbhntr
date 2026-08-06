@@ -815,7 +815,7 @@ def test_corpus_candidates_falls_back_when_embeddings_off():
 
     db = SessionLocal()
     try:
-        jobs, scanned = _corpus_candidates(
+        jobs, scanned, matched = _corpus_candidates(
             db, Profile(raw={"locations": ["Italy"]}), object(), Settings(), [])
         assert jobs is None      # unconfigured -> live fallback
     finally:
@@ -851,7 +851,7 @@ def test_corpus_candidates_ranks_by_cosine(monkeypatch):
         class Cand:
             headline = "operator"; target_roles = ["chief of staff"]; skills = []
 
-        jobs, scanned = ss._corpus_candidates(
+        jobs, scanned, matched = ss._corpus_candidates(
             db, Profile(raw={"locations": ["Italy"]}), Cand(),
             Settings(embedding_base_url="x", embedding_api_key="k"), ["chief of staff"])
 
@@ -896,7 +896,7 @@ def test_corpus_candidates_prefers_geo_confirmed_over_untagged(monkeypatch):
         class Cand:
             headline = "operator"; target_roles = ["chief of staff"]; skills = []
 
-        jobs, scanned = ss._corpus_candidates(
+        jobs, scanned, matched = ss._corpus_candidates(
             db, Profile(raw={"locations": ["Italy"]}), Cand(),
             Settings(embedding_base_url="x", embedding_api_key="k"), ["chief of staff"])
 
@@ -940,6 +940,12 @@ def test_location_gate_drops_foreign_job_scored_with_blank_location():
     assert ss._location_ok(blank, M("", "remote"), pr) is True          # LLM flagged remote
     # But a foreign ON-SITE job is still dropped even for the remote-friendly user.
     assert ss._location_ok(blank, M("Albany, New York, USA"), pr) is False
+    # The Boston bug: an on-site/hybrid US role whose DESCRIPTION merely mentions
+    # 'remote' must NOT be kept — the structured remote field + location decide.
+    boston = JobPosting(source="s", title="Strategy & Ops", company="Topsort",
+                        location="", url="u",
+                        description="Fintech infra role. Remote-friendly team.")
+    assert ss._location_ok(boston, M("Boston, Massachusetts, United States", "hybrid"), pr) is False
 
 
 def test_discovery_change_trigger_occasions(monkeypatch):

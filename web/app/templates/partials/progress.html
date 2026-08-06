@@ -8,6 +8,13 @@
     {% if search.raw_count %}<span class="small muted"> · {{ search.raw_count }} postings reviewed</span>{% endif %}
     {% set counts = [search.raw_count, search.located_count, search.ranked_count, search.ranked_count] %}
     {% set units = ["postings", "in your countries", "shortlisted", "to score"] %}
+    {# Determinate bar: grows by stage (0-3). Caps below 100% until the run finishes
+       and the page reloads, so it never looks "done" while scoring is still running. #}
+    {% set pct = [15, 42, 68, 90][active] %}
+    <div class="loadbar" style="margin-top:10px" role="progressbar"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}">
+      <div class="loadbar-fill" style="width: {{ pct }}%"></div>
+    </div>
     <div class="stage-rail" style="margin-top:10px">
       {% for label in ["Collecting", "Filtering by location", "Ranking by meaning", "Scoring the shortlist"] %}
         <div class="stage {% if loop.index0 < active %}done{% elif loop.index0 == active %}on{% endif %}">
