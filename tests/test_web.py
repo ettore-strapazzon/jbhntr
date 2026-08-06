@@ -2923,6 +2923,13 @@ def test_engine_settings_fills_model_on_openrouter(monkeypatch):
     assert s.scoring_model == "anthropic/claude-haiku-4.5"  # overridden by web config
     assert s.generation_model                                # non-empty
 
+    # Discovery research model: default filled from web config; env override wins.
+    monkeypatch.setattr(config, "discovery_research_model", "perplexity/sonar")
+    monkeypatch.delenv("DISCOVERY_RESEARCH_MODEL", raising=False)
+    assert engine_settings().research_model == "perplexity/sonar"
+    monkeypatch.setenv("DISCOVERY_RESEARCH_MODEL", "openai/gpt-4o:online")
+    assert engine_settings().research_model == "openai/gpt-4o:online"
+
 
 def test_discover_all_active_force_ignores_cadence(monkeypatch):
     """force=True runs discovery for a premium user even when the cadence has not

@@ -177,7 +177,13 @@ def research(
             else []
         )
     )
-    return client.text(user=prompt, tier=llm.SCORING, web_search=True)
+    # Prefer a purpose-built search model (settings.research_model, e.g.
+    # perplexity/sonar) that searches natively and returns clean cited text. A
+    # general model with ':online' often just emits web_search tool-call MARKUP as
+    # text instead of searching, yielding notes with no real companies.
+    research_model = getattr(settings, "research_model", "") or None
+    return client.text(user=prompt, tier=llm.SCORING, web_search=True,
+                       model=research_model)
 
 
 def extract_companies(notes: str, settings: Settings, exclude: list[str]) -> list[dict]:

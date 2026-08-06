@@ -613,6 +613,7 @@ def admin_discovery_selftest(_: bool = Depends(require_admin)):
             client = llm.get_client(settings)
             lines = [f"user={user.email} provider={settings.llm_provider} "
                      f"scoring_model={settings.scoring_model!r} "
+                     f"research_model={getattr(settings, 'research_model', '') or '(scoring+:online)'!r} "
                      f"web_search_supported={client.supports_web_search} seeds={len(seeds)}"]
 
             # Stage A: model-knowledge suggestion (no web search) — the reliable path.

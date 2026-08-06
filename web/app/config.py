@@ -66,6 +66,11 @@ class WebConfig:
     # newly-added seeds count as a material profile change that triggers it early.
     discovery_interval_days: int = _int("DISCOVERY_INTERVAL_DAYS", 7)
     discovery_new_seeds_trigger: int = _int("DISCOVERY_NEW_SEEDS_TRIGGER", 3)
+    # Live-web-research model for discovery. A general model + ':online' emits
+    # tool-call markup instead of searching; a native search model returns clean
+    # results. Must be a model your OpenRouter key can reach.
+    discovery_research_model: str = os.environ.get(
+        "DISCOVERY_RESEARCH_MODEL", "perplexity/sonar")
     # Corpus search shape. `corpus_topk` = how many geo-matched, cosine-ranked jobs
     # get sent to the paid LLM scorer per search (the "60 to score" number the user
     # sees): the main per-search cost lever. `embed_limit` = how many corpus jobs get

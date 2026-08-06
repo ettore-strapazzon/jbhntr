@@ -260,6 +260,11 @@ class Settings:
     anthropic_api_key: str = ""
     scoring_model: str = "claude-haiku-4-5"
     generation_model: str = "claude-sonnet-5"
+    # Model used for live web research in company discovery. A general chat model
+    # with an ':online' suffix often just emits tool-call markup instead of
+    # searching; a purpose-built search model (e.g. perplexity/sonar) returns clean
+    # cited results. Empty -> fall back to the scoring model + ':online'.
+    research_model: str = ""
 
     # Which AI provider to use: "anthropic" (default) or "openai_compatible"
     # (OpenRouter, OpenAI, Mistral, Groq, DeepSeek, Ollama, ...).
@@ -323,6 +328,7 @@ class Settings:
                 "JOBHUNTER_GENERATION_MODEL",
                 "claude-sonnet-5" if anthropic_default else "",
             ),
+            research_model=g("DISCOVERY_RESEARCH_MODEL", ""),
             llm_provider=provider,
             llm_base_url=g("LLM_BASE_URL"),
             llm_api_key=g("LLM_API_KEY") or g("OPENROUTER_API_KEY"),

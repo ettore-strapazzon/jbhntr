@@ -86,7 +86,7 @@ class BaseClient:
         raise NotImplementedError
 
     def text(self, *, user: str, tier: str = GENERATION, max_tokens: int = 16000,
-             web_search: bool = False) -> str:
+             web_search: bool = False, model: Optional[str] = None) -> str:
         raise NotImplementedError
 
 
@@ -124,9 +124,10 @@ class AnthropicClient(BaseClient):
         text = next((b.text for b in resp.content if b.type == "text"), "")
         return _parse_json(text)
 
-    def text(self, *, user, tier=GENERATION, max_tokens=16000, web_search=False) -> str:
+    def text(self, *, user, tier=GENERATION, max_tokens=16000, web_search=False,
+             model: Optional[str] = None) -> str:
         kwargs: dict[str, Any] = {
-            "model": self._model(tier),
+            "model": model or self._model(tier),
             "max_tokens": max_tokens,
             "messages": [{"role": "user", "content": user}],
         }
@@ -236,12 +237,20 @@ class OpenAICompatibleClient(BaseClient):
         )
         return _parse_json(resp.choices[0].message.content or "")
 
-    def text(self, *, user, tier=GENERATION, max_tokens=16000, web_search=False) -> str:
-        model = self._model(tier)
-        if web_search and self._is_openrouter and not model.endswith(":online"):
-            model += ":online"  # OpenRouter's live-search variant
+    def text(self, *, user, tier=GENERATION, max_tokens=16000, web_search=False,
+             model: Optional[str] = None) -> str:
+        # An explicit model is used verbatim — the caller has chosen a search-
+        # capable model (e.g. perplexity/sonar) that searches natively, so we must
+        # NOT append ':online'. Otherwise fall back to the tier model, with the
+        # ':online' web-search variant when asked.
+        if model:
+            chosen = model
+        else:
+            chosen = self._model(tier)
+            if web_search and self._is_openrouter and not chosen.endswith(":online"):
+                chosen += ":online"
         resp = self.client.chat.completions.create(
-            model=model,
+            model=chosen,
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": user}],
         )

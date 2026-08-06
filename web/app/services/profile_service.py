@@ -429,6 +429,10 @@ def engine_settings(premium: bool = True):
     s.scoring_model = config.premium_scoring_model if premium else config.free_scoring_model
     if not s.generation_model:
         s.generation_model = s.scoring_model
+    # Discovery's web research needs a native-search model; fill the default unless
+    # DISCOVERY_RESEARCH_MODEL was set explicitly (from_env picks that up).
+    if not getattr(s, "research_model", ""):
+        s.research_model = config.discovery_research_model
     return s
 
 
