@@ -99,3 +99,35 @@ document.addEventListener("input", function (e) {
     if (out) out.textContent = (max - e.target.value.length) + " left";
   }
 });
+
+// Toast + nav pulse when a job is saved to My Jobs.
+(function () {
+  function showToast(msg, href) {
+    var slot = document.getElementById('toast-slot');
+    if (!slot) return;
+    slot.innerHTML =
+      '<div class="toast" role="status">' +
+        '<span></span> ' +
+        '<a></a>' +
+        '<button class="toast-x" aria-label="Dismiss">\u00d7</button>' +
+      '</div>';
+    var el = slot.firstChild;
+    el.querySelector('span').textContent = msg;
+    var link = el.querySelector('a');
+    link.textContent = 'Open My Jobs \u2192';
+    link.setAttribute('href', href);
+    el.querySelector('.toast-x').addEventListener('click', function () { el.remove(); });
+    setTimeout(function () { if (el) el.classList.add('out'); }, 5000);
+    setTimeout(function () { if (el) el.remove(); }, 5600);
+  }
+  function pulseNav() {
+    var nav = document.getElementById('nav-myjobs');
+    if (!nav) return;
+    nav.classList.add('pulse');
+    setTimeout(function () { nav.classList.remove('pulse'); }, 2400);
+  }
+  document.body.addEventListener('jobSavedToMyJobs', function () {
+    showToast('Job added to Your Jobs \u2014 Craft tailored CV and Cover Letter here to apply.', '/applications');
+    pulseNav();
+  });
+})();

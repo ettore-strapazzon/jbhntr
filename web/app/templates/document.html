@@ -7,9 +7,11 @@
   claim before you send it. JBHNTR drafts from the material you supplied; it cannot
   know whether every generated sentence is accurate.</p>
 {% if saved %}<div class="notice ok" role="status">Saved.</div>{% endif %}
+{% if refined %}<div class="notice ok" role="status">Revised. Review the new draft below.</div>{% endif %}
+{% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
 
 {% if doc.note %}
-  <div class="tone-note"><b>On the tone.</b> {{ doc.note }}</div>
+  <div class="tone-note"><b>{{ 'What changed.' if kind == 'cv' else 'On the tone.' }}</b> {{ doc.note }}</div>
 {% endif %}
 
 <div class="docview">
@@ -23,12 +25,48 @@
     </div>
   </form>
 
+  {# Refine loop: sibling of the edit form (nested forms are invalid). #}
+  <form method="post" action="/document/{{ r.id }}/{{ kind }}/refine" class="refine-box">
+    <label for="refine-{{ kind }}"><b>Request changes</b></label>
+    <p class="small muted">Describe what to change and JBHNTR will redraft this {{ kind_label }}
+      (e.g. "shorter, lead with the fintech role, warmer tone, drop the 2016 job"). Free — it
+      doesn't use another allowance.</p>
+    <textarea id="refine-{{ kind }}" name="feedback" rows="3" placeholder="What should change?"></textarea>
+    <input type="hidden" name="content" value="{{ doc.content }}">
+    <button type="submit">Redraft with these changes</button>
+  </form>
+
+  {% if revisions and revisions|length > 1 %}
+    <details class="revisions">
+      <summary class="small">Previous versions · {{ revisions|length - 1 }}</summary>
+      <ul>
+        {% for v in revisions[1:] %}
+          <li class="small">
+            {{ v.created_at.strftime('%d %b, %H:%M') }}
+            {% if v.note %}<span class="muted">— {{ v.note }}</span>{% endif %}
+            <form method="post" action="/document/{{ r.id }}/{{ kind }}/restore/{{ v.id }}" style="display:inline">
+              <button class="linklike small" type="submit">Restore</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+
   <aside class="doc-rail">
     <div class="rail-box">
       <b>The role</b>
       <p class="small muted">{{ r.title }}<br>{{ r.company }}{% if r.location %} · {{ r.location }}{% endif %}</p>
       {% if r.apply_url %}<a class="small" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open original posting →</a>{% endif %}
     </div>
+    {% if kind == 'cv' %}
+      <div class="rail-box">
+        <b>Style</b>
+        <p class="small muted">Your tailored CV keeps your latest CV's fonts, colours and
+          section styling. For the closest match, download the <b>DOCX</b> — it carries your
+          template's formatting exactly.</p>
+      </div>
+    {% endif %}
     {% if cl_thin %}
       <div class="rail-box thin-nudge">
         <p class="small">You have no cover letter on file for the drafting tool to match

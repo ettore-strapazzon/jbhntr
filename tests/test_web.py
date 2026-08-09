@@ -3562,6 +3562,120 @@ def test_my_jobs_tracker_flow(client):
         db.commit(); db.close()
 
 
+def test_save_moves_craft_to_myjobs_and_toasts(client):
+    """Matches 'Save' is 'Save to My Jobs' + no craft buttons; save fires the toast
+    trigger; craft entry points live on the My Jobs tracker card."""
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, Search, User
+
+    signup(client, email="craft@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="craft@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="cft1",
+                       dedup_key="cft-dk", tier=1, title="Ops Lead", company="Acme")
+        db.add(jr); db.commit()
+        rid = jr.id
+    finally:
+        db.close()
+
+    page = client.get("/matches")
+    assert "Save to My Jobs" in page.text
+    assert "Draft a tailored CV" not in page.text        # craft removed from Matches
+
+    r = client.post(f"/job/{rid}/save", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert r.headers.get("HX-Trigger-After-Settle") == "jobSavedToMyJobs"
+
+    mine = client.get("/applications")
+    assert "Draft tailored CV" in mine.text and "Draft cover letter" in mine.text
+
+    db = SessionLocal()
+    try:
+        from web.app.models import JobState
+        db.query(JobState).filter_by(user_id=u.id).delete()
+        db.query(JobResult).filter_by(user_id=u.id).delete()
+        db.query(Search).filter_by(user_id=u.id).delete()
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_export_styled_renderers_smoke():
+    """The style-matched CV renderers produce non-empty files and never crash."""
+    from web.app.services import cv_style, export
+
+    style = cv_style.StyleProfile(font_class="serif", accent_rgb=(20, 90, 60), margin_mm=18)
+    pdf = export.to_pdf_styled("My CV", "SUMMARY\nExperienced operator.\n- Built teams\n", style)
+    assert pdf[:4] == b"%PDF" and len(pdf) > 400
+    base_docx = export.to_docx("orig", "Original body")     # a valid .docx to template from
+    out = export.to_docx_templated(base_docx, "My CV", "EXPERIENCE\n- Led ops\nSummary line.")
+    assert out[:2] == b"PK" and len(out) > 400              # docx is a zip
+    assert export._line_kind("EXPERIENCE") == "heading"
+    assert export._line_kind("- a bullet") == "bullet"
+
+
+def test_cv_style_profile_default_without_upload(client):
+    """No uploaded CV -> a safe default StyleProfile (plain export path)."""
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services import cv_style
+
+    signup(client, email="nostyle@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="nostyle@example.com").one()
+        sp = cv_style.profile_for(db, u.id)
+        assert sp.source == "none" and sp.font_class == "sans" and sp.docx_bytes is None
+    finally:
+        db.close()
+
+
+def test_document_refine_creates_revision(client, monkeypatch):
+    """Refine appends a new revision from the user's feedback (free — no extra quota)."""
+    from web.app.db import SessionLocal
+    from web.app.models import Document, JobResult, Search, User
+
+    signup(client, email="refine@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="refine@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="rf1",
+                       dedup_key="rf-dk", title="PM", company="Acme")
+        db.add(jr); db.flush()
+        db.add(Document(user_id=u.id, job_result_id=jr.id, kind="cv", content="First draft"))
+        db.commit(); rid = jr.id
+    finally:
+        db.close()
+
+    from web.app.services import profile_service
+
+    class FakeGen:
+        settings = object()
+        def refine(self, kind, previous, feedback, p, m, job):
+            return {"content": "Revised: shorter, fintech-led.", "change_note": "Trimmed."}
+    monkeypatch.setattr(profile_service, "build_generation_context",
+                        lambda db, u, r, c: (FakeGen(), object(), object(), object()))
+
+    r = client.post(f"/document/{rid}/cv/refine",
+                    data={"feedback": "make it shorter", "content": "First draft"},
+                    follow_redirects=False)
+    assert r.status_code == 303 and "refined=1" in r.headers["location"]
+
+    db = SessionLocal()
+    try:
+        revs = (db.query(Document).filter_by(user_id=u.id, job_result_id=rid, kind="cv")
+                .order_by(Document.created_at.desc()).all())
+        assert len(revs) == 2 and "Revised" in revs[0].content
+    finally:
+        db.query(Document).filter_by(user_id=u.id).delete()
+        db.query(JobResult).filter_by(user_id=u.id).delete()
+        db.query(Search).filter_by(user_id=u.id).delete()
+        db.commit(); db.close()
+
+
 def test_admin_clear_board(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal

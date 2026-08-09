@@ -51,6 +51,9 @@
   <button type="button" id="alpha-dismiss" class="alpha-x" aria-label="Dismiss this notice">&times;</button>
 </div>
 
+{# Toast slot for htmx-triggered notices (e.g. "saved to My Jobs"). #}
+<div id="toast-slot" aria-live="polite" aria-atomic="true"></div>
+
 {# Current path, used to mark the active nav item (header + bottom bar). Defined
    here so both navs below can read it. #}
 {% set cur = request.url.path if request else "" %}
@@ -62,7 +65,7 @@
   <nav aria-label="Main">
     {% if user %}
       <a href="/matches"{% if cur.startswith('/matches') or cur == '/search' %} aria-current="page"{% endif %}>Matches</a>
-      <a href="/applications"{% if cur.startswith('/applications') %} aria-current="page"{% endif %}>My Jobs</a>
+      <a id="nav-myjobs" href="/applications"{% if cur.startswith('/applications') %} aria-current="page"{% endif %}>My Jobs</a>
       <a href="/profile"{% if cur.startswith('/profile') %} aria-current="page"{% endif %}>Profile</a>
       <a href="/premium" class="pill">{% if user.is_premium %}<span class="pill-dot" aria-hidden="true"></span>{% endif %}Premium</a>
       <a href="/account"{% if cur.startswith('/account') %} aria-current="page"{% endif %}>Account</a>

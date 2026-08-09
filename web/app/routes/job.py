@@ -64,9 +64,13 @@ def _act(request: Request, db: DbSession, user: User, result_id: int, mutate,
 @router.post("/{result_id}/save")
 def save(result_id: int, request: Request, user: User = Depends(require_user),
          db: DbSession = Depends(get_session)):
-    return _act(request, db, user, result_id,
+    resp = _act(request, db, user, result_id,
                 lambda r: job_state.set_saved(db, user.id, r.dedup_key, True),
                 event="job_saved")
+    # Tell the client to toast + highlight the My Jobs tab (htmx response only).
+    if request.headers.get("HX-Request") == "true":
+        resp.headers["HX-Trigger-After-Settle"] = "jobSavedToMyJobs"
+    return resp
 
 
 @router.post("/{result_id}/unsave")
@@ -126,9 +130,9 @@ def _render_track_card(request: Request, db: DbSession, user: User,
             for d in db.query(Document).filter(Document.user_id == user.id,
                                                Document.job_result_id == r.id)}
     return templates.TemplateResponse(request, "partials/track_card.html", {
-        "request": request, "user": user, "r": r, "st": st,
+        "request": request, "user": user, "config": config, "r": r, "st": st,
         "stage": job_state.stage_of(st) if st else "Saved",
-        "docs": docs,
+        "docs": docs, "allow": doc_quota.allowance(db, user),
         "events": job_events.list_for(db, user.id, r.dedup_key),
         "pipeline_stages": job_state.PIPELINE_STAGES,
         "close_outcomes": job_state.CLOSE_OUTCOMES,

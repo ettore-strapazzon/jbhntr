@@ -130,29 +130,17 @@ def generate(result_id: int, kind: str, request: Request,
         msg = (f"You have used this month's {label} allowance; it resets on the 1st."
                if user.is_premium
                else f"You have used your free {label}.")
-        return RedirectResponse("/matches?error=" + quote(msg), status_code=303)
+        return RedirectResponse("/applications?error=" + quote(msg), status_code=303)
 
-    from jobhunter.config import Settings as EngineSettings
-    from jobhunter.generator import Generator
-    from jobhunter.models import JobPosting, MatchResult, RankedJob
+    from jobhunter.models import MatchResult, RankedJob
 
-    from ..services.profile_service import build_engine_materials, build_engine_profile
+    from ..services.profile_service import build_generation_context
 
-    settings = EngineSettings.from_env()
-    # Search overrides only the scoring model; generation uses its own tier and
-    # was left unconfigured, so tailoring raised "no generation model" and got
-    # swallowed to "returned nothing". Point generation at the same model search
-    # uses, which we know works with the configured key.
-    model = config.premium_scoring_model if user.is_premium else config.free_scoring_model
-    settings.scoring_model = model
-    settings.generation_model = model
-    posting = JobPosting(
-        source=result.source, title=result.title, company=result.company,
-        location=result.location, description=result.description, url=result.apply_url,
-    )
-    gen = Generator(settings, drive=None)
-    eng_profile = build_engine_profile(db, user)
-    eng_materials = build_engine_materials(db, user)
+    # Generation config (models, posting, drive-less Generator) — shared with the
+    # refine loop so both behave identically.
+    gen, eng_profile, eng_materials, posting = build_generation_context(
+        db, user, result, config)
+    settings = gen.settings
     note = ""
     content = ""
 
@@ -188,12 +176,12 @@ def generate(result_id: int, kind: str, request: Request,
     except Exception as exc:
         log.exception("Document generation failed")
         return RedirectResponse(
-            "/matches?error=" + quote(f"Couldn't generate that document: {exc}"),
+            "/applications?error=" + quote(f"Couldn't generate that document: {exc}"),
             status_code=303)
 
     if not content:
         return RedirectResponse(
-            "/matches?error=" + quote("Generation returned nothing. Try again."),
+            "/applications?error=" + quote("Generation returned nothing. Try again."),
             status_code=303)
 
     # Strip any dashes the model slips through, so the draft never reads as

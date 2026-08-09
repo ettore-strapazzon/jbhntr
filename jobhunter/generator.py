@@ -41,6 +41,16 @@ COVER_LETTER_SCHEMA = {
     "additionalProperties": False,
 }
 
+REFINE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "content": {"type": "string", "description": "The full revised document"},
+        "change_note": {"type": "string", "description": "1-2 sentences: what changed"},
+    },
+    "required": ["content", "change_note"],
+    "additionalProperties": False,
+}
+
 
 class Generator:
     def __init__(self, settings: Settings, drive: Optional[Drive] = None):
@@ -182,4 +192,27 @@ class Generator:
             )
         except Exception as exc:
             log.warning("Cover-letter generation failed for %r: %s", job.title, exc)
+            return None
+
+    def refine(self, kind, previous, feedback, profile, materials, job):
+        """Revise an existing CV ('cv') or cover letter ('cl') per the candidate's
+        feedback. Returns {content, change_note} or None."""
+        label = "CV" if kind == "cv" else "cover letter"
+        system = self._system_prompt(profile, materials) + (
+            f"\n\n## Revision task\nYou are revising an existing {label} for this "
+            "candidate. Apply their requested changes exactly. Keep everything "
+            "truthful and in their own voice and structure; change only what the "
+            "feedback asks plus what is needed for coherence. Never invent "
+            "experience. Return the FULL revised document, not a diff or a summary."
+        )
+        user = (
+            f"Current {label}:\n\n{previous}\n\n"
+            f"Requested changes:\n{feedback}\n\n"
+            f"Role: {job.title} at {job.company}."
+        )
+        try:
+            return self.client.json(system=system, user=user, schema=REFINE_SCHEMA,
+                                    tier=llm.GENERATION, max_tokens=8000)
+        except Exception as exc:
+            log.warning("Refine failed for %r: %s", job.title, exc)
             return None

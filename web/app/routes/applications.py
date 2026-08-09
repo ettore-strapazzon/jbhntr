@@ -12,9 +12,10 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session as DbSession
 
 from ..auth import require_user
+from ..config import config
 from ..db import get_session
 from ..models import Document, JobEvent, JobResult, JobState, User, aware, utcnow
-from ..services import job_events, job_state
+from ..services import doc_quota, job_events, job_state
 from ..templating import templates
 
 router = APIRouter()
@@ -46,7 +47,8 @@ def _nudge(st: JobState, r: JobResult, stage: str, today: date) -> dict | None:
 
 
 @router.get("/applications", response_class=HTMLResponse)
-def applications_page(request: Request, user: User = Depends(require_user),
+def applications_page(request: Request, error: str = "",
+                      user: User = Depends(require_user),
                       db: DbSession = Depends(get_session)):
     states = (db.query(JobState)
               .filter(JobState.user_id == user.id,
@@ -93,7 +95,8 @@ def applications_page(request: Request, user: User = Depends(require_user),
     needs.sort(key=lambda n: n["order"])
 
     return templates.TemplateResponse(request, "applications.html", {
-        "request": request, "user": user,
+        "request": request, "user": user, "config": config, "error": error,
+        "allow": doc_quota.allowance(db, user),
         "groups": groups, "counts": counts, "needs": needs,
         "stage_order": job_state.STAGE_ORDER,
         "pipeline_stages": job_state.PIPELINE_STAGES,

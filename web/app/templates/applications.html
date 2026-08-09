@@ -8,6 +8,8 @@
   </div>
 </div>
 
+{% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
+
 <div class="trk-counts" role="list" aria-label="Pipeline summary">
   <span class="tc" role="listitem"><b>{{ counts.Saved }}</b> Saved</span>
   <span class="tc" role="listitem"><b>{{ counts.Applied }}</b> Applied</span>

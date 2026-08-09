@@ -89,44 +89,15 @@
         {% if r.apply_url %}<a class="btn" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open original posting</a>{% endif %}
       </div>
 
-      {% set cv_limit = config.premium_cvs_monthly if user.is_premium else config.free_cvs %}
-      {% set cl_limit = config.premium_cover_letters_monthly if user.is_premium else config.free_cover_letters %}
-      {% set cv_gone = "This month's tailored-CV allowance is used; it resets on the 1st." if user.is_premium else "Your free tailored-CV allowance is used." %}
-      {% set cl_gone = "This month's cover-letter allowance is used; it resets on the 1st." if user.is_premium else "Your free cover-letter allowance is used." %}
-      <div class="actiongroup make">
-        <div class="row">
-          {% if (r.id, "cv") in docs %}
-            <a class="btn ghost" href="/document/{{ r.id }}/cv">Tailored CV draft</a>
-          {% else %}
-            <form method="post" action="/generate/{{ r.id }}/cv" style="display:inline">
-              <button class="ghost" type="submit"
-                {% if (allow.cv or 0) <= 0 %}disabled title="{{ cv_gone }}" aria-label="{{ cv_gone }}"{% endif %}>Draft a tailored CV</button>
-            </form>
-          {% endif %}
-          {% if (r.id, "cl") in docs %}
-            <a class="btn ghost" href="/document/{{ r.id }}/cl">Cover-letter draft</a>
-          {% else %}
-            <form method="post" action="/generate/{{ r.id }}/cl" style="display:inline">
-              <button class="ghost" type="submit"
-                {% if (allow.cl or 0) <= 0 %}disabled title="{{ cl_gone }}" aria-label="{{ cl_gone }}"{% endif %}>Draft a cover letter</button>
-            </form>
-          {% endif %}
-        </div>
-        <span class="quota">{{ allow.cv }} of {{ cv_limit }} tailored CV{{ 's' if cv_limit != 1 }}{% if user.is_premium %} left this month{% else %} left{% endif %} ·
-          {{ allow.cl }} of {{ cl_limit }} cover letter{{ 's' if cl_limit != 1 }}{% if user.is_premium %} left this month{% else %} left{% endif %}</span>
-        {# at the limit is the one moment the Premium pitch is wanted (Round 6.2) #}
-        {% if not user.is_premium and ((allow.cv or 0) <= 0 or (allow.cl or 0) <= 0) %}
-          <a class="quota-upsell" href="/premium">More tailored documents with Premium &rarr;</a>
-        {% endif %}
-      </div>
-
+      {# Craft (CV / cover-letter generation) now lives in My Jobs, not Matches:
+         Matches is a decide-surface. See the tracker card. #}
       <div class="actiongroup triage">
         {% if saved %}
           <form method="post" action="/job/{{ r.id }}/unsave" hx-post="/job/{{ r.id }}/unsave"
-                hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button class="on" type="submit">Saved</button></form>
+                hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button class="on" type="submit">Saved &check;</button></form>
         {% else %}
           <form method="post" action="/job/{{ r.id }}/save" hx-post="/job/{{ r.id }}/save"
-                hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button type="submit">Save</button></form>
+                hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button type="submit">Save to My Jobs</button></form>
         {% endif %}
         {% if applied %}
           <form method="post" action="/job/{{ r.id }}/unapplied" hx-post="/job/{{ r.id }}/unapplied"

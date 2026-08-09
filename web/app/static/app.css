@@ -956,3 +956,18 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .ev-interview{background:#fff2d9;color:#8a5a00}
 .ev-offer{background:#e6f7ec;color:#1b7a43}
 .ev-body{flex:1}
+
+/* --- Save-to-My-Jobs toast + nav pulse --- */
+#toast-slot{position:fixed;left:0;right:0;bottom:16px;display:flex;justify-content:center;z-index:60;pointer-events:none}
+.toast{pointer-events:auto;background:#1f2a24;color:#fff;border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.18);max-width:min(560px,92vw);font-size:.92rem;transition:opacity .5s,transform .5s}
+.toast a{color:#bfe6cd;white-space:nowrap}
+.toast.out{opacity:0;transform:translateY(8px)}
+.toast-x{background:none;border:0;color:#cfd8d2;font-size:1.1rem;cursor:pointer;line-height:1;padding:0 2px}
+@keyframes navpulse{0%,100%{box-shadow:0 0 0 0 rgba(31,122,67,0)}30%{box-shadow:0 0 0 4px rgba(31,122,67,.35)}}
+#nav-myjobs.pulse{border-radius:6px;animation:navpulse 1.2s ease-in-out 2}
+
+/* --- My Jobs craft entry points + refine loop --- */
+.trk-docs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.refine-box{margin:18px 0;padding:12px 14px;border:1px solid #e6e2d9;border-radius:10px;background:#faf9f6}
+.refine-box textarea{width:100%;margin:6px 0;padding:8px}
+.revisions ul{list-style:none;padding:0;margin:6px 0 0;display:flex;flex-direction:column;gap:4px}

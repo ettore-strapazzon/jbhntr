@@ -436,6 +436,25 @@ def engine_settings(premium: bool = True):
     return s
 
 
+def build_generation_context(db: Session, user: User, result, config):
+    """(gen, eng_profile, eng_materials, posting) for one JobResult — shared by
+    document generation and the refine loop, so both configure the engine the
+    same way (models, drive-less Generator)."""
+    from jobhunter.config import Settings as EngineSettings
+    from jobhunter.generator import Generator
+    from jobhunter.models import JobPosting
+
+    settings = EngineSettings.from_env()
+    model = config.premium_scoring_model if user.is_premium else config.free_scoring_model
+    settings.scoring_model = model
+    settings.generation_model = model
+    posting = JobPosting(source=result.source, title=result.title, company=result.company,
+                         location=result.location, description=result.description,
+                         url=result.apply_url)
+    gen = Generator(settings, drive=None)
+    return (gen, build_engine_profile(db, user), build_engine_materials(db, user), posting)
+
+
 def build_engine_profile(db: Session, user: User) -> EngineProfile:
     """Turn DB rows into the Profile object the engine expects."""
     p = user.profile

@@ -57,8 +57,32 @@
       {% endfor %}
     {% endif %}
     {% if r.apply_url %}<a class="small" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open posting</a>{% endif %}
-    {% if 'cv' in kinds %}<a class="small" href="/document/{{ r.id }}/cv">CV</a>{% endif %}
-    {% if 'cl' in kinds %}<a class="small" href="/document/{{ r.id }}/cl">Cover letter</a>{% endif %}
+  </div>
+
+  {# Application docs: craft/open the tailored CV + cover letter (heavy editing on the workbench). #}
+  {% set cv_limit = config.premium_cvs_monthly if user.is_premium else config.free_cvs %}
+  {% set cl_limit = config.premium_cover_letters_monthly if user.is_premium else config.free_cover_letters %}
+  <div class="trk-docs">
+    {% if 'cv' in kinds %}
+      <a class="btn ghost small" href="/document/{{ r.id }}/cv">Open CV draft</a>
+    {% else %}
+      <form method="post" action="/generate/{{ r.id }}/cv" style="display:inline">
+        <button class="ghost small" type="submit"
+          {% if (allow.cv or 0) <= 0 %}disabled title="Tailored-CV allowance used"{% endif %}>Draft tailored CV</button>
+      </form>
+    {% endif %}
+    {% if 'cl' in kinds %}
+      <a class="btn ghost small" href="/document/{{ r.id }}/cl">Open cover letter</a>
+    {% else %}
+      <form method="post" action="/generate/{{ r.id }}/cl" style="display:inline">
+        <button class="ghost small" type="submit"
+          {% if (allow.cl or 0) <= 0 %}disabled title="Cover-letter allowance used"{% endif %}>Draft cover letter</button>
+      </form>
+    {% endif %}
+    <span class="quota small muted">{{ allow.cv }}/{{ cv_limit }} CV · {{ allow.cl }}/{{ cl_limit }} CL{% if user.is_premium %} this month{% endif %}</span>
+    {% if not user.is_premium and ((allow.cv or 0) <= 0 or (allow.cl or 0) <= 0) %}
+      <a class="quota-upsell small" href="/premium">More with Premium &rarr;</a>
+    {% endif %}
   </div>
 
   {# Timeline #}
