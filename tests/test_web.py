@@ -3405,6 +3405,42 @@ def test_reaper_prunes_stale_unverified_jobs(client, monkeypatch):
         db.commit(); db.close()
 
 
+def test_reaper_trusts_ats_source_not_html_check(client, monkeypatch):
+    """ATS/scrape jobs are verified by their daily API poll, not an HTML check:
+    a mis-flagged one is un-flagged and skipped by the checker; a stale one (poll
+    stopped surfacing it) is pruned on the tight window."""
+    from datetime import timedelta
+
+    from web.app.db import SessionLocal
+    from web.app.models import Job, utcnow
+    from web.app.services import reaper
+
+    checked = []
+    monkeypatch.setattr(reaper, "check_url",
+                        lambda url, c: checked.append(url) or "blocked")
+    db = SessionLocal()
+    try:
+        now = utcnow()
+        # Fresh ATS job wrongly flagged 'unverified' -> cleared, and NOT link-checked.
+        db.add(Job(dedup_key="ats-fresh", source="ats:ashby:openai", title="x",
+                   url="https://jobs.ashbyhq.com/openai/1", link_status="unverified",
+                   last_seen_at=now, last_checked_at=None))
+        # ATS job the daily poll stopped surfacing 15d ago -> closed -> pruned.
+        db.add(Job(dedup_key="ats-stale", source="ats:lever:gopuff", title="x",
+                   url="u", last_seen_at=now - timedelta(days=15), last_checked_at=now))
+        db.commit()
+        reaper.sweep(db, check_limit=0, ats_stale_days=10)
+
+        rows = {r.dedup_key: r for r in db.query(Job)
+                .filter(Job.dedup_key.in_(["ats-fresh", "ats-stale"]))}
+        assert "ats-stale" not in rows                     # pruned by poll-freshness
+        assert rows["ats-fresh"].link_status == ""         # flag cleared
+        assert "https://jobs.ashbyhq.com/openai/1" not in checked   # never HTML-checked
+    finally:
+        db.query(Job).filter(Job.dedup_key.in_(["ats-fresh", "ats-stale"])).delete()
+        db.commit(); db.close()
+
+
 def test_reaper_recheck_days_zero_forces_recently_checked(client, monkeypatch):
     """recheck_days=0 (deep clean) re-examines a job checked moments ago, so a new
     checker (e.g. captcha detection) runs against the whole corpus — whereas the

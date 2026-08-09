@@ -389,6 +389,13 @@ def _verify_links(db: DbSession, ranked: list) -> list:
         v = verdicts.get(job.dedup_key())
         if v not in ("gated", "blocked"):
             continue
+        # ATS / scraped jobs are verified live by their source API (only lists open
+        # roles); their pages are just Cloudflare-walled. Treat as active, not
+        # unverified — don't badge the good ones (OpenAI/Ashby, Okta/Greenhouse…).
+        src = getattr(job, "source", "") or ""
+        if v == "blocked" and (src.startswith("ats:") or src.startswith("scrape:")):
+            verdicts[job.dedup_key()] = "active"
+            continue
         new_url = recover_apply_url(job.company, job.title)
         if new_url:
             job.url = new_url

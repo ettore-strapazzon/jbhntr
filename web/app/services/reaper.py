@@ -156,6 +156,7 @@ def sweep(
     recheck_days: int = 7,
     workers: int = 16,        # concurrency, to keep 5k checks to a sane wall-clock
     unverified_stale_days: int = 21,  # tighter TTL for links we can't verify by URL
+    ats_stale_days: int = 10,         # ATS/scrape jobs unseen this long in the poll -> closed
 ) -> dict:
     """One reaper pass. Returns counts. Never raises (logs and returns)."""
     try:
@@ -191,13 +192,33 @@ def sweep(
         unverified_pruned = unv_q.delete(synchronize_session=False)
         db.commit()
 
-        # 2. Link-check a bounded batch: never-checked or checked long ago,
-        #    oldest first, so a daily run chips through the whole corpus.
+        # 1c. ATS / scraped jobs are verified LIVE by their source, not by an HTML
+        #     check: we pull them from Lever/Ashby/Greenhouse public APIs (daily
+        #     Lane C poll) and scraped careers pages, which list only OPEN roles.
+        #     Their posting PAGES sit behind Cloudflare, so an HTML link-check
+        #     wrongly reads 'blocked' — but the poll is the real liveness signal.
+        #     So: (a) never flag them 'unverified', clearing any we mis-flagged,
+        #     and (b) prune them on a tight window once the poll stops surfacing
+        #     them (a closed ATS role drops out of the API next poll).
+        api_src = or_(Job.source.like("ats:%"), Job.source.like("scrape:%"))
+        unflagged = (db.query(Job)
+                     .filter(Job.link_status == "unverified", api_src)
+                     .update({Job.link_status: ""}, synchronize_session=False))
+        ats_before = now - timedelta(days=ats_stale_days)
+        ats_q = db.query(Job).filter(api_src, Job.last_seen_at < ats_before)
+        reaped_keys += [k for (k,) in ats_q.with_entities(Job.dedup_key) if k]
+        ats_pruned = ats_q.delete(synchronize_session=False)
+        db.commit()
+
+        # 2. Link-check a bounded batch: never-checked or checked long ago, oldest
+        #    first, so a daily run chips through the whole corpus. Skip API-verified
+        #    sources (above) — their Cloudflare-walled pages only produce noise.
         recheck_before = now - timedelta(days=recheck_days)
         q = (
             db.query(Job)
             .filter(or_(Job.last_checked_at.is_(None),
-                        Job.last_checked_at < recheck_before))
+                        Job.last_checked_at < recheck_before),
+                    ~api_src)
             .order_by(Job.last_checked_at.is_(None).desc(),
                       Job.last_checked_at.asc())
         )
@@ -242,6 +263,7 @@ def sweep(
         result = {"ttl_deleted": ttl_deleted + gated_deleted, "checked": checked,
                   "gone_deleted": gone, "gated_deleted": gated_deleted,
                   "blocked": blocked, "unverified_pruned": unverified_pruned,
+                  "ats_unflagged": unflagged, "ats_pruned": ats_pruned,
                   "unverified_total": unverified_total,
                   "board_purged": board_purged, "remaining": db.query(Job).count()}
         log.info("Reaper: %s", result)
