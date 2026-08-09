@@ -81,6 +81,33 @@ def check_url(url: str, client: httpx.Client) -> str:
     return "active"
 
 
+def _purge_deprecated_results(db: DbSession, keys: list[str]) -> int:
+    """Delete board results (JobResult) for deprecated postings, so a closed job
+    stops showing in Matches. Keeps any the user SAVED or APPLIED to — those are
+    tracked items the user chose, not just a live listing. Returns rows removed.
+    """
+    from sqlalchemy import and_, exists
+
+    from ..models import JobResult, JobState
+
+    keys = [k for k in dict.fromkeys(keys) if k]     # dedupe, drop blanks
+    if not keys:
+        return 0
+    # Per-user guard: keep this user's result if they saved/applied to this posting.
+    kept = exists().where(and_(
+        JobState.user_id == JobResult.user_id,
+        JobState.dedup_key == JobResult.dedup_key,
+        or_(JobState.saved.is_(True), JobState.applied_at.isnot(None)),
+    ))
+    removed = 0
+    for i in range(0, len(keys), 400):             # SQLite caps IN() at 999 vars
+        removed += (db.query(JobResult)
+                    .filter(JobResult.dedup_key.in_(keys[i:i + 400]), ~kept)
+                    .delete(synchronize_session=False))
+    db.commit()
+    return removed
+
+
 def sweep(
     db: DbSession,
     stale_days: int = 45,
@@ -93,21 +120,22 @@ def sweep(
         from .corpus_service import GATED_HOSTS
 
         now = utcnow()
+        reaped_keys: list[str] = []   # dedup_keys removed this pass -> purge boards
 
         # 0. Purge any job whose apply URL is a gated/dead-end host — it should
         #    never have been stored, and this cleans out ones ingested earlier.
         gated_deleted = 0
         for host in GATED_HOSTS:
-            gated_deleted += (db.query(Job).filter(Job.url.like(f"%{host}%"))
-                              .delete(synchronize_session=False))
+            gq = db.query(Job).filter(Job.url.like(f"%{host}%"))
+            reaped_keys += [k for (k,) in gq.with_entities(Job.dedup_key) if k]
+            gated_deleted += gq.delete(synchronize_session=False)
         db.commit()
 
         # 1. TTL: gone from every fresh search for too long -> delete, no I/O.
         stale_before = now - timedelta(days=stale_days)
-        ttl_deleted = (
-            db.query(Job).filter(Job.last_seen_at < stale_before)
-            .delete(synchronize_session=False)
-        )
+        ttl_q = db.query(Job).filter(Job.last_seen_at < stale_before)
+        reaped_keys += [k for (k,) in ttl_q.with_entities(Job.dedup_key) if k]
+        ttl_deleted = ttl_q.delete(synchronize_session=False)
         db.commit()
 
         # 2. Link-check a bounded batch: never-checked or checked long ago,
@@ -137,15 +165,22 @@ def sweep(
                 verdict = verdicts.get(job.id, "unknown")
                 checked += 1
                 if verdict == "gone":
+                    if job.dedup_key:
+                        reaped_keys.append(job.dedup_key)
                     db.delete(job)
                     gone += 1
                 else:
                     job.last_checked_at = now
             db.commit()
 
+        # 3. A deprecated posting must also leave users' boards, or they click into
+        #    a closed job. Delete the matching results — but keep any the user saved
+        #    or applied to (those are tracked items, not just a live listing).
+        board_purged = _purge_deprecated_results(db, reaped_keys)
+
         result = {"ttl_deleted": ttl_deleted + gated_deleted, "checked": checked,
                   "gone_deleted": gone, "gated_deleted": gated_deleted,
-                  "remaining": db.query(Job).count()}
+                  "board_purged": board_purged, "remaining": db.query(Job).count()}
         log.info("Reaper: %s", result)
         return result
     except Exception as exc:

@@ -1175,6 +1175,55 @@ def test_discover_for_user_runs_without_seeds_from_market_profile(monkeypatch):
         db.commit(); db.close()
 
 
+def test_reaper_purges_deprecated_board_results_keeping_saved():
+    """When the reaper deprecates a job (TTL prune / dead link), its results leave
+    users' boards — except ones the user saved or applied to, which are kept."""
+    from datetime import timedelta
+
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Job, JobResult, JobState, Search, User, utcnow
+    from web.app.services import job_state
+    from web.app.services.reaper import sweep
+
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="reap@example.com", plan="free")
+        db.add(u); db.flush()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        old = utcnow() - timedelta(days=60)          # older than the 45d TTL
+        now = utcnow()
+        # Two stale (to be pruned) corpus jobs + board results; one of them saved.
+        for key in ("stale-x", "stale-saved"):
+            db.add(Job(dedup_key=key, source="s", title=key, company="Co",
+                       location="", url="u", last_seen_at=old))
+            db.add(JobResult(search_id=s.id, user_id=u.id, position=1, short_id=key[:8],
+                             dedup_key=key, tier=1, title=key, company="Co", source="api:x"))
+        # A fresh job that must NOT be pruned or purged. last_checked_at=now keeps
+        # it out of the link-check batch, so the test makes no network calls.
+        db.add(Job(dedup_key="fresh", source="s", title="fresh", company="Co",
+                   location="", url="u", last_seen_at=now, last_checked_at=now))
+        db.add(JobResult(search_id=s.id, user_id=u.id, position=2, short_id="fresh",
+                         dedup_key="fresh", tier=1, title="fresh", company="Co", source="api:x"))
+        db.commit()
+        job_state.set_saved(db, u.id, "stale-saved", True); db.commit()
+
+        res = sweep(db, check_limit=0)               # link-check off-net is fine; TTL does the work
+        assert res.get("board_purged", 0) >= 1
+
+        remaining = {r.dedup_key for r in db.query(JobResult).filter_by(user_id=u.id)}
+        assert "stale-x" not in remaining            # deprecated + not saved -> removed
+        assert "stale-saved" in remaining            # saved -> kept
+        assert "fresh" in remaining                  # live -> kept
+    finally:
+        db.query(JobResult).filter_by(user_id=u.id).delete()
+        db.query(Search).filter_by(user_id=u.id).delete()
+        db.query(JobState).filter_by(user_id=u.id).delete()
+        db.query(Job).filter(Job.dedup_key.in_(["stale-x", "stale-saved", "fresh"])).delete()
+        db.query(User).filter_by(id=u.id).delete()
+        db.commit(); db.close()
+
+
 # -------------------------------- cron ------------------------------------ #
 def test_nightly_runs_daily_always_and_weekly_on_monday(monkeypatch):
     import datetime
