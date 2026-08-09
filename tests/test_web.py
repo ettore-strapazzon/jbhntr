@@ -3377,6 +3377,30 @@ def test_verify_links_flags_blocked_captcha_unverified(client, monkeypatch):
         db.commit(); db.close()
 
 
+def test_reaper_recheck_days_zero_forces_recently_checked(client, monkeypatch):
+    """recheck_days=0 (deep clean) re-examines a job checked moments ago, so a new
+    checker (e.g. captcha detection) runs against the whole corpus — whereas the
+    default window skips it."""
+    from web.app.db import SessionLocal
+    from web.app.models import Job, utcnow
+    from web.app.services import reaper
+
+    seen = []
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: seen.append(url) or "active")
+    db = SessionLocal()
+    try:
+        db.add(Job(dedup_key="recent-1", source="s", title="x",
+                   url="https://example.com/recent", last_checked_at=utcnow()))
+        db.commit()
+        reaper.sweep(db, check_limit=0, recheck_days=7, workers=1)
+        assert "https://example.com/recent" not in seen      # default window skips it
+        reaper.sweep(db, check_limit=0, recheck_days=0, workers=1)
+        assert "https://example.com/recent" in seen          # forced re-check
+    finally:
+        db.query(Job).filter_by(dedup_key="recent-1").delete()
+        db.commit(); db.close()
+
+
 def test_reaper_check_limit_zero_checks_all(client, monkeypatch):
     from web.app.db import SessionLocal
     from web.app.models import Job

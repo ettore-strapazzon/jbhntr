@@ -516,9 +516,10 @@ def admin_run_maintenance(_: bool = Depends(require_admin)):
 
 @router.post("/admin/deep-clean")
 def admin_deep_clean(_: bool = Depends(require_admin)):
-    """Operator: link-check EVERY due job now (not just the nightly 5k) and record
-    a snapshot, to clear out accumulated dead/404 links in one pass. Slow — runs
-    in the background."""
+    """Operator: FORCE-recheck every stored link now, ignoring the recheck window,
+    and record a snapshot. Use after a checker change (e.g. new captcha detection)
+    to re-examine jobs the nightly run already stamped with the old logic. Slow —
+    it hits every apply URL — runs in the background."""
     from urllib.parse import quote
 
     from ..services.cron import _record_corpus_stat
@@ -526,7 +527,10 @@ def admin_deep_clean(_: bool = Depends(require_admin)):
 
     def _work():
         try:
-            res = reaper_run(check_limit=0)      # 0 = check all due jobs
+            # recheck_days=0 -> nothing is "too recently checked to skip", so every
+            # job is re-examined (not just never-checked / >7d ones). More workers
+            # since it's a one-off full pass over the whole corpus.
+            res = reaper_run(check_limit=0, recheck_days=0, workers=24)
             _record_corpus_stat({"reaper": res})
             log.info("deep clean: %s", res)
             record_op("deep-clean", str(res)[:400])
@@ -535,8 +539,8 @@ def admin_deep_clean(_: bool = Depends(require_admin)):
             record_op("deep-clean", f"failed: {str(exc)[:200]}")
 
     threading.Thread(target=_work, daemon=True).start()
-    msg = ("Deep clean started: checking every stored link (this can take a while). "
-           "Refresh the churn table in a few minutes.")
+    msg = ("Deep clean started: force-rechecking EVERY stored link (this hits every "
+           "apply URL, so it can take a while). Refresh the job log in a few minutes.")
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
