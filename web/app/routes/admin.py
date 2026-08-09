@@ -273,6 +273,12 @@ def _gather(db: DbSession) -> dict:
     embedded_n = db.query(Job).filter(Job.embedding.isnot(None)).count()
     unchecked_n = db.query(Job).filter(Job.last_checked_at.is_(None)).count()
     unverified_n = db.query(Job).filter(Job.link_status == "unverified").count()
+    # Which sources the captcha/bot-walled jobs come from — tells us whether it's
+    # concentrated (a bot-hostile aggregator) or spread (needs web-search recovery).
+    unverified_by_source = (db.query(Job.source, func.count(Job.id).label("n"))
+                            .filter(Job.link_status == "unverified")
+                            .group_by(Job.source)
+                            .order_by(func.count(Job.id).desc()).limit(8).all())
     remote_mix = dict(db.query(Job.remote_mode, func.count(Job.id))
                       .group_by(Job.remote_mode).all())
     top_sources = (db.query(Job.source, func.count(Job.id).label("n"))
@@ -324,7 +330,8 @@ def _gather(db: DbSession) -> dict:
         "growth_svg": growth_svg,
         "corpus_total": corpus_total, "fresh_1d": fresh_1d, "fresh_7d": fresh_7d,
         "fresh_30d": fresh_30d, "stale_45d": stale_45d, "embedded_n": embedded_n,
-        "unchecked_n": unchecked_n, "unverified_n": unverified_n, "remote_mix": remote_mix,
+        "unchecked_n": unchecked_n, "unverified_n": unverified_n,
+        "unverified_by_source": unverified_by_source, "remote_mix": remote_mix,
         "top_sources": top_sources, "corpus_daily": corpus_daily,
         "scraped_jobs": scraped_jobs, "companies_total": companies_total,
         "companies_custom": companies_custom, "companies_polled": companies_polled,
