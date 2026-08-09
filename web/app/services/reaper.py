@@ -57,6 +57,17 @@ GONE_URL_MARKERS = (
     "joblisting/expired", "jobs/expired",
 )
 
+# A bot-check / captcha page returns 200 but is NOT the posting — we cannot read
+# whether the job is live. Distinct from 'gone': the job may well still exist, so
+# this is 'blocked' (try to recover the real link elsewhere, else flag it).
+CAPTCHA_MARKERS = (
+    "recaptcha", "hcaptcha", "px-captcha", "captcha-delivery",
+    "verify you are human", "are you a human", "please verify you are",
+    "cf-browser-verification", "checking your browser before", "just a moment...",
+    "unusual traffic from your", "enable javascript and cookies to continue",
+    "ddos protection by", "verify you are not a robot",
+)
+
 # A login/registration wall hides the real posting. Unlike a 404, the job is
 # usually still live — so this is 'gated' (recoverable), not 'gone'.
 WALL_MARKERS = (
@@ -95,6 +106,8 @@ def check_url(url: str, client: httpx.Client) -> str:
         return "gone"
     if any(m in body for m in WALL_MARKERS):
         return "gated"
+    if any(m in body for m in CAPTCHA_MARKERS):
+        return "blocked"        # a bot-wall — we couldn't actually read the posting
     return "active"
 
 
@@ -169,7 +182,7 @@ def sweep(
             q = q.limit(check_limit)     # 0 = check every due job (one-time deep clean)
         batch = q.all()
 
-        checked = gone = 0
+        checked = gone = blocked = 0
         if batch:
             with httpx.Client(timeout=15.0, headers={"User-Agent": _UA}) as client:
                 def _one(job: Job) -> tuple[int, str]:
@@ -186,8 +199,15 @@ def sweep(
                         reaped_keys.append(job.dedup_key)
                     db.delete(job)
                     gone += 1
-                else:
-                    job.last_checked_at = now
+                    continue
+                job.last_checked_at = now
+                if verdict == "blocked":
+                    # Couldn't read past a captcha/bot-wall — flag it so the count is
+                    # visible and the card can warn. Not deleted: it may still be live.
+                    job.link_status = "unverified"
+                    blocked += 1
+                elif verdict == "active" and job.link_status:
+                    job.link_status = ""      # recovered a clean read -> clear the flag
             db.commit()
 
         # 3. A deprecated posting must also leave users' boards, or they click into
@@ -195,8 +215,10 @@ def sweep(
         #    or applied to (those are tracked items, not just a live listing).
         board_purged = _purge_deprecated_results(db, reaped_keys)
 
+        unverified_total = db.query(Job).filter(Job.link_status == "unverified").count()
         result = {"ttl_deleted": ttl_deleted + gated_deleted, "checked": checked,
                   "gone_deleted": gone, "gated_deleted": gated_deleted,
+                  "blocked": blocked, "unverified_total": unverified_total,
                   "board_purged": board_purged, "remaining": db.query(Job).count()}
         log.info("Reaper: %s", result)
         return result

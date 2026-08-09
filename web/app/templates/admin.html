@@ -151,6 +151,7 @@
   <p class="small muted">Freshness: {{ fresh_30d }} seen in 30d ·
     embedded {{ embedded_n }}/{{ corpus_total }} ·
     never link-checked {{ unchecked_n }} ·
+    <b>{{ "{:,}".format(unverified_n) }}</b> unverifiable (captcha/bot-walled — kept but flagged) ·
     modes: {% for m, n in remote_mix.items() %}{{ m }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
   <p class="small muted"><b>Discovery:</b> {{ companies_total }} companies tracked
     ({{ companies_custom }} custom career pages, polled {{ companies_polled }} in 48h) ·

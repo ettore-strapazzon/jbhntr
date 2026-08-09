@@ -240,7 +240,7 @@ def _run_search(search_id: int, user_id: int) -> None:
         # one clicks into a 404 or a login wall. Drops the dead ones and purges
         # them from the shared corpus. Fail-soft — never blocks a search.
         _set(db, search, stage="Checking links…")
-        ranked = _verify_links(db, ranked)
+        ranked, unverified = _verify_links(db, ranked)
 
         _set(db, search, stage="Saving results…")
         for i, (job, match) in enumerate(ranked, start=1):
@@ -258,6 +258,7 @@ def _run_search(search_id: int, user_id: int) -> None:
                 description=(job.description or "")[:4000],
                 apply_url=job.url, source=job.source,
                 tags=list(match.tags), why_good=good, why_bad=bad,
+                link_status=("unverified" if job.dedup_key() in unverified else ""),
             ))
         db.commit()
 
@@ -377,18 +378,26 @@ def _verify_links(db: DbSession, ranked: list) -> list:
         log.warning("Link verification skipped: %s", exc)
         return ranked
 
-    # Gated (login-walled) jobs are usually still live — try to recover the real
-    # apply link from the company's own ATS before giving up. Recovered jobs keep
-    # their place with the new URL; the rest of the gated ones are dropped.
+    # Gated (login wall) and blocked (captcha/bot-wall) jobs may still be live —
+    # try to recover the real apply link from the company's own ATS. Recovered
+    # jobs keep their place with the new URL. Unrecovered GATED jobs are dropped
+    # (the wall really does hide the posting); unrecovered BLOCKED jobs are KEPT
+    # but flagged 'unverified' (we couldn't confirm live OR gone — don't discard a
+    # possibly-live job, but warn on the card).
     recovered = 0
+    unverified: set[str] = set()
     for job, _m in head:
-        if verdicts.get(job.dedup_key()) != "gated":
+        v = verdicts.get(job.dedup_key())
+        if v not in ("gated", "blocked"):
             continue
         new_url = recover_apply_url(job.company, job.title)
         if new_url:
             job.url = new_url
             verdicts[job.dedup_key()] = "active"
             recovered += 1
+        elif v == "blocked":
+            verdicts[job.dedup_key()] = "unverified"
+            unverified.add(job.dedup_key())
 
     dead = {k for k, v in verdicts.items() if v in ("gone", "gated")}
     live = {k for k, v in verdicts.items() if k not in dead}
@@ -397,17 +406,19 @@ def _verify_links(db: DbSession, ranked: list) -> list:
         for k in dead:                       # dead-end links: purge from the corpus
             db.query(Job).filter(Job.dedup_key == k).delete(synchronize_session=False)
         for k in live:                       # keep; stamp checked (+ save any recovered URL)
-            vals = {Job.last_checked_at: utcnow()}
+            vals = {Job.last_checked_at: utcnow(),
+                    Job.link_status: ("unverified" if k in unverified else "")}
             if k in by_key and by_key[k].url:
                 vals[Job.url] = by_key[k].url[:1000]
             db.query(Job).filter(Job.dedup_key == k).update(vals, synchronize_session=False)
         db.commit()
     except Exception:
         db.rollback()
-    if dead or recovered:
-        log.info("Search: %d dead/gated links dropped, %d recovered from ATS",
-                 len(dead), recovered)
-    return [(j, m) for (j, m) in ranked if j.dedup_key() not in dead]
+    if dead or recovered or unverified:
+        log.info("Search: %d dropped, %d recovered from ATS, %d unverified (captcha)",
+                 len(dead), recovered, len(unverified))
+    kept = [(j, m) for (j, m) in ranked if j.dedup_key() not in dead]
+    return kept, unverified
 
 
 def _location_ok(job, match, profile) -> bool:

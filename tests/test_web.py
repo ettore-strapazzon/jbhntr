@@ -1354,6 +1354,7 @@ class _FakeResp:
         (200, "Apply now for this great role", "active"),
         (200, "This position is closed. No longer available.", "gone"),
         (200, "Sorry, page not found", "gone"),
+        (200, "Please verify you are human. Just a moment...", "blocked"),  # captcha
         (403, "forbidden", "unknown"),        # blocked: don't guess
     ],
 )
@@ -2854,7 +2855,7 @@ def test_verify_links_drops_dead_and_purges_corpus(client, monkeypatch):
                        url=p.url, last_checked_at=None))
         db.commit()
 
-        kept = search_service._verify_links(db, [(good, m), (dead, m)])
+        kept, _unv = search_service._verify_links(db, [(good, m), (dead, m)])
         titles = [j.title for j, _ in kept]
         assert titles == ["Good"]                                  # dead dropped
         assert db.query(Job).filter_by(dedup_key=dead.dedup_key()).count() == 0  # purged
@@ -3313,7 +3314,7 @@ def test_verify_links_recovers_gated_before_dropping(client, monkeypatch):
         db.add(Job(dedup_key=gated.dedup_key(), source=gated.source,
                    title=gated.title, url=gated.url))
         db.commit()
-        kept = search_service._verify_links(db, [(gated, m)])
+        kept, _unv = search_service._verify_links(db, [(gated, m)])
         assert len(kept) == 1                                  # not dropped
         assert kept[0][0].url == "https://jobs.ashbyhq.com/abundant/REAL"   # recovered
         row = db.query(Job).filter_by(dedup_key=gated.dedup_key()).one()
@@ -3340,11 +3341,39 @@ def test_verify_links_drops_unrecoverable_gated(client, monkeypatch):
         db.add(Job(dedup_key=gated.dedup_key(), source=gated.source,
                    title=gated.title, url=gated.url))
         db.commit()
-        kept = search_service._verify_links(db, [(gated, m)])
+        kept, _unv = search_service._verify_links(db, [(gated, m)])
         assert kept == []                                      # dropped (unrecoverable)
         assert db.query(Job).filter_by(dedup_key=gated.dedup_key()).count() == 0
     finally:
         db.query(Job).filter_by(dedup_key=gated.dedup_key()).delete()
+        db.commit(); db.close()
+
+
+def test_verify_links_flags_blocked_captcha_unverified(client, monkeypatch):
+    """A captcha/bot-walled link with no ATS alternative is KEPT (may be live) but
+    flagged 'unverified' — not silently dropped, not shown as clean."""
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import reaper, recover, search_service
+    from jobhunter.models import JobPosting, MatchResult
+
+    blocked = JobPosting(source="api:jooble", title="Head of Ops", company="CaptchaCo",
+                         url="https://jooble.org/away/xyz")
+    m = MatchResult(tier=1, score=76, reasons="ok")
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: "blocked")
+    monkeypatch.setattr(recover, "recover_apply_url", lambda company, title: None)
+
+    db = SessionLocal()
+    try:
+        db.add(Job(dedup_key=blocked.dedup_key(), source=blocked.source,
+                   title=blocked.title, url=blocked.url))
+        db.commit()
+        kept, unverified = search_service._verify_links(db, [(blocked, m)])
+        assert len(kept) == 1                                   # kept, not dropped
+        assert blocked.dedup_key() in unverified                # flagged for the card
+        assert db.query(Job).filter_by(dedup_key=blocked.dedup_key()).one().link_status == "unverified"
+    finally:
+        db.query(Job).filter_by(dedup_key=blocked.dedup_key()).delete()
         db.commit(); db.close()
 
 

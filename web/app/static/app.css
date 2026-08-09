@@ -367,6 +367,7 @@ details.desc>summary{cursor:pointer;font-size:14px;color:var(--muted);padding:6p
 .statebadge.saved{background:var(--ok-bg);color:var(--accent);border:1px solid #c9e3d6}
 .statebadge.new{background:var(--ink);color:#fff}
 .statebadge.applied{background:#eef2ff;color:#2b3b7a;border:1px solid #c9d4f3}
+.statebadge.unverified{background:#fff4e5;color:#8a5a00;border:1px solid #f0d9ac}
 .job.is-applied{opacity:.85}
 .btn.on,button.on,.btn.ghost.on{background:var(--ok-bg);border-color:#c9e3d6;color:var(--accent)}
 .job-title{flex:1;min-width:240px}

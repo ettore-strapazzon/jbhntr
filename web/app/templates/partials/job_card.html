@@ -30,6 +30,7 @@
       {% if is_new %}<span class="statebadge new">New</span>{% endif %}
       {% if applied %}<span class="statebadge applied">Applied{% if st.applied_at %} {{ st.applied_at.strftime("%d %b") }}{% endif %}</span>{% endif %}
       {% if saved %}<span class="statebadge saved">Saved</span>{% endif %}
+      {% if r.link_status == "unverified" %}<span class="statebadge unverified" title="We couldn't verify this apply link (captcha/bot-wall) — the posting may no longer be available">Link unverified</span>{% endif %}
       <div class="job-title">
         <div class="jt">{{ r.title }}</div>
         <div class="muted small">

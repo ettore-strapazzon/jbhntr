@@ -197,6 +197,9 @@ class JobResult(Base):
 
     why_good: Mapped[str] = mapped_column(Text, default="")
     why_bad: Mapped[str] = mapped_column(Text, default="")
+    # "unverified" when the apply link couldn't be verified (captcha/bot-wall) and
+    # no live alternative was found — the card warns it may no longer be available.
+    link_status: Mapped[str] = mapped_column(String(16), default="")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -240,6 +243,9 @@ class Job(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     # When the reaper last verified the URL was still live (None = never checked).
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # "" = ok/verified. "unverified" = the apply link is behind a captcha/bot-wall
+    # we couldn't read and couldn't recover, so we can't confirm it's still live.
+    link_status: Mapped[str] = mapped_column(String(16), default="")
     # Semantic embedding (list of floats) + the model that produced it, so a
     # model change can re-embed. None = not yet embedded. Used for search-time
     # cosine ranking (step 4); populated at ingestion when embeddings are on.
