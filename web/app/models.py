@@ -7,10 +7,10 @@ Array-ish fields are stored as JSON so the same schema works on both SQLite
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import (
-    JSON, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text,
+    JSON, Boolean, Date, DateTime, ForeignKey, Integer, LargeBinary, String, Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -349,14 +349,38 @@ class JobState(Base):
     dismissed: Mapped[bool] = mapped_column(Boolean, default=False)
     dismiss_reason: Mapped[str] = mapped_column(String(40), default="")
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    # Applied | Replied | Interviewing | Rejected | Offer | Withdrawn
+    # Applied | Interviewing | Offer | Accepted | Rejected | Withdrawn ("Saved" and
+    # "Closed" are derived, never stored — see services/job_state.stage_of).
     application_status: Mapped[str] = mapped_column(String(16), default="")
+    # Tracker: the one thing the user owes next on this role, and when.
+    next_step: Mapped[str] = mapped_column(String(80), default="")
+    next_step_on: Mapped[date | None] = mapped_column(Date, default=None)
+    # When a job is Rejected/Withdrawn, the active stage it was closed from
+    # ("Applied" | "Interviewing" | "Offer"), so the card can show "after interview".
+    closed_from_stage: Mapped[str] = mapped_column(String(16), default="")
     # Set when a posting has been included in a digest, so it is never repeated.
     digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow,
                                                  onupdate=utcnow)
+
+
+class JobEvent(Base):
+    """A dated entry on a tracked job's timeline: interview, call, note, offer, task.
+
+    Keyed by (user, dedup_key) like JobState, so it survives across search runs and
+    reaping (the reaper keeps saved/applied postings)."""
+
+    __tablename__ = "job_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    dedup_key: Mapped[str] = mapped_column(String(120), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="note")  # note|interview|call|offer|task
+    occurred_on: Mapped[date] = mapped_column(Date, default=date.today)
+    body: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Document(Base):

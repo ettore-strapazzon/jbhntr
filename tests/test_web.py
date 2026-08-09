@@ -3422,6 +3422,82 @@ def test_reaper_check_limit_zero_checks_all(client, monkeypatch):
         db.commit(); db.close()
 
 
+def test_job_state_stage_transitions():
+    """stage_of derivation + set_stage / close (records closed_from_stage) / reopen."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobState, User
+    from web.app.services import job_state as js
+
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="trk-logic@example.com", plan="free"); db.add(u); db.commit()
+        k = "trk-key-1"
+        st = js.set_saved(db, u.id, k, True)
+        assert js.stage_of(st) == "Saved"
+        js.set_stage(db, u.id, k, "Applied")
+        assert js.stage_of(js.get_or_create(db, u.id, k)) == "Applied"
+        js.set_stage(db, u.id, k, "Interviewing")
+        # Close from Interviewing -> Closed, remembers the stage.
+        st = js.close_application(db, u.id, k, "Rejected")
+        assert js.stage_of(st) == "Closed" and st.closed_from_stage == "Interviewing"
+        # Reopen -> back to Interviewing, label cleared.
+        st = js.reopen_application(db, u.id, k)
+        assert js.stage_of(st) == "Interviewing" and st.closed_from_stage == ""
+        assert js.set_stage(db, u.id, k, "Nope") is None       # invalid stage rejected
+    finally:
+        uid = db.query(User.id).filter_by(email="trk-logic@example.com").scalar()
+        if uid is not None:
+            db.query(JobState).filter_by(user_id=uid).delete()
+            db.query(User).filter_by(id=uid).delete()
+        db.commit(); db.close()
+
+
+def test_my_jobs_tracker_flow(client):
+    """End-to-end: a saved job shows in My Jobs; 'I applied' + timeline endpoints work."""
+    from web.app.db import SessionLocal
+    from web.app.models import JobEvent, JobResult, JobState, Search, User
+    from web.app.services import job_state
+
+    signup(client, email="trk@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="trk@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="trk1",
+                       dedup_key="trk-dk", title="Head of Ops", company="Acme")
+        db.add(jr); db.commit()
+        job_state.set_saved(db, u.id, "trk-dk", True); db.commit()
+        rid = jr.id
+    finally:
+        db.close()
+
+    # Saved job appears in My Jobs under Saved.
+    page = client.get("/applications")
+    assert page.status_code == 200 and "My Jobs" in page.text and "Head of Ops" in page.text
+
+    # "I applied" -> Applied (htmx card swap).
+    r = client.post(f"/job/{rid}/stage", data={"stage": "Applied"},
+                    headers={"HX-Request": "true"})
+    assert r.status_code == 200 and "Applied" in r.text
+    # Add a timeline entry.
+    r = client.post(f"/job/{rid}/event", data={"kind": "interview", "body": "Onsite loop",
+                    "occurred_on": "2026-08-20"}, headers={"HX-Request": "true"})
+    assert r.status_code == 200 and "Onsite loop" in r.text
+
+    db = SessionLocal()
+    try:
+        st = db.query(JobState).filter_by(user_id=u.id, dedup_key="trk-dk").one()
+        assert st.applied_at is not None and st.application_status == "Applied"
+        assert db.query(JobEvent).filter_by(user_id=u.id, dedup_key="trk-dk").count() == 1
+    finally:
+        db.query(JobEvent).filter_by(user_id=u.id).delete()
+        db.query(JobState).filter_by(user_id=u.id).delete()
+        db.query(JobResult).filter_by(user_id=u.id).delete()
+        db.query(Search).filter_by(user_id=u.id).delete()
+        db.commit(); db.close()
+
+
 def test_admin_clear_board(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal

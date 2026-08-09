@@ -919,3 +919,40 @@ a.plan-cta,.plan-cta .btn{align-self:start}
   .vote button{flex:1}
   footer{flex-wrap:wrap;gap:10px 16px}
 }
+
+/* --- My Jobs tracker --- */
+.trk-counts{display:flex;flex-wrap:wrap;gap:10px 18px;margin:6px 0 18px}
+.trk-counts .tc{font-size:.95rem}
+.trk-counts .tc b{font-size:1.15rem;margin-right:4px}
+.needs{border:1px solid #e6e2d9;border-radius:10px;padding:12px 14px;margin:0 0 18px;background:#faf7f0}
+.needs h2{margin:0 0 6px}
+.needs ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.needs li.overdue b{color:#b23b2e}
+.trk-group{border-top:1px solid #ece8df;margin:0}
+.trk-grouphead{cursor:pointer;font-size:1.05rem;font-weight:600;padding:12px 0;list-style:none}
+.trk-grouphead::-webkit-details-marker{display:none}
+.trk-grouphead::before{content:"\25B8";margin-right:8px;color:#9a948a}
+.trk-group[open] .trk-grouphead::before{content:"\25BE"}
+.trk-list{display:flex;flex-direction:column;gap:10px;padding-bottom:14px}
+.trk{border:1px solid #e6e2d9;border-radius:10px;padding:12px 14px;background:#fff}
+.trk-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.trk-title b{font-size:1rem}
+.trk-badge{white-space:nowrap;font-size:.78rem;padding:2px 8px;border-radius:999px;background:#eee;color:#444}
+.trk-badge.s-saved{background:#eef1f5}
+.trk-badge.s-applied{background:#eaf2ff;color:#1f5fbf}
+.trk-badge.s-interviewing{background:#fff2d9;color:#8a5a00}
+.trk-badge.s-offer{background:#e6f7ec;color:#1b7a43}
+.trk-badge.s-closed{background:#f0eeea;color:#6b6459}
+.trk-next{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.trk-next input[type=text]{flex:1;min-width:160px;padding:6px 8px}
+.trk-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:2px 0}
+.trk-actions form{margin:0}
+.trk-timeline{margin-top:10px}
+.trk-addev{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.trk-addev input[type=text]{flex:1;min-width:180px;padding:6px 8px}
+.trk-events{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.trk-events li{display:flex;gap:8px;align-items:baseline}
+.ev-kind{font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;padding:1px 6px;border-radius:4px;background:#f0eeea;color:#6b6459}
+.ev-interview{background:#fff2d9;color:#8a5a00}
+.ev-offer{background:#e6f7ec;color:#1b7a43}
+.ev-body{flex:1}

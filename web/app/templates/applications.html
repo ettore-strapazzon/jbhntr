@@ -1,53 +1,55 @@
 {% extends "base.html" %}
 {% block title %}My Jobs · JBHNTR{% endblock %}
 {% block content %}
-<h1>My Jobs</h1>
-<p class="muted">Roles you marked as applied, with the status and any JBHNTR drafts
-  saved for that role.</p>
+<div class="matches-head">
+  <div>
+    <h1>My Jobs</h1>
+    <p class="small muted">Every role you're pursuing, and what's next.</p>
+  </div>
+</div>
 
-{% if not rows %}
+<div class="trk-counts" role="list" aria-label="Pipeline summary">
+  <span class="tc" role="listitem"><b>{{ counts.Saved }}</b> Saved</span>
+  <span class="tc" role="listitem"><b>{{ counts.Applied }}</b> Applied</span>
+  <span class="tc" role="listitem"><b>{{ counts.Interviewing }}</b> Interviewing</span>
+  <span class="tc" role="listitem"><b>{{ counts.Offer }}</b> Offer</span>
+  {% if counts.Closed %}<span class="tc muted" role="listitem"><b>{{ counts.Closed }}</b> Closed</span>{% endif %}
+</div>
+
+{% if not has_any %}
   <section class="emptybox">
-    <p class="muted">No applications tracked yet. Mark a shortlisted role as applied
-      and it will appear here.</p>
-    <p><a class="btn ghost" href="/matches">Back to your shortlist</a></p>
+    <p class="muted">Saved roles land here. Save a few on Matches and track them through to offer.</p>
+    <p><a class="btn" href="/matches">Go to Matches</a></p>
   </section>
 {% else %}
-  <div class="tablewrap">
-    <table class="apptable">
-      <thead>
-        <tr><th>Role</th><th>Applied</th><th>Status</th><th>Drafts</th><th></th></tr>
-      </thead>
-      <tbody>
-        {% for row in rows %}
-          <tr>
-            <td>
-              <b>{{ row.r.title }}</b><br>
-              <span class="muted small">{{ row.r.company }}{% if row.r.location %} · {{ row.r.location }}{% endif %}</span>
-            </td>
-            <td class="small">{{ row.st.applied_at.strftime("%d %b %Y") }}</td>
-            <td>
-              <form method="post" action="/job/{{ row.r.id }}/status" class="statusform">
-                <select name="status" aria-label="Application status">
-                  {% for s in statuses %}
-                    <option value="{{ s }}" {% if s == row.st.application_status %}selected{% endif %}>{{ s }}</option>
-                  {% endfor %}
-                </select>
-                <button class="ghost" type="submit">Update</button>
-              </form>
-            </td>
-            <td class="small">
-              {% if "cv" in row.docs %}<a href="/document/{{ row.r.id }}/cv">CV</a>{% endif %}
-              {% if "cv" in row.docs and "cl" in row.docs %} · {% endif %}
-              {% if "cl" in row.docs %}<a href="/document/{{ row.r.id }}/cl">Cover letter</a>{% endif %}
-              {% if not row.docs %}<span class="muted">—</span>{% endif %}
-            </td>
-            <td class="small">
-              {% if row.r.apply_url %}<a href="{{ row.r.apply_url }}" target="_blank" rel="noopener noreferrer">Open</a>{% endif %}
-            </td>
-          </tr>
+  {% if needs %}
+    <section class="needs">
+      <h2 class="small">Needs you</h2>
+      <ul>
+        {% for n in needs %}
+          <li class="{% if n.overdue %}overdue{% endif %}">
+            <b>{{ n.company }}</b> — {{ n.text }}{% if n.when %}
+            <span class="muted small">({{ n.when.strftime('%d %b') }})</span>{% endif %}
+          </li>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
+      </ul>
+    </section>
+  {% endif %}
+
+  {% for stage in stage_order %}
+    {% set rows = groups[stage] %}
+    {% if rows %}
+      <details class="trk-group"{% if stage != 'Closed' %} open{% endif %}>
+        <summary class="trk-grouphead">{{ stage }} <span class="muted">· {{ rows|length }}</span></summary>
+        <div class="trk-list">
+          {% for row in rows %}
+            {% with r=row.r, st=row.st, stage=row.stage, docs=row.docs, events=row.events %}
+              {% include "partials/track_card.html" %}
+            {% endwith %}
+          {% endfor %}
+        </div>
+      </details>
+    {% endif %}
+  {% endfor %}
 {% endif %}
 {% endblock %}

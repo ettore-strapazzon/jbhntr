@@ -87,6 +87,10 @@ def _backfill() -> None:
             conn.execute(text(
                 "UPDATE feedback SET rating = CASE vote WHEN 'up' THEN 5 "
                 "WHEN 'down' THEN 1 END WHERE rating IS NULL AND vote IN ('up','down')"))
+            # Fold the retired "Replied" status into "Applied" (tracker §1/§3b).
+            conn.execute(text(
+                "UPDATE job_states SET application_status='Applied' "
+                "WHERE application_status='Replied'"))
     except Exception:
         log.exception("backfill skipped")
 
@@ -120,7 +124,10 @@ def _add_missing_columns() -> None:
                   "discovery_verticals": ("TEXT", "DEFAULT '[]'"),
                   "discovery_company_types": ("TEXT", "DEFAULT '[]'"),
                   "discovery_countries": ("TEXT", "DEFAULT '[]'")},
-        "job_states": {"digest_sent_at": ("TIMESTAMP", "")},
+        "job_states": {"digest_sent_at": ("TIMESTAMP", ""),
+                       "next_step": ("TEXT", "DEFAULT ''"),
+                       "next_step_on": ("DATE", ""),
+                       "closed_from_stage": ("TEXT", "DEFAULT ''")},
         "searches": {"notify_email": ("BOOLEAN", "DEFAULT false"),
                      "located_count": ("INTEGER", "DEFAULT 0"),
                      "ranked_count": ("INTEGER", "DEFAULT 0")},

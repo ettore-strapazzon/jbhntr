@@ -1,0 +1,92 @@
+{# One tracked job. Expects: r, st, stage, docs (set of (id,kind)), events,
+   pipeline_stages, close_outcomes, event_kinds. #}
+{% set kinds = docs | map(attribute=1) | list %}
+<article id="trk-{{ r.id }}" class="trk s-{{ stage|lower }}">
+  <div class="trk-head">
+    <div class="trk-title">
+      <b>{{ r.title }}</b>
+      <div class="muted small">{{ r.company }}{% if r.location %} · {{ r.location }}{% endif %}</div>
+    </div>
+    <span class="trk-badge s-{{ stage|lower }}">
+      {% if stage == 'Closed' %}{{ st.application_status }}{% if st.closed_from_stage %} · after {{ st.closed_from_stage|lower }}{% endif %}
+      {% else %}{{ stage }}{% endif %}
+    </span>
+  </div>
+
+  {# Next step + date #}
+  <form class="trk-next" method="post" action="/job/{{ r.id }}/next-step"
+        hx-post="/job/{{ r.id }}/next-step" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+    <input type="text" name="text" maxlength="80" placeholder="Next step…"
+           value="{{ st.next_step or '' }}" aria-label="Next step">
+    <input type="date" name="on" value="{{ st.next_step_on.isoformat() if st.next_step_on else '' }}"
+           aria-label="Next step date">
+    <button class="ghost small" type="submit">Save</button>
+  </form>
+
+  {# Stage controls #}
+  <div class="trk-actions">
+    {% if stage == 'Saved' %}
+      <form method="post" action="/job/{{ r.id }}/stage"
+            hx-post="/job/{{ r.id }}/stage" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+        <input type="hidden" name="stage" value="Applied">
+        <button type="submit">I applied</button>
+      </form>
+    {% elif stage == 'Closed' %}
+      <form method="post" action="/job/{{ r.id }}/reopen"
+            hx-post="/job/{{ r.id }}/reopen" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+        <button class="ghost" type="submit">Reopen</button>
+      </form>
+    {% else %}
+      <form method="post" action="/job/{{ r.id }}/stage" class="trk-stageform"
+            hx-post="/job/{{ r.id }}/stage" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+        <label class="sr-only" for="stage-{{ r.id }}">Stage</label>
+        <select id="stage-{{ r.id }}" name="stage"
+                onchange="if(this.form.requestSubmit){this.form.requestSubmit()}else{this.form.submit()}">
+          {% for s in pipeline_stages %}
+            <option value="{{ s }}" {% if s == st.application_status %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit">Update</button></noscript>
+      </form>
+      {% for o in close_outcomes %}
+        <form method="post" action="/job/{{ r.id }}/close" style="display:inline"
+              hx-post="/job/{{ r.id }}/close" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+          <input type="hidden" name="outcome" value="{{ o }}">
+          <button class="linklike small" type="submit">{{ 'Mark rejected' if o == 'Rejected' else 'Withdraw' }}</button>
+        </form>
+      {% endfor %}
+    {% endif %}
+    {% if r.apply_url %}<a class="small" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open posting</a>{% endif %}
+    {% if 'cv' in kinds %}<a class="small" href="/document/{{ r.id }}/cv">CV</a>{% endif %}
+    {% if 'cl' in kinds %}<a class="small" href="/document/{{ r.id }}/cl">Cover letter</a>{% endif %}
+  </div>
+
+  {# Timeline #}
+  <details class="trk-timeline">
+    <summary class="small">Timeline{% if events %} · {{ events|length }}{% endif %}</summary>
+    <form class="trk-addev" method="post" action="/job/{{ r.id }}/event"
+          hx-post="/job/{{ r.id }}/event" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+      <select name="kind" aria-label="Entry type">
+        {% for k in event_kinds %}<option value="{{ k }}">{{ k|capitalize }}</option>{% endfor %}
+      </select>
+      <input type="date" name="occurred_on" aria-label="Entry date">
+      <input type="text" name="body" maxlength="500" placeholder="Interview notes, a call, an offer…" aria-label="Entry note">
+      <button class="ghost small" type="submit">Add</button>
+    </form>
+    <ul class="trk-events">
+      {% for ev in events %}
+        <li>
+          <span class="ev-kind ev-{{ ev.kind }}">{{ ev.kind }}</span>
+          <span class="muted small">{{ ev.occurred_on.strftime('%d %b') }}</span>
+          <span class="ev-body">{{ ev.body }}</span>
+          <form method="post" action="/job/{{ r.id }}/event/{{ ev.id }}/delete" style="display:inline"
+                hx-post="/job/{{ r.id }}/event/{{ ev.id }}/delete" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+            <button class="linklike small" type="submit" aria-label="Delete entry">×</button>
+          </form>
+        </li>
+      {% else %}
+        <li class="muted small">No entries yet.</li>
+      {% endfor %}
+    </ul>
+  </details>
+</article>
