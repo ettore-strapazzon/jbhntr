@@ -45,6 +45,18 @@ DEAD_MARKERS = (
     "the job you are looking for", "not currently accepting",
 )
 
+# A closed posting often SERVER-SIDE redirects to a URL that flags it, even when
+# the landing page is a bot-check/captcha or a generic search page our fetch can't
+# read (jooble sends closed jobs to its search page with ?closedJob=True). Match
+# the FINAL redirected URL so these are caught regardless of body content.
+GONE_URL_MARKERS = (
+    "closedjob=true",                       # jooble
+    "no-longer-available", "nolongeravailable",
+    "job-expired", "jobexpired", "expired-job",
+    "position-filled", "positionfilled",
+    "joblisting/expired", "jobs/expired",
+)
+
 # A login/registration wall hides the real posting. Unlike a 404, the job is
 # usually still live — so this is 'gated' (recoverable), not 'gone'.
 WALL_MARKERS = (
@@ -69,6 +81,11 @@ def check_url(url: str, client: httpx.Client) -> str:
         r = client.get(url, follow_redirects=True)
     except Exception:
         return "unknown"
+    # The URL we actually landed on (after redirects) can flag a closed job even
+    # when the page body is a captcha/search page we can't parse.
+    final_url = str(getattr(r, "url", "") or "").lower()
+    if any(m in final_url for m in GONE_URL_MARKERS):
+        return "gone"
     if r.status_code in (404, 410):
         return "gone"
     if r.status_code != 200:

@@ -1340,9 +1340,10 @@ def test_merge_terms_caps_length():
 
 # ------------------------------- reaper ----------------------------------- #
 class _FakeResp:
-    def __init__(self, status, text=""):
+    def __init__(self, status, text="", url="https://x/job"):
         self.status_code = status
         self.text = text
+        self.url = url
 
 
 @pytest.mark.parametrize(
@@ -1375,6 +1376,21 @@ def test_check_url_unknown_on_network_error():
 
     assert check_url("https://x", C()) == "unknown"
     assert check_url("", C()) == "unknown"    # no URL
+
+
+def test_check_url_gone_by_redirect_url():
+    """A closed job that server-side-redirects to a flagged URL (jooble's
+    ?closedJob=True) is 'gone' even when the landing page body is unreadable
+    (captcha/search page) and returns 200."""
+    from web.app.services.reaper import check_url
+
+    class C:
+        def get(self, url, follow_redirects=True):
+            # 200 with an unreadable body, but the final URL flags the closed job.
+            return _FakeResp(200, "captcha please verify you are human",
+                             url="https://jooble.org/SearchResult?closedJob=True&ukw=head")
+
+    assert check_url("https://jooble.org/away/123", C()) == "gone"
 
 
 def test_sweep_ttl_deletes_stale_and_linkcheck_deletes_gone(monkeypatch):
