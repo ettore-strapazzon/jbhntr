@@ -33,7 +33,18 @@ from ..models import Job, utcnow
 
 log = logging.getLogger("jbhntr.reaper")
 
-_UA = "Mozilla/5.0 (compatible; JBHNTR-linkcheck/1.0)"
+# Present a normal browser identity. Announcing a bot ("...linkcheck/1.0") makes
+# many aggregators/employer sites serve a captcha/bot-wall instead of the posting,
+# which we then can't read (verdict 'blocked'). A realistic UA + browser Accept
+# headers lets most of those return the real page, so we get a true active/gone
+# verdict. This is link-health checking (one GET per posting), not scraping.
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+BROWSER_HEADERS = {
+    "User-Agent": _UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 # A 200 page containing any of these is a genuinely closed/removed posting.
 DEAD_MARKERS = (
@@ -144,6 +155,7 @@ def sweep(
     check_limit: int = 5000,  # link-checks per run (chips through the corpus); 0 = all
     recheck_days: int = 7,
     workers: int = 16,        # concurrency, to keep 5k checks to a sane wall-clock
+    unverified_stale_days: int = 21,  # tighter TTL for links we can't verify by URL
 ) -> dict:
     """One reaper pass. Returns counts. Never raises (logs and returns)."""
     try:
@@ -168,6 +180,17 @@ def sweep(
         ttl_deleted = ttl_q.delete(synchronize_session=False)
         db.commit()
 
+        # 1b. Unverifiable (captcha/bot-walled) jobs we can't confirm by URL: trust
+        #     the SOURCE instead. If the aggregator stopped surfacing it for a while
+        #     it's very likely closed, so prune on a tighter window than the full
+        #     TTL — no network, and it stops these lingering as stale results.
+        unv_before = now - timedelta(days=unverified_stale_days)
+        unv_q = db.query(Job).filter(Job.link_status == "unverified",
+                                     Job.last_seen_at < unv_before)
+        reaped_keys += [k for (k,) in unv_q.with_entities(Job.dedup_key) if k]
+        unverified_pruned = unv_q.delete(synchronize_session=False)
+        db.commit()
+
         # 2. Link-check a bounded batch: never-checked or checked long ago,
         #    oldest first, so a daily run chips through the whole corpus.
         recheck_before = now - timedelta(days=recheck_days)
@@ -184,7 +207,7 @@ def sweep(
 
         checked = gone = blocked = 0
         if batch:
-            with httpx.Client(timeout=15.0, headers={"User-Agent": _UA}) as client:
+            with httpx.Client(timeout=15.0, headers=BROWSER_HEADERS) as client:
                 def _one(job: Job) -> tuple[int, str]:
                     return job.id, check_url(job.url, client)
 
@@ -218,7 +241,8 @@ def sweep(
         unverified_total = db.query(Job).filter(Job.link_status == "unverified").count()
         result = {"ttl_deleted": ttl_deleted + gated_deleted, "checked": checked,
                   "gone_deleted": gone, "gated_deleted": gated_deleted,
-                  "blocked": blocked, "unverified_total": unverified_total,
+                  "blocked": blocked, "unverified_pruned": unverified_pruned,
+                  "unverified_total": unverified_total,
                   "board_purged": board_purged, "remaining": db.query(Job).count()}
         log.info("Reaper: %s", result)
         return result

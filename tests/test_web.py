@@ -3377,6 +3377,34 @@ def test_verify_links_flags_blocked_captcha_unverified(client, monkeypatch):
         db.commit(); db.close()
 
 
+def test_reaper_prunes_stale_unverified_jobs(client, monkeypatch):
+    """Captcha-walled 'unverified' jobs the source stopped surfacing get pruned on
+    the tighter window; a still-fresh unverified job is kept."""
+    from datetime import timedelta
+
+    from web.app.db import SessionLocal
+    from web.app.models import Job, utcnow
+    from web.app.services import reaper
+
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: "unknown")
+    db = SessionLocal()
+    try:
+        old = utcnow() - timedelta(days=30)
+        db.add(Job(dedup_key="unv-stale", source="s", title="x", url="u",
+                   link_status="unverified", last_seen_at=old, last_checked_at=utcnow()))
+        db.add(Job(dedup_key="unv-fresh", source="s", title="x", url="u",
+                   link_status="unverified", last_seen_at=utcnow(), last_checked_at=utcnow()))
+        db.commit()
+        reaper.sweep(db, check_limit=0, unverified_stale_days=21)
+        remaining = {r.dedup_key for r in db.query(Job)
+                     .filter(Job.dedup_key.in_(["unv-stale", "unv-fresh"]))}
+        assert "unv-stale" not in remaining      # unseen 30d -> pruned
+        assert "unv-fresh" in remaining          # recently seen -> kept
+    finally:
+        db.query(Job).filter(Job.dedup_key.in_(["unv-stale", "unv-fresh"])).delete()
+        db.commit(); db.close()
+
+
 def test_reaper_recheck_days_zero_forces_recently_checked(client, monkeypatch):
     """recheck_days=0 (deep clean) re-examines a job checked moments ago, so a new
     checker (e.g. captcha detection) runs against the whole corpus — whereas the

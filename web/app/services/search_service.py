@@ -347,7 +347,6 @@ def _candidate_query_text(profile, candidate) -> str:
 
 
 VERIFY_LIMIT = 30    # top results to link-check before showing (bounds latency)
-_VERIFY_UA = "Mozilla/5.0 (compatible; JBHNTR-linkcheck/1.0)"
 
 
 def _verify_links(db: DbSession, ranked: list) -> list:
@@ -360,7 +359,7 @@ def _verify_links(db: DbSession, ranked: list) -> list:
     import httpx
 
     from ..models import Job
-    from .reaper import check_url
+    from .reaper import BROWSER_HEADERS, check_url
 
     from .recover import recover_apply_url
 
@@ -368,7 +367,7 @@ def _verify_links(db: DbSession, ranked: list) -> list:
     if not head:
         return ranked
     try:
-        with httpx.Client(timeout=12.0, headers={"User-Agent": _VERIFY_UA}) as client:
+        with httpx.Client(timeout=12.0, headers=BROWSER_HEADERS) as client:
             def _one(pair):
                 job, _m = pair
                 return job.dedup_key(), check_url(job.url, client)
