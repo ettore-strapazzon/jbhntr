@@ -48,6 +48,7 @@ def _filename(r: JobResult, kind: str, ext: str) -> str:
 @router.get("/document/{result_id}/{kind}", response_class=HTMLResponse)
 def view(result_id: int, kind: str, request: Request, saved: str = "",
          user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    from ..services import gdocs
     r, doc = _doc(db, user, result_id, kind)
     if not r or not doc:
         return RedirectResponse("/matches", status_code=303)
@@ -66,6 +67,7 @@ def view(result_id: int, kind: str, request: Request, saved: str = "",
         "revisions": revisions,
         "refined": (request.query_params.get("refined") == "1"),
         "error": request.query_params.get("error", ""),
+        "gdoc_enabled": gdocs.enabled(),
     })
 
 
@@ -147,6 +149,44 @@ def refine(result_id: int, kind: str, feedback: str = Form(...),
     db.commit()
     record(db, "document_refined", user_id=user.id, kind=kind)
     return RedirectResponse(f"/document/{result_id}/{kind}?refined=1", status_code=303)
+
+
+@router.post("/document/{result_id}/{kind}/gdoc")
+def open_gdoc(result_id: int, kind: str, content: str = Form(default=""),
+              user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    """Create (or reuse) a formatted Google Doc from the current draft and redirect
+    to it. The service account creates it and shares it with the user as editor."""
+    from ..services import gdocs
+
+    r, doc = _doc(db, user, result_id, kind)
+    if not r or not doc:
+        return RedirectResponse("/applications", status_code=303)
+    if not gdocs.enabled():
+        return RedirectResponse(
+            f"/document/{result_id}/{kind}?error=" + quote("Google Docs isn't configured."),
+            status_code=303)
+    # Persist current edits so the Doc matches the page, then reuse an existing Doc
+    # for this (unchanged) draft rather than spawning duplicates.
+    if content and content != doc.content:
+        doc.content = content
+        doc.gdoc_url = ""            # content changed -> make a fresh doc
+        db.commit()
+    if doc.gdoc_url:
+        return RedirectResponse(doc.gdoc_url, status_code=303)
+
+    title = (f"CV — {r.title} at {r.company}" if kind == "cv"
+             else f"Cover letter — {r.company}")
+    url = gdocs.create_doc(title, doc.content, user.email)
+    if not url:
+        return RedirectResponse(
+            f"/document/{result_id}/{kind}?error=" + quote(
+                "Couldn't create the Google Doc. Try again, or download DOCX."),
+            status_code=303)
+    doc.gdoc_url = url
+    db.commit()
+    from ..services.events import record
+    record(db, "gdoc_created", user_id=user.id, kind=kind)
+    return RedirectResponse(url, status_code=303)
 
 
 @router.post("/document/{result_id}/{kind}/restore/{doc_id}")

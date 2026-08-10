@@ -395,6 +395,9 @@ class Document(Base):
     content: Mapped[str] = mapped_column(Text)
     # For cover letters: a short "why this tone" note shown above the draft.
     note: Mapped[str] = mapped_column(Text, default="")
+    # Web link to a formatted Google Doc created from this draft (blank until the
+    # user opens it in Google Docs). Cached so repeated opens reuse the same doc.
+    gdoc_url: Mapped[str] = mapped_column(String(500), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

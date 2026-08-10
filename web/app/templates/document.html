@@ -19,6 +19,9 @@
     <textarea name="content" class="sheet" aria-label="Document text">{{ doc.content }}</textarea>
     <div class="doc-actions">
       <button type="submit">Save changes</button>
+      {% if gdoc_enabled %}
+        <button type="submit" formaction="/document/{{ r.id }}/{{ kind }}/gdoc" formtarget="_blank">Open in Google Docs</button>
+      {% endif %}
       <button type="submit" class="ghost" formaction="/document/{{ r.id }}/{{ kind }}/export/pdf">Download PDF</button>
       <button type="submit" class="ghost" formaction="/document/{{ r.id }}/{{ kind }}/export/docx">Download DOCX</button>
       <button type="submit" class="ghost" formaction="/document/{{ r.id }}/{{ kind }}/export/txt">Download text</button>

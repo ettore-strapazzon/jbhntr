@@ -137,7 +137,8 @@ def _add_missing_columns() -> None:
                         "link_status": ("TEXT", "DEFAULT ''")},
         "score_cache": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0")},
-        "documents": {"note": ("TEXT", "DEFAULT ''")},
+        "documents": {"note": ("TEXT", "DEFAULT ''"),
+                      "gdoc_url": ("TEXT", "DEFAULT ''")},
         "feedback": {"rating": ("INTEGER", "")},
         "page_views": {"visitor": ("TEXT", "")},
     }

@@ -3632,6 +3632,73 @@ def test_cv_style_profile_default_without_upload(client):
         db.close()
 
 
+def test_gdocs_build_doc_requests_formats():
+    """The Docs API request builder inserts the text once and styles each line by
+    its computed range (title, heading, bullets) — pure, no Google calls."""
+    from web.app.services import gdocs
+
+    reqs = gdocs.build_doc_requests("Ettore — CV", "SUMMARY\nA line.\n- one\n- two\n")
+    assert reqs[0]["insertText"]["location"]["index"] == 1
+    inserted = reqs[0]["insertText"]["text"]
+    assert inserted.startswith("Ettore — CV\nSUMMARY\n")
+    styles = [r for r in reqs if "updateParagraphStyle" in r]
+    named = {r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"] for r in styles}
+    assert "TITLE" in named and "HEADING_2" in named            # title + section header
+    bullets = [r for r in reqs if "createParagraphBullets" in r]
+    assert len(bullets) == 2                                     # two bullet lines
+    # First heading range starts right after the title line "Ettore — CV\n".
+    head = next(r["updateParagraphStyle"]["range"] for r in styles
+                if r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"] == "HEADING_2")
+    assert head["startIndex"] == 1 + len("Ettore — CV") + 1
+
+
+def test_open_gdoc_creates_and_reuses(client, monkeypatch):
+    """The Google Docs button creates a shared doc, caches its URL, and reuses it
+    on a repeat open of the same draft."""
+    from web.app.db import SessionLocal
+    from web.app.models import Document, JobResult, Search, User
+    from web.app.services import gdocs
+
+    signup(client, email="gdoc@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="gdoc@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="gd1",
+                       dedup_key="gd-dk", title="PM", company="Acme")
+        db.add(jr); db.flush()
+        db.add(Document(user_id=u.id, job_result_id=jr.id, kind="cv", content="Draft"))
+        db.commit(); rid = jr.id
+    finally:
+        db.close()
+
+    calls = {"n": 0}
+    monkeypatch.setattr(gdocs, "enabled", lambda: True)
+    monkeypatch.setattr(gdocs, "create_doc",
+                        lambda title, body, email: calls.__setitem__("n", calls["n"] + 1)
+                        or "https://docs.google.com/document/d/abc/edit")
+
+    r = client.post(f"/document/{rid}/cv/gdoc", data={"content": "Draft"},
+                    follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("https://docs.google.com/")
+    assert calls["n"] == 1
+    # Repeat open of the same content reuses the cached doc (no second create).
+    r2 = client.post(f"/document/{rid}/cv/gdoc", data={"content": "Draft"},
+                     follow_redirects=False)
+    assert r2.status_code == 303 and calls["n"] == 1
+
+    db = SessionLocal()
+    try:
+        from web.app.models import Document as D
+        assert db.query(D).filter_by(user_id=u.id).first().gdoc_url.startswith("https://")
+        db.query(D).filter_by(user_id=u.id).delete()
+        db.query(JobResult).filter_by(user_id=u.id).delete()
+        db.query(Search).filter_by(user_id=u.id).delete()
+        db.commit()
+    finally:
+        db.close()
+
+
 def test_document_refine_creates_revision(client, monkeypatch):
     """Refine appends a new revision from the user's feedback (free — no extra quota)."""
     from web.app.db import SessionLocal
