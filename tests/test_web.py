@@ -1234,15 +1234,15 @@ def test_nightly_runs_daily_always_and_weekly_on_monday(monkeypatch):
     monkeypatch.setattr(cron, "reaper_run", lambda **kw: calls.append("reaper") or {})
     monkeypatch.setattr(cron, "ingest_run", lambda cadence: calls.append(cadence) or {})
 
-    # A Tuesday: daily only.
+    # A Tuesday: daily only, then reap (reaper runs LAST so it checks new jobs).
     calls.clear()
     cron.nightly(today=datetime.date(2026, 7, 28))
-    assert calls == ["reaper", "daily"]
+    assert calls == ["daily", "reaper"]
 
-    # A Monday: discover + weekly + daily.
+    # A Monday: discover + weekly + daily, then reap.
     calls.clear()
     cron.nightly(today=datetime.date(2026, 7, 27))
-    assert calls == ["reaper", "discover", "weekly", "daily"]
+    assert calls == ["discover", "weekly", "daily", "reaper"]
 
 
 # ------------------------------ ingestion --------------------------------- #

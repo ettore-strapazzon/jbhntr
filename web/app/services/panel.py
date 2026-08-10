@@ -50,6 +50,10 @@ _RULES = (
     "role, never fabricate. It must be defensible line by line in an interview.\n"
     "- Adjust toward the job, do not twist to match: keep every role, seniority, "
     "scope and result faithful.\n"
+    "- INCLUDE EVERY position from the candidate's CV — never drop, merge or omit "
+    "an employer, role or date. Keep their COMPLETE work history; tailor by "
+    "re-emphasising and rewording bullets within each role, not by deleting jobs. "
+    "Omitting real experience is a failure.\n"
     "- Write like a person, not an AI. No em/en dashes, no buzzwords, no stock "
     "phrasing (\"leverage\", \"passionate about\").\n"
 )
@@ -103,7 +107,8 @@ def _synthesise(client, system, user, drafts, feedback, model, cap) -> str:
              "Below are independent drafts of this document. Produce ONE final "
              "version that takes the strongest, most truthful and best-written "
              "elements of each. Never add anything the candidate's materials do "
-             "not support."]
+             "not support, and — for a CV — keep EVERY role/employer/date that "
+             "appears in the drafts; do not drop any position when merging."]
     for i, d in enumerate(drafts, 1):
         parts.append(f"\n--- Draft {i} ---\n{d}")
     if feedback:

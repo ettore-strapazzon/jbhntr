@@ -51,23 +51,25 @@ def _stage(out: dict, name: str, fn):
 def nightly(today: datetime.date | None = None) -> dict:
     """Run the scheduled maintenance. Weekly work only on WEEKLY_DAY.
 
-    Order matters: reap first, then (weekly) grow the company registry and pull
-    the metered sources, then the daily ingest, which polls the registry
-    (including anything just discovered) and embeds new jobs. Each stage is
+    Order matters: (weekly) grow the company registry and pull the metered
+    sources, then the daily ingest (polls the registry incl. anything just
+    discovered, embeds new jobs), then reap LAST — so the reaper link-checks the
+    jobs just added this run instead of missing them until tomorrow. Each stage is
     isolated so one failure cannot crash the whole nightly run.
     """
     day = today or datetime.datetime.utcnow().date()
     is_weekly = day.weekday() == WEEKLY_DAY
     out: dict = {"weekly": is_weekly}
 
-    # Link-check EVERY due job each night (never-checked, or last checked >6 days
-    # ago) instead of a fixed 5k slice — so the whole corpus stays verified within
-    # a rolling 6-day window rather than a random subset. check_limit=0 = no cap.
-    _stage(out, "reaper", lambda: reaper_run(check_limit=0, recheck_days=6))
     if is_weekly:
         _stage(out, "discover", lambda: ingest_run("discover"))
         _stage(out, "ingest_weekly", lambda: ingest_run("weekly"))
     _stage(out, "ingest_daily", lambda: ingest_run("daily"))
+    # Reap AFTER ingest so the night's freshly-added (never-checked) postings are
+    # link-checked now, not a day later. Link-check EVERY due job (never-checked,
+    # or last checked >6 days ago) — the corpus stays verified within a rolling
+    # 6-day window. check_limit=0 = no cap.
+    _stage(out, "reaper", lambda: reaper_run(check_limit=0, recheck_days=6))
 
     # Premium daily/weekly digest (R13.4). No-op unless SMTP is configured.
     from ..db import SessionLocal
