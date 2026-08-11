@@ -3616,6 +3616,22 @@ def test_export_styled_renderers_smoke():
     assert export._line_kind("- a bullet") == "bullet"
 
 
+def test_cv_style_public_and_upper_detection():
+    """public_style exposes a JSON-safe view for the preview; uppercase section
+    headers in the source CV are detected so the tailored output mirrors them."""
+    from web.app.services import cv_style
+
+    sp = cv_style.StyleProfile(font_class="serif", accent_rgb=(31, 42, 36),
+                               heading_upper=True, source="docx")
+    pub = cv_style.public_style(sp)
+    assert pub["accent"] == "#1f2a24" and "serif" in pub["font"] and pub["upper"] is True
+    # No accent -> a sane default colour, never blank.
+    assert cv_style.public_style(cv_style.StyleProfile())["accent"] == "#1f2a24"
+    # Header-case detection from extracted text.
+    assert cv_style._text_looks_upper_headed("Name\nSUMMARY\nx\nEXPERIENCE\ny") is True
+    assert cv_style._text_looks_upper_headed("A normal cv with no caps headers.") is False
+
+
 def test_cv_style_profile_default_without_upload(client):
     """No uploaded CV -> a safe default StyleProfile (plain export path)."""
     from web.app.db import SessionLocal

@@ -131,3 +131,57 @@ document.addEventListener("input", function (e) {
     pulseNav();
   });
 })();
+
+// Live formatted preview of the CV draft (best-effort match to the uploaded CV's
+// style). Classifies each line and renders styled nodes; downloads use the same
+// classifier so the file matches this preview.
+(function () {
+  var ed = document.getElementById('doc-editor');
+  var pv = document.getElementById('doc-preview');
+  if (!ed || !pv) return;
+  var font = pv.getAttribute('data-font') || '';
+  var accent = pv.getAttribute('data-accent') || '#1f2a24';
+  var upper = pv.getAttribute('data-upper') === '1';
+  pv.style.fontFamily = font;
+
+  function kindOf(line) {
+    var s = line.trim();
+    if (!s) return 'blank';
+    if ('-\u2022*\u25aa\u25e6\u00b7'.indexOf(s[0]) >= 0) return 'bullet';
+    var noEnd = !/[.,;]$/.test(s);
+    var titleish = s === s.toUpperCase() || s.slice(-1) === ':' || /^[A-Z]/.test(s);
+    if (s.length <= 40 && noEnd && titleish) return 'heading';
+    return 'body';
+  }
+
+  function render() {
+    var lines = (ed.value || '').split('\n');
+    pv.textContent = '';                 // clear
+    var ul = null;
+    lines.forEach(function (line) {
+      var k = kindOf(line);
+      if (k !== 'bullet') ul = null;
+      if (k === 'blank') { pv.appendChild(document.createElement('br')); return; }
+      if (k === 'heading') {
+        var h = document.createElement('div');
+        h.className = 'pv-h';
+        h.style.color = accent;
+        h.textContent = upper ? line.trim().toUpperCase() : line.trim();
+        pv.appendChild(h);
+      } else if (k === 'bullet') {
+        if (!ul) { ul = document.createElement('ul'); ul.className = 'pv-ul'; pv.appendChild(ul); }
+        var li = document.createElement('li');
+        li.textContent = line.trim().replace(/^[-\u2022*\u25aa\u25e6\u00b7\s]+/, '');
+        ul.appendChild(li);
+      } else {
+        var p = document.createElement('div');
+        p.className = 'pv-p';
+        p.textContent = line;
+        pv.appendChild(p);
+      }
+    });
+  }
+
+  ed.addEventListener('input', render);
+  render();
+})();

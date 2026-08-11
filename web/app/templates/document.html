@@ -16,7 +16,17 @@
 
 <div class="docview">
   <form method="post" action="/document/{{ r.id }}/{{ kind }}/save" class="doc-main">
-    <textarea name="content" class="sheet" aria-label="Document text">{{ doc.content }}</textarea>
+    <textarea id="doc-editor" name="content" class="sheet" aria-label="Document text">{{ doc.content }}</textarea>
+    {% if kind == 'cv' %}
+      <details class="doc-previewbox" open>
+        <summary class="small">Formatted preview <span class="muted">— updates as you type; downloads match it</span></summary>
+        <div id="doc-preview" class="doc-preview"
+             data-font="{{ preview_style.font }}"
+             data-accent="{{ preview_style.accent }}"
+             data-upper="{{ 1 if preview_style.upper else 0 }}"
+             aria-live="polite"></div>
+      </details>
+    {% endif %}
     <div class="doc-actions">
       <button type="submit">Save changes</button>
       {% if gdoc_enabled %}

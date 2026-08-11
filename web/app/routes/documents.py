@@ -48,7 +48,7 @@ def _filename(r: JobResult, kind: str, ext: str) -> str:
 @router.get("/document/{result_id}/{kind}", response_class=HTMLResponse)
 def view(result_id: int, kind: str, request: Request, saved: str = "",
          user: User = Depends(require_user), db: DbSession = Depends(get_session)):
-    from ..services import gdocs
+    from ..services import cv_style, gdocs
     r, doc = _doc(db, user, result_id, kind)
     if not r or not doc:
         return RedirectResponse("/matches", status_code=303)
@@ -68,6 +68,7 @@ def view(result_id: int, kind: str, request: Request, saved: str = "",
         "refined": (request.query_params.get("refined") == "1"),
         "error": request.query_params.get("error", ""),
         "gdoc_enabled": gdocs.enabled(),
+        "preview_style": cv_style.public_style(cv_style.profile_for(db, user.id)),
     })
 
 

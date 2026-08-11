@@ -971,3 +971,13 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .refine-box{margin:18px 0;padding:12px 14px;border:1px solid #e6e2d9;border-radius:10px;background:#faf9f6}
 .refine-box textarea{width:100%;margin:6px 0;padding:8px}
 .revisions ul{list-style:none;padding:0;margin:6px 0 0;display:flex;flex-direction:column;gap:4px}
+
+/* --- CV formatted preview (best-effort match to the uploaded CV) --- */
+.doc-previewbox{margin:12px 0}
+.doc-preview{border:1px solid #e6e2d9;border-radius:8px;background:#fff;padding:20px 24px;
+  line-height:1.4;font-size:.94rem;max-height:520px;overflow:auto;color:#1a1a1a}
+.doc-preview .pv-h{font-weight:700;margin:12px 0 4px;font-size:1.02em;letter-spacing:.01em}
+.doc-preview .pv-h:first-child{margin-top:0}
+.doc-preview .pv-p{margin:2px 0}
+.doc-preview .pv-ul{margin:2px 0 8px;padding-left:20px}
+.doc-preview .pv-ul li{margin:2px 0}
