@@ -3616,6 +3616,74 @@ def test_export_styled_renderers_smoke():
     assert export._line_kind("- a bullet") == "bullet"
 
 
+def test_cv_style_json_roundtrip_and_vision_map():
+    """Style caches to/from JSON (without the heavy docx bytes) and maps a vision
+    result — accent hex -> rgb, plain black -> no accent."""
+    from web.app.services import cv_style
+
+    sp = cv_style.StyleProfile(font_class="serif", font_family="Garamond",
+                               accent_rgb=(31, 42, 36), heading_upper=True,
+                               heading_bold=True, margin_mm=18, source="pdf-vision")
+    back = cv_style._from_json(cv_style._to_json(sp))
+    assert back.font_family == "Garamond" and back.accent_rgb == (31, 42, 36)
+    assert back.heading_upper and back.source == "pdf-vision"
+
+    v = cv_style._from_vision({"font_class": "sans", "font_family": "Calibri",
+                               "accent_hex": "#1a73e8", "heading_upper": True,
+                               "heading_bold": True, "layout": "single"})
+    assert v.accent_rgb == (26, 115, 232) and v.font_family == "Calibri"
+    assert cv_style._from_vision({"accent_hex": "#000000"}).accent_rgb is None   # black -> none
+
+
+def test_cv_vision_renders_pdf_to_png():
+    """PyMuPDF renders a PDF upload to PNG bytes for the vision model; non-PDF -> []."""
+    from web.app.services import cv_vision, export
+
+    pdf = export.to_pdf("My CV", "SUMMARY\nA line.\n- bullet\n")
+    imgs = cv_vision.render_cv_image(pdf, "application/pdf", "cv.pdf")
+    assert len(imgs) == 1 and imgs[0][:8] == b"\x89PNG\r\n\x1a\n"       # PNG magic
+    assert cv_vision.render_cv_image(b"xx", "application/msword", "cv.docx") == []
+
+
+def test_profile_for_caches_and_uses_vision(monkeypatch):
+    """profile_for extracts once (vision for a PDF) and caches on Material; a second
+    call reads the cache and does not re-run vision."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Material, User
+    from web.app.services import cv_style, cv_vision
+
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="vis@example.com", plan="premium"); db.add(u); db.flush()
+        db.add(Material(user_id=u.id, kind="cv", filename="cv.pdf",
+                        mime="application/pdf", size_bytes=10, ciphertext=b"enc"))
+        db.commit()
+
+        monkeypatch.setattr(cv_style, "decrypt_bytes", lambda c: b"%PDF-fake")
+        monkeypatch.setattr(cv_vision, "render_cv_image", lambda *a, **k: [b"png"])
+        calls = {"n": 0}
+        def fake_vision(images, settings):
+            calls["n"] += 1
+            return {"font_class": "serif", "font_family": "Garamond",
+                    "accent_hex": "#2e5a3c", "heading_upper": True,
+                    "heading_bold": True, "layout": "single"}
+        monkeypatch.setattr(cv_vision, "vision_style", fake_vision)
+
+        sp = cv_style.profile_for(db, u.id)
+        assert sp.source == "pdf-vision" and sp.font_family == "Garamond"
+        assert sp.accent_rgb == (46, 90, 60) and calls["n"] == 1
+        # Second call: cache hit, no second vision call.
+        sp2 = cv_style.profile_for(db, u.id)
+        assert sp2.font_family == "Garamond" and calls["n"] == 1
+    finally:
+        uid = db.query(User.id).filter_by(email="vis@example.com").scalar()
+        if uid is not None:
+            db.query(Material).filter_by(user_id=uid).delete()
+            db.query(User).filter_by(id=uid).delete()
+        db.commit(); db.close()
+
+
 def test_cv_style_public_and_upper_detection():
     """public_style exposes a JSON-safe view for the preview; uppercase section
     headers in the source CV are detected so the tailored output mirrors them."""

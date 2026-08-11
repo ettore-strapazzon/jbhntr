@@ -139,6 +139,7 @@ def _add_missing_columns() -> None:
                         "fit_candidate": ("INTEGER", "DEFAULT 0")},
         "documents": {"note": ("TEXT", "DEFAULT ''"),
                       "gdoc_url": ("TEXT", "DEFAULT ''")},
+        "materials": {"style_json": ("TEXT", "DEFAULT ''")},
         "feedback": {"rating": ("INTEGER", "")},
         "page_views": {"visitor": ("TEXT", "")},
     }

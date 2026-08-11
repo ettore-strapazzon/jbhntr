@@ -134,6 +134,9 @@ class Material(Base):
     size_bytes: Mapped[int] = mapped_column(Integer)
     ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
     text: Mapped[str] = mapped_column(Text, default="")  # extracted, for the AI
+    # Cached CV style profile (JSON) extracted from this upload — via a vision model
+    # for PDFs, python-docx for DOCX. Computed once, reused by the preview/exports.
+    style_json: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

@@ -142,6 +142,7 @@ document.addEventListener("input", function (e) {
   var font = pv.getAttribute('data-font') || '';
   var accent = pv.getAttribute('data-accent') || '#1f2a24';
   var upper = pv.getAttribute('data-upper') === '1';
+  var boldHeads = pv.getAttribute('data-bold') !== '0';
   pv.style.fontFamily = font;
 
   function kindOf(line) {
@@ -166,6 +167,7 @@ document.addEventListener("input", function (e) {
         var h = document.createElement('div');
         h.className = 'pv-h';
         h.style.color = accent;
+        if (!boldHeads) h.style.fontWeight = '600';
         h.textContent = upper ? line.trim().toUpperCase() : line.trim();
         pv.appendChild(h);
       } else if (k === 'bullet') {

@@ -106,8 +106,9 @@ def export_doc(result_id: int, kind: str, fmt: str, content: str = Form(default=
         media = "application/pdf"
         name = _filename(r, kind, "pdf")
     elif fmt == "docx":
-        if kind == "cv" and style and style.source == "docx" and style.docx_bytes:
-            data = export.to_docx_templated(style.docx_bytes, title, body)
+        tpl = cv_style.docx_template_bytes(db, user.id) if kind == "cv" else None
+        if tpl:
+            data = export.to_docx_templated(tpl, title, body)
         else:
             data = export.to_docx(title, body)
         media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

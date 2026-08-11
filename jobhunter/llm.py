@@ -82,7 +82,7 @@ class BaseClient:
 
     def json(self, *, system: str, user: str, schema: dict, tier: str = SCORING,
              max_tokens: int = 2000, cache_system: bool = True,
-             model: Optional[str] = None) -> dict:
+             model: Optional[str] = None, images=None) -> dict:
         raise NotImplementedError
 
     def text(self, *, user: str, tier: str = GENERATION, max_tokens: int = 16000,
@@ -108,7 +108,7 @@ class AnthropicClient(BaseClient):
                 else self.settings.scoring_model)
 
     def json(self, *, system, user, schema, tier=SCORING, max_tokens=2000,
-             cache_system=True, model=None) -> dict:
+             cache_system=True, model=None, images=None) -> dict:
         system = _styled(system)
         system_blocks: list[dict[str, Any]] = [{"type": "text", "text": system}]
         if cache_system:
@@ -186,7 +186,7 @@ class OpenAICompatibleClient(BaseClient):
         return model
 
     def json(self, *, system, user, schema, tier=SCORING, max_tokens=2000,
-             cache_system=True, model=None) -> dict:
+             cache_system=True, model=None, images=None) -> dict:
         system = _styled(system)
         model = model or self._model(tier)
         # The scoring system prompt is identical across every job in a search,
@@ -199,9 +199,20 @@ class OpenAICompatibleClient(BaseClient):
             [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
             if cacheable else system
         )
+        # Vision: pass PNG bytes as data-URL image parts alongside the text prompt
+        # (OpenAI-compatible multimodal content). The caller picks a vision model.
+        if images:
+            import base64
+            user_content = [{"type": "text", "text": user}]
+            for img in images:
+                b64 = base64.b64encode(img).decode("ascii")
+                user_content.append({"type": "image_url",
+                                     "image_url": {"url": f"data:image/png;base64,{b64}"}})
+        else:
+            user_content = user
         messages = [
             {"role": "system", "content": system_content},
-            {"role": "user", "content": user},
+            {"role": "user", "content": user_content},
         ]
 
         # Preferred: provider-enforced JSON schema.
