@@ -39,10 +39,28 @@ def _doc(db: DbSession, user: User, result_id: int, kind: str):
     return r, doc
 
 
-def _filename(r: JobResult, kind: str, ext: str) -> str:
-    stem = "CV" if kind == "cv" else "CoverLetter"
-    safe = "".join(c for c in (r.company or "job") if c.isalnum() or c in " -_")[:40].strip()
-    return f"{stem}-{safe or 'job'}.{ext}"
+def _safe(text: str, fallback: str) -> str:
+    out = "".join(c for c in (text or "") if c.isalnum() or c in " -_")[:50].strip()
+    return out or fallback
+
+
+def _filename(r: JobResult, kind: str, ext: str, name: str = "") -> str:
+    # A CV is the candidate's own document — name it after them, not the job
+    # (the old "CV-<Company>" read like the posting owned the file). Cover
+    # letters stay per-company, since that's what they're addressed to.
+    if kind == "cv":
+        who = _safe(name, "CV")
+        return f"{who} - CV.{ext}" if name else f"CV.{ext}"
+    return f"CoverLetter-{_safe(r.company, 'job')}.{ext}"
+
+
+def _candidate_name(body: str) -> str:
+    """The name the CV leads with — its first non-blank line — for the filename."""
+    for line in (body or "").split("\n"):
+        s = line.strip()
+        if s:
+            return s[:50]
+    return ""
 
 
 @router.get("/document/{result_id}/{kind}", response_class=HTMLResponse)
@@ -94,6 +112,7 @@ def export_doc(result_id: int, kind: str, fmt: str, content: str = Form(default=
         db.commit()
     body = doc.content
     title = f"{r.title} — {r.company}" if kind == "cv" else ""
+    cv_name = _candidate_name(body) if kind == "cv" else ""
 
     # Match the CV export to the candidate's uploaded CV style (cover letters stay
     # plain prose). Falls back to the plain renderers when there's no CV on file.
@@ -104,7 +123,7 @@ def export_doc(result_id: int, kind: str, fmt: str, content: str = Form(default=
         data = (export.to_pdf_styled(title, body, style) if kind == "cv"
                 else export.to_pdf(title, body))
         media = "application/pdf"
-        name = _filename(r, kind, "pdf")
+        name = _filename(r, kind, "pdf", cv_name)
     elif fmt == "docx":
         tpl = cv_style.docx_template_bytes(db, user.id) if kind == "cv" else None
         if tpl:
@@ -112,10 +131,10 @@ def export_doc(result_id: int, kind: str, fmt: str, content: str = Form(default=
         else:
             data = export.to_docx(title, body)
         media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        name = _filename(r, kind, "docx")
+        name = _filename(r, kind, "docx", cv_name)
     else:  # txt
         data, media = body.encode("utf-8"), "text/plain; charset=utf-8"
-        name = _filename(r, kind, "txt")
+        name = _filename(r, kind, "txt", cv_name)
 
     return Response(content=data, media_type=media,
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})

@@ -131,7 +131,15 @@ class Generator:
             "- Write like a person, not an AI. Plain, direct language. Do NOT use em "
             "dashes (—) or en dashes (–) — use commas, full stops or parentheses. "
             "Avoid buzzwords, filler, and stock AI phrasing (\"leverage\", "
-            "\"passionate about\", \"in today's fast-paced world\").\n\n"
+            "\"passionate about\", \"in today's fast-paced world\").\n"
+            "- OUTPUT PLAIN TEXT ONLY — no markdown. Do not use **, *, _, #, backticks "
+            "or any markup. Put each section heading on its own line (in the "
+            "candidate's own wording/case), and start every bullet with '- '.\n"
+            "- Layout the CV so a plain-text reader can parse its structure: the "
+            "candidate's NAME on the first line (keep their exact capitalisation, do "
+            "not upper-case it), then a short subtitle line, then a contact line. For "
+            "each role use two lines — 'Employer - Location' then 'Job Title (dates)' — "
+            "before its bullet points.\n\n"
             "## Candidate materials\n" + (materials.combined_context() or "(none)")
         )
 

@@ -377,8 +377,10 @@ def test_document_export_pdf_and_docx(client):
     rid = db.query(JobResult).filter_by(dedup_key="dk").first().id
     db.add(Document(user_id=u.id, job_result_id=rid, kind="cv", content="Jane Doe — PM")); db.commit()
     assert "sheet" in client.get(f"/document/{rid}/cv").text          # editable view
-    pdf = client.post(f"/document/{rid}/cv/export/pdf", data={"content": "Edited — draft"})
+    pdf = client.post(f"/document/{rid}/cv/export/pdf", data={"content": "Jane Doe\nProduct Manager"})
     assert pdf.status_code == 200 and pdf.content[:5] == b"%PDF-"
+    # CV files are named after the candidate, not the job posting.
+    assert "Jane Doe - CV.pdf" in pdf.headers.get("content-disposition", "")
     docx = client.post(f"/document/{rid}/cv/export/docx", data={"content": "x"})
     assert docx.status_code == 200 and docx.content[:2] == b"PK"
 
@@ -3614,6 +3616,63 @@ def test_export_styled_renderers_smoke():
     assert out[:2] == b"PK" and len(out) > 400              # docx is a zip
     assert export._line_kind("EXPERIENCE") == "heading"
     assert export._line_kind("- a bullet") == "bullet"
+
+
+def test_parse_lines_structure_and_markdown():
+    """The shared parser (mirrored by app.js) strips markdown and reads the CV
+    into name / contact / heading / bullet / body — the fix for '**PROFILE**'
+    rendering as a broken bullet."""
+    from web.app.services import export
+
+    body = (
+        "JORDAN RIVERA\n"
+        "Strategic Operator | Strategy & Operations\n"
+        "(+1) 555 010 2020 | jordan.rivera@example.com\n"
+        "\n"
+        "**PROFILE**\n"
+        "Strategic operator with 12+ years across e-commerce and analytics work.\n"
+        "**SELECTED HIGHLIGHTS**\n"
+        "- Scaled an analytics platform to 50+ enterprise clients\n"
+    )
+    rows = export.parse_lines(body)
+    assert rows[0] == ("name", "JORDAN RIVERA")
+    assert ("contact", "(+1) 555 010 2020 | jordan.rivera@example.com") in rows
+    # The markdown headers become clean headings, not '* '-prefixed bullets.
+    assert ("heading", "PROFILE") in rows
+    assert ("heading", "SELECTED HIGHLIGHTS") in rows
+    assert ("bullet", "Scaled an analytics platform to 50+ enterprise clients") in rows
+    # No literal markup survives anywhere.
+    assert not any("*" in t or t.startswith("#") for _, t in rows)
+
+
+def test_parse_lines_experience_org_role_subtitle():
+    """Experience lines resolve to the rich kinds the CV renderer styles: a
+    descriptive header line -> subtitle, 'Employer - Location' -> org, and a
+    'Title (dates)' line -> role (checked before the heading heuristic)."""
+    from web.app.services import export
+
+    body = (
+        "Jordan Rivera\n"
+        "Strategy & Operations · Startup Execution\n"
+        "jordan.rivera@example.com\n"
+        "\n"
+        "PROFESSIONAL EXPERIENCE\n"
+        "ACME RETAIL - Singapore, Kuala Lumpur, Manila\n"
+        "Commercial Associate Director (Oct 2020 - Oct 2022)\n"
+        "Pioneered two business units from inception to maturity.\n"
+    )
+    kinds = dict((t, k) for k, t in export.parse_lines(body))
+    assert kinds["Strategy & Operations · Startup Execution"] == "subtitle"
+    assert kinds["jordan.rivera@example.com"] == "contact"
+    assert kinds["PROFESSIONAL EXPERIENCE"] == "heading"
+    assert kinds["ACME RETAIL - Singapore, Kuala Lumpur, Manila"] == "org"
+    assert kinds["Commercial Associate Director (Oct 2020 - Oct 2022)"] == "role"
+    assert kinds["Pioneered two business units from inception to maturity."] == "body"
+    # Split helpers feed the two-run renderers correctly.
+    assert export._split_org("ACME RETAIL - Singapore") == ("ACME RETAIL", " - Singapore")
+    assert export._split_org("MON.co, Kuala Lumpur") == ("MON.co", ", Kuala Lumpur")
+    role, dates = export._split_role("Commercial Associate Director (Oct 2020 - Oct 2022)")
+    assert role == "Commercial Associate Director" and dates == "(Oct 2020 - Oct 2022)"
 
 
 def test_cv_style_json_roundtrip_and_vision_map():

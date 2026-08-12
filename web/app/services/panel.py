@@ -56,6 +56,8 @@ _RULES = (
     "Omitting real experience is a failure.\n"
     "- Write like a person, not an AI. No em/en dashes, no buzzwords, no stock "
     "phrasing (\"leverage\", \"passionate about\").\n"
+    "- OUTPUT PLAIN TEXT ONLY — no markdown (**, *, _, #, backticks). Section "
+    "headings on their own line in the candidate's own wording; bullets start '- '.\n"
 )
 
 

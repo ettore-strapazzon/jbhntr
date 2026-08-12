@@ -145,40 +145,137 @@ document.addEventListener("input", function (e) {
   var boldHeads = pv.getAttribute('data-bold') !== '0';
   pv.style.fontFamily = font;
 
-  function kindOf(line) {
-    var s = line.trim();
-    if (!s) return 'blank';
-    if ('-\u2022*\u25aa\u25e6\u00b7'.indexOf(s[0]) >= 0) return 'bullet';
-    var noEnd = !/[.,;]$/.test(s);
-    var titleish = s === s.toUpperCase() || s.slice(-1) === ':' || /^[A-Z]/.test(s);
-    if (s.length <= 40 && noEnd && titleish) return 'heading';
-    return 'body';
+  var BULLETS = '-\u2022*\u25aa\u25e6\u00b7';
+  var PHONE = /\+?\d[\d\s()./-]{6,}\d/;
+
+  // Mirror of export.py::_strip_md \u2014 keep the two in lock-step so the preview
+  // and the downloaded file render identically.
+  function stripMd(line) {
+    return line
+      .replace(/^\s{0,3}#{1,6}\s+/, '')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)/g, '$1');
+  }
+
+  var ROLE_DATE = /\([^)]*(?:(?:19|20)\d{2}|[Pp]resent)[^)]*\)/;
+  var ORG_SEP = /\s[-\u2013\u2014]\s/;
+
+  function toTitle(s) {
+    return s.replace(/\w\S*/g, function (w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); });
+  }
+  function isRole(s) { return ROLE_DATE.test(s) && s.length <= 120; }
+  function isHeading(s) {
+    if (s.length > 40 || /[.,;]$/.test(s)) return false;
+    if (s === s.toUpperCase() || s.slice(-1) === ':') return true;
+    return s === toTitle(s) && s.split(/\s+/).length <= 5;
+  }
+
+  // Mirror of export.py::parse_lines \u2014 returns [{kind, text}].
+  function parseLines(text) {
+    var lines = text.split('\n');
+    var stripped = lines.map(function (r) { return stripMd(r).trim(); });
+    function nextIsRole(i) {
+      for (var j = i + 1; j < stripped.length; j++) {
+        if (stripped[j]) return isRole(stripped[j]);
+      }
+      return false;
+    }
+    var out = [];
+    var seenName = false, seenHeading = false, subtitleDone = false;
+    lines.forEach(function (raw, i) {
+      var line = stripMd(raw);
+      var s = line.trim();
+      if (!s) { out.push({ kind: 'blank', text: '' }); return; }
+      if (!seenName) { out.push({ kind: 'name', text: s }); seenName = true; return; }
+      if (BULLETS.indexOf(s[0]) >= 0 && !(s.length > 1 && BULLETS.indexOf(s[1]) >= 0)) {
+        out.push({ kind: 'bullet', text: s.replace(/^[-\u2022*\u25aa\u25e6\u00b7\s]+/, '') });
+        return;
+      }
+      if (!seenHeading) {
+        if (s.indexOf('@') >= 0 || PHONE.test(s)) { out.push({ kind: 'contact', text: s }); return; }
+        if (isHeading(s)) { seenHeading = true; out.push({ kind: 'heading', text: s }); return; }
+        if (!subtitleDone) { out.push({ kind: 'subtitle', text: s }); subtitleDone = true; return; }
+        out.push(s.indexOf('|') >= 0 ? { kind: 'contact', text: s } : { kind: 'body', text: line });
+        return;
+      }
+      if (isRole(s)) { out.push({ kind: 'role', text: s }); return; }
+      var m = ORG_SEP.exec(s);
+      var dashOrg = m && m.index <= 35 && s.length <= 90 && !/[.;:]$/.test(s);
+      var peekOrg = nextIsRole(i) && s.length <= 90 && !/[.;:]$/.test(s);
+      if (dashOrg || peekOrg) { out.push({ kind: 'org', text: s }); return; }
+      if (isHeading(s)) { out.push({ kind: 'heading', text: s }); return; }
+      out.push({ kind: 'body', text: line });
+    });
+    return out;
   }
 
   function render() {
-    var lines = (ed.value || '').split('\n');
     pv.textContent = '';                 // clear
     var ul = null;
-    lines.forEach(function (line) {
-      var k = kindOf(line);
+    parseLines(ed.value || '').forEach(function (row) {
+      var k = row.kind;
       if (k !== 'bullet') ul = null;
       if (k === 'blank') { pv.appendChild(document.createElement('br')); return; }
-      if (k === 'heading') {
+      if (k === 'name') {
+        var n = document.createElement('div');
+        n.className = 'pv-name';
+        n.style.color = accent;
+        n.textContent = row.text;      // keep the candidate's own casing
+        pv.appendChild(n);
+      } else if (k === 'subtitle') {
+        var st = document.createElement('div');
+        st.className = 'pv-sub';
+        st.textContent = row.text;
+        pv.appendChild(st);
+      } else if (k === 'org') {
+        var o = document.createElement('div');
+        o.className = 'pv-org';
+        var om = /\s[-–—]\s|,\s/.exec(row.text);
+        var ob = document.createElement('b');
+        ob.textContent = om ? row.text.slice(0, om.index) : row.text;
+        o.appendChild(ob);
+        if (om) {
+          var os = document.createElement('span'); os.className = 'pv-muted';
+          os.textContent = ' — ' + row.text.slice(om.index).replace(/^\s*[-–—,]\s*/, '');
+          o.appendChild(os);
+        }
+        pv.appendChild(o);
+      } else if (k === 'role') {
+        var rl = document.createElement('div');
+        rl.className = 'pv-role';
+        var dm = row.text.match(/\([^)]*(?:(?:19|20)\d{2}|[Pp]resent)[^)]*\)/);
+        var rb = document.createElement('b');
+        rb.textContent = dm ? row.text.slice(0, dm.index).trim() : row.text;
+        rl.appendChild(rb);
+        if (dm) {
+          var rs = document.createElement('span'); rs.className = 'pv-muted';
+          rs.textContent = ' ' + row.text.slice(dm.index).trim();
+          rl.appendChild(rs);
+        }
+        pv.appendChild(rl);
+      } else if (k === 'contact') {
+        var c = document.createElement('div');
+        c.className = 'pv-contact';
+        c.textContent = row.text;
+        pv.appendChild(c);
+      } else if (k === 'heading') {
         var h = document.createElement('div');
         h.className = 'pv-h';
         h.style.color = accent;
         if (!boldHeads) h.style.fontWeight = '600';
-        h.textContent = upper ? line.trim().toUpperCase() : line.trim();
+        h.textContent = upper ? row.text.toUpperCase() : row.text;
         pv.appendChild(h);
       } else if (k === 'bullet') {
         if (!ul) { ul = document.createElement('ul'); ul.className = 'pv-ul'; pv.appendChild(ul); }
         var li = document.createElement('li');
-        li.textContent = line.trim().replace(/^[-\u2022*\u25aa\u25e6\u00b7\s]+/, '');
+        li.textContent = row.text;
         ul.appendChild(li);
       } else {
         var p = document.createElement('div');
         p.className = 'pv-p';
-        p.textContent = line;
+        p.textContent = row.text;
         pv.appendChild(p);
       }
     });
