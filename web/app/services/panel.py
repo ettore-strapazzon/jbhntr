@@ -48,6 +48,12 @@ _RULES = (
     "- Never invent experience, employers, dates, titles or credentials. Use only "
     "what the candidate's materials support; re-emphasise and re-order to fit the "
     "role, never fabricate. It must be defensible line by line in an interview.\n"
+    "- HONEST HEADLINE. The headline/title line and summary describe who the "
+    "candidate ACTUALLY is. NEVER relabel them with the target job's title or a "
+    "title they have not held just because it matches the posting — that is "
+    "misrepresentation. Keep their genuine identity and seniority.\n"
+    "- KEEP EACH EMPLOYER'S CONTEXT: if the source CV has a one-line description of "
+    "a company under its name, keep that line.\n"
     "- REFRAME, DON'T SHORTEN. Your job is to reorder and reword the candidate's CV "
     "so the most relevant experience leads — NOT to summarise or trim it.\n"
     "- PRESERVE ALL SUBSTANCE: keep every employer, role, title and date, AND every "
@@ -64,7 +70,10 @@ _RULES = (
     "- Write like a person, not an AI. No em/en dashes, no buzzwords, no stock "
     "phrasing (\"leverage\", \"passionate about\").\n"
     "- OUTPUT PLAIN TEXT ONLY — no markdown (**, *, _, #, backticks). Section "
-    "headings on their own line in the candidate's own wording; bullets start '- '.\n"
+    "headings on their own line in the candidate's own wording; bullets start '- '. "
+    "Per employer, in order: 'Employer - Location'; then its one-line description "
+    "(if any) ending in a full stop; then each position as 'Job Title (Dates)' with "
+    "dates ALWAYS in parentheses (never a pipe or bare dash); then its bullets.\n"
 )
 
 
@@ -192,14 +201,17 @@ def deliberate(kind: str, materials, job, settings, config) -> dict | None:
     if kind == "cv":
         review_sys = (
             "You are a demanding reviewer of a tailored CV. It is ready only if it is "
-            "truthful, well-targeted to the job, AND fully preserves the candidate's "
-            "substance. Mark ready=false if it drops any role or employer, omits "
-            "quantified achievements (numbers, %, $, EUR, deal/team/client sizes, "
-            "timeframes) that the candidate's materials contain, reduces a rich role "
-            "to one or two generic lines, or reads thinner/vaguer/shorter than a "
-            "strong CV for this person would. A clean but hollow summary is NOT ready. "
-            "Return ready=true/false and, if false, the single most important fix "
-            "(usually: which specific detail or role to restore)."
+            "truthful, honest, well-targeted, AND fully preserves the candidate's "
+            "substance. Mark ready=false if ANY of these hold: (a) the headline, title "
+            "line or summary claims a role or title the candidate has not actually "
+            "held (e.g. it borrows the target job's title) — this is the most serious "
+            "failure; (b) it drops any role or employer, or an employer's one-line "
+            "description that the source has; (c) it omits quantified achievements "
+            "(numbers, %, $, EUR, deal/team/client sizes, timeframes) the materials "
+            "contain, or reduces a rich role to one or two generic lines; (d) it reads "
+            "thinner, vaguer or shorter than a strong CV for this person would. A clean "
+            "but hollow, or subtly dishonest, CV is NOT ready. Return ready=true/false "
+            "and, if false, the single most important fix."
         )
     else:
         review_sys = (

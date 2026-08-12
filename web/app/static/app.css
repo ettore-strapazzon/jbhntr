@@ -981,6 +981,7 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .doc-preview .pv-contact{color:#6b6b6b;font-size:.86em;margin:0 0 4px;
   border-bottom:1px solid #d9d5cc;padding-bottom:6px}
 .doc-preview .pv-org{margin:8px 0 0}
+.doc-preview .pv-orgdesc{font-style:italic;color:#666;margin:0 0 1px}
 .doc-preview .pv-role{margin:0 0 2px}
 .doc-preview .pv-muted{color:#7a7a7a;font-weight:400}
 .doc-preview .pv-h{font-weight:700;margin:12px 0 4px;font-size:1.02em;letter-spacing:.01em;

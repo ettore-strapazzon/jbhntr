@@ -3696,7 +3696,31 @@ def test_parse_lines_experience_org_role_subtitle():
     assert export._split_org("ACME RETAIL - Singapore") == ("ACME RETAIL", " - Singapore")
     assert export._split_org("MON.co, Kuala Lumpur") == ("MON.co", ", Kuala Lumpur")
     role, dates = export._split_role("Commercial Associate Director (Oct 2020 - Oct 2022)")
-    assert role == "Commercial Associate Director" and dates == "(Oct 2020 - Oct 2022)"
+    assert role == "Commercial Associate Director" and dates == "Oct 2020 - Oct 2022"
+    # Dates in other separators split the same way (the model isn't consistent).
+    assert export._split_role("Director | Nov 2022 - Present") == ("Director", "Nov 2022 - Present")
+
+
+def test_parse_lines_company_description_is_italicised():
+    """A sentence directly under a company header is that employer's description
+    (rendered italic), and the role below it still resolves — even with the model's
+    'Title | dates' format and a comma 'Company, City' header."""
+    from web.app.services import export
+
+    body = (
+        "Jordan Rivera\n"
+        "\n"
+        "EXPERIENCE\n"
+        "MON.co, Kuala Lumpur\n"
+        "Web3 developer company active in gaming and IP.\n"
+        "Strategy and Operations Director | Nov 2022 - Present\n"
+        "- Led fundraising of a double-digit million USD round\n"
+    )
+    kinds = dict((t, k) for k, t in export.parse_lines(body))
+    assert kinds["EXPERIENCE"] == "heading"                       # not mis-read as org
+    assert kinds["MON.co, Kuala Lumpur"] == "org"
+    assert kinds["Web3 developer company active in gaming and IP."] == "orgdesc"
+    assert kinds["Strategy and Operations Director | Nov 2022 - Present"] == "role"
 
 
 def test_cv_html_renders_structured_self_contained_document():

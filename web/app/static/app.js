@@ -159,13 +159,15 @@ document.addEventListener("input", function (e) {
       .replace(/(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)/g, '$1');
   }
 
-  var ROLE_DATE = /\([^)]*(?:(?:19|20)\d{2}|[Pp]resent)[^)]*\)/;
+  // Mirror of export.py::_ROLE_TAIL \u2014 a title followed by a date in any format
+  // (parentheses, pipe, or spaced dash).
+  var ROLE_TAIL = /(?:[(|/]|\s[-\u2013\u2014])\s*((?:[A-Za-z]{3,10}\.?\s+)?(?:19|20)\d{2}|[Pp]resent)\b.*$/;
   var ORG_SEP = /\s[-\u2013\u2014]\s/;
 
   function toTitle(s) {
     return s.replace(/\w\S*/g, function (w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); });
   }
-  function isRole(s) { return ROLE_DATE.test(s) && s.length <= 120; }
+  function isRole(s) { return ROLE_TAIL.test(s) && s.length <= 120; }
   function isHeading(s) {
     if (s.length > 40 || /[.,;]$/.test(s)) return false;
     if (s === s.toUpperCase() || s.slice(-1) === ':') return true;
@@ -176,12 +178,16 @@ document.addEventListener("input", function (e) {
   function parseLines(text) {
     var lines = text.split('\n');
     var stripped = lines.map(function (r) { return stripMd(r).trim(); });
-    function nextIsRole(i) {
+    function nextIsRole(i, depth) {
+      var seen = 0;
       for (var j = i + 1; j < stripped.length; j++) {
-        if (stripped[j]) return isRole(stripped[j]);
+        if (!stripped[j]) continue;
+        if (isRole(stripped[j])) return true;
+        if (++seen >= depth) break;   // depth=2 looks past a company description
       }
       return false;
     }
+    var ORG_SPLIT = /\s[-–—]\s|,\s/;
     var out = [];
     var seenName = false, seenHeading = false, subtitleDone = false;
     lines.forEach(function (raw, i) {
@@ -203,12 +209,19 @@ document.addEventListener("input", function (e) {
         return;
       }
       if (isRole(s)) { out.push({ kind: 'role', text: s }); return; }
-      var m = ORG_SEP.exec(s);
-      var dashOrg = m && m.index <= 35 && s.length <= 90 && !/[.;:]$/.test(s);
-      var peekOrg = nextIsRole(i) && s.length <= 90 && !/[.;:]$/.test(s);
-      if (dashOrg || peekOrg) { out.push({ kind: 'org', text: s }); return; }
+      var shortLine = s.length <= 90 && !/[.;:]$/.test(s);
+      var hasSep = ORG_SPLIT.test(s);
+      if (shortLine && ((hasSep && nextIsRole(i, 2)) || nextIsRole(i, 1))) {
+        out.push({ kind: 'org', text: s }); return;
+      }
       if (isHeading(s)) { out.push({ kind: 'heading', text: s }); return; }
       out.push({ kind: 'body', text: line });
+    });
+    // A body line right after a company header is that employer's description.
+    var lastReal = '';
+    out.forEach(function (row) {
+      if (row.kind === 'body' && lastReal === 'org') row.kind = 'orgdesc';
+      if (row.kind !== 'blank') lastReal = row.kind;
     });
     return out;
   }
@@ -247,16 +260,22 @@ document.addEventListener("input", function (e) {
       } else if (k === 'role') {
         var rl = document.createElement('div');
         rl.className = 'pv-role';
-        var dm = row.text.match(/\([^)]*(?:(?:19|20)\d{2}|[Pp]resent)[^)]*\)/);
+        var dm = row.text.match(ROLE_TAIL);
         var rb = document.createElement('b');
         rb.textContent = dm ? row.text.slice(0, dm.index).trim() : row.text;
         rl.appendChild(rb);
         if (dm) {
+          var dates = row.text.slice(dm.index).trim().replace(/^[(|/\s–—-]+/, '').replace(/\)\s*$/, '').trim();
           var rs = document.createElement('span'); rs.className = 'pv-muted';
-          rs.textContent = ' ' + row.text.slice(dm.index).trim();
+          rs.textContent = ' ' + dates;
           rl.appendChild(rs);
         }
         pv.appendChild(rl);
+      } else if (k === 'orgdesc') {
+        var od = document.createElement('div');
+        od.className = 'pv-orgdesc';
+        od.textContent = row.text;
+        pv.appendChild(od);
       } else if (k === 'contact') {
         var c = document.createElement('div');
         c.className = 'pv-contact';

@@ -102,6 +102,8 @@ def _body_to_blocks(body: str, upper: bool) -> str:
             out.append(f'<h2>{_esc(label)}</h2>')
         elif kind == "org":
             out.append(_org_html(text))
+        elif kind == "orgdesc":
+            out.append(f'<div class="orgdesc">{_esc(text)}</div>')
         elif kind == "role":
             out.append(_role_html(text))
         elif kind == "blank":
@@ -145,6 +147,7 @@ def _css(style) -> str:
     }}
     .org {{ margin: 9px 0 0; font-size: 10.8pt; }}
     .org-name {{ font-weight: 700; color: #1a1a1a; }}
+    .orgdesc {{ font-style: italic; color: #555; margin: 0 0 1px; }}
     .role {{ margin: 1px 0 3px; }}
     .role-title {{ font-weight: 700; color: #1a1a1a; }}
     .muted {{ color: #6e6e6e; font-weight: 400; }}

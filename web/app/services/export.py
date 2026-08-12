@@ -33,9 +33,14 @@ def _strip_md(line: str) -> str:
 
 
 _BULLET_CHARS = "-•*▪◦·"
-# A parenthetical carrying a year or "Present" marks a role/dates line
-# ("Head of Strategy (Oct 2020 - Oct 2022)").
-_ROLE_DATE = re.compile(r"\([^)]*(?:(?:19|20)\d{2}|[Pp]resent)[^)]*\)")
+# A role/dates line: a job title followed by a date (range), whatever separator
+# the model used — "Head of Strategy (Oct 2020 - Oct 2022)", "... | Nov 2022 -
+# Present", "... - 2018 - 2020". We look for a separator ( ( | / or a spaced
+# dash ) immediately followed by an (optional Month +) Year, or "Present".
+_ROLE_TAIL = re.compile(
+    r"(?:[(\|/]|\s[-–—])\s*"
+    r"((?:[A-Za-z]{3,10}\.?\s+)?(?:19|20)\d{2}|[Pp]resent)\b.*$"
+)
 # "Company - Location" separator (hyphen/en/em dash surrounded by spaces).
 _ORG_SEP = re.compile(r"\s[-–—]\s")
 # For splitting an org line into company + location we also accept a comma
@@ -44,7 +49,7 @@ _ORG_SPLIT = re.compile(r"\s[-–—]\s|,\s")
 
 
 def _is_role(s: str) -> bool:
-    return bool(_ROLE_DATE.search(s)) and len(s) <= 120
+    return bool(_ROLE_TAIL.search(s)) and len(s) <= 120
 
 
 def _is_heading(s: str) -> bool:
@@ -73,12 +78,21 @@ def parse_lines(body: str) -> list[tuple[str, str]]:
     raw_lines = (body or "").split("\n")
     stripped = [_strip_md(r).strip() for r in raw_lines]
 
-    def next_is_role(i: int) -> bool:
-        """True if the next non-blank line is a role/dates line — the signal that
-        the current line is a company header (even with a comma or ALL CAPS)."""
+    def next_is_role(i: int, depth: int) -> bool:
+        """True if a role/dates line follows within the next `depth` non-blank
+        lines — the signal that the current line is a company header. depth=2
+        looks past a company's one-line description; depth=1 is the immediate
+        line only (used for lines with no company/location separator, so a
+        section heading like 'EXPERIENCE' sitting above a company isn't misread)."""
+        seen = 0
         for j in range(i + 1, len(stripped)):
-            if stripped[j]:
-                return _is_role(stripped[j])
+            if not stripped[j]:
+                continue
+            if _is_role(stripped[j]):
+                return True
+            seen += 1
+            if seen >= depth:
+                break
         return False
 
     out: list[tuple[str, str]] = []
@@ -122,19 +136,33 @@ def parse_lines(body: str) -> list[tuple[str, str]]:
         if _is_role(s):
             out.append(("role", s))
             continue
-        m = _ORG_SEP.search(s)
-        dash_org = m and m.start() <= 35 and len(s) <= 90 and not s.endswith((".", ";", ":"))
-        # A short line whose next non-blank sibling is a role is a company header,
-        # regardless of separator or case ("MON.CO, KUALA LUMPUR").
-        peek_org = next_is_role(i) and len(s) <= 90 and not s.endswith((".", ";", ":"))
-        if dash_org or peek_org:
+        # Company header. A line with a company/location separator (comma or dash)
+        # counts as an org if a role follows within two lines (past a possible
+        # one-line description). A line WITHOUT such a separator only counts if the
+        # very next line is a role — otherwise a section heading like 'EXPERIENCE'
+        # (which sits just above a company) would be mis-read as an org.
+        short = len(s) <= 90 and not s.endswith((".", ";", ":"))
+        has_sep = _ORG_SPLIT.search(s) is not None
+        is_org = short and ((has_sep and next_is_role(i, 2)) or next_is_role(i, 1))
+        if is_org:
             out.append(("org", s))
             continue
         if _is_heading(s):
             out.append(("heading", s))
             continue
         out.append(("body", line))
-    return out
+
+    # A body line directly following a company header is that employer's one-line
+    # description — tag it so renderers can italicise it, like a real CV.
+    result: list[tuple[str, str]] = []
+    last_real = ""
+    for kind, text in out:
+        if kind == "body" and last_real == "org":
+            kind = "orgdesc"
+        result.append((kind, text))
+        if kind != "blank":
+            last_real = kind
+    return result
 
 
 # fpdf2's core fonts are latin-1 only; tailored text can carry smart quotes,
@@ -209,11 +237,17 @@ _FAMILY = {"serif": "Times", "mono": "Courier", "sans": "Helvetica"}
 
 
 def _split_role(text: str) -> tuple[str, str]:
-    """'Head of Strategy (Oct 2020 - Oct 2022)' -> ('Head of Strategy', '(Oct...)')."""
-    m = _ROLE_DATE.search(text)
+    """Split a role line into (title, dates) for whatever separator was used:
+    'Head of Strategy (Oct 2020 - Oct 2022)', 'Director | Nov 2022 - Present',
+    'Planner - Apr 2017 - Mar 2018' -> ('...', 'Oct 2020 - Oct 2022')."""
+    m = _ROLE_TAIL.search(text)
     if not m:
         return text, ""
-    return text[: m.start()].strip(), text[m.start():].strip()
+    title = text[: m.start()].strip()
+    dates = text[m.start():].strip().lstrip("(|/-–— \t").strip()
+    if dates.endswith(")"):
+        dates = dates[:-1].strip()
+    return (title or text), dates
 
 
 def _split_org(text: str) -> tuple[str, str]:
@@ -309,6 +343,11 @@ def to_pdf_styled(title: str, body: str, style) -> bytes:
                 pdf.set_text_color(*muted)
                 pdf.write(5.6, loc)
             pdf.ln(6)
+        elif kind == "orgdesc":
+            close_header()
+            pdf.set_font(fam, "I", 10)
+            pdf.set_text_color(90, 90, 90)
+            mc(5, text)
         elif kind == "role":
             close_header()
             role, dates = _split_role(text)
@@ -385,6 +424,10 @@ def to_docx_templated(orig_docx: bytes, title: str, body: str) -> bytes:
         elif kind == "org":
             comp, loc = _split_org(text)
             _two_run(comp, loc)
+        elif kind == "orgdesc":
+            p = doc.add_paragraph()
+            r = p.add_run(text)
+            r.italic = True
         elif kind == "role":
             role, dates = _split_role(text)
             _two_run(role + (" " if dates else ""), dates, size_pt=10)
