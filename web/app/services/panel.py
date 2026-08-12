@@ -48,12 +48,19 @@ _RULES = (
     "- Never invent experience, employers, dates, titles or credentials. Use only "
     "what the candidate's materials support; re-emphasise and re-order to fit the "
     "role, never fabricate. It must be defensible line by line in an interview.\n"
-    "- Adjust toward the job, do not twist to match: keep every role, seniority, "
-    "scope and result faithful.\n"
-    "- INCLUDE EVERY position from the candidate's CV — never drop, merge or omit "
-    "an employer, role or date. Keep their COMPLETE work history; tailor by "
-    "re-emphasising and rewording bullets within each role, not by deleting jobs. "
-    "Omitting real experience is a failure.\n"
+    "- REFRAME, DON'T SHORTEN. Your job is to reorder and reword the candidate's CV "
+    "so the most relevant experience leads — NOT to summarise or trim it.\n"
+    "- PRESERVE ALL SUBSTANCE: keep every employer, role, title and date, AND every "
+    "quantified achievement the candidate states — every metric, number, percentage, "
+    "monetary figure ($/EUR), deal size, team size, client/user count, market-cap and "
+    "timeframe. Never drop, round away or make vague a number or an accomplishment.\n"
+    "- INCLUDE EVERY position — never drop, merge or omit an employer, role or date. "
+    "Keep the COMPLETE work history. Keep roughly the same depth per role as the "
+    "source: do not reduce a rich role with several metric-bearing bullets to one or "
+    "two generic lines.\n"
+    "- The tailored CV must be at least as complete and detailed as the candidate's "
+    "original. A shorter, thinner or vaguer CV than the one they uploaded is a "
+    "FAILURE, however well written.\n"
     "- Write like a person, not an AI. No em/en dashes, no buzzwords, no stock "
     "phrasing (\"leverage\", \"passionate about\").\n"
     "- OUTPUT PLAIN TEXT ONLY — no markdown (**, *, _, #, backticks). Section "
@@ -85,8 +92,8 @@ def _system(kind: str, materials) -> str:
         head += ("- 3-4 short paragraphs, specific to this company and role, "
                  "confident but not boastful, no clichés.\n")
     else:
-        head += ("- ATS-friendly and concise; lead with the most relevant "
-                 "experience for this role.\n")
+        head += ("- Lead with the most relevant experience for this role and keep it "
+                 "ATS-friendly — but never by removing substance.\n")
     ctx = getattr(materials, "combined_context", lambda: "")() or "(none)"
     guide = _format_guide(materials) if kind == "cv" else ""
     return head + "\n## Candidate materials\n" + ctx + guide
@@ -107,10 +114,17 @@ def _out_cap(kind: str) -> int:
 def _synthesise(client, system, user, drafts, feedback, model, cap) -> str:
     parts = [user, "",
              "Below are independent drafts of this document. Produce ONE final "
-             "version that takes the strongest, most truthful and best-written "
-             "elements of each. Never add anything the candidate's materials do "
-             "not support, and — for a CV — keep EVERY role/employer/date that "
-             "appears in the drafts; do not drop any position when merging."]
+             "version that is the MOST COMPLETE and specific of them — the UNION of "
+             "their substance, not a shortened compromise. Take the richest, most "
+             "quantified phrasing available for each point. Requirements when merging "
+             "a CV: keep EVERY role, employer and date that appears in ANY draft or "
+             "the candidate's materials; keep EVERY distinct achievement and EVERY "
+             "number/metric/figure that appears in ANY draft (if one draft states a "
+             "metric another omits, KEEP the metric); match the most detailed draft's "
+             "depth per role. The result must be at least as long and detailed as the "
+             "longest draft. Never add anything the candidate's materials do not "
+             "support, but never drop real substance either — a shorter or vaguer "
+             "merge than the drafts is a failure."]
     for i, d in enumerate(drafts, 1):
         parts.append(f"\n--- Draft {i} ---\n{d}")
     if feedback:
@@ -123,6 +137,28 @@ def _synthesise(client, system, user, drafts, feedback, model, cap) -> str:
     except Exception as exc:
         log.warning("Panel synthesis failed (%s): %s", model, exc)
         return drafts[0]
+
+
+def _restore(client, system, user, draft, source_cv, model, cap) -> str:
+    """Last-resort guard against over-compression: rewrite a thin draft so it keeps
+    every role and every quantified achievement from the candidate's original CV."""
+    prompt = (
+        user + "\n\nThe tailored draft below has lost substance compared with the "
+        "candidate's original CV. Rewrite it so it keeps EVERY role and EVERY "
+        "quantified achievement (numbers, %, $, EUR, deal/team/client sizes, "
+        "timeframes) that the original contains, reworded and reordered to target "
+        "this job. Add nothing the original does not support; it must end up at "
+        "least as detailed as the original.\n\n"
+        "--- Candidate's original CV ---\n" + (source_cv or "")[:6000] +
+        "\n\n--- Tailored draft to fix ---\n" + draft
+    )
+    try:
+        out = client.json(system=system, user=prompt, schema=_SYNTH_SCHEMA,
+                          model=model, max_tokens=cap, cache_system=False)
+        return (out.get("content") or "").strip() or draft
+    except Exception as exc:
+        log.warning("Panel restore pass failed (%s): %s", model, exc)
+        return draft
 
 
 def deliberate(kind: str, materials, job, settings, config) -> dict | None:
@@ -153,12 +189,25 @@ def deliberate(kind: str, materials, job, settings, config) -> dict | None:
     candidate = _synthesise(client, system, user, drafts, [], synth_model, cap)
 
     # Rounds — vote on the candidate; revise until agreement or rounds run out.
-    review_sys = (
-        "You are a demanding reviewer of a tailored " + ("CV" if kind == "cv" else
-        "cover letter") + ". Judge only whether it is genuinely application-ready: "
-        "truthful, well-targeted to the job, and better than a generic AI draft. "
-        "Return ready=true/false and, if false, the single most important fix."
-    )
+    if kind == "cv":
+        review_sys = (
+            "You are a demanding reviewer of a tailored CV. It is ready only if it is "
+            "truthful, well-targeted to the job, AND fully preserves the candidate's "
+            "substance. Mark ready=false if it drops any role or employer, omits "
+            "quantified achievements (numbers, %, $, EUR, deal/team/client sizes, "
+            "timeframes) that the candidate's materials contain, reduces a rich role "
+            "to one or two generic lines, or reads thinner/vaguer/shorter than a "
+            "strong CV for this person would. A clean but hollow summary is NOT ready. "
+            "Return ready=true/false and, if false, the single most important fix "
+            "(usually: which specific detail or role to restore)."
+        )
+    else:
+        review_sys = (
+            "You are a demanding reviewer of a tailored cover letter. Judge whether it "
+            "is genuinely application-ready: truthful, specific to this company and "
+            "role, and better than a generic AI draft. Return ready=true/false and, "
+            "if false, the single most important fix."
+        )
     agreement = 1.0
     for _ in range(max(0, int(config.panel_rounds))):
         votes: list[bool] = []
@@ -182,6 +231,16 @@ def deliberate(kind: str, materials, job, settings, config) -> dict | None:
         if agreement >= float(config.panel_threshold):
             break
         candidate = _synthesise(client, system, user, drafts, fixes, synth_model, cap)
+
+    # Completeness guard: a tailored CV must never come out markedly thinner than
+    # the source. If it did, the panel over-compressed — restore against the
+    # original once. (Length is a crude proxy, but a big drop reliably means lost
+    # roles/metrics, which is exactly the failure this catches.)
+    if kind == "cv":
+        source_cv = (getattr(materials, "base_cv", "") or "").strip()
+        if source_cv and len(candidate) < 0.8 * len(source_cv):
+            candidate = _restore(client, system, user, candidate, source_cv,
+                                 synth_model, cap)
 
     return {"content": candidate, "agreement": round(agreement, 2),
             "models": len(drafts), "rounds": int(config.panel_rounds)}

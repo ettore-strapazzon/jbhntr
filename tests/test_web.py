@@ -3172,11 +3172,35 @@ def test_panel_converges_when_models_agree(monkeypatch):
             return {"content": "FINAL CV"}
     monkeypatch.setattr(llm, "get_client", lambda s: _Fake())
 
-    res = panel.deliberate("cv", Materials(base_cv="Jane Doe\nExperience: ..."),
-                           _panel_job(), object(), cfg)
+    res = panel.deliberate("cv", Materials(), _panel_job(), object(), cfg)
     assert res["content"] == "FINAL CV" and res["models"] == 3
     assert res["agreement"] == 1.0
     assert calls["draft"] == 3 and calls["vote"] == 3 and calls["synth"] == 1  # no re-synth
+
+
+def test_panel_completeness_guard_restores_over_compressed_cv(monkeypatch):
+    """When the panel's CV comes out markedly thinner than the source, a restore
+    pass runs against the original — the fix for 'it dropped my achievements'."""
+    from jobhunter import llm
+    from jobhunter.config import Materials
+    from web.app.services import panel
+
+    cfg = _panel_cfg(monkeypatch, ["m1", "m2"], rounds=0)      # skip the vote rounds
+    long_cv = "Jane Doe\n" + ("Scaled revenue to EUR 2M with a team of 12. " * 60)
+    calls = {"restore": 0}
+
+    class _Fake:
+        def json(self, **kw):
+            if "rationale" in kw["schema"]["properties"]:
+                return {"content": "thin", "rationale": "x"}
+            if "has lost substance" in kw["user"]:            # the restore pass
+                calls["restore"] += 1
+                return {"content": "RESTORED FULL CV"}
+            return {"content": "thin"}                         # synthesised = thin
+    monkeypatch.setattr(llm, "get_client", lambda s: _Fake())
+
+    res = panel.deliberate("cv", Materials(base_cv=long_cv), _panel_job(), object(), cfg)
+    assert calls["restore"] == 1 and res["content"] == "RESTORED FULL CV"
 
 
 def test_panel_revises_when_below_threshold(monkeypatch):
