@@ -1,0 +1,24 @@
+# System libraries + fonts for WeasyPrint (high-fidelity CV -> PDF rendering).
+# WeasyPrint dlopen's Pango/Cairo/GDK-Pixbuf at runtime; without these the import
+# fails and the app falls back to the fpdf renderer (so a missing lib degrades,
+# it doesn't break). The fonts are metric-compatible with common CV typefaces:
+#   fonts-liberation      -> Arial / Times New Roman / Courier
+#   fonts-crosextra-carlito -> Calibri
+#   fonts-crosextra-caladea -> Cambria
+#   fonts-ebgaramond      -> Garamond
+#   fonts-dejavu-core     -> wide Unicode fallback (€, accents)
+[phases.setup]
+aptPkgs = [
+  "libpango-1.0-0",
+  "libpangoft2-1.0-0",
+  "libpangocairo-1.0-0",
+  "libgdk-pixbuf-2.0-0",
+  "libcairo2",
+  "libffi-dev",
+  "fontconfig",
+  "fonts-liberation",
+  "fonts-crosextra-carlito",
+  "fonts-crosextra-caladea",
+  "fonts-ebgaramond",
+  "fonts-dejavu-core",
+]

@@ -99,11 +99,14 @@ def parse_lines(body: str) -> list[tuple[str, str]]:
             out.append(("bullet", s.lstrip(_BULLET_CHARS + " \t").strip()))
             continue
         if not seen_heading:
-            # Header zone: contact detail vs. the one descriptive subtitle line.
+            # Header zone. Contact detail first; then a real section heading only
+            # on a STRONG signal (ALL CAPS or a trailing colon) — a short Title
+            # Case line right under the name is the headline/subtitle, not a
+            # section heading, so it must not close the header.
             if "@" in s or _PHONE.search(s):
                 out.append(("contact", s))
                 continue
-            if _is_heading(s):
+            if s.isupper() or s.endswith(":"):
                 seen_heading = True
                 out.append(("heading", s))
                 continue

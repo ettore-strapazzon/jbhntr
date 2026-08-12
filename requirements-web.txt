@@ -20,9 +20,12 @@ cryptography>=42.0           # Fernet encryption for uploads
 authlib>=1.3                 # Google OAuth
 httpx>=0.27
 
-# Document export (§11.8) — both pure-Python, no system libs, Railway-friendly.
-fpdf2>=2.7                   # tailored CV/cover-letter -> PDF
+# Document export (§11.8).
+fpdf2>=2.7                   # fallback CV + cover-letter -> PDF (pure-Python)
 python-docx>=1.1             # ...and -> DOCX
+# High-fidelity CV -> PDF: renders the HTML/CSS CV with real fonts, colours and
+# columns. Needs system libs (see nixpacks.toml); falls back to fpdf2 if absent.
+weasyprint>=61
 
 # Embeddings — on-device, free, no key/quota (jobhunter/embeddings.py "local").
 # ONNX-based (no PyTorch); downloads a ~150MB model on first use.

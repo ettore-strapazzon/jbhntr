@@ -195,7 +195,9 @@ document.addEventListener("input", function (e) {
       }
       if (!seenHeading) {
         if (s.indexOf('@') >= 0 || PHONE.test(s)) { out.push({ kind: 'contact', text: s }); return; }
-        if (isHeading(s)) { seenHeading = true; out.push({ kind: 'heading', text: s }); return; }
+        // Strong heading signal only (ALL CAPS or trailing colon); a Title Case
+        // line under the name is the headline/subtitle.
+        if (s === s.toUpperCase() || s.slice(-1) === ':') { seenHeading = true; out.push({ kind: 'heading', text: s }); return; }
         if (!subtitleDone) { out.push({ kind: 'subtitle', text: s }); subtitleDone = true; return; }
         out.push(s.indexOf('|') >= 0 ? { kind: 'contact', text: s } : { kind: 'body', text: line });
         return;

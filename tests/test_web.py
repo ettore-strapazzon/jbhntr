@@ -3675,6 +3675,58 @@ def test_parse_lines_experience_org_role_subtitle():
     assert role == "Commercial Associate Director" and dates == "(Oct 2020 - Oct 2022)"
 
 
+def test_cv_html_renders_structured_self_contained_document():
+    """The high-fidelity HTML CV carries the full structure (name/subtitle/
+    contact/heading/org/role/bullets) with the accent applied, and references no
+    external resources — so WeasyPrint (and the browser) render it identically
+    and safely."""
+    from web.app.services import cv_html, cv_style
+
+    style = cv_style.StyleProfile(font_class="sans", accent_rgb=(31, 42, 36),
+                                  heading_upper=True, heading_bold=True, margin_mm=16)
+    body = (
+        "Jordan Rivera\n"
+        "Strategic Operator | Operations\n"
+        "jordan.rivera@example.com\n"
+        "\n"
+        "PROFILE\n"
+        "Builder with 12 years across analytics.\n"
+        "\n"
+        "EXPERIENCE\n"
+        "ACME - Berlin\n"
+        "Head of Operations (2020 - Present)\n"
+        "- Scaled the team from 2 to 40\n"
+    )
+    html = cv_html.render_cv_html(body, style)
+    assert html.startswith("<!DOCTYPE html>")
+    assert "<h1>Jordan Rivera</h1>" in html
+    assert '<div class="subtitle">Strategic Operator | Operations</div>' in html
+    assert '<div class="contact">jordan.rivera@example.com</div>' in html
+    assert "<h2>PROFILE</h2>" in html and "<h2>EXPERIENCE</h2>" in html
+    assert 'class="org-name">ACME</span>' in html
+    assert 'class="role-title">Head of Operations</span>' in html
+    assert "<ul><li>Scaled the team from 2 to 40</li></ul>" in html
+    assert "rgb(31, 42, 36)" in html                       # accent colour applied
+    # Fully self-contained: no network/@import/remote fonts for WeasyPrint to fetch.
+    assert "http://" not in html and "https://" not in html and "@import" not in html
+
+
+def test_cv_view_route_serves_print_ready_html(client):
+    from web.app.db import SessionLocal
+    from web.app.models import Document, JobResult, User
+    signup(client, "cvview@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="cvview@example.com").first()
+    _seed_run(db, u.id, [("dkcvview", 1, 90, "PM Role")])
+    rid = db.query(JobResult).filter_by(dedup_key="dkcvview").first().id
+    db.add(Document(user_id=u.id, job_result_id=rid, kind="cv",
+                    content="Jordan Rivera\nOperator\n\nEXPERIENCE\n- Did the work")); db.commit()
+    res = client.get(f"/document/{rid}/cv/view")
+    assert res.status_code == 200
+    assert "text/html" in res.headers["content-type"]
+    assert "<!DOCTYPE html>" in res.text and "<h1>Jordan Rivera</h1>" in res.text
+
+
 def test_cv_style_json_roundtrip_and_vision_map():
     """Style caches to/from JSON (without the heavy docx bytes) and maps a vision
     result — accent hex -> rgb, plain black -> no accent."""
@@ -3877,7 +3929,7 @@ def test_document_refine_creates_revision(client, monkeypatch):
     db = SessionLocal()
     try:
         revs = (db.query(Document).filter_by(user_id=u.id, job_result_id=rid, kind="cv")
-                .order_by(Document.created_at.desc()).all())
+                .order_by(Document.created_at.desc(), Document.id.desc()).all())
         assert len(revs) == 2 and "Revised" in revs[0].content
     finally:
         db.query(Document).filter_by(user_id=u.id).delete()

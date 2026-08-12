@@ -63,6 +63,19 @@ def _candidate_name(body: str) -> str:
     return ""
 
 
+def _cv_pdf(body: str, style) -> bytes:
+    """High-fidelity CV PDF via WeasyPrint (real fonts, colours, layout), falling
+    back to the fpdf renderer if WeasyPrint or its system libraries are absent."""
+    from ..services import cv_html
+    try:
+        return cv_html.to_pdf(body, style)
+    except Exception:
+        import logging
+        logging.getLogger("web.documents").warning(
+            "WeasyPrint unavailable; using fpdf fallback for CV PDF", exc_info=True)
+        return export.to_pdf_styled("", body, style)
+
+
 @router.get("/document/{result_id}/{kind}", response_class=HTMLResponse)
 def view(result_id: int, kind: str, request: Request, saved: str = "",
          user: User = Depends(require_user), db: DbSession = Depends(get_session)):
@@ -88,6 +101,20 @@ def view(result_id: int, kind: str, request: Request, saved: str = "",
         "gdoc_enabled": gdocs.enabled(),
         "preview_style": cv_style.public_style(cv_style.profile_for(db, user.id)),
     })
+
+
+@router.get("/document/{result_id}/cv/view", response_class=HTMLResponse)
+def cv_view_html(result_id: int, request: Request,
+                 user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    """The tailored CV as a standalone, print-ready HTML page — the exact layout
+    the PDF renders. Opening it and using the browser's Print → Save as PDF is a
+    dependency-free, pixel-perfect route to the same file."""
+    from ..services import cv_html, cv_style
+    r, doc = _doc(db, user, result_id, "cv")
+    if not r or not doc:
+        return RedirectResponse("/applications", status_code=303)
+    style = cv_style.profile_for(db, user.id)
+    return HTMLResponse(cv_html.render_cv_html(doc.content, style, standalone=True))
 
 
 @router.post("/document/{result_id}/{kind}/save")
@@ -120,8 +147,10 @@ def export_doc(result_id: int, kind: str, fmt: str, content: str = Form(default=
     style = cv_style.profile_for(db, user.id) if kind == "cv" else None
 
     if fmt == "pdf":
-        data = (export.to_pdf_styled(title, body, style) if kind == "cv"
-                else export.to_pdf(title, body))
+        if kind == "cv":
+            data = _cv_pdf(body, style)
+        else:
+            data = export.to_pdf(title, body)
         media = "application/pdf"
         name = _filename(r, kind, "pdf", cv_name)
     elif fmt == "docx":

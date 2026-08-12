@@ -33,6 +33,9 @@
       {% if gdoc_enabled %}
         <button type="submit" formaction="/document/{{ r.id }}/{{ kind }}/gdoc" formtarget="_blank">Open in Google Docs</button>
       {% endif %}
+      {% if kind == 'cv' %}
+        <a class="btn ghost" href="/document/{{ r.id }}/cv/view" target="_blank" rel="noopener">Open print-ready CV ↗</a>
+      {% endif %}
       <button type="submit" class="ghost" formaction="/document/{{ r.id }}/{{ kind }}/export/pdf">Download PDF</button>
       <button type="submit" class="ghost" formaction="/document/{{ r.id }}/{{ kind }}/export/docx">Download DOCX</button>
       <button type="submit" class="ghost" formaction="/document/{{ r.id }}/{{ kind }}/export/txt">Download text</button>
