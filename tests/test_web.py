@@ -3733,6 +3733,7 @@ def test_cv_build_serialize_roundtrips_through_parser():
         "name": "Jordan Rivera",
         "headline": "Strategy & Operations Leader",
         "contact": "jordan@example.com | Italian",
+        "summary": "Operations leader with 12 years scaling high-growth businesses.",
         "sections": [
             {"title": "SELECTED HIGHLIGHTS", "type": "bullets",
              "bullets": ["Scaled to 50+ clients in 18 months"]},
@@ -3750,6 +3751,8 @@ def test_cv_build_serialize_roundtrips_through_parser():
     kinds = dict((t, k) for k, t in export.parse_lines(cv_build.serialize(cv)))
     assert kinds["Jordan Rivera"] == "name"
     assert kinds["Strategy & Operations Leader"] == "subtitle"
+    # The headingless opening summary renders as a body paragraph under the header.
+    assert kinds["Operations leader with 12 years scaling high-growth businesses."] == "body"
     assert kinds["EXPERIENCE"] == "heading" and kinds["SKILLS"] == "heading"
     assert kinds["MON.co - Kuala Lumpur"] == "org"
     assert kinds["Web3 developer company in gaming."] == "orgdesc"

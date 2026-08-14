@@ -81,6 +81,11 @@ CV_SCHEMA = {
                                     "the target job's title or a title they have not held"},
         "contact": {"type": "string",
                     "description": "one line, ' | '-separated: phone, email, links, languages"},
+        "summary": {"type": "string",
+                    "description": "the opening professional-summary paragraph that leads "
+                                   "the CV, with NO heading (as most CVs have right under "
+                                   "the contact line). Keep it if the candidate's CV or "
+                                   "about-me supports one; tailor it to the role."},
         "sections": {"type": "array", "items": _SECTION},
     },
     "required": ["name", "headline", "sections"],
@@ -121,6 +126,11 @@ def serialize(cv: dict) -> str:
     contact = _clean(cv.get("contact"))
     if contact:
         lines.append(contact)
+    # Opening summary paragraph — headingless, right under the contact line.
+    summary = _clean(cv.get("summary"))
+    if summary:
+        lines.append("")
+        lines.append(summary)
 
     for sec in cv.get("sections") or []:
         if not isinstance(sec, dict):
@@ -185,11 +195,17 @@ def _system(materials, sections: list[str]) -> str:
         "market-cap, timeframes) the materials contain. Keep each employer's "
         "one-line description if the source CV has one. Reframe and reorder to fit "
         "the job; do not shorten or drop content. Comparable depth per role.\n"
+        "- OPENING SUMMARY: if the candidate's CV opens with a professional-summary "
+        "paragraph (or their about-me supports one), fill the 'summary' field with "
+        "it, tailored to this role. Do not drop it.\n"
         f"- KEEP THE SAME SECTIONS as the candidate's CV: {skeleton}. You may add "
         "at most ONE extra section, flagged added=true, only if the original is "
         "genuinely thin for this role; otherwise add nothing.\n"
-        "- Lead with the most relevant experience. Plain text field values (no "
-        "markdown). Dates like 'Nov 2022 - Present'.\n\n"
+        "- Draw on ALL the materials below — the CV(s) for facts and history, the "
+        "about-me and past cover letters for the candidate's own voice and framing "
+        "— to write the strongest honest CV. Lead with the most relevant "
+        "experience. Plain text field values (no markdown). Dates like "
+        "'Nov 2022 - Present'.\n\n"
         "## Candidate materials\n" + ctx
     )
 
