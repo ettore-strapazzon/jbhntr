@@ -171,6 +171,7 @@ document.addEventListener("input", function (e) {
   function isHeading(s) {
     if (s.length > 40 || /[.,;]$/.test(s)) return false;
     if (s === s.toUpperCase() || s.slice(-1) === ':') return true;
+    if (s.indexOf(':') >= 0 || s.indexOf(',') >= 0) return false;
     return s === toTitle(s) && s.split(/\s+/).length <= 5;
   }
 
@@ -211,9 +212,14 @@ document.addEventListener("input", function (e) {
       if (isRole(s)) { out.push({ kind: 'role', text: s }); return; }
       var shortLine = s.length <= 90 && !/[.;:]$/.test(s);
       var hasSep = ORG_SPLIT.test(s);
-      if (shortLine && ((hasSep && nextIsRole(i, 2)) || nextIsRole(i, 1))) {
-        out.push({ kind: 'org', text: s }); return;
-      }
+      var firstNext = '';
+      for (var k2 = i + 1; k2 < stripped.length; k2++) { if (stripped[k2]) { firstNext = stripped[k2]; break; } }
+      var descThenRole = !hasSep && nextIsRole(i, 2) && /[.;]$/.test(firstNext);
+      var isOrg;
+      if (hasSep) isOrg = shortLine && nextIsRole(i, 2);
+      else if (descThenRole) isOrg = shortLine;
+      else isOrg = shortLine && !isHeading(s) && nextIsRole(i, 1);
+      if (isOrg) { out.push({ kind: 'org', text: s }); return; }
       if (isHeading(s)) { out.push({ kind: 'heading', text: s }); return; }
       out.push({ kind: 'body', text: line });
     });

@@ -3723,6 +3723,50 @@ def test_parse_lines_company_description_is_italicised():
     assert kinds["Strategy and Operations Director | Nov 2022 - Present"] == "role"
 
 
+def test_cv_build_serialize_roundtrips_through_parser():
+    """A structured CV serialises to canonical text that the shared parser reads
+    back exactly — honest headline, kept company descriptions, roles, education,
+    skills — including a bare company (no location) with a description."""
+    from web.app.services import cv_build, export
+
+    cv = {
+        "name": "Jordan Rivera",
+        "headline": "Strategy & Operations Leader",
+        "contact": "jordan@example.com | Italian",
+        "sections": [
+            {"title": "SELECTED HIGHLIGHTS", "type": "bullets",
+             "bullets": ["Scaled to 50+ clients in 18 months"]},
+            {"title": "EXPERIENCE", "type": "experience", "entries": [
+                {"org": "MON.co", "location": "Kuala Lumpur",
+                 "description": "Web3 developer company in gaming",
+                 "positions": [{"title": "Director", "dates": "Nov 2022 - Present",
+                                "bullets": ["Raised a double-digit million USD round"]}]},
+                {"org": "Acme", "location": "", "description": "Boutique advisory firm",
+                 "positions": [{"title": "Advisor", "dates": "2016 - 2018", "bullets": ["Advised on 3 deals"]}]},
+            ]},
+            {"title": "SKILLS", "type": "skills", "lines": ["Languages: English, Italian"]},
+        ],
+    }
+    kinds = dict((t, k) for k, t in export.parse_lines(cv_build.serialize(cv)))
+    assert kinds["Jordan Rivera"] == "name"
+    assert kinds["Strategy & Operations Leader"] == "subtitle"
+    assert kinds["EXPERIENCE"] == "heading" and kinds["SKILLS"] == "heading"
+    assert kinds["MON.co - Kuala Lumpur"] == "org"
+    assert kinds["Web3 developer company in gaming."] == "orgdesc"
+    assert kinds["Director (Nov 2022 - Present)"] == "role"
+    # Bare company (no location) + description still resolves.
+    assert kinds["Acme"] == "org"
+    assert kinds["Boutique advisory firm."] == "orgdesc"
+    # A 'Label: value' skills line is body, not a mis-read heading.
+    assert kinds["Languages: English, Italian"] == "body"
+
+
+def test_cv_build_keeps_original_sections():
+    from web.app.services import cv_build
+    base = "Jane Doe\nOperator\n\nPROFILE\nx\n\nWORK EXPERIENCE\nAcme - NYC\nDev (2019 - 2021)\n- built\n\nEDUCATION\nMIT (2015)"
+    assert cv_build.original_sections(base) == ["PROFILE", "WORK EXPERIENCE", "EDUCATION"]
+
+
 def test_cv_html_renders_structured_self_contained_document():
     """The high-fidelity HTML CV carries the full structure (name/subtitle/
     contact/heading/org/role/bullets) with the accent applied, and references no

@@ -144,11 +144,21 @@ def generate(result_id: int, kind: str, request: Request,
     note = ""
     content = ""
 
-    # Premium: a multi-model panel (drafts -> cross-critique -> vote -> synthesise)
-    # for a stronger result than any single model can give — and it keeps the
-    # candidate's own CV structure. Free users, and any panel failure, fall back
-    # to the single-model path below.
-    if user.is_premium:
+    # CV: structured generation — the model fills explicit fields (honest headline,
+    # every employer/position/bullet, kept sections) which we serialise to the
+    # canonical layout the renderer parses exactly. This keeps roles and metrics
+    # from being lost in a prose rewrite. Falls back to the paths below on failure.
+    if kind == "cv":
+        from ..services import cv_build
+        built = cv_build.build_cv(eng_materials, posting, settings, config)
+        if built:
+            content = built
+            note = "Tailored from your CV's structure — sections, roles and metrics kept."
+
+    # Premium: a multi-model panel for a stronger result than a single model can
+    # give. Runs for cover letters, and for a CV only if the structured build
+    # above failed. Free users, and any panel failure, fall back to single-model.
+    if not content and user.is_premium:
         try:
             from ..services import panel
             pr = panel.deliberate(kind, eng_materials, posting, settings, config)

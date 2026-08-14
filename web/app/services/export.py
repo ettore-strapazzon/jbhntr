@@ -55,11 +55,14 @@ def _is_role(s: str) -> bool:
 def _is_heading(s: str) -> bool:
     """A section heading: short, no sentence punctuation, and either ALL CAPS,
     ends with a colon, or a short Title Case phrase. Deliberately does NOT treat
-    'any capitalised line' as a heading — that over-matched company/role lines."""
+    'any capitalised line' as a heading — that over-matched company/role lines —
+    nor a 'Label: value' or comma list (e.g. 'Languages: English, Italian')."""
     if len(s) > 40 or s.endswith((".", ",", ";")):
         return False
     if s.isupper() or s.endswith(":"):
         return True
+    if ":" in s or "," in s:
+        return False
     return s.istitle() and len(s.split()) <= 5
 
 
@@ -136,14 +139,23 @@ def parse_lines(body: str) -> list[tuple[str, str]]:
         if _is_role(s):
             out.append(("role", s))
             continue
-        # Company header. A line with a company/location separator (comma or dash)
-        # counts as an org if a role follows within two lines (past a possible
-        # one-line description). A line WITHOUT such a separator only counts if the
-        # very next line is a role — otherwise a section heading like 'EXPERIENCE'
-        # (which sits just above a company) would be mis-read as an org.
+        # Company header vs. section heading. A role follows either way, so we lean
+        # on strong company signals: a 'Company - Location'/'Company, City'
+        # separator, or a description sentence sitting under the name. Without those,
+        # a heading-shaped line ('EDUCATION', 'SKILLS') stays a heading even when a
+        # role is right below it.
         short = len(s) <= 90 and not s.endswith((".", ";", ":"))
         has_sep = _ORG_SPLIT.search(s) is not None
-        is_org = short and ((has_sep and next_is_role(i, 2)) or next_is_role(i, 1))
+        first_next = next((stripped[j] for j in range(i + 1, len(stripped))
+                           if stripped[j]), "")
+        desc_then_role = (not has_sep and next_is_role(i, 2)
+                          and first_next.endswith((".", ";")))
+        if has_sep:
+            is_org = short and next_is_role(i, 2)
+        elif desc_then_role:
+            is_org = short
+        else:
+            is_org = short and not _is_heading(s) and next_is_role(i, 1)
         if is_org:
             out.append(("org", s))
             continue
