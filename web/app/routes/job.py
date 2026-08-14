@@ -179,6 +179,30 @@ def reopen(result_id: int, request: Request,
                       lambda r: job_state.reopen_application(db, user.id, r.dedup_key))
 
 
+@router.post("/{result_id}/to-saved")
+def to_saved(result_id: int, request: Request,
+             user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    """Move a tracked job back to Saved (undo 'I applied' / a later stage)."""
+    return _track_act(request, db, user, result_id,
+                      lambda r: job_state.to_saved(db, user.id, r.dedup_key))
+
+
+@router.post("/{result_id}/track-remove")
+def track_remove(result_id: int, request: Request,
+                 user: User = Depends(require_user), db: DbSession = Depends(get_session)):
+    """Remove a Saved job from My Jobs (unsave). The card is dropped from the
+    board; on a full-page POST we redirect back to the list."""
+    r = _result(db, user, result_id)
+    is_htmx = request.headers.get("HX-Request") == "true"
+    if not r:
+        return HTMLResponse("", status_code=404) if is_htmx \
+            else RedirectResponse("/applications", status_code=303)
+    job_state.set_saved(db, user.id, r.dedup_key, False)
+    if is_htmx:
+        return HTMLResponse("")          # hx-swap outerHTML -> the card disappears
+    return RedirectResponse("/applications", status_code=303)
+
+
 @router.post("/{result_id}/next-step")
 def next_step(result_id: int, request: Request,
               text: str = Form(default=""), on: str = Form(default=""),

@@ -360,6 +360,32 @@ def test_applied_appears_in_applications(client):
     assert 'value="Interviewing" selected' in client.get("/applications").text
 
 
+def test_tracker_unsave_and_back_to_saved(client):
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, JobState, User
+    from web.app.services import job_state
+    signup(client, "trkfix@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="trkfix@example.com").first()
+    _seed_run(db, u.id, [("trkfix1", 1, 90, "Saveable"), ("trkfix2", 1, 88, "Appliable")])
+    r1 = db.query(JobResult).filter_by(dedup_key="trkfix1").first().id
+    r2 = db.query(JobResult).filter_by(dedup_key="trkfix2").first().id
+
+    # Save then remove from My Jobs -> gone from the tracker.
+    client.post(f"/job/{r1}/save", headers={"HX-Request": "true"})
+    assert "Saveable" in client.get("/applications").text
+    client.post(f"/job/{r1}/track-remove", headers={"HX-Request": "true"})
+    assert "Saveable" not in client.get("/applications").text
+
+    # Apply then move back to Saved -> lands in the Saved group, application cleared.
+    client.post(f"/job/{r2}/applied", headers={"HX-Request": "true"})
+    client.post(f"/job/{r2}/to-saved", headers={"HX-Request": "true"})
+    st = db.query(JobState).filter_by(user_id=u.id, dedup_key="trkfix2").first()
+    db.refresh(st)
+    assert st.saved is True and st.applied_at is None and st.application_status == ""
+    assert job_state.stage_of(st) == "Saved"
+
+
 def test_search_url_redirects_to_matches(client):
     signup(client, "redir@example.com")
     r = client.get("/search", follow_redirects=False)
@@ -2255,7 +2281,10 @@ import pytest as _pytest
         (["gb"], "onsite", {"it"}, False, False),   # confidently foreign -> drop
         (["it"], "onsite", {"it"}, False, True),    # target country -> keep
         ([], "onsite", {"it"}, False, True),        # untagged -> defer to prefilter
-        (["us"], "remote", {"it"}, True, True),     # remote + remote-anywhere -> keep
+        # A remote role tied to a foreign country ("Remote in United States") is
+        # NOT remote-from-anywhere; drop it even for remote-anywhere users.
+        (["us"], "remote", {"it"}, True, False),
+        ([], "remote", {"it"}, True, True),         # untagged remote -> defer (kept)
         (["us"], "onsite", {"it"}, True, False),    # remote-anywhere but on-site abroad
         (["gb"], "onsite", set(), False, True),     # user has no country constraint
         (["it", "fr"], "onsite", {"it"}, False, True),  # one target among several

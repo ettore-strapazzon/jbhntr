@@ -96,9 +96,13 @@ def _country_of(token: str) -> str:
     t = token.strip().lower()
     if not t:
         return ""
-    # "Remote-US", "Remote-Italy" -> the region after the dash.
+    # A remote posting that names a region is RESTRICTED to it — resolve that
+    # region, whatever connector it uses: "Remote-US", "Remote, US", "Remote (US)",
+    # "Remote in United States", "Remote within Italy". Bare "Remote" -> "".
     if t.startswith("remote"):
-        t = t.split("-", 1)[1].strip() if "-" in t else ""
+        rest = t[len("remote"):].strip(" -:,/()")
+        rest = re.sub(r"^(?:in|at|from|within|across|throughout)\b\s*", "", rest)
+        t = rest.strip(" -:,/()")
         if not t:
             return ""
     if t in _COUNTRY_ALIASES:

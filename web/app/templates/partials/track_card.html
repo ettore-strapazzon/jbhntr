@@ -31,6 +31,11 @@
         <input type="hidden" name="stage" value="Applied">
         <button type="submit">I applied</button>
       </form>
+      <form method="post" action="/job/{{ r.id }}/track-remove" style="display:inline"
+            hx-post="/job/{{ r.id }}/track-remove" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML"
+            hx-confirm="Remove this job from My Jobs?">
+        <button class="linklike small" type="submit">Remove</button>
+      </form>
     {% elif stage == 'Closed' %}
       <form method="post" action="/job/{{ r.id }}/reopen"
             hx-post="/job/{{ r.id }}/reopen" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
@@ -55,6 +60,10 @@
           <button class="linklike small" type="submit">{{ 'Mark rejected' if o == 'Rejected' else 'Withdraw' }}</button>
         </form>
       {% endfor %}
+      <form method="post" action="/job/{{ r.id }}/to-saved" style="display:inline"
+            hx-post="/job/{{ r.id }}/to-saved" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+        <button class="linklike small" type="submit">Back to Saved</button>
+      </form>
     {% endif %}
     {% if r.apply_url %}<a class="small" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open posting</a>{% endif %}
   </div>

@@ -139,6 +139,19 @@ def set_stage(db: DbSession, user_id: int, dedup_key: str, stage: str) -> JobSta
     return st
 
 
+def to_saved(db: DbSession, user_id: int, dedup_key: str) -> JobState:
+    """Move a job back to the Saved column — undo an 'I applied' (or a later
+    stage), clearing the application but keeping it saved."""
+    st = get_or_create(db, user_id, dedup_key)
+    st.saved = True
+    st.applied_at = None
+    st.application_status = ""
+    st.closed_from_stage = ""
+    st.dismissed = False
+    db.commit()
+    return st
+
+
 def close_application(db: DbSession, user_id: int, dedup_key: str,
                       outcome: str) -> JobState | None:
     """Reject or Withdraw from any active stage, remembering the stage."""

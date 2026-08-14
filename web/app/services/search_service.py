@@ -483,14 +483,16 @@ def _country_allowed(job_countries, remote_mode, target_codes, remote_any) -> bo
     fills for the long tail). True = keep.
 
     Defers to the text prefilter when we can't decide: an untagged job, or a user
-    with no country constraint. Otherwise: keep only a job whose settled country
-    is one the user chose — or any remote job when the user takes remote-anywhere.
+    with no country constraint. A job confidently placed in a country the user did
+    NOT choose is dropped — including a remote role tied to a specific foreign
+    country ("Remote in United States"), which is NOT remote-from-anywhere, so it
+    stays out even for remote-anywhere users. Genuinely global remote roles carry
+    no country tag and are kept by the untagged branch above (then the prefilter's
+    generic-remote check decides).
     """
     if not job_countries or not target_codes:
         return True
-    if set(job_countries) & set(target_codes):
-        return True
-    return bool(remote_any and remote_mode == "remote")
+    return bool(set(job_countries) & set(target_codes))
 
 
 def _corpus_candidates(db, profile, candidate, settings, terms):

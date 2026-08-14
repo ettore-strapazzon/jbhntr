@@ -95,3 +95,20 @@ def test_usajobs_skips_non_us_searches():
     s = Settings(usajobs_key="x", usajobs_email="a@b.com")
     # No US in the profile → returns immediately without a network call.
     assert _usajobs(_p(["Milan", "Remote-EU"]), s) == []
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Remote in United States", "us"),   # was "" before the fix -> leaked past the geo gate
+        ("Remote, US", "us"),
+        ("Remote (US)", "us"),
+        ("Remote - United States", "us"),
+        ("Remote in Italy", "it"),
+        ("Remote within Germany", "de"),
+        ("Remote", ""),                      # genuinely global -> no country
+        ("Anywhere", ""),
+    ],
+)
+def test_country_of_resolves_country_restricted_remote(text, expected):
+    assert geo.country_of(text) == expected
