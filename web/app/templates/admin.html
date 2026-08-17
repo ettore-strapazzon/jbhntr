@@ -142,6 +142,8 @@
 {# ===== corpus health ===== #}
 <div class="card">
   <h2>Corpus &amp; sources</h2>
+  <p class="small"><a class="btn ghost small" href="/admin/corpus">Open corpus explorer →</a>
+    <span class="muted">browse/filter the raw corpus by geo, remote, source, title</span></p>
   <div class="admin-stats">
     <div class="stat"><b>{{ corpus_total }}</b><span>jobs in corpus</span></div>
     <div class="stat"><b>{{ fresh_1d }}</b><span>seen in 24h</span></div>
@@ -194,10 +196,13 @@
       </table>
       <p class="small muted">Deprecated = pruned as unseen &gt;45d, plus link-checked
         dead (404/410 or a closed-posting page). Login-walled jobs are kept and the
-        real link is recovered at search time. Link-check covers up to 5,000/night.</p>
+        real link is recovered at search time. The nightly link-check has no cap: it
+        re-verifies every board/aggregator link older than {{ config.reaper_recheck_days }}d,
+        so the whole checkable corpus cycles about every {{ config.reaper_recheck_days }} days
+        (ATS/scraped jobs prune on their poll window instead).</p>
       <form method="post" action="/admin/run-maintenance" style="margin-top:6px">
         <button class="ghost" type="submit">Run maintenance now</button>
-        <span class="small muted">Reaper + a corpus snapshot (up to 5,000 checks).</span>
+        <span class="small muted">Reaper (full due-set) + a corpus snapshot.</span>
       </form>
       <form method="post" action="/admin/deep-clean" style="margin-top:6px">
         <button class="ghost" type="submit">Deep clean (check every link)</button>

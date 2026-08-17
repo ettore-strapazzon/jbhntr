@@ -365,6 +365,57 @@ def admin_dashboard(request: Request, _: bool = Depends(require_admin),
         {"request": request, "reset_msg": reset_msg, **ctx})
 
 
+@router.get("/admin/corpus", response_class=HTMLResponse)
+def admin_corpus(request: Request, _: bool = Depends(require_admin),
+                 db: DbSession = Depends(get_session),
+                 q: str = "", company: str = "", country: str = "",
+                 remote: str = "", source: str = "", fresh_days: int = 30,
+                 has_salary: str = "", page: int = 1):
+    """Browse the raw corpus by geo / remote / source / title / company, with the
+    JD one click away. The diagnostic lens for 'are the good jobs even in the DB,
+    or is the scorer burying them?' — filter the way your profile does and see
+    what's actually there. (Corpus rows are tagged only by country, remote_mode,
+    salary and source; seniority/industry aren't stored on a Job, so title search
+    is the proxy for those.)"""
+    from sqlalchemy import String, cast
+
+    PAGE = 50
+    page = max(1, page)
+    query = db.query(Job)
+    if q:
+        query = query.filter(Job.title.ilike(f"%{q}%"))
+    if company:
+        query = query.filter(Job.company.ilike(f"%{company}%"))
+    if country:
+        query = query.filter(cast(Job.countries, String).ilike(f'%"{country.lower()}"%'))
+    if remote in ("remote", "hybrid", "onsite", "unknown"):
+        query = query.filter(Job.remote_mode == remote)
+    if source:
+        query = query.filter(Job.source.ilike(f"%{source}%"))
+    if has_salary == "1":
+        query = query.filter(Job.has_salary.is_(True))
+    if fresh_days and fresh_days > 0:
+        query = query.filter(Job.last_seen_at >= aware(utcnow() - timedelta(days=fresh_days)))
+
+    total = query.count()
+    rows = (query.order_by(Job.last_seen_at.desc())
+            .offset((page - 1) * PAGE).limit(PAGE).all())
+    # Coverage facets: remote mix of the current filter + the corpus's top sources.
+    remote_mix = dict(query.with_entities(Job.remote_mode, func.count())
+                      .group_by(Job.remote_mode).all())
+    top_sources = (db.query(Job.source, func.count()).group_by(Job.source)
+                   .order_by(func.count().desc()).limit(20).all())
+
+    return templates.TemplateResponse(request, "admin_corpus.html", {
+        "request": request, "rows": rows, "total": total,
+        "corpus_total": db.query(Job).count(),
+        "page": page, "pages": (total + PAGE - 1) // PAGE, "page_size": PAGE,
+        "remote_mix": remote_mix, "top_sources": top_sources,
+        "f": {"q": q, "company": company, "country": country, "remote": remote,
+              "source": source, "fresh_days": fresh_days, "has_salary": has_salary},
+    })
+
+
 @router.get("/admin/users/{user_id}", response_class=HTMLResponse)
 def admin_user(user_id: int, request: Request, _: bool = Depends(require_admin),
                db: DbSession = Depends(get_session)):

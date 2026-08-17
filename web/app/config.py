@@ -82,6 +82,13 @@ class WebConfig:
     # and batched (memory-bounded), so this can be large; it only costs CPU time.
     corpus_topk: int = _int("CORPUS_TOPK", 60)
     embed_limit: int = _int("EMBED_LIMIT", 20000)
+    # Reaper cadence. A board/aggregator link is re-verified if it hasn't been
+    # checked in this many days; lower = expired jobs caught sooner. Link-checking
+    # is plain HTTP (no API $), so the only cost is more requests/night and a
+    # longer sweep — 2 means the whole checkable corpus cycles every ~48h.
+    # (ATS/scraped jobs are never link-checked; they prune on the poll window.)
+    reaper_recheck_days: int = _int("REAPER_RECHECK_DAYS", 2)
+    reaper_workers: int = _int("REAPER_WORKERS", 24)
     # Country tagging + ATS location correction per nightly ingest. Like embedding,
     # these must outpace the daily ingest or the untagged backlog grows — and
     # untagged rows can't be geo-filtered, so they hurt in-country recall. Country

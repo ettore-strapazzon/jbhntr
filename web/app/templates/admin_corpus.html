@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Corpus explorer · Admin{% endblock %}
+{% block content %}
+<p class="small"><a href="/admin">← Admin</a></p>
+<h1>Corpus explorer</h1>
+<p class="muted small">{{ "{:,}".format(corpus_total) }} jobs in the corpus ·
+  {{ "{:,}".format(total) }} match this filter. Browse the way your profile does to
+  see whether good jobs are in the DB but scored low, or simply not there yet.
+  Corpus rows are tagged by country, remote mode, salary and source only —
+  <b>seniority and industry aren't stored on a job</b>, so use the title search
+  (and the chips) as a proxy.</p>
+
+<form method="get" action="/admin/corpus" class="card" style="display:grid;gap:8px;
+     grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:end">
+  <label class="small">Title contains
+    <input type="text" name="q" value="{{ f.q }}" placeholder="director, head of, payments">
+  </label>
+  <label class="small">Company
+    <input type="text" name="company" value="{{ f.company }}" placeholder="stripe">
+  </label>
+  <label class="small">Country (ISO-2)
+    <input type="text" name="country" value="{{ f.country }}" placeholder="it" maxlength="2">
+  </label>
+  <label class="small">Remote
+    <select name="remote">
+      {% for opt in ['', 'remote', 'hybrid', 'onsite', 'unknown'] %}
+        <option value="{{ opt }}" {% if opt == f.remote %}selected{% endif %}>{{ opt or 'any' }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="small">Source
+    <input type="text" name="source" value="{{ f.source }}" placeholder="ats, careerjet, scrape">
+  </label>
+  <label class="small">Seen within (days)
+    <input type="number" name="fresh_days" value="{{ f.fresh_days }}" min="0" max="365">
+  </label>
+  <label class="small"><input type="checkbox" name="has_salary" value="1"
+    {% if f.has_salary == '1' %}checked{% endif %}> Has salary</label>
+  <button type="submit">Filter</button>
+</form>
+
+<p class="small muted">Seniority proxy:
+  {% for tok in ['Chief', 'VP', 'Head of', 'Director', 'Lead', 'Principal', 'Senior', 'Manager'] %}
+    <a href="/admin/corpus?q={{ tok|urlencode }}&country={{ f.country|urlencode }}&remote={{ f.remote|urlencode }}">{{ tok }}</a>{% if not loop.last %} · {% endif %}
+  {% endfor %}
+</p>
+
+<div class="admin-two">
+  <div class="card">
+    <b class="small">Remote mix (this filter)</b>
+    <table class="apptable"><tbody>
+      {% for k, v in remote_mix.items() %}
+        <tr><td>{{ k or 'unknown' }}</td><td>{{ "{:,}".format(v) }}</td></tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+  <div class="card">
+    <b class="small">Top sources (whole corpus)</b>
+    <table class="apptable"><tbody>
+      {% for s, c in top_sources %}
+        <tr><td><a href="/admin/corpus?source={{ s|urlencode }}">{{ s }}</a></td><td>{{ "{:,}".format(c) }}</td></tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="card">
+  <table class="apptable">
+    <thead><tr>
+      <th>Company</th><th>Title</th><th>Location</th><th>Remote</th>
+      <th>Countries</th><th>Source</th><th>Seen</th><th>JD</th>
+    </tr></thead>
+    <tbody>
+      {% for j in rows %}
+        <tr>
+          <td>{{ j.company }}</td>
+          <td>{% if j.url %}<a href="{{ j.url }}" target="_blank" rel="noopener noreferrer">{{ j.title }}</a>{% else %}{{ j.title }}{% endif %}</td>
+          <td class="small">{{ j.location or '—' }}</td>
+          <td class="small">{{ j.remote_mode or '—' }}</td>
+          <td class="small">{{ (j.countries or [])|join(', ') or '—' }}</td>
+          <td class="small">{{ j.source }}</td>
+          <td class="small">{{ j.last_seen_at.strftime('%d %b') if j.last_seen_at else '—' }}</td>
+          <td>
+            <details><summary class="small">view</summary>
+              <div class="small" style="max-width:640px;white-space:pre-wrap">{{ (j.description or '(no description stored)')[:4000] }}</div>
+            </details>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" class="muted">No jobs match this filter.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if pages > 1 %}
+  {% set qs = 'q=' ~ f.q|urlencode ~ '&company=' ~ f.company|urlencode ~ '&country=' ~ f.country|urlencode ~ '&remote=' ~ f.remote|urlencode ~ '&source=' ~ f.source|urlencode ~ '&fresh_days=' ~ f.fresh_days ~ '&has_salary=' ~ f.has_salary|urlencode %}
+  <p class="small">
+    {% if page > 1 %}<a href="/admin/corpus?{{ qs }}&page={{ page - 1 }}">← Prev</a>{% endif %}
+    <span class="muted">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a href="/admin/corpus?{{ qs }}&page={{ page + 1 }}">Next →</a>{% endif %}
+  </p>
+{% endif %}
+{% endblock %}

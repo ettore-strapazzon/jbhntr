@@ -1635,6 +1635,38 @@ def test_admin_shows_waitlist_and_csv(client, monkeypatch):
     assert "wanter@example.com" in csv.text and "email,requested_at" in csv.text
 
 
+def test_admin_corpus_explorer_filters(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import Job, utcnow
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    db = SessionLocal()
+    db.add_all([
+        Job(dedup_key="cx-it", source="ats:greenhouse", title="Head of Operations",
+            company="ItCo", location="Milan", remote_mode="onsite", countries=["it"],
+            url="https://ex/it", last_seen_at=utcnow(), description="Lead ops in Milan."),
+        Job(dedup_key="cx-us", source="api:careerjet", title="Sales Rep",
+            company="UsCo", location="Chicago", remote_mode="remote", countries=["us"],
+            url="https://ex/us", last_seen_at=utcnow(), description="US remote sales."),
+    ])
+    db.commit(); db.close()
+
+    # Off without a token.
+    monkeypatch.setattr(config, "admin_token", "")
+    assert client.get("/admin/corpus").status_code == 404
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+
+    # Unfiltered lists both.
+    r = client.get("/admin/corpus", auth=("op", "s3cret"))
+    assert r.status_code == 200 and "Head of Operations" in r.text and "Sales Rep" in r.text
+    # Country filter (JSON tag) narrows to Italy.
+    r = client.get("/admin/corpus?country=it", auth=("op", "s3cret"))
+    assert "Head of Operations" in r.text and "Sales Rep" not in r.text
+    # Title + remote filters compose.
+    r = client.get("/admin/corpus?q=sales&remote=remote", auth=("op", "s3cret"))
+    assert "Sales Rep" in r.text and "Head of Operations" not in r.text
+
+
 # --------------------------- visitor analytics ---------------------------- #
 def test_visitor_hash_is_stable_and_ip_sensitive():
     from web.app.services.analytics import visitor_hash

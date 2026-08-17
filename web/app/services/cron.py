@@ -67,9 +67,12 @@ def nightly(today: datetime.date | None = None) -> dict:
     _stage(out, "ingest_daily", lambda: ingest_run("daily"))
     # Reap AFTER ingest so the night's freshly-added (never-checked) postings are
     # link-checked now, not a day later. Link-check EVERY due job (never-checked,
-    # or last checked >6 days ago) — the corpus stays verified within a rolling
-    # 6-day window. check_limit=0 = no cap.
-    _stage(out, "reaper", lambda: reaper_run(check_limit=0, recheck_days=6))
+    # or last checked older than the configured window) — check_limit=0 = no cap.
+    # The window (REAPER_RECHECK_DAYS, default 2) sets how fast expired postings
+    # are caught: the whole checkable corpus cycles within that many days.
+    from ..config import config as _cfg
+    _stage(out, "reaper", lambda: reaper_run(
+        check_limit=0, recheck_days=_cfg.reaper_recheck_days, workers=_cfg.reaper_workers))
 
     # Premium daily/weekly digest (R13.4). No-op unless SMTP is configured.
     from ..db import SessionLocal
