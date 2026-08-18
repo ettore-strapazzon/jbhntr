@@ -16,6 +16,7 @@ embedding so the next embed pass re-embeds it with the JD.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -46,6 +47,39 @@ _CHROME = re.compile(
 _COMMENTS = re.compile(r"(?is)<!--.*?-->")
 
 
+_JSONLD = re.compile(
+    r'(?is)<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>')
+
+
+def _iter_nodes(data):
+    """Walk a JSON-LD document, yielding every dict (through lists and @graph)."""
+    if isinstance(data, list):
+        for x in data:
+            yield from _iter_nodes(x)
+    elif isinstance(data, dict):
+        yield data
+        if "@graph" in data:
+            yield from _iter_nodes(data["@graph"])
+
+
+def _jsonld_description(html: str) -> str:
+    """The `description` of a JobPosting in the page's JSON-LD, if present. This is
+    the reliable path: Google for Jobs makes most postings (ATS + company sites)
+    embed the FULL JD as structured data in the server HTML, so it works even when
+    the visible page is JavaScript-rendered and plain scraping gets nothing."""
+    for m in _JSONLD.finditer(html):
+        try:
+            data = json.loads(m.group(1).strip())
+        except Exception:
+            continue
+        for node in _iter_nodes(data):
+            t = node.get("@type")
+            types = t if isinstance(t, list) else [t]
+            if any(str(x).lower() == "jobposting" for x in types) and node.get("description"):
+                return re.sub(r"\s+", " ", strip_html(str(node["description"]))).strip()
+    return ""
+
+
 def _extract_main(html: str) -> str:
     """Best-effort main-content text: drop chrome tags, strip the rest, collapse
     whitespace. Returns "" for a page that's essentially a JavaScript shell (no
@@ -56,22 +90,63 @@ def _extract_main(html: str) -> str:
     return text
 
 
-def _fetch_body(url: str) -> tuple[str, bool]:
+def _best_body(html: str) -> str:
+    """Prefer the JSON-LD JobPosting description; fall back to main-content text."""
+    jd = _jsonld_description(html)
+    main = _extract_main(html)
+    # JSON-LD is the cleanest when it's substantial; otherwise take whichever is longer.
+    if len(jd) >= _GOOD_CHARS:
+        return jd
+    return jd if len(jd) >= len(main) else main
+
+
+def _fetch_body(url: str, timeout: float = _TIMEOUT) -> tuple[str, bool]:
     """Return (main_text, definitive). ``definitive`` is False only on a transient
     error (timeout / connection reset) — those we may retry later; a 200, 404 or
     403 is definitive and the job is marked done so we don't re-hammer a page that
     won't give us more."""
     try:
-        with http_client(timeout=_TIMEOUT) as c:
+        with http_client(timeout=timeout) as c:
             r = c.get(url, follow_redirects=True)
     except Exception:
         return "", False
     if r.status_code != 200:
         return "", True
     try:
-        return _extract_main(r.text), True
+        return _best_body(r.text), True
     except Exception:
         return "", True
+
+
+def fetch_description(url: str, timeout: float = 10.0) -> str:
+    """Public: the full description for one posting URL, or "" if we couldn't get a
+    substantial body. Used by the search path to fill a shortlisted job before it
+    is scored, so the matcher never judges fit from a snippet."""
+    if not url:
+        return ""
+    body, _ = _fetch_body(url, timeout=timeout)
+    return body[:_DESC_CAP] if len(body) >= _GOOD_CHARS else ""
+
+
+def persist_description(db: DbSession, posting) -> bool:
+    """Store a freshly-fetched description on the matching corpus row, re-tag it and
+    clear its embedding — so a search that enriched a shortlisted job also fixes
+    the corpus for everyone and it isn't re-fetched. Does NOT commit (caller
+    batches). Returns True if it updated a row."""
+    desc = posting.description or ""
+    if len(desc) < _GOOD_CHARS:
+        return False
+    row = db.query(Job).filter(Job.dedup_key == posting.dedup_key()).first()
+    if not row or len(desc) <= len(row.description or ""):
+        return False
+    row.description = desc[:_DESC_CAP]
+    tags = deterministic_tags(posting)
+    row.remote_mode = tags["remote_mode"]
+    if tags["countries"]:
+        row.countries = tags["countries"]
+    row.embedding = None
+    row.desc_enriched = True
+    return True
 
 
 def _thin_filter():

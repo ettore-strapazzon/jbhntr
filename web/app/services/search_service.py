@@ -212,7 +212,7 @@ def _run_search(search_id: int, user_id: int) -> None:
         _set(db, search, raw_count=scanned, located_count=located, ranked_count=len(jobs))
 
         _set(db, search, stage=f"Scoring {len(jobs)} jobs in detail…")
-        _enrich(jobs)
+        _enrich(jobs, db)
         feedback = _feedback_examples(db, user)
         scored = _score_cached(db, matcher, jobs, profile, materials, feedback,
                                company_profile, criteria, settings)
@@ -603,16 +603,46 @@ def _cache_to_corpus(postings) -> None:
         cdb.close()
 
 
-def _enrich(jobs) -> None:
+def _enrich(jobs, db=None) -> None:
+    """Fill full JDs for the shortlist BEFORE scoring — the matcher can't judge fit
+    from a snippet. First the structured ATS/LinkedIn path (empty bodies), then a
+    generic fetch (JSON-LD JobPosting / main content) for anything still thin. What
+    we fetch is persisted back to the corpus row, so it's fixed for everyone and
+    not re-fetched."""
     from concurrent.futures import ThreadPoolExecutor
 
     from jobhunter.sources.ats import enrich_description
 
-    missing = [j for j in jobs if not j.description][:200]
-    if not missing:
+    from . import enrich_service
+
+    targets = [j for j in jobs if j.url and len(j.description or "") < 300][:120]
+    if not targets:
         return
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        list(pool.map(enrich_description, missing))
+
+    def _one(j):
+        try:
+            enrich_description(j)                    # ATS/LinkedIn structured fill
+        except Exception:
+            pass
+        if len(j.description or "") < 300:
+            body = enrich_service.fetch_description(j.url)
+            if body and len(body) > len(j.description or ""):
+                j.description = body
+        return j
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(_one, targets))
+
+    # Persist the fuller descriptions to the corpus (best-effort, one commit).
+    # Force-evaluate ALL (list, not a short-circuiting any()) so every row is saved.
+    if db is not None:
+        try:
+            changed = [enrich_service.persist_description(db, j) for j in targets]
+            if any(changed):
+                db.commit()
+        except Exception:
+            db.rollback()
+            log.exception("persist enriched descriptions failed")
 
 
 def _reasons_for_card(match) -> tuple[str, str]:

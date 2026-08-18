@@ -1730,10 +1730,58 @@ def test_enrich_thin_descriptions_fills_retags_and_reembeds(monkeypatch):
     assert "Head of Operations" in main and "own the P&L" in main
     assert "Login" not in main and "Privacy Terms" not in main and "var a" not in main
 
+    # JSON-LD JobPosting description is preferred (works even on JS-rendered pages).
+    jsonld = ('<html><head><script type="application/ld+json">'
+              '{"@type":"JobPosting","title":"Ops","description":'
+              '"<p>You will lead operations, own the P&amp;L, and build the team. '
+              'Requisiti: 10 anni. Lavoro in modalit\\u00e0 ibrida.</p>"}'
+              '</script></head><body><nav>menu</nav></body></html>')
+    body = enrich_service._best_body(jsonld)
+    assert "lead operations" in body and "own the P&L" in body and "menu" not in body
+
+    # Extraction drops page chrome (nav/script/footer) and keeps the JD body.
+    html = ("<html><head><style>.x{}</style></head><body>"
+            "<nav>Home Jobs Login Cookies</nav><header>BrandCo</header>"
+            "<script>var a=1;</script>"
+            "<div>Role: Head of Operations. You will lead the ops team, own the P&L, "
+            "and build processes across the company. Requirements: 10 years experience.</div>"
+            "<footer>Privacy Terms Contact 2026</footer></body></html>")
+    main = enrich_service._extract_main(html)
+    assert "Head of Operations" in main and "own the P&L" in main
+    assert "Login" not in main and "Privacy Terms" not in main and "var a" not in main
+
     # Kill switch: disabled => no work.
     monkeypatch.setattr(config, "enrich_enabled", False)
     assert enrich_service.enrich_thin_descriptions(db)["enriched"] == 0
     db.query(Job).filter(Job.dedup_key.like("en-%")).delete(synchronize_session=False)
+    db.commit(); db.close()
+
+
+def test_persist_description_updates_corpus_row(monkeypatch):
+    from jobhunter.models import JobPosting
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Job, utcnow
+    from web.app.services import enrich_service
+    init_db()
+    db = SessionLocal()
+    db.query(Job).filter(Job.dedup_key.like("pd-%")).delete(synchronize_session=False)
+    p = JobPosting(source="api:careerjet", title="Ops Lead", company="ItCo",
+                   location="Milano", description="short")
+    key = p.dedup_key()
+    db.add(Job(dedup_key=key, source="api:careerjet", title="Ops Lead", company="ItCo",
+               location="Milano", remote_mode="onsite", countries=["it"],
+               embedding="[0.1]", last_seen_at=utcnow(), description="short snippet."))
+    db.commit()
+    # A search fetched the full JD (Italian hybrid signal) onto the posting.
+    p.description = "La risorsa lavorerà in modalità di smart working. " * 20
+    assert enrich_service.persist_description(db, p) is True
+    db.commit(); db.expire_all()
+    row = db.query(Job).filter_by(dedup_key=key).one()
+    assert len(row.description) > 400 and row.remote_mode == "hybrid"
+    assert row.embedding is None and row.desc_enriched is True
+    db.query(Job).filter(Job.dedup_key.like("pd-%")).delete(synchronize_session=False)
+    # cleanup this row by key
+    db.query(Job).filter_by(dedup_key=key).delete(synchronize_session=False)
     db.commit(); db.close()
 
 
