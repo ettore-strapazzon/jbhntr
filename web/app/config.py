@@ -89,6 +89,15 @@ class WebConfig:
     # (ATS/scraped jobs are never link-checked; they prune on the poll window.)
     reaper_recheck_days: int = _int("REAPER_RECHECK_DAYS", 2)
     reaper_workers: int = _int("REAPER_WORKERS", 24)
+    # Description enrichment: fetch the real posting page for jobs an aggregator
+    # stored only a snippet for, so work-mode tagging AND match scoring improve.
+    # HTTP only (no API $); each job is fetched at most once, so it's a one-time
+    # backlog + the day's new thin jobs, not a nightly full re-scan. The cap is
+    # about politeness (fetch too fast and hosts block our IP, which also hurts
+    # link-checking) — raise it if blocks don't appear; ENRICH_ENABLED is the
+    # kill switch if a host starts pushing back.
+    enrich_enabled: bool = _b("ENRICH_ENABLED", "true")
+    enrich_nightly_limit: int = _int("ENRICH_NIGHTLY_LIMIT", 6000)
     # Country tagging + ATS location correction per nightly ingest. Like embedding,
     # these must outpace the daily ingest or the untagged backlog grows — and
     # untagged rows can't be geo-filtered, so they hurt in-country recall. Country

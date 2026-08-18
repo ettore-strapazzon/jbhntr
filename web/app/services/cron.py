@@ -48,6 +48,25 @@ def _stage(out: dict, name: str, fn):
         out[name] = {"error": f"{type(exc).__name__}: {exc}"}
 
 
+def _enrich_stage() -> dict:
+    """Enrich thin descriptions once, then re-embed the ones that got a real JD
+    (enrichment clears their embedding so this pass re-embeds with the full text)."""
+    from ..config import config as _cfg
+    from ..db import SessionLocal
+    from .corpus_service import embed_new_jobs
+    from .enrich_service import enrich_thin_descriptions
+    from .profile_service import engine_settings
+    db = SessionLocal()
+    try:
+        res = enrich_thin_descriptions(db)
+        if res.get("enriched"):
+            res["re_embedded"] = embed_new_jobs(db, engine_settings(),
+                                                limit=_cfg.embed_limit)
+        return res
+    finally:
+        db.close()
+
+
 def nightly(today: datetime.date | None = None) -> dict:
     """Run the scheduled maintenance. Weekly work only on WEEKLY_DAY.
 
@@ -65,6 +84,10 @@ def nightly(today: datetime.date | None = None) -> dict:
         _stage(out, "discover", lambda: ingest_run("discover"))
         _stage(out, "ingest_weekly", lambda: ingest_run("weekly"))
     _stage(out, "ingest_daily", lambda: ingest_run("daily"))
+    # Fill thin aggregator snippets with the real posting JD (paced, one-time per
+    # job), then re-embed the ones that got a real body — so both tagging and
+    # scoring improve. Runs once per night regardless of cadence.
+    _stage(out, "enrich", _enrich_stage)
     # Reap AFTER ingest so the night's freshly-added (never-checked) postings are
     # link-checked now, not a day later. Link-check EVERY due job (never-checked,
     # or last checked older than the configured window) — check_limit=0 = no cap.

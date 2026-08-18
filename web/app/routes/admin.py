@@ -562,6 +562,41 @@ def admin_retag(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/run-enrichment")
+def admin_run_enrichment(_: bool = Depends(require_admin)):
+    """Operator: fetch full JDs for thin/snippet jobs now (one batch, capped by
+    ENRICH_NIGHTLY_LIMIT), then re-embed the ones that got a real body. Watch the
+    success rate here before relying on the nightly — if a host starts blocking
+    us, set ENRICH_ENABLED=false."""
+    from urllib.parse import quote
+
+    from ..config import config as web_config
+    from ..db import SessionLocal
+    from ..services.corpus_service import embed_new_jobs
+    from ..services.enrich_service import enrich_thin_descriptions
+    from ..services.profile_service import engine_settings
+
+    def _work():
+        db = SessionLocal()
+        try:
+            res = enrich_thin_descriptions(db)
+            if res.get("enriched"):
+                embed_new_jobs(db, engine_settings(), limit=web_config.embed_limit)
+            record_op("enrich", f"filled {res.get('enriched', 0)} of "
+                                f"{res.get('attempted', 0)} attempted · "
+                                f"{res.get('remaining', 0)} thin jobs remaining")
+        except Exception as exc:
+            log.exception("manual enrichment failed")
+            record_op("enrich", f"failed: {str(exc)[:200]}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = ("Enriching thin descriptions now (one capped batch). Refresh the "
+           "Background job log in a few minutes for the fill/success count.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/run-maintenance")
 def admin_run_maintenance(_: bool = Depends(require_admin)):
     """Operator: run the reaper now and record a corpus snapshot in the background,

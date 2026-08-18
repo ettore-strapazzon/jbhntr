@@ -241,6 +241,10 @@ class Job(Base):
     # True once we've checked whether this posting links to a known ATS and, if so,
     # corrected its location/remote from that source (aggregators mislabel these).
     ats_checked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # True once description enrichment has fetched the real posting page for a job
+    # an aggregator stored only a snippet for (whether or not it found a fuller
+    # body) — so the nightly doesn't re-hammer the same page.
+    desc_enriched: Mapped[bool] = mapped_column(Boolean, default=False)
     # Freshness — used by the TTL/re-crawl that must precede any corpus-as-source use.
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

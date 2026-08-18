@@ -1684,6 +1684,48 @@ def test_backfill_remote_modes_rescues_onsite_non_english(monkeypatch):
     db.commit(); db.close()
 
 
+def test_enrich_thin_descriptions_fills_retags_and_reembeds(monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Job, utcnow
+    from web.app.services import enrich_service
+    init_db()
+    monkeypatch.setattr(config, "enrich_enabled", True)
+    db = SessionLocal()
+    db.query(Job).filter(Job.dedup_key.like("en-%")).delete(synchronize_session=False)
+    db.add_all([
+        Job(dedup_key="en-thin", source="api:careerjet", title="Ops Lead", company="ItCo",
+            location="Milano", remote_mode="onsite", countries=["it"], url="https://ex/thin",
+            embedding="[0.1]", last_seen_at=utcnow(), description="Breve annuncio."),  # snippet
+        Job(dedup_key="en-nourl", source="api:careerjet", title="Clerk", company="ItCo2",
+            location="Milano", remote_mode="onsite", url="", last_seen_at=utcnow(),
+            description="Short."),                                                     # no url -> skip
+        Job(dedup_key="en-full", source="ats:greenhouse", title="Eng", company="FullCo",
+            location="Roma", remote_mode="onsite", url="https://ex/full", last_seen_at=utcnow(),
+            description="x" * 500),                                                    # already full -> skip
+    ])
+    db.commit()
+
+    full_it_jd = ("La risorsa lavorerà in modalità smart working. " * 20)  # >400 chars, hybrid signal
+    monkeypatch.setattr(enrich_service, "_fetch_body",
+                        lambda url: (full_it_jd, True) if url == "https://ex/thin" else ("", True))
+
+    res = enrich_service.enrich_thin_descriptions(db, limit=100)
+    assert res["enriched"] == 1
+    db.expire_all()
+    thin = db.query(Job).filter_by(dedup_key="en-thin").one()
+    assert len(thin.description) > 400 and thin.desc_enriched is True
+    assert thin.remote_mode == "hybrid"            # re-tagged from the real JD
+    assert thin.embedding is None                  # cleared -> re-embedded next pass
+    assert db.query(Job).filter_by(dedup_key="en-full").one().desc_enriched is False  # untouched
+
+    # Kill switch: disabled => no work.
+    monkeypatch.setattr(config, "enrich_enabled", False)
+    assert enrich_service.enrich_thin_descriptions(db)["enriched"] == 0
+    db.query(Job).filter(Job.dedup_key.like("en-%")).delete(synchronize_session=False)
+    db.commit(); db.close()
+
+
 def test_admin_corpus_explorer_filters(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal

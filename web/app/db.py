@@ -115,6 +115,7 @@ def _add_missing_columns() -> None:
                  "embedding_model": ("TEXT", "DEFAULT ''"),
                  "geo_checked": ("BOOLEAN", "DEFAULT false"),
                  "ats_checked": ("BOOLEAN", "DEFAULT false"),
+                 "desc_enriched": ("BOOLEAN", "DEFAULT false"),
                  "link_status": ("TEXT", "DEFAULT ''")},
         "users": {"premium_requested_at": ("TIMESTAMP", ""),
                   "digest": ("TEXT", "DEFAULT 'daily'"),
