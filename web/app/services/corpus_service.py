@@ -355,38 +355,58 @@ def backfill_countries(db: DbSession, settings, limit: int = 500) -> int:
     return resolved
 
 
-def backfill_remote_modes(db: DbSession, limit: int = 20000) -> int:
-    """Recompute remote_mode for jobs still tagged 'unknown'. Returns how many
-    were reclassified.
+def backfill_remote_modes(db: DbSession, limit: int = 20000,
+                          include_onsite: bool = False) -> int:
+    """Recompute remote_mode with the current (now multilingual) tagger. Returns
+    how many rows were reclassified.
 
-    The mode is set once at ingestion, so a job ingested with a blank or then-
-    unresolvable location (or before its description was enriched) is stuck at
-    'unknown' even after its country later gets filled. Re-run the deterministic
-    tagger — geo maps have grown and descriptions have been fetched since — so the
-    on-site inference (a resolvable place with no remote/hybrid wording => onsite)
-    now applies. Pure function, no LLM; jobs that are genuinely location-less stay
-    'unknown'.
+    The mode is set once at ingestion, so a job ingested with a blank/unresolvable
+    location, before its description was enriched, or before a term the tagger now
+    recognises (e.g. Italian 'smart working') was in the list, keeps its stale tag.
+
+    Default: only re-check 'unknown' rows (cheap, run nightly). With
+    ``include_onsite`` (a one-time reclassification via /admin/retag): also
+    re-check 'onsite' rows and UPGRADE them to remote/hybrid when the tagger now
+    finds an explicit signal — this rescues the many non-English hybrid/remote
+    roles that defaulted to onsite. An onsite row is never downgraded.
+
+    Batched by id so a full-corpus pass doesn't load every Job into memory.
     """
     from jobhunter.models import JobPosting
     from jobhunter.tags import remote_mode
 
-    rows = db.query(Job).filter(Job.remote_mode == "unknown").limit(limit).all()
-    changed = 0
-    for r in rows:
-        p = JobPosting(source=r.source or "", title=r.title or "",
-                       company=r.company or "", location=r.location or "",
-                       description=r.description or "", url=r.url or "")
-        mode = remote_mode(p)
-        # remote_mode() infers onsite only when geo.country_of(location) resolves.
-        # Many of these jobs have a location the maps can't resolve (which is why
-        # they needed the LLM country lookup) — but the backfill has since SETTLED
-        # their country tag. A settled country + no remote/hybrid wording is an
-        # on-site role in that country, so use the tag as the fallback signal.
-        if mode == "unknown" and r.countries:
-            mode = "onsite"
-        if mode != "unknown":
-            r.remote_mode = mode
-            changed += 1
-    db.commit()
-    log.info("Remote-mode backfill: %d of %d reclassified", changed, len(rows))
+    modes = ("unknown", "onsite") if include_onsite else ("unknown",)
+    changed = processed = 0
+    last_id = 0
+    BATCH = 2000
+    while processed < limit:
+        rows = (db.query(Job)
+                .filter(Job.remote_mode.in_(modes), Job.id > last_id)
+                .order_by(Job.id)
+                .limit(min(BATCH, limit - processed)).all())
+        if not rows:
+            break
+        for r in rows:
+            last_id = r.id
+            processed += 1
+            p = JobPosting(source=r.source or "", title=r.title or "",
+                           company=r.company or "", location=r.location or "",
+                           description=r.description or "", url=r.url or "")
+            mode = remote_mode(p)
+            if r.remote_mode == "onsite":
+                # Only ever move OFF onsite, and only on an explicit remote/hybrid
+                # signal — never re-onsite or blank an already-placed row.
+                if mode in ("remote", "hybrid"):
+                    r.remote_mode = mode
+                    changed += 1
+                continue
+            # 'unknown' row: a settled country + no remote/hybrid wording is onsite.
+            if mode == "unknown" and r.countries:
+                mode = "onsite"
+            if mode != "unknown":
+                r.remote_mode = mode
+                changed += 1
+        db.commit()
+    log.info("Remote-mode backfill: %d reclassified of %d scanned (include_onsite=%s)",
+             changed, processed, include_onsite)
     return changed

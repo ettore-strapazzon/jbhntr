@@ -531,7 +531,10 @@ def admin_retag(_: bool = Depends(require_admin)):
             # to infer on-site, so it must run after the tags are placed.
             countried = backfill_countries(db, engine_settings(),
                                            limit=web_config.geo_backfill_limit)
-            remoded = backfill_remote_modes(db, limit=web_config.remote_backfill_limit)
+            # include_onsite: a one-time re-check of onsite rows too, so non-English
+            # hybrid/remote roles that defaulted to onsite get rescued. Large limit
+            # to cover the whole corpus (batched internally, so memory-safe).
+            remoded = backfill_remote_modes(db, limit=500_000, include_onsite=True)
             log.info("manual retag: %d countries, %d modes", countried, remoded)
             record_op("retag", f"countries placed by lookup: {countried} · "
                                f"work modes reclassified: {remoded}")

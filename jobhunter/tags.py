@@ -18,11 +18,35 @@ from .models import JobPosting
 
 REMOTE_MODES = ("remote", "hybrid", "onsite", "unknown")
 
-_HYBRID = ("hybrid",)
-_REMOTE = ("remote", "work from home", "work-from-home", "wfh", "fully remote",
-           "anywhere", "distributed")
-_ONSITE = ("on-site", "on site", "onsite", "in office", "in-office",
-           "in the office", "on-premise", "on premises")
+# Multilingual, because a global corpus is full of non-English postings. Italian
+# ("smart working", "da remoto", "ibrido", "in sede"), plus common French/German/
+# Spanish/Portuguese terms — otherwise a Milan/Madrid hybrid role reads as
+# "onsite" purely because it doesn't use the English word, and remote/hybrid
+# filtering badly undercounts outside the US/UK.
+_HYBRID = (
+    "hybrid",
+    "ibrid", "smart working", "lavoro agile",                                      # it (ibrid* stem)
+    "hybride", "modèle hybride",                                                    # fr
+    "mobiles arbeiten",                                                             # de
+    "híbrid", "hibrid",                                                             # es (híbrid* stem)
+)
+_REMOTE = (
+    "remote", "work from home", "work-from-home", "wfh", "fully remote",
+    "anywhere", "distributed", "full remote",
+    "da remoto", "in remoto", "lavoro da remoto", "telelavoro", "remoto",          # it
+    "télétravail", "à distance", "en télétravail",                                 # fr
+    "fernarbeit", "remote-arbeit",                                                  # de
+    "teletrabajo", "trabajo remoto", "en remoto", "a distancia",                   # es
+    "trabalho remoto", "remoto",                                                   # pt
+)
+_ONSITE = (
+    "on-site", "on site", "onsite", "in office", "in-office",
+    "in the office", "on-premise", "on premises",
+    "in sede", "in presenza", "presso la sede",                                    # it
+    "sur site", "présentiel", "sur place",                                         # fr
+    "vor ort",                                                                     # de
+    "presencial", "en oficina", "en la oficina",                                   # es
+)
 
 # A plausible annual-salary bound. The floor sits above four-digit years and
 # small IDs ("Req 2024", "id 4501") so a naive digit scan doesn't tag them as

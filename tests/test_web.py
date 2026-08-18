@@ -1635,6 +1635,55 @@ def test_admin_shows_waitlist_and_csv(client, monkeypatch):
     assert "wanter@example.com" in csv.text and "email,requested_at" in csv.text
 
 
+def test_remote_mode_is_multilingual():
+    """Non-English postings must classify: an Italian 'smart working'/'ibrida'
+    role is hybrid, 'da remoto' is remote — not the onsite default just because
+    they avoid the English word."""
+    from jobhunter.models import JobPosting
+    from jobhunter.tags import remote_mode
+
+    def m(desc, loc="Milano"):
+        return remote_mode(JobPosting(source="s", title="Ops", company="C",
+                                      location=loc, description=desc))
+    assert m("Lavoro in smart working, sede di Milano") == "hybrid"
+    assert m("Posizione ibrida, 3 giorni in ufficio") == "hybrid"
+    assert m("Lavoro da remoto full time") == "remote"
+    assert m("Trabajo híbrido con teletrabajo") == "hybrid"
+    assert m("Poste en télétravail", "Paris") == "remote"
+    assert m("Presenza in sede richiesta") == "onsite"        # genuinely onsite
+    assert m("Standard role, nothing stated") == "onsite"     # named place default
+
+
+def test_backfill_remote_modes_rescues_onsite_non_english(monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Job, utcnow
+    from web.app.services.corpus_service import backfill_remote_modes
+    init_db()
+    db = SessionLocal()
+    db.query(Job).filter(Job.dedup_key.like("rm-%")).delete(synchronize_session=False)
+    db.add_all([
+        Job(dedup_key="rm-hy", source="api:careerjet", title="Head of Ops", company="ItCo",
+            location="Milano", remote_mode="onsite", countries=["it"], last_seen_at=utcnow(),
+            description="Contratto in smart working, ottima flessibilità."),
+        Job(dedup_key="rm-on", source="api:careerjet", title="Clerk", company="ItCo2",
+            location="Milano", remote_mode="onsite", countries=["it"], last_seen_at=utcnow(),
+            description="Lavoro in sede, orario pieno."),
+    ])
+    db.commit()
+
+    # Default (unknown-only) must NOT touch onsite rows.
+    backfill_remote_modes(db, include_onsite=False)
+    assert db.query(Job).filter_by(dedup_key="rm-hy").one().remote_mode == "onsite"
+
+    # include_onsite upgrades the smart-working role, leaves the real onsite alone.
+    backfill_remote_modes(db, include_onsite=True)
+    db.expire_all()
+    assert db.query(Job).filter_by(dedup_key="rm-hy").one().remote_mode == "hybrid"
+    assert db.query(Job).filter_by(dedup_key="rm-on").one().remote_mode == "onsite"
+    db.query(Job).filter(Job.dedup_key.like("rm-%")).delete(synchronize_session=False)
+    db.commit(); db.close()
+
+
 def test_admin_corpus_explorer_filters(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal
