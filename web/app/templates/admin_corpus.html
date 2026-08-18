@@ -53,6 +53,13 @@
         <tr><td>{{ k or 'unknown' }}</td><td>{{ "{:,}".format(v) }}</td></tr>
       {% endfor %}
     </tbody></table>
+    <p class="small muted" style="margin-top:6px">
+      <b>JD coverage:</b> {{ "{:,}".format(jd_full) }} full · {{ "{:,}".format(jd_thin) }} thin/snippet
+      <span class="muted">(&lt;300 chars — work-mode often undetectable)</span><br>
+      <b>Global-remote pool:</b> {{ "{:,}".format(global_remote) }}
+      <span class="muted">remote jobs with no country tag — excluded by the country
+      filter here, but a search still surfaces them for an in-country user.</span>
+    </p>
   </div>
   <div class="card">
     <b class="small">Top sources (whole corpus)</b>

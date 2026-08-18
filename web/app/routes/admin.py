@@ -377,7 +377,7 @@ def admin_corpus(request: Request, _: bool = Depends(require_admin),
     what's actually there. (Corpus rows are tagged only by country, remote_mode,
     salary and source; seniority/industry aren't stored on a Job, so title search
     is the proxy for those.)"""
-    from sqlalchemy import String, cast
+    from sqlalchemy import String, cast, or_
 
     PAGE = 50
     page = max(1, page)
@@ -405,12 +405,24 @@ def admin_corpus(request: Request, _: bool = Depends(require_admin),
                       .group_by(Job.remote_mode).all())
     top_sources = (db.query(Job.source, func.count()).group_by(Job.source)
                    .order_by(func.count().desc()).limit(20).all())
+    # JD coverage: how many rows carry a full description vs a thin snippet — the
+    # cap on both work-mode detection and match quality (aggregators store snippets).
+    jd_full = query.filter(func.coalesce(func.length(Job.description), 0) >= 300).count()
+    # Global-remote pool: remote jobs with no country tag ("Remote"/"Worldwide").
+    # The country filter above excludes these, but a search DOES surface them for an
+    # in-country user (the prefilter keeps a location-agnostic remote job), so the
+    # true remote pool for a country = its in-country remote/hybrid + this.
+    global_remote = (db.query(func.count(Job.id))
+                     .filter(Job.remote_mode == "remote",
+                             or_(Job.countries.is_(None),
+                                 cast(Job.countries, String).in_(("[]", "null", "")))).scalar())
 
     return templates.TemplateResponse(request, "admin_corpus.html", {
         "request": request, "rows": rows, "total": total,
         "corpus_total": db.query(Job).count(),
         "page": page, "pages": (total + PAGE - 1) // PAGE, "page_size": PAGE,
         "remote_mix": remote_mix, "top_sources": top_sources,
+        "jd_full": jd_full, "jd_thin": total - jd_full, "global_remote": global_remote,
         "f": {"q": q, "company": company, "country": country, "remote": remote,
               "source": source, "fresh_days": fresh_days, "has_salary": has_salary},
     })
