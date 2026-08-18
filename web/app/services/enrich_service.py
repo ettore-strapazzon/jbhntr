@@ -17,6 +17,7 @@ embedding so the next embed pass re-embeds it with the JD.
 from __future__ import annotations
 
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import func, or_
@@ -32,17 +33,34 @@ from ..models import Job
 log = logging.getLogger("jbhntr.enrich")
 
 _MIN_CHARS = 300      # at/below this a stored description is a snippet, not a JD
-_GOOD_CHARS = 400     # only accept a fetched body at least this long
+_GOOD_CHARS = 500     # only accept a fetched body at least this long
 _DESC_CAP = 20_000    # store at most this much
 _TIMEOUT = 15.0
 _WORKERS = 12
 
+# Page chrome to drop BEFORE extracting text, so we store the JD rather than the
+# nav/footer/cookie banner (whole-page strip_html was polluting descriptions).
+_CHROME = re.compile(
+    r"(?is)<(script|style|noscript|nav|header|footer|aside|form|svg|template|"
+    r"select|button)\b[^>]*>.*?</\1\s*>")
+_COMMENTS = re.compile(r"(?is)<!--.*?-->")
+
+
+def _extract_main(html: str) -> str:
+    """Best-effort main-content text: drop chrome tags, strip the rest, collapse
+    whitespace. Returns "" for a page that's essentially a JavaScript shell (no
+    server-rendered body to read)."""
+    html = _COMMENTS.sub(" ", html)
+    html = _CHROME.sub(" ", html)
+    text = re.sub(r"\s+", " ", strip_html(html)).strip()
+    return text
+
 
 def _fetch_body(url: str) -> tuple[str, bool]:
-    """Return (stripped_body, definitive). ``definitive`` is False only on a
-    transient error (timeout / connection reset) — those we may retry later; a
-    200, 404 or 403 is definitive and the job is marked done so we don't
-    re-hammer a page that won't give us more."""
+    """Return (main_text, definitive). ``definitive`` is False only on a transient
+    error (timeout / connection reset) — those we may retry later; a 200, 404 or
+    403 is definitive and the job is marked done so we don't re-hammer a page that
+    won't give us more."""
     try:
         with http_client(timeout=_TIMEOUT) as c:
             r = c.get(url, follow_redirects=True)
@@ -51,7 +69,7 @@ def _fetch_body(url: str) -> tuple[str, bool]:
     if r.status_code != 200:
         return "", True
     try:
-        return strip_html(r.text), True
+        return _extract_main(r.text), True
     except Exception:
         return "", True
 
@@ -92,7 +110,10 @@ def enrich_thin_descriptions(db: DbSession, limit: int | None = None) -> dict:
     for r, body, definitive in results:
         if definitive:
             r.desc_enriched = True          # don't re-hammer a page that gave nothing more
-        if body and len(body) >= _GOOD_CHARS and len(body) > len(r.description or ""):
+        # Accept only a real gain over the snippet (>= _GOOD_CHARS AND clearly
+        # longer), so page-chrome or a truncated shell never overwrites the row.
+        existing = len(r.description or "")
+        if body and len(body) >= _GOOD_CHARS and len(body) >= existing + 300:
             r.description = body[:_DESC_CAP]
             p = JobPosting(source=r.source or "", title=r.title or "",
                            company=r.company or "", location=r.location or "",

@@ -1719,6 +1719,17 @@ def test_enrich_thin_descriptions_fills_retags_and_reembeds(monkeypatch):
     assert thin.embedding is None                  # cleared -> re-embedded next pass
     assert db.query(Job).filter_by(dedup_key="en-full").one().desc_enriched is False  # untouched
 
+    # Extraction drops page chrome (nav/script/footer) and keeps the JD body.
+    html = ("<html><head><style>.x{}</style></head><body>"
+            "<nav>Home Jobs Login Cookies</nav><header>BrandCo</header>"
+            "<script>var a=1;</script>"
+            "<div>Role: Head of Operations. You will lead the ops team, own the P&L, "
+            "and build processes across the company. Requirements: 10 years experience.</div>"
+            "<footer>Privacy Terms Contact 2026</footer></body></html>")
+    main = enrich_service._extract_main(html)
+    assert "Head of Operations" in main and "own the P&L" in main
+    assert "Login" not in main and "Privacy Terms" not in main and "var a" not in main
+
     # Kill switch: disabled => no work.
     monkeypatch.setattr(config, "enrich_enabled", False)
     assert enrich_service.enrich_thin_descriptions(db)["enriched"] == 0
