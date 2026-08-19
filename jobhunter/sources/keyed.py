@@ -372,6 +372,62 @@ def _francetravail(profile: Profile, s: Settings) -> list[JobPosting]:
     return out
 
 
+_BA_KEY = "jobboerse-jobsuche"     # documented public client-id (bund.dev), no signup
+_BA_SEARCH = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobs"
+_BA_DETAIL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v2/jobdetails/"
+_BA_DETAIL_CAP = 30                # detail fetches per term (bound the extra calls)
+
+
+def _ba_description(c, refnr: str) -> str:
+    """Fetch the full JD for one Bundesagentur listing (search has titles only)."""
+    from urllib.parse import quote
+    try:
+        r = c.get(_BA_DETAIL + quote(refnr, safe=""), headers={"X-API-Key": _BA_KEY})
+        if r.status_code != 200:
+            return ""
+        return strip_html((r.json() or {}).get("stellenbeschreibung", "") or "")
+    except Exception:
+        return ""
+
+
+def _bundesagentur(profile: Profile, s: Settings) -> list[JobPosting]:
+    """Germany's Bundesagentur für Arbeit — the federal job API (huge). The search
+    returns listings without a body, so we fetch each one's detail for the full JD
+    and ONLY emit jobs where we got a real description (never add German snippets)."""
+    from urllib.parse import quote
+    out: list[JobPosting] = []
+    hdr = {"X-API-Key": _BA_KEY}
+    with http_client(timeout=30.0) as c:
+        for term in _terms(profile):
+            try:
+                r = c.get(_BA_SEARCH, params={"was": term, "size": 50, "page": 1}, headers=hdr)
+            except Exception as exc:
+                log.warning("Bundesagentur %s: %s", term, exc)
+                continue
+            if r.status_code != 200:
+                log.warning("Bundesagentur %s: HTTP %s", term, r.status_code)
+                continue
+            for j in (r.json().get("stellenangebote") or [])[:_BA_DETAIL_CAP]:
+                refnr = j.get("refnr", "")
+                desc = _ba_description(c, refnr) if refnr else ""
+                if len(desc) < 200:          # no real JD -> skip (don't add a snippet)
+                    continue
+                ort = j.get("arbeitsort") or {}
+                loc = ", ".join(x for x in [ort.get("ort"), ort.get("region"),
+                                            ort.get("land")] if x)
+                out.append(JobPosting(
+                    source="api:bundesagentur",
+                    title=j.get("titel", "") or j.get("beruf", ""),
+                    company=j.get("arbeitgeber", ""),
+                    location=loc or "Deutschland",
+                    description=desc,
+                    url=j.get("externeUrl", "")
+                        or (f"https://www.arbeitsagentur.de/jobsuche/jobdetail/"
+                            f"{quote(refnr, safe='')}" if refnr else ""),
+                ))
+    return out
+
+
 def _jobtech(profile: Profile, s: Settings) -> list[JobPosting]:
     """Sweden's Arbetsförmedlingen JobTech — fully open (no key), full descriptions
     in the search response. All Swedish public listings."""

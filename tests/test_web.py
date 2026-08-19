@@ -1301,7 +1301,8 @@ def test_corpus_terms_and_countries_prioritise_users_then_defaults():
 
 
 def test_ingest_cadence_gates_metered_sources(monkeypatch):
-    """Weekly sources (Jooble/JSearch) must not run on a daily cycle."""
+    """Weekly sources (Jooble/SerpApi) must not run on a daily cycle; JSearch now
+    runs daily (it's the funded Google-for-Jobs backbone)."""
     from jobhunter.models import JobPosting
     from web.app.db import SessionLocal, init_db
     from web.app.models import Job
@@ -1327,16 +1328,18 @@ def test_ingest_cadence_gates_metered_sources(monkeypatch):
     try:
         db.query(Job).delete(); db.commit()
         res = ingest.run("daily")
-        # Daily cycle: Lane A (boards + aggregators) + daily keyed; NOT jooble/jsearch.
-        assert "jooble" not in called and "jsearch" not in called
+        # Daily cycle: Lane A (boards + aggregators) + daily keyed; NOT jooble/serpapi.
+        assert "jooble" not in called and "serpapi" not in called
         assert "boards" in called
         assert "careerjet" in called       # a daily keyed source
+        assert "jsearch" in called         # now daily (Google-for-Jobs backbone)
         assert res["added"] >= 1
 
         called.clear()
         ingest.run("weekly")
         # Weekly cycle: only the metered weekly sources, no Lane A.
-        assert "jooble" in called and "jsearch" in called
+        assert "jooble" in called and "serpapi" in called
+        assert "jsearch" not in called     # daily now, not weekly
         assert "boards" not in called
     finally:
         db.query(Job).delete(); db.commit(); db.close()
@@ -1829,6 +1832,28 @@ def test_gov_api_sources_parse_full_jds(monkeypatch):
     assert ft[0].location == "Paris" and "complete" in ft[0].description
     # Registered as a live provider + enabled by key presence.
     assert "francetravail" in keyed.configured(Settings(france_travail_id="id"))
+
+    # Bundesagentur — search returns listings, detail returns the full JD; a job
+    # with no real description is skipped (never add a German snippet).
+    listings = _Resp(200, {"stellenangebote": [
+        {"refnr": "R1", "titel": "Ops Manager", "arbeitgeber": "DeCo",
+         "arbeitsort": {"ort": "Berlin", "land": "Deutschland"}, "externeUrl": "https://ex/de1"},
+        {"refnr": "R2", "titel": "Thin", "arbeitgeber": "DeCo2",
+         "arbeitsort": {"ort": "Munich"}},
+    ]})
+    detail_full = _Resp(200, {"stellenbeschreibung": "Ausfuehrliche Stellenbeschreibung. " * 20})
+    detail_empty = _Resp(200, {"stellenbeschreibung": ""})
+
+    class _BAClient:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url, params=None, headers=None):
+            if url.endswith("/jobs"): return listings
+            return detail_full if url.endswith("R1") else detail_empty
+    monkeypatch.setattr(keyed, "http_client", lambda *a, **k: _BAClient())
+    ba = keyed._bundesagentur(prof, Settings())
+    assert len(ba) == 1 and ba[0].source == "api:bundesagentur"       # thin one dropped
+    assert ba[0].company == "DeCo" and len(ba[0].description) > 200
 
 
 def test_resolve_corpus_companies_registers_ats_and_marks_misses(monkeypatch):
