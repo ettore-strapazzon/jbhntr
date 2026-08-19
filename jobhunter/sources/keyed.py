@@ -328,6 +328,77 @@ def _jsearch(profile: Profile, s: Settings) -> list[JobPosting]:
     return out
 
 
+_FT_TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token"
+_FT_SEARCH_URL = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
+
+
+def _francetravail(profile: Profile, s: Settings) -> list[JobPosting]:
+    """France Travail (ex-Pôle Emploi) — the French government job API. Millions of
+    FR listings with full descriptions. OAuth2 client-credentials, then search.
+    Free after a one-time app registration at francetravail.io."""
+    out: list[JobPosting] = []
+    with http_client(timeout=30.0) as c:
+        try:
+            tok = c.post(_FT_TOKEN_URL, params={"realm": "/partenaire"},
+                         data={"grant_type": "client_credentials",
+                               "client_id": s.france_travail_id,
+                               "client_secret": s.france_travail_secret,
+                               "scope": "api_offresdemploiv2 o2dsoffre"})
+        except Exception as exc:
+            log.warning("France Travail token failed: %s", exc)
+            return out
+        if tok.status_code != 200:
+            log.warning("France Travail token: HTTP %s", tok.status_code)
+            return out
+        access = (tok.json() or {}).get("access_token", "")
+        if not access:
+            return out
+        auth = {"Authorization": f"Bearer {access}"}
+        for term in _terms(profile):
+            r = c.get(_FT_SEARCH_URL, params={"motsCles": term, "range": "0-49"},
+                      headers=auth)
+            if r.status_code not in (200, 206):
+                log.warning("France Travail %s: HTTP %s", term, r.status_code)
+                continue
+            for j in (r.json().get("resultats") or []):
+                out.append(JobPosting(
+                    source="api:francetravail",
+                    title=j.get("intitule", ""),
+                    company=(j.get("entreprise") or {}).get("nom", ""),
+                    location=(j.get("lieuTravail") or {}).get("libelle", ""),
+                    description=strip_html(j.get("description", "") or ""),
+                    url=(j.get("origineOffre") or {}).get("urlOrigine", ""),
+                ))
+    return out
+
+
+def _jobtech(profile: Profile, s: Settings) -> list[JobPosting]:
+    """Sweden's Arbetsförmedlingen JobTech — fully open (no key), full descriptions
+    in the search response. All Swedish public listings."""
+    out: list[JobPosting] = []
+    with http_client(timeout=30.0) as c:
+        for term in _terms(profile):
+            r = c.get("https://jobsearch.api.jobtechdev.se/search",
+                      params={"q": term, "limit": 100})
+            if r.status_code != 200:
+                log.warning("JobTech %s: HTTP %s", term, r.status_code)
+                continue
+            for j in (r.json().get("hits") or []):
+                addr = j.get("workplace_address") or {}
+                loc = ", ".join(x for x in [addr.get("municipality"),
+                                            addr.get("region"), addr.get("country")] if x)
+                out.append(JobPosting(
+                    source="api:jobtech",
+                    title=j.get("headline", ""),
+                    company=(j.get("employer") or {}).get("name", ""),
+                    location=loc or "Sweden",
+                    description=strip_html((j.get("description") or {}).get("text", "") or ""),
+                    url=j.get("webpage_url", "")
+                        or (j.get("application_details") or {}).get("url", ""),
+                ))
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # (setting attribute that enables it, fetcher)
 PROVIDERS: list[tuple[str, Callable[[Profile, Settings], list[JobPosting]]]] = [
@@ -339,6 +410,7 @@ PROVIDERS: list[tuple[str, Callable[[Profile, Settings], list[JobPosting]]]] = [
     ("usajobs_key", _usajobs),
     ("serpapi_key", _serpapi),
     ("jsearch_key", _jsearch),
+    ("france_travail_id", _francetravail),
 ]
 
 

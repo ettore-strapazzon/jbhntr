@@ -50,6 +50,8 @@ KEYED_SOURCES = {
     "usajobs": ("usajobs_key", keyed._usajobs),
     "jsearch": ("jsearch_key", keyed._jsearch),
     "serpapi": ("serpapi_key", keyed._serpapi),
+    "francetravail": ("france_travail_id", keyed._francetravail),   # gov FR, full JD
+    "jobtech": ("jobtech_enabled", keyed._jobtech),                 # gov SE, keyless, full JD
 }
 # Findwork removed: its links are its own findwork.dev pages, which are
 # profile-gated AND ephemeral (they 404 once the listing rotates), so a user
@@ -61,13 +63,18 @@ SOURCE_CADENCE = {
     "careerjet": "daily", "jooble": "weekly", "reed": "daily",
     "web3career": "daily", "usajobs": "daily",
     "jsearch": "weekly", "serpapi": "weekly",
+    "francetravail": "daily", "jobtech": "daily",   # free gov APIs -> daily
 }
 
 # Single-country sources ignore the active-user country set.
+# JSearch (Google-for-Jobs) is NO longer US-only: it's the highest-yield ToS-safe
+# way to pull Italian/continental board content (InfoJobs/Subito/careers pages
+# that Google indexes), so it now runs for the active-user countries.
 SOURCE_COUNTRIES = {
     "reed": ["United Kingdom"],
     "usajobs": ["United States"],
-    "jsearch": ["United States"],
+    "francetravail": ["France"],
+    "jobtech": ["Sweden"],
 }
 
 # Fallbacks so a cold corpus (or a user who typed no terms) still ingests

@@ -298,6 +298,11 @@ class Settings:
     serpapi_max_terms: int = 4            # searches = terms x locations
     serpapi_max_locations: int = 2
     jsearch_key: str = ""
+    # France Travail (ex-Pôle Emploi) gov API — OAuth client credentials.
+    france_travail_id: str = ""
+    france_travail_secret: str = ""
+    # Sweden JobTech — keyless; a flag so it can be switched off.
+    jobtech_enabled: bool = True
 
     google_sa_file: str = "service_account.json"
     google_sheet_id: str = ""
@@ -352,6 +357,9 @@ class Settings:
             serpapi_max_terms=int(g("SERPAPI_MAX_TERMS", "4") or "4"),
             serpapi_max_locations=int(g("SERPAPI_MAX_LOCATIONS", "2") or "2"),
             jsearch_key=g("JSEARCH_API_KEY"),
+            france_travail_id=g("FRANCE_TRAVAIL_ID"),
+            france_travail_secret=g("FRANCE_TRAVAIL_SECRET"),
+            jobtech_enabled=(g("JOBTECH_ENABLED", "true").lower() in ("1", "true", "yes")),
             google_sa_file=g("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json"),
             google_sheet_id=g("GOOGLE_SHEET_ID"),
             google_drive_folder_id=g("GOOGLE_DRIVE_FOLDER_ID"),

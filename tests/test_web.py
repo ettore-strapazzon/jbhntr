@@ -1785,6 +1785,52 @@ def test_persist_description_updates_corpus_row(monkeypatch):
     db.commit(); db.close()
 
 
+def test_gov_api_sources_parse_full_jds(monkeypatch):
+    """France Travail (OAuth) and Sweden JobTech (keyless) map their responses to
+    JobPostings with full descriptions."""
+    from jobhunter.config import Profile, Settings
+    from jobhunter.sources import keyed
+
+    class _Resp:
+        def __init__(self, status, payload): self.status_code = status; self._p = payload
+        def json(self): return self._p
+
+    prof = Profile(raw={"sources": {"search_terms": ["operations"]}, "locations": ["X"]})
+
+    # Sweden JobTech — GET only, full description.text.
+    hits = {"hits": [{"headline": "Ops Lead", "description": {"text": "Full Swedish JD, 500+ chars."},
+                      "employer": {"name": "SweCo"},
+                      "workplace_address": {"municipality": "Stockholm", "country": "Sweden"},
+                      "webpage_url": "https://ex/se"}]}
+
+    class _JTClient:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, *a, **k): return _Resp(200, hits)
+    monkeypatch.setattr(keyed, "http_client", lambda *a, **k: _JTClient())
+    jt = keyed._jobtech(prof, Settings())
+    assert jt and jt[0].source == "api:jobtech" and jt[0].company == "SweCo"
+    assert "Swedish JD" in jt[0].description and "Stockholm" in jt[0].location
+
+    # France Travail — POST token, then GET search.
+    token = _Resp(200, {"access_token": "abc"})
+    search = _Resp(200, {"resultats": [{"intitule": "Chef ops", "entreprise": {"nom": "FrCo"},
+                   "lieuTravail": {"libelle": "Paris"}, "description": "JD complete.",
+                   "origineOffre": {"urlOrigine": "https://ex/fr"}}]})
+
+    class _FTClient:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def post(self, *a, **k): return token
+        def get(self, *a, **k): return search
+    monkeypatch.setattr(keyed, "http_client", lambda *a, **k: _FTClient())
+    ft = keyed._francetravail(prof, Settings(france_travail_id="id", france_travail_secret="s"))
+    assert ft and ft[0].source == "api:francetravail" and ft[0].company == "FrCo"
+    assert ft[0].location == "Paris" and "complete" in ft[0].description
+    # Registered as a live provider + enabled by key presence.
+    assert "francetravail" in keyed.configured(Settings(france_travail_id="id"))
+
+
 def test_resolve_corpus_companies_registers_ats_and_marks_misses(monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal, init_db
