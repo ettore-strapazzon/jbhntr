@@ -1788,6 +1788,15 @@ def test_persist_description_updates_corpus_row(monkeypatch):
     db.commit(); db.close()
 
 
+def test_as_list_never_explodes_a_string_term():
+    """A term/location stored as a plain string must be one item, never iterated
+    into single characters (which queried every source with junk like 'c','h')."""
+    from web.app.services.ingest import _as_list
+    assert _as_list("chief of staff") == ["chief of staff"]
+    assert _as_list(["a", "b"]) == ["a", "b"]
+    assert _as_list(None) == [] and _as_list([]) == []
+
+
 def test_gov_api_sources_parse_full_jds(monkeypatch):
     """France Travail (OAuth) and Sweden JobTech (keyless) map their responses to
     JobPostings with full descriptions."""

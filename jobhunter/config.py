@@ -305,7 +305,9 @@ class Settings:
     # Sweden JobTech + Germany Bundesagentur — keyless (public/no signup); flags
     # so they can be switched off.
     jobtech_enabled: bool = True
-    bundesagentur_enabled: bool = True
+    # Off by default: the public X-API-Key is rejected (403) — the Bundesagentur
+    # API moved to OAuth, so the adapter needs a token step before it can be used.
+    bundesagentur_enabled: bool = False
 
     google_sa_file: str = "service_account.json"
     google_sheet_id: str = ""
@@ -364,7 +366,7 @@ class Settings:
             france_travail_id=g("FRANCE_TRAVAIL_ID"),
             france_travail_secret=g("FRANCE_TRAVAIL_SECRET"),
             jobtech_enabled=(g("JOBTECH_ENABLED", "true").lower() in ("1", "true", "yes")),
-            bundesagentur_enabled=(g("BUNDESAGENTUR_ENABLED", "true").lower()
+            bundesagentur_enabled=(g("BUNDESAGENTUR_ENABLED", "false").lower()
                                    in ("1", "true", "yes")),
             google_sa_file=g("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json"),
             google_sheet_id=g("GOOGLE_SHEET_ID"),

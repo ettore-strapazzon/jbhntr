@@ -113,6 +113,18 @@ def _chunks(seq: list, n: int):
         yield seq[i : i + n]
 
 
+def _as_list(v) -> list[str]:
+    """Coerce a stored value to a list of strings. A term/location field that got
+    saved as a plain STRING must be treated as one item — never iterated, or
+    `for c in "milan"` explodes it into single characters and every source gets
+    queried with junk like 'm','i','l'…"""
+    if not v:
+        return []
+    if isinstance(v, str):
+        return [v]
+    return [str(x) for x in v]
+
+
 def corpus_terms(db) -> list[str]:
     """Every active user's terms (by demand) first, padded with broad defaults up
     to the floor. Includes BOTH the titles they typed and the roles the engine
@@ -120,7 +132,7 @@ def corpus_terms(db) -> list[str]:
     actually want. All user terms are kept (up to the ceiling)."""
     counter: Counter[str] = Counter()
     for p in db.query(ProfileRow):
-        for t in list(p.search_terms or []) + list(p.derived_roles or []):
+        for t in _as_list(p.search_terms) + _as_list(p.derived_roles):
             t = (t or "").strip()
             if t:
                 counter[t] += 1
@@ -136,7 +148,7 @@ def corpus_countries(db) -> list[str]:
     floor. All user countries are kept (up to the ceiling)."""
     out: list[str] = []
     for p in db.query(ProfileRow):
-        for loc in (p.locations or []):
+        for loc in _as_list(p.locations):
             name = _CODE_TO_NAME.get(geo.country_of(loc))
             if name and name not in out:
                 out.append(name)

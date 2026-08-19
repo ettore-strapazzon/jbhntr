@@ -314,7 +314,8 @@ def _jsearch(profile: Profile, s: Settings) -> list[JobPosting]:
                 },
             )
             if r.status_code != 200:
-                log.warning("JSearch %s: HTTP %s", term, r.status_code)
+                log.warning("JSearch %s: HTTP %s — %s", term, r.status_code,
+                            (r.text or "")[:200])
                 continue
             for j in r.json().get("data", []) or []:
                 loc = ", ".join(
