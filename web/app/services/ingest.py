@@ -208,14 +208,20 @@ def run(cadence: str = "daily") -> dict:
         # writes companies, not jobs, so daily Lane C then polls them.
         if cadence == "discover":
             from .companies_service import (
-                discover_all_active, scrape_custom_companies,
+                discover_all_active, resolve_corpus_companies, scrape_custom_companies,
             )
             res = discover_all_active(db)
+            # Resolve the most common corpus companies to their ATS board (HTTP
+            # probe, no LLM) so daily Lane C ingests their full-JD openings, which
+            # upgrade the thin aggregator snippets via dedup.
+            resolved = resolve_corpus_companies(db)
             # Scrape the careers pages of non-ATS companies discovery registered
             # (premium-sourced, but the jobs land in the shared corpus for all).
             scraped = scrape_custom_companies(db, settings)
-            log.info("ingest discover: %s | custom-scrape: %s", res, scraped)
-            return {"cadence": "discover", **res, "custom_scrape": scraped}
+            log.info("ingest discover: %s | resolve: %s | custom-scrape: %s",
+                     res, resolved, scraped)
+            return {"cadence": "discover", **res, "resolve": resolved,
+                    "custom_scrape": scraped}
 
         postings: list = []
         if cadence == "daily":

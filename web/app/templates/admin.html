@@ -210,6 +210,12 @@
           batch of {{ config.enrich_nightly_limit }}), then re-embed. Watch the fill
           rate in the log before relying on the nightly.</span>
       </form>
+      <form method="post" action="/admin/run-resolve" style="margin-top:6px">
+        <button class="ghost" type="submit">Resolve corpus companies now</button>
+        <span class="small muted">Probe the top {{ config.corpus_resolve_limit }} corpus
+          companies for an ATS board (Greenhouse/Lever/Ashby/Personio/Workable…), then
+          poll them for full-JD openings that upgrade the thin snippets.</span>
+      </form>
       <form method="post" action="/admin/deep-clean" style="margin-top:6px">
         <button class="ghost" type="submit">Deep clean (check every link)</button>
         <span class="small muted">One-time full sweep of the whole corpus — slow,

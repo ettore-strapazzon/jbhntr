@@ -1785,6 +1785,52 @@ def test_persist_description_updates_corpus_row(monkeypatch):
     db.commit(); db.close()
 
 
+def test_resolve_corpus_companies_registers_ats_and_marks_misses(monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Company, Job, utcnow
+    from web.app.services import companies_service
+    init_db()
+    monkeypatch.setattr(config, "corpus_resolve_enabled", True)
+    db = SessionLocal()
+    db.query(Job).filter(Job.dedup_key.like("rc-%")).delete(synchronize_session=False)
+    db.query(Company).filter(Company.source == "corpus").delete(synchronize_session=False)
+    db.add_all([
+        Job(dedup_key="rc-a1", source="api:careerjet", title="Head of Ops", company="AcmeAI",
+            location="Berlin", last_seen_at=utcnow(), description="snippet"),
+        Job(dedup_key="rc-a2", source="api:careerjet", title="PM", company="AcmeAI",
+            location="Berlin", last_seen_at=utcnow(), description="snippet"),
+        Job(dedup_key="rc-b1", source="api:careerjet", title="Analyst", company="NoBoardCo",
+            location="Milano", last_seen_at=utcnow(), description="snippet"),
+    ])
+    db.commit()
+
+    # AcmeAI resolves to a Greenhouse board; NoBoardCo has none.
+    monkeypatch.setattr(companies_service, "verify",
+                        lambda name, slug, domain: ("greenhouse", "acmeai", 5)
+                        if "acme" in name.lower() else None, raising=False)
+    # (verify is imported inside the function; patch the source module too.)
+    import jobhunter.discover as _disc
+    monkeypatch.setattr(_disc, "verify",
+                        lambda name, slug, domain: ("greenhouse", "acmeai", 5)
+                        if "acme" in name.lower() else None)
+
+    res = companies_service.resolve_corpus_companies(db, limit=50)
+    assert res["resolved"] == 1
+    db.expire_all()
+    acme = db.query(Company).filter_by(name="AcmeAI").first()
+    assert acme and acme.ats == "greenhouse" and acme.ats_token == "acmeai"
+    miss = db.query(Company).filter_by(name="NoBoardCo").first()
+    assert miss and miss.ats == "none"                       # marked so we don't re-probe
+
+    # Re-running skips both (already known) — no duplicate work.
+    res2 = companies_service.resolve_corpus_companies(db, limit=50)
+    assert res2["probed"] == 0
+    db.query(Job).filter(Job.dedup_key.like("rc-%")).delete(synchronize_session=False)
+    db.query(Company).filter(Company.source == "corpus").delete(synchronize_session=False)
+    db.commit(); db.close()
+
+
 def test_admin_corpus_explorer_filters(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal

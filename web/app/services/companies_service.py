@@ -150,6 +150,75 @@ def upsert_custom_company(db: DbSession, name: str, domain: str,
                                 source="scraped", user_id=user_id)
 
 
+_AGGREGATOR_HOSTS = ("careerjet", "adzuna", "jooble", "indeed", "linkedin",
+                     "glassdoor", "monster", "totaljobs")
+
+
+def _corpus_domain(db: DbSession, company: str) -> str:
+    """A best-effort employer domain from a non-aggregator job URL of this company
+    (helps the careers-page fallback in verify). Aggregator URLs give no employer
+    domain, so this is usually empty for the thin long tail."""
+    from urllib.parse import urlparse
+
+    from ..models import Job
+    for (url,) in (db.query(Job.url)
+                   .filter(Job.company == company, Job.url.isnot(None), Job.url != "")
+                   .limit(20)):
+        host = urlparse(url or "").netloc.lower().replace("www.", "")
+        if host and not any(a in host for a in _AGGREGATOR_HOSTS):
+            return host
+    return ""
+
+
+def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:
+    """Resolve the most common corpus companies to their public ATS board so we
+    ingest their FULL-JD openings — which then upgrade the thin aggregator snippets
+    via the company|title dedup. HTTP-only ATS probing (no LLM). A company with no
+    discoverable board is recorded (ats='none') so we never re-probe it. The daily
+    Lane C poll then fetches the boards we just registered. Returns {probed, resolved}."""
+    if not config.corpus_resolve_enabled:
+        return {"probed": 0, "resolved": 0, "skipped": "disabled"}
+    from sqlalchemy import func
+
+    from jobhunter.discover import _slugify, verify
+
+    from ..models import Job
+
+    cap = config.corpus_resolve_limit if limit is None else limit
+    known = {(name or "").strip().lower()
+             for (name,) in db.query(Company.name).all()}
+    rows = (db.query(Job.company, func.count(Job.id))
+            .filter(Job.company.isnot(None), Job.company != "")
+            .group_by(Job.company)
+            .order_by(func.count(Job.id).desc())
+            .limit(cap * 5).all())
+    picked = [name for name, _ in rows
+              if name and name.strip().lower() not in known][:cap]
+
+    resolved = 0
+    for name in picked:
+        slug = _slugify(name)
+        if not slug:
+            continue
+        try:
+            res = verify(name, slug, _corpus_domain(db, name))
+        except Exception:
+            res = None
+        if res:
+            ats, token, _ = res
+            if upsert_company(db, ats, token, name, source="corpus"):
+                resolved += 1
+        else:
+            # Mark as attempted-no-board (ats='none' is polled by nothing) so the
+            # weekly run doesn't keep re-probing the same dead ends.
+            _insert_company_safe(db, ats="none", token=slug, name=name,
+                                 source="corpus", user_id=None)
+    db.commit()
+    log.info("Corpus company resolution: %d/%d resolved to an ATS board",
+             resolved, len(picked))
+    return {"probed": len(picked), "resolved": resolved}
+
+
 def seed_registry(db: DbSession) -> int:
     """Ensure the config seed companies are in the registry. Idempotent."""
     added = 0

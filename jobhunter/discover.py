@@ -52,8 +52,12 @@ from .sources.ats import FETCHERS
 
 log = logging.getLogger("jobhunter.discover")
 
-# ATS platforms whose board token we can guess from a company slug.
-GUESSABLE = ["greenhouse", "lever", "ashby", "recruitee", "smartrecruiters", "bamboohr"]
+# ATS platforms whose board token we can guess from a company slug. Personio
+# (DACH) and Workable (EU SMB) use a company-slug subdomain, so they're guessable
+# too — and they're exactly where continental European SMEs post, which the Anglo
+# aggregators miss.
+GUESSABLE = ["greenhouse", "lever", "ashby", "recruitee", "smartrecruiters",
+             "workable", "personio", "bamboohr"]
 
 PROBE_CACHE = DATA_DIR / "company_probes.json"
 

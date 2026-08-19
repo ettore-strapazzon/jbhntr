@@ -597,6 +597,41 @@ def admin_run_enrichment(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/run-resolve")
+def admin_run_resolve(_: bool = Depends(require_admin)):
+    """Operator: probe the most common corpus companies for an ATS board now, so
+    daily Lane C ingests their full-JD openings (which upgrade thin snippets). Runs
+    in the background; watch the fill in the log + the Discovery counts."""
+    from urllib.parse import quote
+
+    from ..db import SessionLocal
+    from ..services.companies_service import poll_all, resolve_corpus_companies
+    from ..services.corpus_service import upsert_jobs
+
+    def _work():
+        db = SessionLocal()
+        try:
+            res = resolve_corpus_companies(db)
+            # Poll the boards we just registered so their full-JD jobs land now.
+            added = updated = 0
+            if res.get("resolved"):
+                postings = poll_all(db)
+                added, updated = upsert_jobs(db, postings)
+            record_op("resolve", f"probed {res.get('probed', 0)} companies · "
+                                f"{res.get('resolved', 0)} resolved to a board · "
+                                f"ingested +{added}/{updated} jobs")
+        except Exception as exc:
+            log.exception("manual corpus-resolve failed")
+            record_op("resolve", f"failed: {str(exc)[:200]}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = ("Resolving corpus companies to their ATS boards now, then polling them. "
+           "Refresh the Background job log in a few minutes.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/run-maintenance")
 def admin_run_maintenance(_: bool = Depends(require_admin)):
     """Operator: run the reaper now and record a corpus snapshot in the background,

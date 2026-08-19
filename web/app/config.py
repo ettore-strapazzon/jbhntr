@@ -98,6 +98,13 @@ class WebConfig:
     # kill switch if a host starts pushing back.
     enrich_enabled: bool = _b("ENRICH_ENABLED", "true")
     enrich_nightly_limit: int = _int("ENRICH_NIGHTLY_LIMIT", 6000)
+    # Corpus company resolution: probe the most common corpus companies for an ATS
+    # board (Greenhouse/Lever/Ashby/Personio/Workable/…) so we ingest their FULL-JD
+    # openings, which then upgrade the thin aggregator snippets via dedup. HTTP-only
+    # ATS probing (no LLM); runs weekly. The cap bounds how many companies we probe
+    # per run (politeness to ATS APIs).
+    corpus_resolve_enabled: bool = _b("CORPUS_RESOLVE_ENABLED", "true")
+    corpus_resolve_limit: int = _int("CORPUS_RESOLVE_LIMIT", 120)
     # Country tagging + ATS location correction per nightly ingest. Like embedding,
     # these must outpace the daily ingest or the untagged backlog grows — and
     # untagged rows can't be geo-filtered, so they hurt in-country recall. Country
