@@ -342,16 +342,20 @@ def _francetravail(profile: Profile, s: Settings) -> list[JobPosting]:
     out: list[JobPosting] = []
     with http_client(timeout=30.0) as c:
         try:
+            # The scope MUST include application_{client_id} — without it France
+            # Travail's token endpoint 400s. This is the usual "it returns nothing".
             tok = c.post(_FT_TOKEN_URL, params={"realm": "/partenaire"},
                          data={"grant_type": "client_credentials",
                                "client_id": s.france_travail_id,
                                "client_secret": s.france_travail_secret,
-                               "scope": "api_offresdemploiv2 o2dsoffre"})
+                               "scope": (f"application_{s.france_travail_id} "
+                                         "api_offresdemploiv2 o2dsoffre")})
         except Exception as exc:
             log.warning("France Travail token failed: %s", exc)
             return out
         if tok.status_code != 200:
-            log.warning("France Travail token: HTTP %s", tok.status_code)
+            log.warning("France Travail token: HTTP %s — %s",
+                        tok.status_code, (tok.text or "")[:200])
             return out
         access = (tok.json() or {}).get("access_token", "")
         if not access:

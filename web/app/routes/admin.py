@@ -597,6 +597,60 @@ def admin_run_enrichment(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.get("/admin/test-source", response_class=PlainTextResponse)
+def admin_test_source(name: str = "", _: bool = Depends(require_admin),
+                      db: DbSession = Depends(get_session)):
+    """Diagnose ONE keyed source live: run it with a representative profile and
+    return the posting count plus the source's own log output (HTTP status /
+    error), so a source that ingests 0 tells us exactly why. Visit
+    /admin/test-source?name=jsearch (or francetravail / bundesagentur / jobtech)."""
+    import io
+    import logging as _logging
+
+    from jobhunter.config import Profile
+    from jobhunter.sources import keyed
+
+    from ..services.ingest import (
+        KEYED_SOURCES, SOURCE_COUNTRIES, corpus_countries, corpus_terms,
+    )
+    from ..services.profile_service import engine_settings
+
+    if name not in KEYED_SOURCES:
+        return "unknown source. known: " + ", ".join(sorted(KEYED_SOURCES))
+    attr, fn = KEYED_SOURCES[name]
+    s = engine_settings()
+    enabled = bool(getattr(s, attr, ""))
+    terms = (corpus_terms(db) or ["operations manager"])[:3]
+    countries = SOURCE_COUNTRIES.get(name) or (corpus_countries(db)[:1] or ["Italy"])
+    prof = Profile(raw={"sources": {"search_terms": terms}, "locations": countries})
+
+    buf = io.StringIO()
+    handler = _logging.StreamHandler(buf)
+    handler.setLevel(_logging.DEBUG)
+    lg = _logging.getLogger("jobhunter.sources.keyed")
+    prev = lg.level
+    lg.setLevel(_logging.DEBUG)
+    lg.addHandler(handler)
+    jobs = []
+    try:
+        jobs = fn(prof, s) or []
+    except Exception as exc:
+        buf.write(f"EXCEPTION: {type(exc).__name__}: {exc}\n")
+    finally:
+        lg.removeHandler(handler)
+        lg.setLevel(prev)
+
+    sample = ""
+    if jobs:
+        j = jobs[0]
+        sample = (f"\nsample: {j.title!r} @ {j.company!r} · {len(j.description or '')} "
+                  f"chars desc · {(j.url or '')[:90]}")
+    return (f"source = {name}   enabled = {enabled} (setting: {attr})\n"
+            f"terms = {terms}\ncountries = {countries}\n"
+            f"returned {len(jobs)} postings{sample}\n\n--- source log ---\n"
+            + (buf.getvalue() or "(no log output — likely returned 0 quietly)"))
+
+
 @router.post("/admin/run-ingest")
 def admin_run_ingest(_: bool = Depends(require_admin)):
     """Operator: run a FULL pull now instead of waiting for the cron — every source
