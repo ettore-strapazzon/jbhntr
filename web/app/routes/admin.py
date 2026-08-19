@@ -597,6 +597,38 @@ def admin_run_enrichment(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/run-ingest")
+def admin_run_ingest(_: bool = Depends(require_admin)):
+    """Operator: run a FULL pull now instead of waiting for the cron — every source
+    across all cadences (discover -> weekly -> daily), in the background. Heavy and
+    long (minutes); watch the Background job log for the per-cadence result."""
+    from urllib.parse import quote
+
+    from ..services.ingest import run as ingest_run
+
+    def _work():
+        try:
+            out = {}
+            for cadence in ("discover", "weekly", "daily"):
+                try:
+                    out[cadence] = ingest_run(cadence)
+                except Exception as exc:
+                    out[cadence] = f"failed: {str(exc)[:120]}"
+            summary = " · ".join(
+                f"{c}: +{(r or {}).get('added', 0)}/{(r or {}).get('updated', 0)}"
+                if isinstance(r, dict) else f"{c}: {r}"
+                for c, r in out.items())
+            record_op("ingest", summary or "done")
+        except Exception as exc:
+            log.exception("manual full ingest failed")
+            record_op("ingest", f"failed: {str(exc)[:200]}")
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = ("Running a full ingest now (all sources, discover + weekly + daily). "
+           "This takes several minutes — watch the Background job log.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/run-resolve")
 def admin_run_resolve(_: bool = Depends(require_admin)):
     """Operator: probe the most common corpus companies for an ATS board now, so

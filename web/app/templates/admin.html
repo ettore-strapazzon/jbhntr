@@ -210,6 +210,12 @@
           batch of {{ config.enrich_nightly_limit }}), then re-embed. Watch the fill
           rate in the log before relying on the nightly.</span>
       </form>
+      <form method="post" action="/admin/run-ingest" style="margin-top:6px">
+        <button type="submit">Run full ingest now</button>
+        <span class="small muted">Pull every source across all cadences
+          (discover + weekly + daily) immediately instead of waiting for the cron.
+          Several minutes — watch the log.</span>
+      </form>
       <form method="post" action="/admin/run-resolve" style="margin-top:6px">
         <button class="ghost" type="submit">Resolve corpus companies now</button>
         <span class="small muted">Probe the top {{ config.corpus_resolve_limit }} corpus

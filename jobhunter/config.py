@@ -298,6 +298,7 @@ class Settings:
     serpapi_max_terms: int = 4            # searches = terms x locations
     serpapi_max_locations: int = 2
     jsearch_key: str = ""
+    jsearch_pages: int = 3                # result pages per JSearch query (~x cost)
     # France Travail (ex-Pôle Emploi) gov API — OAuth client credentials.
     france_travail_id: str = ""
     france_travail_secret: str = ""
@@ -359,6 +360,7 @@ class Settings:
             serpapi_max_terms=int(g("SERPAPI_MAX_TERMS", "4") or "4"),
             serpapi_max_locations=int(g("SERPAPI_MAX_LOCATIONS", "2") or "2"),
             jsearch_key=g("JSEARCH_API_KEY"),
+            jsearch_pages=int(g("JSEARCH_PAGES", "3") or "3"),
             france_travail_id=g("FRANCE_TRAVAIL_ID"),
             france_travail_secret=g("FRANCE_TRAVAIL_SECRET"),
             jobtech_enabled=(g("JOBTECH_ENABLED", "true").lower() in ("1", "true", "yes")),

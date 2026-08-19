@@ -300,11 +300,14 @@ def _usajobs(profile: Profile, s: Settings) -> list[JobPosting]:
 def _jsearch(profile: Profile, s: Settings) -> list[JobPosting]:
     out: list[JobPosting] = []
     location = (_cities(profile) or [""])[0]
+    # num_pages multiplies results per query (RapidAPI bills ~x pages). It's the
+    # Italy/EU backbone with budget headroom, so pull deeper — JSEARCH_PAGES.
+    pages = max(1, min(int(getattr(s, "jsearch_pages", 3) or 3), 10))
     with http_client(timeout=30.0) as c:
         for term in _terms(profile):
             r = c.get(
                 "https://jsearch.p.rapidapi.com/search",
-                params={"query": f"{term} {location}".strip(), "page": 1, "num_pages": 1},
+                params={"query": f"{term} {location}".strip(), "page": 1, "num_pages": pages},
                 headers={
                     "X-RapidAPI-Key": s.jsearch_key,
                     "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
