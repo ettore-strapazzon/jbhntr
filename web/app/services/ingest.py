@@ -134,7 +134,9 @@ def corpus_terms(db) -> list[str]:
     for p in db.query(ProfileRow):
         for t in _as_list(p.search_terms) + _as_list(p.derived_roles):
             t = (t or "").strip()
-            if t:
+            # Skip junk like "[]"/"null" (a field saved as a serialized-empty
+            # string) — a real search term must contain a letter.
+            if t and any(ch.isalpha() for ch in t):
                 counter[t] += 1
     out: list[str] = [t for t, _ in counter.most_common()]   # user terms, prioritised
     for d in DEFAULT_TERMS:
