@@ -1842,6 +1842,23 @@ def test_gov_api_sources_parse_full_jds(monkeypatch):
     # Registered as a live provider + enabled by key presence.
     assert "francetravail" in keyed.configured(Settings(france_travail_id="id"))
 
+    # JSearch — the /search-v2 shape is data.jobs[] with a full job_description.
+    v2 = _Resp(200, {"status": "OK", "data": {"jobs": [
+        {"job_title": "Ops Manager, Italy", "employer_name": "Intrepid",
+         "job_city": None, "job_country": None, "job_location": "Roma RM  •  via LinkedIn",
+         "job_apply_link": "https://ex/it", "job_description": "Full JD here, 400+ chars.",
+         "job_is_remote": False}], "cursor": None}})
+
+    class _JSClient:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, *a, **k): return v2
+    monkeypatch.setattr(keyed, "http_client", lambda *a, **k: _JSClient())
+    js = keyed._jsearch(Profile(raw={"sources": {"search_terms": ["ops"]},
+                                     "locations": ["Italy"]}), Settings(jsearch_key="k"))
+    assert js and js[0].source == "api:jsearch" and js[0].company == "Intrepid"
+    assert js[0].location == "Roma RM" and "Full JD" in js[0].description
+
     # Bundesagentur — search returns listings, detail returns the full JD; a job
     # with no real description is skipped (never add a German snippet).
     listings = _Resp(200, {"stellenangebote": [

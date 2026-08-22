@@ -298,29 +298,30 @@ def _usajobs(profile: Profile, s: Settings) -> list[JobPosting]:
 
 
 def _jsearch(profile: Profile, s: Settings) -> list[JobPosting]:
+    """JSearch (Google-for-Jobs via RapidAPI). Uses the current /search-v2 endpoint
+    (the old /search 404s) whose payload is data.jobs[] with a full job_description.
+    num_pages multiplies results per query (RapidAPI bills ~x pages) — deeper pull
+    for the Italy/EU backbone via JSEARCH_PAGES; country is the ISO code."""
     out: list[JobPosting] = []
     location = (_cities(profile) or [""])[0]
-    # num_pages multiplies results per query (RapidAPI bills ~x pages). It's the
-    # Italy/EU backbone with budget headroom, so pull deeper — JSEARCH_PAGES.
+    country = geo.country_of(location) or ""
     pages = max(1, min(int(getattr(s, "jsearch_pages", 3) or 3), 10))
     with http_client(timeout=30.0) as c:
         for term in _terms(profile):
-            r = c.get(
-                "https://jsearch.p.rapidapi.com/search",
-                params={"query": f"{term} {location}".strip(), "page": 1, "num_pages": pages},
-                headers={
-                    "X-RapidAPI-Key": s.jsearch_key,
-                    "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
-                },
-            )
+            params = {"query": (f"{term} in {location}".strip() if location else term),
+                      "num_pages": pages, "date_posted": "all"}
+            if country:
+                params["country"] = country
+            r = c.get("https://jsearch.p.rapidapi.com/search-v2", params=params,
+                      headers={"X-RapidAPI-Key": s.jsearch_key,
+                               "X-RapidAPI-Host": "jsearch.p.rapidapi.com"})
             if r.status_code != 200:
                 log.warning("JSearch %s: HTTP %s — %s", term, r.status_code,
                             (r.text or "")[:200])
                 continue
-            for j in r.json().get("data", []) or []:
-                loc = ", ".join(
-                    x for x in [j.get("job_city"), j.get("job_country")] if x
-                )
+            for j in ((r.json().get("data") or {}).get("jobs") or []):
+                loc = (", ".join(x for x in [j.get("job_city"), j.get("job_country")] if x)
+                       or (j.get("job_location", "") or "").split("•")[0].strip())
                 out.append(JobPosting(
                     source="api:jsearch",
                     title=j.get("job_title", ""),
@@ -328,6 +329,7 @@ def _jsearch(profile: Profile, s: Settings) -> list[JobPosting]:
                     location=loc,
                     description=strip_html(j.get("job_description", "") or ""),
                     url=j.get("job_apply_link", ""),
+                    is_remote=bool(j.get("job_is_remote")),
                 ))
     return out
 
