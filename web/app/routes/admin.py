@@ -668,10 +668,13 @@ def admin_run_ingest(_: bool = Depends(require_admin)):
                     out[cadence] = ingest_run(cadence)
                 except Exception as exc:
                     out[cadence] = f"failed: {str(exc)[:120]}"
-            summary = " · ".join(
-                f"{c}: +{(r or {}).get('added', 0)}/{(r or {}).get('updated', 0)}"
-                if isinstance(r, dict) else f"{c}: {r}"
-                for c, r in out.items())
+            def _fmt(c, r):
+                if isinstance(r, dict):
+                    if r.get("error"):
+                        return f"{c}: ERROR {str(r['error'])[:140]}"
+                    return f"{c}: +{r.get('added', 0)}/{r.get('updated', 0)}"
+                return f"{c}: {r}"
+            summary = " · ".join(_fmt(c, r) for c, r in out.items())
             record_op("ingest", summary or "done")
         except Exception as exc:
             log.exception("manual full ingest failed")

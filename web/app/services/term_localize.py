@@ -76,26 +76,38 @@ def _translate(settings, terms: list[str], language: str) -> dict[str, list[str]
 
 def localized_terms(db: DbSession, settings, terms: list[str], code: str) -> list[str]:
     """Localized variants of `terms` for the given country code, cached per
-    (term, lang). Returns [] for English-language markets or when no LLM."""
+    (term, lang). Returns [] for English-language markets or when no LLM.
+
+    Fully fail-soft: localization must NEVER break the ingest. On any error we roll
+    the session back (so a poisoned transaction can't fail every later upsert) and
+    fall back to English-only terms."""
     language = LANG_BY_CODE.get((code or "").lower())
     if not language or not terms:
         return []
-
-    cached = {tr.term: (tr.variants or [])
-              for tr in db.query(TermTranslation).filter(TermTranslation.lang == code)
-              if tr.term in set(terms)}
-    missing = [t for t in terms if t not in cached]
-    if missing:
-        fresh = _translate(settings, missing, language)
-        for term in missing:
-            variants = fresh.get(term, [])
-            cached[term] = variants
-            try:
-                with db.begin_nested():
-                    db.add(TermTranslation(term=term, lang=code, variants=variants))
-            except IntegrityError:
-                pass                        # raced/duplicate — fine
-        db.commit()
+    want = set(terms)
+    try:
+        cached = {tr.term: (tr.variants or [])
+                  for tr in db.query(TermTranslation).filter(TermTranslation.lang == code)
+                  if tr.term in want}
+        missing = [t for t in terms if t not in cached]
+        if missing:
+            fresh = _translate(settings, missing, language)
+            for term in missing:
+                cached[term] = fresh.get(term, [])
+                try:
+                    with db.begin_nested():
+                        db.add(TermTranslation(term=term, lang=code,
+                                               variants=cached[term]))
+                except IntegrityError:
+                    pass                    # raced/duplicate — fine
+            db.commit()
+    except Exception as exc:
+        log.warning("term localization failed for %s: %s", code, exc)
+        try:
+            db.rollback()                   # clear a poisoned tx so the ingest continues
+        except Exception:
+            pass
+        return []
 
     out: list[str] = []
     for t in terms:
