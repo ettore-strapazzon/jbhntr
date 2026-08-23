@@ -78,16 +78,21 @@ def localized_terms(db: DbSession, settings, terms: list[str], code: str) -> lis
     """Localized variants of `terms` for the given country code, cached per
     (term, lang). Returns [] for English-language markets or when no LLM.
 
-    Fully fail-soft: localization must NEVER break the ingest. On any error we roll
-    the session back (so a poisoned transaction can't fail every later upsert) and
-    fall back to English-only terms."""
+    Uses its OWN short-lived DB session for the translation cache, so it can never
+    touch (or poison) the ingest's transaction — localization must never break the
+    ingest. Fully fail-soft: any error just falls back to English-only terms. The
+    passed `db` is intentionally unused for isolation."""
     language = LANG_BY_CODE.get((code or "").lower())
     if not language or not terms:
         return []
+    from ..db import SessionLocal
+
     want = set(terms)
+    cached: dict[str, list[str]] = {}
+    s = SessionLocal()
     try:
         cached = {tr.term: (tr.variants or [])
-                  for tr in db.query(TermTranslation).filter(TermTranslation.lang == code)
+                  for tr in s.query(TermTranslation).filter(TermTranslation.lang == code)
                   if tr.term in want}
         missing = [t for t in terms if t not in cached]
         if missing:
@@ -95,19 +100,16 @@ def localized_terms(db: DbSession, settings, terms: list[str], code: str) -> lis
             for term in missing:
                 cached[term] = fresh.get(term, [])
                 try:
-                    with db.begin_nested():
-                        db.add(TermTranslation(term=term, lang=code,
-                                               variants=cached[term]))
+                    with s.begin_nested():
+                        s.add(TermTranslation(term=term, lang=code, variants=cached[term]))
                 except IntegrityError:
                     pass                    # raced/duplicate — fine
-            db.commit()
+            s.commit()
     except Exception as exc:
         log.warning("term localization failed for %s: %s", code, exc)
-        try:
-            db.rollback()                   # clear a poisoned tx so the ingest continues
-        except Exception:
-            pass
         return []
+    finally:
+        s.close()
 
     out: list[str] = []
     for t in terms:
