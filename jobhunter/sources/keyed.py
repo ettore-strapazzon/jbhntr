@@ -348,23 +348,27 @@ def _francetravail(profile: Profile, s: Settings) -> list[JobPosting]:
     Free after a one-time app registration at francetravail.io."""
     out: list[JobPosting] = []
     with http_client(timeout=30.0) as c:
-        try:
-            # The scope MUST include application_{client_id} — without it France
-            # Travail's token endpoint 400s. This is the usual "it returns nothing".
-            tok = c.post(_FT_TOKEN_URL, params={"realm": "/partenaire"},
-                         data={"grant_type": "client_credentials",
-                               "client_id": s.france_travail_id,
-                               "client_secret": s.france_travail_secret,
-                               "scope": (f"application_{s.france_travail_id} "
-                                         "api_offresdemploiv2 o2dsoffre")})
-        except Exception as exc:
-            log.warning("France Travail token failed: %s", exc)
-            return out
-        if tok.status_code != 200:
-            log.warning("France Travail token: HTTP %s — %s",
-                        tok.status_code, (tok.text or "")[:200])
-            return out
-        access = (tok.json() or {}).get("access_token", "")
+        # The required scope format differs between the pole-emploi and France
+        # Travail eras — try the application_{id} form first, then the bare form.
+        # (A wrong scope is invalid_scope; a persistent invalid_client here means
+        # the client_id/secret themselves are wrong — regenerate them.)
+        access = ""
+        for scope in (f"application_{s.france_travail_id} api_offresdemploiv2 o2dsoffre",
+                      "api_offresdemploiv2 o2dsoffre"):
+            try:
+                tok = c.post(_FT_TOKEN_URL, params={"realm": "/partenaire"},
+                             data={"grant_type": "client_credentials",
+                                   "client_id": s.france_travail_id,
+                                   "client_secret": s.france_travail_secret,
+                                   "scope": scope})
+            except Exception as exc:
+                log.warning("France Travail token failed: %s", exc)
+                return out
+            if tok.status_code == 200:
+                access = (tok.json() or {}).get("access_token", "")
+                break
+            log.warning("France Travail token (scope=%r): HTTP %s — %s",
+                        scope, tok.status_code, (tok.text or "")[:200])
         if not access:
             return out
         auth = {"Authorization": f"Bearer {access}"}
