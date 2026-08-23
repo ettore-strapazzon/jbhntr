@@ -308,10 +308,14 @@ def _jsearch(profile: Profile, s: Settings) -> list[JobPosting]:
     pages = max(1, min(int(getattr(s, "jsearch_pages", 3) or 3), 10))
     with http_client(timeout=30.0) as c:
         for term in _terms(profile):
-            params = {"query": (f"{term} in {location}".strip() if location else term),
-                      "num_pages": pages, "date_posted": "all"}
+            # Use the country PARAM for geo (cleaner than "role in Country" text,
+            # which over-narrows Google-for-Jobs); only fold the place into the
+            # query when we couldn't resolve a country code.
+            params = {"query": term, "num_pages": pages, "date_posted": "all"}
             if country:
                 params["country"] = country
+            elif location:
+                params["query"] = f"{term} in {location}"
             r = c.get("https://jsearch.p.rapidapi.com/search-v2", params=params,
                       headers={"X-RapidAPI-Key": s.jsearch_key,
                                "X-RapidAPI-Host": "jsearch.p.rapidapi.com"})
