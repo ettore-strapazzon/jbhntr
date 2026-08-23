@@ -35,6 +35,10 @@ log = logging.getLogger("jbhntr.ingest")
 
 # No-key sources that return broadly (Lane A). Boards are added in full below.
 LANE_A_AGGREGATORS = ["adzuna", "remotive", "remoteok", "arbeitnow"]
+# Aggregators worth querying PER COUNTRY with localized role titles (keyword +
+# country search). The others (remotive/remoteok/arbeitnow) are English-language
+# remote-only boards — one global call is enough, localization adds nothing.
+_LOCALIZED_AGGREGATORS = {"adzuna"}
 
 # Lane B — metered/keyed sources: name -> (settings attr that enables it, fn).
 # Each only runs if its key is set, so listing one is harmless when unconfigured.
@@ -171,21 +175,37 @@ def _fetch(label: str, fn, *args) -> list:
         return []
 
 
-def _lane_a(settings: Settings, terms: list[str], countries: list[str]) -> list:
-    """Global feeds + broad no-key aggregators."""
+def _lane_a(db, settings: Settings, terms: list[str], countries: list[str]) -> list:
+    """Global feeds + broad no-key aggregators. Keyword aggregators (adzuna) are
+    queried per country with localized role titles; remote-only boards stay one
+    global English call."""
+    from . import term_localize
+
     postings: list = []
-    prof = Profile(raw={
+    base = Profile(raw={
         "locations": countries,
-        "sources": {
-            "boards": list(boards.BOARDS),
-            "aggregators": LANE_A_AGGREGATORS,
-            "search_terms": terms,
-        },
+        "sources": {"boards": list(boards.BOARDS), "search_terms": terms},
     })
-    postings += _fetch("boards", boards.fetch, prof, settings)
+    postings += _fetch("boards", boards.fetch, base, settings)
+    local_cache: dict[str, list[str]] = {}
     for name in LANE_A_AGGREGATORS:
         fn = AGGREGATORS.get(name)
-        if fn:
+        if not fn:
+            continue
+        if name in _LOCALIZED_AGGREGATORS:
+            for country in countries:
+                if country not in local_cache:
+                    code = geo.country_of(country)
+                    local_cache[country] = (
+                        term_localize.localized_terms(db, settings, terms, code)
+                        if code else [])
+                cterms = (terms + [t for t in local_cache[country] if t not in terms])[:TERMS_MAX]
+                prof = Profile(raw={"locations": [country],
+                                    "sources": {"aggregators": [name], "search_terms": cterms}})
+                postings += _fetch(f"{name}/{country}", fn, prof, settings)
+        else:
+            prof = Profile(raw={"locations": countries,
+                                "sources": {"aggregators": [name], "search_terms": terms}})
             postings += _fetch(name, fn, prof, settings)
     return postings
 
@@ -263,7 +283,7 @@ def run(cadence: str = "daily") -> dict:
 
         postings: list = []
         if cadence == "daily":
-            postings += _lane_a(settings, terms, countries)          # Lane A daily only
+            postings += _lane_a(db, settings, terms, countries)          # Lane A daily only
             postings += _lane_b(db, settings, terms, countries, "daily")
             postings += _lane_c(db, settings)                        # ATS boards (unmetered)
         elif cadence == "weekly":
