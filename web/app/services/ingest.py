@@ -190,9 +190,16 @@ def _lane_a(settings: Settings, terms: list[str], countries: list[str]) -> list:
     return postings
 
 
-def _lane_b(settings: Settings, terms: list[str], countries: list[str], cadence: str) -> list:
-    """Metered/keyed sources whose cadence matches this run."""
+def _lane_b(db, settings: Settings, terms: list[str], countries: list[str],
+           cadence: str) -> list:
+    """Metered/keyed sources whose cadence matches this run. For non-English
+    markets each country's query set is extended with localized role titles
+    (e.g. 'Direttore Operativo' for Italy) so we don't miss postings written in
+    the local language."""
+    from . import term_localize
+
     postings: list = []
+    local_cache: dict[str, list[str]] = {}
     for name, (attr, fn) in KEYED_SOURCES.items():
         if SOURCE_CADENCE.get(name) != cadence:
             continue
@@ -200,9 +207,14 @@ def _lane_b(settings: Settings, terms: list[str], countries: list[str], cadence:
             continue  # no key configured
         src_countries = SOURCE_COUNTRIES.get(name, countries)
         for country in src_countries:
+            if country not in local_cache:
+                code = geo.country_of(country)
+                extra = term_localize.localized_terms(db, settings, terms, code) if code else []
+                local_cache[country] = extra
+            country_terms = (terms + [t for t in local_cache[country] if t not in terms])[:TERMS_MAX]
             # Providers cap terms at keyed.MAX_TERMS internally, so batch to
             # cover the full corpus term set without exceeding per-call limits.
-            for batch in _chunks(terms, keyed.MAX_TERMS):
+            for batch in _chunks(country_terms, keyed.MAX_TERMS):
                 prof = Profile(raw={
                     "locations": [country],
                     "sources": {"search_terms": batch},
@@ -252,10 +264,10 @@ def run(cadence: str = "daily") -> dict:
         postings: list = []
         if cadence == "daily":
             postings += _lane_a(settings, terms, countries)          # Lane A daily only
-            postings += _lane_b(settings, terms, countries, "daily")
+            postings += _lane_b(db, settings, terms, countries, "daily")
             postings += _lane_c(db, settings)                        # ATS boards (unmetered)
         elif cadence == "weekly":
-            postings += _lane_b(settings, terms, countries, "weekly")
+            postings += _lane_b(db, settings, terms, countries, "weekly")
         else:
             raise ValueError(f"unknown cadence {cadence!r}")
 

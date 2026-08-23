@@ -1788,6 +1788,31 @@ def test_persist_description_updates_corpus_row(monkeypatch):
     db.commit(); db.close()
 
 
+def test_localized_terms_translates_caches_and_skips_english(monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import TermTranslation
+    from web.app.services import term_localize
+    init_db()
+    db = SessionLocal()
+    db.query(TermTranslation).delete(); db.commit()
+    calls = {"n": 0}
+
+    def fake_translate(settings, terms, language):
+        calls["n"] += 1
+        return {t: [f"{t} [{language}]"] for t in terms}
+    monkeypatch.setattr(term_localize, "_translate", fake_translate)
+
+    out = term_localize.localized_terms(db, object(), ["head of operations"], "it")
+    assert out == ["head of operations [Italian]"] and calls["n"] == 1
+    # Cached — a second call for the same (term, lang) does NOT re-translate.
+    out2 = term_localize.localized_terms(db, object(), ["head of operations"], "it")
+    assert out2 == ["head of operations [Italian]"] and calls["n"] == 1
+    # English-language market -> no localization, no LLM call.
+    assert term_localize.localized_terms(db, object(), ["head of operations"], "us") == []
+    assert calls["n"] == 1
+    db.query(TermTranslation).delete(); db.commit(); db.close()
+
+
 def test_as_list_never_explodes_a_string_term():
     """A term/location stored as a plain string must be one item, never iterated
     into single characters (which queried every source with junk like 'c','h')."""

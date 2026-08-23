@@ -148,6 +148,20 @@ class SeedCompany(Base):
     value: Mapped[str] = mapped_column(String(255))  # name or website
 
 
+class TermTranslation(Base):
+    """Cache of a role title localized into a market's language, so we translate
+    each (term, language) at most once. Lets the ingest query non-English markets
+    in their own language ('Direttore Operativo', not just 'head of operations')."""
+    __tablename__ = "term_translations"
+    __table_args__ = (UniqueConstraint("term", "lang", name="uq_term_lang"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    term: Mapped[str] = mapped_column(String(120), index=True)
+    lang: Mapped[str] = mapped_column(String(8))            # ISO country code (it/fr/de…)
+    variants: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Search(Base):
     __tablename__ = "searches"
 
