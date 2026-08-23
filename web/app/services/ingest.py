@@ -282,10 +282,13 @@ def run(cadence: str = "daily") -> dict:
                     "custom_scrape": scraped}
 
         postings: list = []
+        lanes: dict[str, int] = {}
         if cadence == "daily":
-            postings += _lane_a(db, settings, terms, countries)          # Lane A daily only
-            postings += _lane_b(db, settings, terms, countries, "daily")
-            postings += _lane_c(db, settings)                        # ATS boards (unmetered)
+            la = _lane_a(db, settings, terms, countries)              # Lane A daily only
+            lb = _lane_b(db, settings, terms, countries, "daily")
+            lc = _lane_c(db, settings)                               # ATS boards (unmetered)
+            lanes = {"a": len(la), "b": len(lb), "c": len(lc)}
+            postings += la + lb + lc
         elif cadence == "weekly":
             postings += _lane_b(db, settings, terms, countries, "weekly")
         else:
@@ -305,7 +308,7 @@ def run(cadence: str = "daily") -> dict:
         countried = backfill_countries(db, settings, limit=web_config.geo_backfill_limit)
         # Re-tag work mode for jobs stuck at 'unknown' now that geo/descriptions grew.
         remoded = backfill_remote_modes(db, limit=web_config.remote_backfill_limit)
-        result = {"cadence": cadence, "fetched": len(postings),
+        result = {"cadence": cadence, "fetched": len(postings), "lanes": lanes,
                   "added": added, "updated": updated, "embedded": embedded,
                   "ats_corrected": corrected, "countried": countried,
                   "remoded": remoded}

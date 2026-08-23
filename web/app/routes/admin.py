@@ -672,7 +672,13 @@ def admin_run_ingest(_: bool = Depends(require_admin)):
                 if isinstance(r, dict):
                     if r.get("error"):
                         return f"{c}: ERROR {str(r['error'])[:140]}"
-                    return f"{c}: +{r.get('added', 0)}/{r.get('updated', 0)}"
+                    extra = ""
+                    if r.get("lanes"):
+                        ln = r["lanes"]
+                        extra = f" [fetched {r.get('fetched', 0)}: A={ln.get('a')} B={ln.get('b')} C={ln.get('c')}]"
+                    elif "fetched" in r:
+                        extra = f" [fetched {r.get('fetched', 0)}]"
+                    return f"{c}: +{r.get('added', 0)}/{r.get('updated', 0)}{extra}"
                 return f"{c}: {r}"
             summary = " · ".join(_fmt(c, r) for c, r in out.items())
             record_op("ingest", summary or "done")
