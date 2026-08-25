@@ -29,6 +29,7 @@ log = logging.getLogger("jbhntr.companies")
 DISCOVER_TARGET = 100     # similar companies to accumulate per user, over time
 DISCOVER_MAX_ROUNDS = 2   # per call — keep a scheduled run short; accumulate across runs
 POLL_WORKERS = 12
+RESOLVE_WORKERS = 16      # concurrent ATS-board probes in resolve_corpus_companies
 
 
 def discovery_signals(db: DbSession, user: User) -> dict:
@@ -194,21 +195,34 @@ def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:
             .limit(cap * 5).all())
     picked = [name for name, _ in rows
               if name and name.strip().lower() not in known][:cap]
+    if not picked:
+        return {"probed": 0, "resolved": 0}
 
-    resolved = 0
-    for name in picked:
+    # Pre-compute employer domains on the main thread (DB read), THEN probe every
+    # company's ATS board concurrently — verify() is HTTP-only and was the slow,
+    # sequential bottleneck (~8 probes/company). Insert on the main thread after,
+    # since the SQLAlchemy session isn't thread-safe.
+    domains = {name: _corpus_domain(db, name) for name in picked}
+
+    def _probe(name: str):
         slug = _slugify(name)
         if not slug:
-            continue
+            return (name, "", None)
         try:
-            res = verify(name, slug, _corpus_domain(db, name))
+            return (name, slug, verify(name, slug, domains.get(name, "")))
         except Exception:
-            res = None
+            return (name, slug, None)
+
+    with ThreadPoolExecutor(max_workers=RESOLVE_WORKERS) as pool:
+        results = list(pool.map(_probe, picked))
+
+    resolved = 0
+    for name, slug, res in results:
         if res:
             ats, token, _ = res
             if upsert_company(db, ats, token, name, source="corpus"):
                 resolved += 1
-        else:
+        elif slug:
             # Mark as attempted-no-board (ats='none' is polled by nothing) so the
             # weekly run doesn't keep re-probing the same dead ends.
             _insert_company_safe(db, ats="none", token=slug, name=name,

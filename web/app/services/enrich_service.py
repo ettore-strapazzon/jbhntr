@@ -39,6 +39,23 @@ _DESC_CAP = 20_000    # store at most this much
 _TIMEOUT = 15.0
 _WORKERS = 12
 
+# URLs a plain HTTP fetch can never turn into a JD (measured 0-5% yield): redirect
+# trackers that land on a JavaScript shell, and hosts that 403 every bot. Scraping
+# these just burns our IP — skip them and mark the row done, so the enrich queue
+# holds only URLs that CAN yield a body. Such jobs get a full JD another way: a
+# fuller posting for the same company|title from jsearch/an ATS upgrades the row
+# via the upsert dedup path.
+_DEAD_URL_BITS = (
+    "jobviewtrack.com",   # careerjet redirect tracker -> JS/err (0% measured)
+    "/jobs/land/",        # adzuna land redirect (its /details/ pages still work)
+    "indeed.com", "linkedin.com", "glassdoor.",  # 403 to bots
+)
+
+
+def _is_dead_url(url: str) -> bool:
+    u = (url or "").lower()
+    return any(bit in u for bit in _DEAD_URL_BITS)
+
 # Page chrome to drop BEFORE extracting text, so we store the JD rather than the
 # nav/footer/cookie banner (whole-page strip_html was polluting descriptions).
 _CHROME = re.compile(
@@ -204,13 +221,24 @@ def enrich_thin_descriptions(db: DbSession, limit: int | None = None) -> dict:
         return {"enriched": 0, "attempted": 0, "remaining": pending_count(db),
                 "skipped": "disabled"}
     limit = config.enrich_nightly_limit if limit is None else limit
-    rows = (db.query(Job)
-            .filter(Job.desc_enriched.is_(False), Job.url.isnot(None), Job.url != "",
-                    _thin_filter())
-            .order_by(Job.last_seen_at.desc())
-            .limit(limit).all())
+    # Over-fetch candidates, then drop dead-URL rows (trackers/bot-blocked hosts a
+    # plain fetch can't read) BEFORE spending the limit on them. They're marked
+    # done so they leave the queue for good — a fuller version from jsearch/an ATS
+    # will upgrade them later via the upsert dedup path.
+    candidates = (db.query(Job)
+                  .filter(Job.desc_enriched.is_(False), Job.url.isnot(None), Job.url != "",
+                          _thin_filter())
+                  .order_by(Job.last_seen_at.desc())
+                  .limit(limit * 3).all())
+    dead = [r for r in candidates if _is_dead_url(r.url)]
+    for r in dead:
+        r.desc_enriched = True          # URL can never yield a JD — stop re-queuing it
+    rows = [r for r in candidates if not _is_dead_url(r.url)][:limit]
     if not rows:
-        return {"enriched": 0, "attempted": 0, "remaining": 0}
+        if dead:
+            db.commit()
+        return {"enriched": 0, "attempted": 0, "remaining": pending_count(db),
+                "skipped_dead": len(dead)}
 
     # Fetch concurrently (network-bound); apply results on the main thread since a
     # SQLAlchemy session isn't thread-safe.
@@ -237,6 +265,7 @@ def enrich_thin_descriptions(db: DbSession, limit: int | None = None) -> dict:
             enriched += 1
     db.commit()
     remaining = pending_count(db)
-    log.info("Enrichment: %d filled of %d attempted, %d remaining",
-             enriched, len(rows), remaining)
-    return {"enriched": enriched, "attempted": len(rows), "remaining": remaining}
+    log.info("Enrichment: %d filled of %d attempted, %d dead-skipped, %d remaining",
+             enriched, len(rows), len(dead), remaining)
+    return {"enriched": enriched, "attempted": len(rows),
+            "skipped_dead": len(dead), "remaining": remaining}

@@ -298,7 +298,13 @@ class Settings:
     serpapi_max_terms: int = 4            # searches = terms x locations
     serpapi_max_locations: int = 2
     jsearch_key: str = ""
-    jsearch_pages: int = 3                # result pages per JSearch query (~x cost)
+    jsearch_pages: int = 2                # result pages per JSearch query (RapidAPI bills ~x pages)
+    # Budget governor: JSearch (paid, ~10k requests/mo) is our best full-JD source
+    # but un-gated across all markets it burns the monthly quota in days and then
+    # 429s for the rest of the month. Cap the (country x term) QUERIES per daily
+    # run so the quota is spread evenly: queries x pages x ~30 days <= plan. With
+    # 120 queries x 2 pages x 30 = 7.2k/mo (headroom under a 10k plan).
+    jsearch_daily_queries: int = 120
     # France Travail (ex-Pôle Emploi) gov API — OAuth client credentials.
     france_travail_id: str = ""
     france_travail_secret: str = ""
@@ -362,7 +368,8 @@ class Settings:
             serpapi_max_terms=int(g("SERPAPI_MAX_TERMS", "4") or "4"),
             serpapi_max_locations=int(g("SERPAPI_MAX_LOCATIONS", "2") or "2"),
             jsearch_key=g("JSEARCH_API_KEY"),
-            jsearch_pages=int(g("JSEARCH_PAGES", "3") or "3"),
+            jsearch_pages=int(g("JSEARCH_PAGES", "2") or "2"),
+            jsearch_daily_queries=int(g("JSEARCH_DAILY_QUERIES", "120") or "120"),
             france_travail_id=g("FRANCE_TRAVAIL_ID"),
             france_travail_secret=g("FRANCE_TRAVAIL_SECRET"),
             jobtech_enabled=(g("JOBTECH_ENABLED", "true").lower() in ("1", "true", "yes")),

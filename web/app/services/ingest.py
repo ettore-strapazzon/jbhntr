@@ -220,18 +220,42 @@ def _lane_b(db, settings: Settings, terms: list[str], countries: list[str],
 
     postings: list = []
     local_cache: dict[str, list[str]] = {}
+
+    def _localized(country: str) -> list[str]:
+        if country not in local_cache:
+            code = geo.country_of(country)
+            local_cache[country] = (
+                term_localize.localized_terms(db, settings, terms, code) if code else [])
+        return (terms + [t for t in local_cache[country] if t not in terms])[:TERMS_MAX]
+
     for name, (attr, fn) in KEYED_SOURCES.items():
         if SOURCE_CADENCE.get(name) != cadence:
             continue
         if not getattr(settings, attr, ""):
             continue  # no key configured
         src_countries = SOURCE_COUNTRIES.get(name, countries)
+
+        # JSearch is metered (~10k requests/mo) and makes ONE API call per term, so
+        # querying every term x every country drains the quota in days. Spread a
+        # fixed daily query budget evenly across markets instead, so the paid
+        # full-JD source runs all month rather than dying mid-month.
+        if name == "jsearch":
+            try:
+                budget = max(1, int(getattr(settings, "jsearch_daily_queries", 120) or 120))
+            except (TypeError, ValueError):
+                budget = 120
+            per_country = max(1, budget // max(1, len(src_countries)))
+            for country in src_countries:
+                cterms = _localized(country)[:per_country]
+                if not cterms:
+                    continue
+                prof = Profile(raw={"locations": [country],
+                                    "sources": {"search_terms": cterms}})
+                postings += _fetch(f"{name}/{country}", fn, prof, settings)
+            continue
+
         for country in src_countries:
-            if country not in local_cache:
-                code = geo.country_of(country)
-                extra = term_localize.localized_terms(db, settings, terms, code) if code else []
-                local_cache[country] = extra
-            country_terms = (terms + [t for t in local_cache[country] if t not in terms])[:TERMS_MAX]
+            country_terms = _localized(country)
             # Providers cap terms at keyed.MAX_TERMS internally, so batch to
             # cover the full corpus term set without exceeding per-call limits.
             for batch in _chunks(country_terms, keyed.MAX_TERMS):
