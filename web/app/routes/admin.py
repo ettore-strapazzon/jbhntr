@@ -651,6 +651,41 @@ def admin_test_source(name: str = "", _: bool = Depends(require_admin),
             + (buf.getvalue() or "(no log output — likely returned 0 quietly)"))
 
 
+@router.get("/admin/test-enrich", response_class=PlainTextResponse)
+def admin_test_enrich(source: str = "", n: int = 40,
+                      _: bool = Depends(require_admin),
+                      db: DbSession = Depends(get_session)):
+    """Diagnose enrichment YIELD per source: sample thin jobs from `source`, try the
+    URL fetch, and report how many yield a full JD vs. fail (blocked / JS-shell /
+    dead). Tells us whether URL-scraping can fix a source's snippets, or whether we
+    must fill it another way. e.g. /admin/test-enrich?source=api:careerjet&n=40
+
+    With no `source`, lists the thin-job counts per source so you know what to probe."""
+    from ..services.enrich_service import _thin_filter, probe_source
+
+    if not source:
+        rows = (db.query(Job.source, func.count(Job.id))
+                .filter(Job.desc_enriched.is_(False), Job.url.isnot(None), Job.url != "",
+                        _thin_filter())
+                .group_by(Job.source).order_by(func.count(Job.id).desc()).all())
+        lines = [f"{cnt:>7}  {src}" for src, cnt in rows]
+        return ("thin, not-yet-enriched jobs per source:\n\n" + "\n".join(lines)
+                + "\n\nprobe one with /admin/test-enrich?source=<name>&n=40")
+
+    r = probe_source(db, source, n=max(1, min(n, 120)))
+    if not r["sampled"]:
+        return f"no thin jobs found for source={source!r} (check the exact name from the no-arg list)"
+    pct = round(100 * r["got_full"] / r["sampled"])
+    return (
+        f"source = {source}   sampled {r['sampled']} thin jobs\n\n"
+        f"  got full JD (>=500c) : {r['got_full']}  ({pct}%)\n"
+        f"  too short (JS/snip)  : {r['too_short']}\n"
+        f"  http error/blocked   : {r['http_error']}\n"
+        f"  transient (retryable): {r['transient']}\n\n"
+        f"ok examples:\n  " + "\n  ".join(r["examples_ok"] or ["(none)"]) + "\n\n"
+        f"fail examples:\n  " + "\n  ".join(r["examples_fail"] or ["(none)"]))
+
+
 @router.post("/admin/run-ingest")
 def admin_run_ingest(_: bool = Depends(require_admin)):
     """Operator: run a FULL pull now instead of waiting for the cron — every source

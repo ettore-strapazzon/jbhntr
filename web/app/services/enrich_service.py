@@ -161,6 +161,42 @@ def pending_count(db: DbSession) -> int:
                     _thin_filter()).scalar() or 0)
 
 
+def probe_source(db: DbSession, source: str, n: int = 40) -> dict:
+    """Diagnostic: sample `n` thin, not-yet-enriched jobs from one source, attempt
+    the URL fetch, and categorise the outcome — so we can see the REAL enrichment
+    yield per source (careerjet's tracker URLs vs an ATS board differ hugely). No
+    DB writes. Returns per-outcome counts plus a couple of example URLs."""
+    rows = (db.query(Job)
+            .filter(Job.source == source, Job.url.isnot(None), Job.url != "",
+                    _thin_filter())
+            .order_by(Job.last_seen_at.desc())
+            .limit(n).all())
+    out = {"source": source, "sampled": len(rows), "got_full": 0,
+           "too_short": 0, "http_error": 0, "transient": 0,
+           "examples_ok": [], "examples_fail": []}
+    if not rows:
+        return out
+    with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+        results = list(pool.map(lambda r: (r, *_fetch_body(r.url)), rows))
+    for r, body, definitive in results:
+        n_body = len(body or "")
+        if body and n_body >= _GOOD_CHARS:
+            out["got_full"] += 1
+            if len(out["examples_ok"]) < 2:
+                out["examples_ok"].append(f"{n_body}c {(r.url or '')[:70]}")
+        elif not definitive:
+            out["transient"] += 1
+            if len(out["examples_fail"]) < 2:
+                out["examples_fail"].append(f"transient {(r.url or '')[:70]}")
+        elif n_body == 0:
+            out["http_error"] += 1        # non-200 (blocked / dead / redirect loop)
+            if len(out["examples_fail"]) < 2:
+                out["examples_fail"].append(f"empty/err {(r.url or '')[:70]}")
+        else:
+            out["too_short"] += 1         # 200 but JS-shell / snippet only
+    return out
+
+
 def enrich_thin_descriptions(db: DbSession, limit: int | None = None) -> dict:
     """Fetch and store full descriptions for up to ``limit`` thin jobs, freshest
     first. Returns {enriched, attempted, remaining}."""
