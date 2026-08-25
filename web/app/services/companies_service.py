@@ -12,6 +12,7 @@ See docs/INGESTION_ENGINE.md → Lane C / §4.
 from __future__ import annotations
 
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sqlalchemy.exc import IntegrityError
@@ -159,15 +160,69 @@ def _corpus_domain(db: DbSession, company: str) -> str:
     """A best-effort employer domain from a non-aggregator job URL of this company
     (helps the careers-page fallback in verify). Aggregator URLs give no employer
     domain, so this is usually empty for the thin long tail."""
+    return _corpus_hints(db, company)[0]
+
+
+def _corpus_hints(db: DbSession, company: str) -> tuple[str, str]:
+    """(employer_domain, country_code) for a company from its corpus rows. The
+    domain comes from a non-aggregator job URL (usually empty for the careerjet
+    long tail); the country code (from a job's tags) picks the right TLD to GUESS
+    a domain for those — an Italian company is far likelier to be foo.it than
+    foo.com. Both best-effort."""
     from urllib.parse import urlparse
 
     from ..models import Job
-    for (url,) in (db.query(Job.url)
-                   .filter(Job.company == company, Job.url.isnot(None), Job.url != "")
-                   .limit(20)):
-        host = urlparse(url or "").netloc.lower().replace("www.", "")
-        if host and not any(a in host for a in _AGGREGATOR_HOSTS):
-            return host
+    domain = code = ""
+    for url, countries in (db.query(Job.url, Job.countries)
+                           .filter(Job.company == company).limit(20)):
+        if not domain and url:
+            host = urlparse(url or "").netloc.lower().replace("www.", "")
+            if host and not any(a in host for a in _AGGREGATOR_HOSTS):
+                domain = host
+        if not code and countries:
+            code = str(countries[0] or "").lower()
+        if domain and code:
+            break
+    return domain, code
+
+
+# ISO country code -> the TLD that market's companies most often use, for domain
+# guessing when the corpus gives us no employer domain (careerjet's thin tail).
+_COUNTRY_TLD = {
+    "it": "it", "fr": "fr", "de": "de", "es": "es", "nl": "nl", "se": "se",
+    "pl": "pl", "pt": "pt", "dk": "dk", "no": "no", "fi": "fi", "at": "at",
+    "ch": "ch", "be": "be", "ie": "ie", "uk": "co.uk", "gb": "co.uk",
+    "br": "com.br", "mx": "com.mx", "ca": "ca",
+}
+
+
+def _guess_domains(name: str, code: str) -> list[str]:
+    """Candidate website domains for a company we have no domain for: the
+    squished name across common TLDs, market TLD first. Best-effort — wrong
+    guesses simply don't resolve or yield no ATS board (verify only accepts a
+    board that actually returns jobs), so there's no false-positive risk."""
+    base = re.sub(r"[^a-z0-9]+", "", (name or "").lower())
+    if len(base) < 2:
+        return []
+    tlds = ["com", "io", "co", "ai"]
+    t = _COUNTRY_TLD.get((code or "").lower())
+    if t and t not in tlds:
+        tlds.insert(0, t)          # a local company is likelier foo.it than foo.com
+    return [f"{base}.{tld}" for tld in tlds]
+
+
+def _live_domain(guesses: list[str]) -> str:
+    """First guessed domain that answers an HTTP request — the company's real
+    site, so verify() can probe its careers page. Short timeout; stops at first."""
+    from jobhunter.sources.base import http_client
+    for d in guesses:
+        try:
+            with http_client(timeout=6.0) as c:
+                r = c.get(f"https://{d}", follow_redirects=True)
+            if r.status_code < 400:
+                return d
+        except Exception:
+            continue
     return ""
 
 
@@ -198,18 +253,24 @@ def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:
     if not picked:
         return {"probed": 0, "resolved": 0}
 
-    # Pre-compute employer domains on the main thread (DB read), THEN probe every
-    # company's ATS board concurrently — verify() is HTTP-only and was the slow,
-    # sequential bottleneck (~8 probes/company). Insert on the main thread after,
-    # since the SQLAlchemy session isn't thread-safe.
-    domains = {name: _corpus_domain(db, name) for name in picked}
+    # Pre-compute employer-domain + country hints on the main thread (DB read),
+    # THEN probe every company's ATS board concurrently — verify() is HTTP-only and
+    # was the slow, sequential bottleneck (~8 probes/company). Insert on the main
+    # thread after, since the SQLAlchemy session isn't thread-safe.
+    hints = {name: _corpus_hints(db, name) for name in picked}
 
     def _probe(name: str):
         slug = _slugify(name)
         if not slug:
             return (name, "", None)
+        domain, code = hints.get(name, ("", ""))
+        # No employer domain (the careerjet tail)? GUESS one from the name+market
+        # and HTTP-check it, so verify() can reach the company's own careers page /
+        # embedded ATS board instead of giving up.
+        if not domain:
+            domain = _live_domain(_guess_domains(name, code))
         try:
-            return (name, slug, verify(name, slug, domains.get(name, "")))
+            return (name, slug, verify(name, slug, domain or ""))
         except Exception:
             return (name, slug, None)
 
