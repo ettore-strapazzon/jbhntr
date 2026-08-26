@@ -686,6 +686,22 @@ def admin_test_enrich(source: str = "", n: int = 40,
         f"fail examples:\n  " + "\n  ".join(r["examples_fail"] or ["(none)"]))
 
 
+@router.get("/admin/reprobe-unresolved", response_class=PlainTextResponse)
+def admin_reprobe_unresolved(_: bool = Depends(require_admin),
+                             db: DbSession = Depends(get_session)):
+    """One-time maintenance: clear the `ats='none'` markers (companies we probed for
+    an ATS board and failed). They're pure negative-cache — no jobs, no user data —
+    and were recorded by the OLD name-guessing resolver. Clearing them lets the next
+    Run-resolve re-probe those companies with the new Clearbit domain resolver.
+    After this, click Run-resolve."""
+    n = (db.query(Company).filter(Company.ats == "none")
+         .delete(synchronize_session=False))
+    db.commit()
+    return (f"cleared {n} unresolved-company markers.\n\n"
+            "Now click 'Resolve corpus companies' on /admin — the new Clearbit "
+            "resolver will re-probe these with their real domains.")
+
+
 @router.post("/admin/run-ingest")
 def admin_run_ingest(_: bool = Depends(require_admin)):
     """Operator: run a FULL pull now instead of waiting for the cron — every source
