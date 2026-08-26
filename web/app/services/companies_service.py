@@ -304,7 +304,7 @@ def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:
     def _probe(name: str):
         slug = _slugify(name)
         if not slug:
-            return (name, "", None)
+            return (name, "", None, "")
         domain, code = hints.get(name, ("", ""))
         # No employer domain (the careerjet tail)? Resolve one — Clearbit
         # autocomplete first (real domains), then TLD guessing — so verify() can
@@ -312,28 +312,35 @@ def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:
         if not domain:
             domain = _resolve_domain(name, code)
         try:
-            return (name, slug, verify(name, slug, domain or ""))
+            return (name, slug, verify(name, slug, domain or ""), domain or "")
         except Exception:
-            return (name, slug, None)
+            return (name, slug, None, domain or "")
 
     with ThreadPoolExecutor(max_workers=RESOLVE_WORKERS) as pool:
         results = list(pool.map(_probe, picked))
 
-    resolved = 0
-    for name, slug, res in results:
+    resolved = custom = 0
+    for name, slug, res, domain in results:
         if res:
             ats, token, _ = res
             if upsert_company(db, ats, token, name, source="corpus"):
                 resolved += 1
+        elif domain:
+            # No supported ATS, but Clearbit/guessing found the company's real
+            # website — keep it as a custom company so the (JSON-LD-first, mostly
+            # free) careers scraper can read its openings. Beats discarding the
+            # domain we just worked to find.
+            if upsert_custom_company(db, name, domain, user_id=None):
+                custom += 1
         elif slug:
-            # Mark as attempted-no-board (ats='none' is polled by nothing) so the
-            # weekly run doesn't keep re-probing the same dead ends.
+            # No board and no website at all — mark attempted (ats='none', polled by
+            # nothing) so we don't keep re-probing a genuine dead end.
             _insert_company_safe(db, ats="none", token=slug, name=name,
                                  source="corpus", user_id=None)
     db.commit()
-    log.info("Corpus company resolution: %d/%d resolved to an ATS board",
-             resolved, len(picked))
-    return {"probed": len(picked), "resolved": resolved}
+    log.info("Corpus company resolution: %d/%d to an ATS board, %d to custom careers",
+             resolved, len(picked), custom)
+    return {"probed": len(picked), "resolved": resolved, "custom": custom}
 
 
 def seed_registry(db: DbSession) -> int:

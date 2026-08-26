@@ -805,7 +805,8 @@ def admin_run_resolve(_: bool = Depends(require_admin)):
                 postings = poll_all(db)
                 added, updated = upsert_jobs(db, postings)
             record_op("resolve", f"probed {res.get('probed', 0)} companies · "
-                                f"{res.get('resolved', 0)} resolved to a board · "
+                                f"{res.get('resolved', 0)} to a board · "
+                                f"{res.get('custom', 0)} to custom careers · "
                                 f"ingested +{added}/{updated} jobs")
         except Exception as exc:
             log.exception("manual corpus-resolve failed")
