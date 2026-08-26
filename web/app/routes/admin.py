@@ -752,35 +752,39 @@ def admin_run_ingest(_: bool = Depends(require_admin)):
 
     from ..services.ingest import run as ingest_run
 
+    def _fmt(c, r):
+        if isinstance(r, dict):
+            if r.get("error"):
+                return f"{c}: ERROR {str(r['error'])[:140]}"
+            extra = ""
+            if r.get("lanes"):
+                ln = r["lanes"]
+                extra = f" [fetched {r.get('fetched', 0)}: A={ln.get('a')} B={ln.get('b')} C={ln.get('c')}]"
+            elif "fetched" in r:
+                extra = f" [fetched {r.get('fetched', 0)}]"
+            return f"{c}: +{r.get('added', 0)}/{r.get('updated', 0)}{extra}"
+        return f"{c}: {r}"
+
     def _work():
-        try:
-            out = {}
-            for cadence in ("discover", "weekly", "daily"):
-                try:
-                    out[cadence] = ingest_run(cadence)
-                except Exception as exc:
-                    out[cadence] = f"failed: {str(exc)[:120]}"
-            def _fmt(c, r):
-                if isinstance(r, dict):
-                    if r.get("error"):
-                        return f"{c}: ERROR {str(r['error'])[:140]}"
-                    extra = ""
-                    if r.get("lanes"):
-                        ln = r["lanes"]
-                        extra = f" [fetched {r.get('fetched', 0)}: A={ln.get('a')} B={ln.get('b')} C={ln.get('c')}]"
-                    elif "fetched" in r:
-                        extra = f" [fetched {r.get('fetched', 0)}]"
-                    return f"{c}: +{r.get('added', 0)}/{r.get('updated', 0)}{extra}"
-                return f"{c}: {r}"
-            summary = " · ".join(_fmt(c, r) for c, r in out.items())
-            record_op("ingest", summary or "done")
-        except Exception as exc:
-            log.exception("manual full ingest failed")
-            record_op("ingest", f"failed: {str(exc)[:200]}")
+        # Record a marker BEFORE starting and after EACH cadence, so the log always
+        # shows progress — a fire-and-forget daemon thread that dies on a redeploy
+        # (or a phase that hangs) otherwise leaves zero trace, which reads as
+        # "nothing happened". Now you can always see which phase it reached.
+        record_op("ingest", "started — discover…")
+        out: dict = {}
+        for cadence in ("discover", "weekly", "daily"):
+            nxt = {"discover": "weekly", "weekly": "daily"}.get(cadence)
+            try:
+                out[cadence] = ingest_run(cadence)
+            except Exception as exc:
+                log.exception("manual ingest %s failed", cadence)
+                out[cadence] = {"error": str(exc)[:120]}
+            done = " · ".join(_fmt(c, r) for c, r in out.items())
+            record_op("ingest", done + (f" · running {nxt}…" if nxt else ""))
 
     threading.Thread(target=_work, daemon=True).start()
-    msg = ("Running a full ingest now (all sources, discover + weekly + daily). "
-           "This takes several minutes — watch the Background job log.")
+    msg = ("Running a full ingest now (discover → weekly → daily). The Background "
+           "job log updates after EACH phase — refresh it to watch progress.")
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
