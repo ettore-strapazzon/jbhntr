@@ -280,8 +280,13 @@ def _lane_c(db, settings: Settings) -> list:
     return _fetch("companies", poll_all, db, settings)
 
 
-def run(cadence: str = "daily") -> dict:
-    """One ingestion cycle. Owns its DB session. Never raises."""
+def run(cadence: str = "daily", light: bool = False) -> dict:
+    """One ingestion cycle. Owns its DB session. Never raises.
+
+    `light=True` caps the heavy post-fetch tail (local embedding, geo/remote
+    backfill) to small batches so an operator "run now" finishes in a few minutes
+    instead of grinding ~20k CPU embeddings. Coverage/tags still update from the
+    fetch+upsert; the embedding backlog just clears over the nightly (full) runs."""
     db = SessionLocal()
     try:
         # engine_settings (not raw from_env) so the country-tag LLM lookup has a
@@ -332,13 +337,19 @@ def run(cadence: str = "daily") -> dict:
             embed_new_jobs,
         )
         from ..config import config as web_config
-        embedded = embed_new_jobs(db, settings, limit=web_config.embed_limit)
+        # A "run now" caps the tail so it returns quickly; the nightly cron uses the
+        # full limits to keep the whole corpus embedded/tagged.
+        emb_lim = 1500 if light else web_config.embed_limit
+        ats_lim = 800 if light else web_config.ats_correct_limit
+        geo_lim = 800 if light else web_config.geo_backfill_limit
+        rem_lim = 3000 if light else web_config.remote_backfill_limit
+        embedded = embed_new_jobs(db, settings, limit=emb_lim)
         # Correct aggregator location errors from the source ATS (Ashby/Greenhouse
         # /Lever), then settle any remaining unplaceable country via one LLM lookup.
-        corrected = correct_ats_locations(db, limit=web_config.ats_correct_limit)
-        countried = backfill_countries(db, settings, limit=web_config.geo_backfill_limit)
+        corrected = correct_ats_locations(db, limit=ats_lim)
+        countried = backfill_countries(db, settings, limit=geo_lim)
         # Re-tag work mode for jobs stuck at 'unknown' now that geo/descriptions grew.
-        remoded = backfill_remote_modes(db, limit=web_config.remote_backfill_limit)
+        remoded = backfill_remote_modes(db, limit=rem_lim)
         result = {"cadence": cadence, "fetched": len(postings), "lanes": lanes,
                   "added": added, "updated": updated, "embedded": embedded,
                   "ats_corrected": corrected, "countried": countried,

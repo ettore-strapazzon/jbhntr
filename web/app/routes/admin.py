@@ -775,7 +775,7 @@ def admin_run_ingest(_: bool = Depends(require_admin)):
         for cadence in ("discover", "weekly", "daily"):
             nxt = {"discover": "weekly", "weekly": "daily"}.get(cadence)
             try:
-                out[cadence] = ingest_run(cadence)
+                out[cadence] = ingest_run(cadence, light=True)
             except Exception as exc:
                 log.exception("manual ingest %s failed", cadence)
                 out[cadence] = {"error": str(exc)[:120]}
