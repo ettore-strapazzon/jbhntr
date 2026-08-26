@@ -244,9 +244,16 @@ def _lane_b(db, settings: Settings, terms: list[str], countries: list[str],
                 budget = max(1, int(getattr(settings, "jsearch_daily_queries", 120) or 120))
             except (TypeError, ValueError):
                 budget = 120
-            per_country = max(1, budget // max(1, len(src_countries)))
-            for country in src_countries:
-                cterms = _localized(country)[:per_country]
+            # Demand-weighted: src_countries is ordered by user demand (their
+            # markets first), and jsearch is the ONLY reliable full-JD source for
+            # markets with no ATS/gov feed (e.g. Italy). Spreading the quota evenly
+            # starved the markets users actually search; instead give the front of
+            # the list the lion's share (weight ~1/rank), the long tail a trickle.
+            weights = [1.0 / (i + 1) for i in range(len(src_countries))]
+            total_w = sum(weights) or 1.0
+            for country, w in zip(src_countries, weights):
+                n = max(1, round(budget * w / total_w))
+                cterms = _localized(country)[:n]
                 if not cterms:
                     continue
                 prof = Profile(raw={"locations": [country],
