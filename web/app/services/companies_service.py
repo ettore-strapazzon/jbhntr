@@ -212,7 +212,7 @@ def _guess_domains(name: str, code: str) -> list[str]:
 
 
 def _live_domain(guesses: list[str]) -> str:
-    """First guessed domain that answers an HTTP request — the company's real
+    """First candidate domain that answers an HTTP request — the company's real
     site, so verify() can probe its careers page. Short timeout; stops at first."""
     from jobhunter.sources.base import http_client
     for d in guesses:
@@ -224,6 +224,48 @@ def _live_domain(guesses: list[str]) -> str:
         except Exception:
             continue
     return ""
+
+
+def _clearbit_domains(name: str) -> list[str]:
+    """Free, keyless company-name -> domain suggestions (Clearbit autocomplete),
+    best-match first. This is the real fix for the long tail whose domain doesn't
+    resemble its name (Satispay->satispay.com, not the .it a guess would try).
+    Fail-soft: [] on any error / rate-limit, so we fall back to TLD guessing."""
+    from jobhunter.sources.base import http_client
+    try:
+        with http_client(timeout=8.0) as c:
+            r = c.get("https://autocomplete.clearbit.com/v1/companies/suggest",
+                      params={"query": name})
+        if r.status_code != 200:
+            return []
+        return [d["domain"] for d in r.json()
+                if isinstance(d, dict) and d.get("domain")]
+    except Exception:
+        return []
+
+
+def _resolve_domain(name: str, code: str) -> str:
+    """Best-effort employer domain for a company we have none for. Ask Clearbit
+    (real, name-matched domains), rank them, append TLD guesses as a fallback, and
+    return the first candidate that actually answers HTTP. '' if none resolve."""
+    norm = re.sub(r"[^a-z0-9]+", "", (name or "").lower())
+
+    def _score(dom: str) -> int:
+        base = re.sub(r"[^a-z0-9]+", "", dom.split(".")[0].lower())
+        s = 50 if base == norm else (20 if norm and norm in base else 0)
+        t = _COUNTRY_TLD.get((code or "").lower())
+        if t and dom.endswith("." + t):
+            s += 5
+        return -s
+
+    cands = sorted(_clearbit_domains(name), key=_score) + _guess_domains(name, code)
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for d in cands:
+        if d and d not in seen:
+            seen.add(d)
+            ordered.append(d)
+    return _live_domain(ordered[:6])
 
 
 def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:
@@ -264,11 +306,11 @@ def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:
         if not slug:
             return (name, "", None)
         domain, code = hints.get(name, ("", ""))
-        # No employer domain (the careerjet tail)? GUESS one from the name+market
-        # and HTTP-check it, so verify() can reach the company's own careers page /
-        # embedded ATS board instead of giving up.
+        # No employer domain (the careerjet tail)? Resolve one — Clearbit
+        # autocomplete first (real domains), then TLD guessing — so verify() can
+        # reach the company's own careers page / embedded ATS board.
         if not domain:
-            domain = _live_domain(_guess_domains(name, code))
+            domain = _resolve_domain(name, code)
         try:
             return (name, slug, verify(name, slug, domain or ""))
         except Exception:
