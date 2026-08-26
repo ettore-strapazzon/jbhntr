@@ -76,11 +76,38 @@ def _chunks(seq: list, n: int):
         yield seq[i : i + n]
 
 
+_UPSERT_CHUNK = 500      # rows per commit — bounds what a single bad row can lose
+
+
+def _apply_one(db: DbSession, key: str, p: JobPosting, existing: dict, now) -> str:
+    """Add or refresh one posting in the session (no commit). Returns 'a' (added)
+    or 'u' (updated)."""
+    tags = deterministic_tags(p)
+    row = existing.get(key)
+    if row is None:
+        db.add(_new_row(key, p, tags, now))
+        return "a"
+    row.last_seen_at = now
+    # A later fetch may carry a fuller description (post-enrichment); upgrade the
+    # row and re-tag from the richer text.
+    if len(p.description or "") > len(row.description or ""):
+        row.description = (p.description or "")[:_DESC_CAP]
+        row.location = (p.location or row.location)[:200]
+        _apply_tags(row, tags)
+    return "u"
+
+
 def upsert_jobs(db: DbSession, postings: list[JobPosting]) -> tuple[int, int]:
     """Insert new postings, refresh last_seen_at on ones already stored.
 
     Deduped by JobPosting.dedup_key so the same role from several sources is one
-    row. Returns (added, updated). Never raises — logs and returns (0, 0).
+    row. Returns (added, updated). Never raises — logs and returns what it saved.
+
+    Commits in chunks, and on a chunk failure retries that chunk row-by-row with a
+    SAVEPOINT per row, so a single bad value (an over-length field, an encoding
+    quirk) only loses its own row and is logged — never the whole batch. This is
+    critical: a daily ingest is one 60k+ row batch, and a single-commit design let
+    one poison row roll back everything and persist nothing (silent +0/0).
     """
     try:
         by_key: dict[str, JobPosting] = {}
@@ -91,31 +118,48 @@ def upsert_jobs(db: DbSession, postings: list[JobPosting]) -> tuple[int, int]:
         if not by_key:
             return (0, 0)
 
-        keys = list(by_key)
-        existing: dict[str, Job] = {}
-        for chunk in _chunks(keys, _IN_CHUNK):
-            for row in db.query(Job).filter(Job.dedup_key.in_(chunk)):
-                existing[row.dedup_key] = row
-
+        added = updated = failed = 0
         now = utcnow()
-        added = updated = 0
-        for key, p in by_key.items():
-            tags = deterministic_tags(p)
-            row = existing.get(key)
-            if row is None:
-                db.add(_new_row(key, p, tags, now))
-                added += 1
-            else:
-                row.last_seen_at = now
-                # A later fetch may carry a fuller description (post-enrichment);
-                # upgrade the row and re-tag from the richer text.
-                if len(p.description or "") > len(row.description or ""):
-                    row.description = (p.description or "")[:_DESC_CAP]
-                    row.location = (p.location or row.location)[:200]
-                    _apply_tags(row, tags)
-                updated += 1
+        for chunk in _chunks(list(by_key.items()), _UPSERT_CHUNK):
+            keys = [k for k, _ in chunk]
+            existing: dict[str, Job] = {}
+            for sub in _chunks(keys, _IN_CHUNK):
+                for row in db.query(Job).filter(Job.dedup_key.in_(sub)):
+                    existing[row.dedup_key] = row
 
-        db.commit()
+            a = u = 0
+            for key, p in chunk:
+                a += (r := _apply_one(db, key, p, existing, now)) == "a"
+                u += r == "u"
+            try:
+                db.commit()
+                added += a
+                updated += u
+            except Exception as exc:
+                db.rollback()
+                log.warning("Corpus upsert: chunk of %d failed, isolating bad rows: %s",
+                            len(chunk), str(exc)[:160])
+                # Re-apply the chunk one row at a time so good rows still land and
+                # the offending value is named in the log instead of lost silently.
+                for key, p in chunk:
+                    ex1 = {}
+                    row = db.query(Job).filter(Job.dedup_key == key).first()
+                    if row is not None:
+                        ex1[key] = row
+                    try:
+                        r = _apply_one(db, key, p, ex1, now)
+                        db.commit()
+                        added += r == "a"
+                        updated += r == "u"
+                    except Exception as exc2:
+                        db.rollback()
+                        failed += 1
+                        log.warning("Corpus upsert: skip bad row src=%r title=%r: %s",
+                                    (p.source or "")[:40], (p.title or "")[:60],
+                                    str(exc2)[:120])
+
+        if failed:
+            log.warning("Corpus upsert: %d rows skipped as unstorable", failed)
         log.info("Corpus: +%d new, %d refreshed (%d unique)", added, updated, len(by_key))
         return (added, updated)
     except Exception as exc:          # a cache write must never break a search
@@ -125,12 +169,16 @@ def upsert_jobs(db: DbSession, postings: list[JobPosting]) -> tuple[int, int]:
 
 
 def _new_row(key: str, p: JobPosting, tags: dict, now) -> Job:
+    # Cap EVERY string to its column width — an overflow (e.g. a source's ISO
+    # timestamp into posted_date's String(20), or a long ats:/scrape: source into
+    # String(64)) raises a DataError that, in one big batch commit, rolls back the
+    # WHOLE ingest. Truncate defensively so a single ugly value can't lose 69k rows.
     row = Job(
-        dedup_key=key,
-        source=p.source, title=(p.title or "")[:300],
+        dedup_key=key[:80],
+        source=(p.source or "")[:64], title=(p.title or "")[:300],
         company=(p.company or "")[:200], location=(p.location or "")[:200],
         description=(p.description or "")[:_DESC_CAP], url=(p.url or "")[:1000],
-        posted_date=str(p.posted_date or ""),
+        posted_date=str(p.posted_date or "")[:20],
         first_seen_at=now, last_seen_at=now,
     )
     _apply_tags(row, tags)
