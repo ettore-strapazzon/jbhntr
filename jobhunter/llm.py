@@ -101,7 +101,8 @@ class AnthropicClient(BaseClient):
 
         self._anthropic = anthropic
         self.settings = settings
-        self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self.client = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key, timeout=45.0, max_retries=1)
 
     def _model(self, tier: str) -> str:
         return (self.settings.generation_model if tier == GENERATION
@@ -163,9 +164,14 @@ class OpenAICompatibleClient(BaseClient):
         self.settings = settings
         if not settings.llm_api_key:
             raise LLMError("LLM_API_KEY is not set — required for this provider.")
+        # Bound every call: the SDK default is 600s x 2 retries (~30 min), so a
+        # single stalled request could hang a whole ingest/scoring pass. A tight
+        # timeout + one retry fails fast and lets fail-soft callers move on.
         self.client = OpenAI(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url or None,
+            timeout=45.0,
+            max_retries=1,
         )
         self._is_openrouter = "openrouter" in (settings.llm_base_url or "")
 
