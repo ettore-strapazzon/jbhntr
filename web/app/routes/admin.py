@@ -686,6 +686,47 @@ def admin_test_enrich(source: str = "", n: int = 40,
         f"fail examples:\n  " + "\n  ".join(r["examples_fail"] or ["(none)"]))
 
 
+@router.get("/admin/test-domain", response_class=PlainTextResponse)
+def admin_test_domain(name: str = "Satispay", code: str = "it",
+                      _: bool = Depends(require_admin)):
+    """Diagnose domain resolution FROM THE SERVER: show Clearbit's raw HTTP response
+    (datacenter IPs are sometimes throttled where a laptop isn't), the parsed
+    candidates, TLD guesses, and the final resolved domain + verify() board. Tells
+    us if the low resolve rate is Clearbit being blocked server-side."""
+    from jobhunter.sources.base import http_client
+
+    from ..services import companies_service as cs
+
+    raw_status = ""
+    raw = ""
+    try:
+        with http_client(timeout=8.0) as c:
+            r = c.get("https://autocomplete.clearbit.com/v1/companies/suggest",
+                      params={"query": name})
+        raw_status = str(r.status_code)
+        raw = (str(r.json())[:300] if r.status_code == 200 else (r.text or "")[:300])
+    except Exception as exc:
+        raw_status = f"EXCEPTION {type(exc).__name__}: {str(exc)[:160]}"
+
+    clb = cs._clearbit_domains(name)
+    guesses = cs._guess_domains(name, code)
+    resolved = cs._resolve_domain(name, code)
+    board = None
+    if resolved:
+        from jobhunter.discover import _slugify, verify
+        try:
+            board = verify(name, _slugify(name), resolved)
+        except Exception as exc:
+            board = f"verify error: {exc}"
+    return (f"name = {name!r}  code = {code!r}\n\n"
+            f"Clearbit HTTP   : {raw_status}\n"
+            f"Clearbit raw    : {raw}\n"
+            f"_clearbit_domains: {clb}\n"
+            f"tld guesses     : {guesses}\n"
+            f"RESOLVED domain : {resolved!r}\n"
+            f"verify() board  : {board}\n")
+
+
 @router.get("/admin/reprobe-unresolved", response_class=PlainTextResponse)
 def admin_reprobe_unresolved(_: bool = Depends(require_admin),
                              db: DbSession = Depends(get_session)):
