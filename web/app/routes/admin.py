@@ -778,15 +778,15 @@ def admin_test_careers_sample(n: int = 10, country: str = "",
     from ..services import companies_service as cs
     from ..services.profile_service import engine_settings
 
+    cap = max(1, min(n, 25))
     thin = func.coalesce(func.length(Job.description), 0) < 300
-    known = {(nm or "").strip().lower() for (nm,) in db.query(Company.name).all()}
     rows = (db.query(Job.company, func.count(Job.id))
             .filter(thin, Job.company.isnot(None), Job.company != "")
             .group_by(Job.company).order_by(func.count(Job.id).desc())
-            .limit(max(1, min(n, 25)) * 8).all())
-    picked = [c for c, _ in rows if c and c.strip().lower() not in known][:max(1, min(n, 25))]
+            .limit(cap).all())
+    picked = [c for c, _ in rows if c]
     if not picked:
-        return "no unresolved thin-JD companies found"
+        return "no thin-JD companies found"
 
     settings = engine_settings(premium=True)
     lines: list[str] = []
@@ -814,17 +814,23 @@ def admin_test_careers_sample(n: int = 10, country: str = "",
 @router.get("/admin/reprobe-unresolved", response_class=PlainTextResponse)
 def admin_reprobe_unresolved(_: bool = Depends(require_admin),
                              db: DbSession = Depends(get_session)):
-    """One-time maintenance: clear the `ats='none'` markers (companies we probed for
-    an ATS board and failed). They're pure negative-cache — no jobs, no user data —
-    and were recorded by the OLD name-guessing resolver. Clearing them lets the next
-    Run-resolve re-probe those companies with the new Clearbit domain resolver.
-    After this, click Run-resolve."""
-    n = (db.query(Company).filter(Company.ats == "none")
-         .delete(synchronize_session=False))
+    """One-time maintenance: clear resolver dead-ends so they re-resolve with the
+    fixed logic — (a) `ats='none'` markers (probed, no board found), and (b)
+    `ats='custom'` companies whose token is an aggregator/tracker host (e.g.
+    jobviewtrack.com), which the old bug stored as if it were the company's website.
+    Both are re-resolvable cache, no jobs attached. After this, click Run-resolve."""
+    from sqlalchemy import or_
+
+    from ..services.companies_service import _AGGREGATOR_HOSTS
+    n_none = (db.query(Company).filter(Company.ats == "none")
+              .delete(synchronize_session=False))
+    bad = or_(*[Company.ats_token.ilike(f"%{h}%") for h in _AGGREGATOR_HOSTS])
+    n_bad = (db.query(Company).filter(Company.ats == "custom", bad)
+             .delete(synchronize_session=False))
     db.commit()
-    return (f"cleared {n} unresolved-company markers.\n\n"
-            "Now click 'Resolve corpus companies' on /admin — the new Clearbit "
-            "resolver will re-probe these with their real domains.")
+    return (f"cleared {n_none} 'none' markers + {n_bad} bad-domain custom companies.\n\n"
+            "Now click 'Resolve corpus companies' on /admin — they'll re-resolve with "
+            "Clearbit (real domains) instead of the tracker URL.")
 
 
 @router.post("/admin/run-ingest")

@@ -152,8 +152,17 @@ def upsert_custom_company(db: DbSession, name: str, domain: str,
                                 source="scraped", user_id=user_id)
 
 
-_AGGREGATOR_HOSTS = ("careerjet", "adzuna", "jooble", "indeed", "linkedin",
-                     "glassdoor", "monster", "totaljobs")
+# Hosts that are NOT an employer's own site — aggregators and their redirect
+# trackers. A corpus URL on one of these gives us no employer domain, so we must
+# fall through to Clearbit resolution instead of mistaking the tracker for the
+# company's website (jobviewtrack.com is careerjet's redirect — the #1 offender).
+_AGGREGATOR_HOSTS = (
+    "careerjet", "jobviewtrack", "adzuna", "jooble", "indeed", "linkedin",
+    "glassdoor", "monster", "totaljobs", "jobrapido", "neuvoo", "talent.com",
+    "ziprecruiter", "simplyhired", "whatjobs", "jobisjob", "trovit", "jobsora",
+    "stepstone", "infojobs", "lever.co", "greenhouse.io", "myworkdayjobs",
+    "bebee", "joblift", "jobtome", "learn4good", "kariera",
+)
 
 
 def _corpus_domain(db: DbSession, company: str) -> str:
