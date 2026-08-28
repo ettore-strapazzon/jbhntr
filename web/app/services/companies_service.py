@@ -484,22 +484,22 @@ def discover_all_active(db: DbSession, force: bool = False) -> dict:
 
 # --------------------------------------------------------------------------- #
 def scrape_custom_companies(db: DbSession, settings: Settings | None = None,
-                            limit: int = 30) -> dict:
+                            limit: int = 120) -> dict:
     """Scrape the careers pages of registered non-ATS companies into the corpus.
 
-    Runs on the slow (weekly) cadence — each company is one LLM extraction — and
-    rotates oldest-polled-first so all custom companies get refreshed over time.
-    Jobs are written through with `deterministic_tags`, so they are tagged and
-    matched exactly like any other corpus posting, for every user. No-op without
-    an LLM. Never raises.
+    The big lever for the aggregator long tail (Italian SMBs etc.): a careerjet
+    company with no ATS but a real website, whose openings we read straight off its
+    careers page. FREE where the page embeds JobPosting JSON-LD (most do, for
+    Google-for-Jobs); an LLM extractor is the fallback for JS-only pages with no
+    structured data. Rotates oldest-polled-first so all custom companies refresh
+    over time. Scrapes concurrently (each page is HTTP + at most one LLM call).
+    Jobs go through `deterministic_tags`, matched like any corpus posting. Never
+    raises.
     """
-    from jobhunter import llm
     from jobhunter.sources.careers_scrape import scrape_careers
     from .profile_service import engine_settings
 
     settings = settings or engine_settings(premium=True)
-    if not llm.is_configured(settings):
-        return {"companies": 0, "jobs": 0, "reason": "no llm"}
     companies = (db.query(Company).filter(Company.ats == CUSTOM_ATS)
                  .order_by(Company.last_polled_at.is_(None).desc(),
                            Company.last_polled_at.asc())
@@ -507,24 +507,30 @@ def scrape_custom_companies(db: DbSession, settings: Settings | None = None,
     if not companies:
         return {"companies": 0, "jobs": 0}
 
-    postings: list[JobPosting] = []
-    now = utcnow()
-    for c in companies:
+    def _one(c: Company):
         try:
-            jobs = scrape_careers(c.ats_token, c.name, settings)
+            return c.id, scrape_careers(c.ats_token, c.name, settings)
         except Exception as exc:
             log.debug("Custom scrape %s failed: %s", c.ats_token, exc)
-            jobs = []
-        c.jobs_count = len(jobs)
-        c.last_polled_at = now
-        postings.extend(jobs)
+            return c.id, []
+
+    postings: list[JobPosting] = []
+    now = utcnow()
+    by_id = {c.id: c for c in companies}
+    with ThreadPoolExecutor(max_workers=6) as pool:   # HTTP/LLM-bound; polite to sites
+        for cid, jobs in pool.map(_one, companies):
+            by_id[cid].jobs_count = len(jobs)
+            by_id[cid].last_polled_at = now
+            postings.extend(jobs)
     db.commit()
 
     if postings:
         from .corpus_service import upsert_jobs
         upsert_jobs(db, postings)
-    log.info("Custom scrape: %d companies -> %d postings", len(companies), len(postings))
-    return {"companies": len(companies), "jobs": len(postings)}
+    filled = sum(1 for p in postings if len(p.description or "") >= 300)
+    log.info("Custom scrape: %d companies -> %d postings (%d with full JD)",
+             len(companies), len(postings), filled)
+    return {"companies": len(companies), "jobs": len(postings), "full_jd": filled}
 
 
 def poll_all(db: DbSession, settings: Settings | None = None) -> list[JobPosting]:

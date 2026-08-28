@@ -164,13 +164,34 @@ def _fetch_first(urls: list[str]) -> tuple[str, str]:
     return "", ""
 
 
-def _fill_descriptions(postings: list[JobPosting], listing_url: str) -> None:
-    """Fetch each job's own detail page and strip its body into `description`.
+def _detail_description(html: str) -> str:
+    """The full JD from a job DETAIL page: the JSON-LD JobPosting.description if
+    present (works even on a JS-rendered page, since the structured data is in the
+    server HTML), else the visible body text. This is why JS-only career sites are
+    still scrapable for free — the JD is in a <script> tag, not the rendered DOM."""
+    for m in _JSONLD.finditer(html):
+        try:
+            data = json.loads(m.group(1).strip())
+        except Exception:
+            continue
+        for node in _iter_nodes(data):
+            t = node.get("@type")
+            types = t if isinstance(t, list) else [t]
+            if any(str(x).lower() == "jobposting" for x in types) and node.get("description"):
+                jd = re.sub(r"\s+", " ", strip_html(str(node["description"]))).strip()
+                if len(jd) >= 120:
+                    return jd
+    body = strip_html(html)
+    return body if len(body) > 120 else ""
 
-    HTTP only — no LLM — so a full description is essentially free: the text is
-    already on the page. Concurrent and fail-soft; a body we can't fetch just
-    stays empty. This is what makes scraped jobs score like ATS jobs instead of
-    being marked down for missing information.
+
+def _fill_descriptions(postings: list[JobPosting], listing_url: str) -> None:
+    """Fetch each job's own detail page and store its full JD in `description`.
+
+    HTTP only — no LLM — so a full description is essentially free: it's already on
+    the page (in JSON-LD even when the visible page is a JS shell). Concurrent and
+    fail-soft; a body we can't fetch just stays empty. This is what makes scraped
+    jobs score like ATS jobs instead of being marked down for missing information.
     """
     targets = [p for p in postings if p.url and p.url != listing_url]
     if not targets:
@@ -180,9 +201,9 @@ def _fill_descriptions(postings: list[JobPosting], listing_url: str) -> None:
             try:
                 r = c.get(p.url, follow_redirects=True)
                 if r.status_code == 200:
-                    body = strip_html(r.text)
-                    if len(body) > 120:            # ignore empty/JS-shell pages
-                        p.description = body[:_DESC_CAP]
+                    jd = _detail_description(r.text)
+                    if jd:
+                        p.description = jd[:_DESC_CAP]
             except Exception:
                 pass
         with ThreadPoolExecutor(max_workers=_DESC_WORKERS) as pool:

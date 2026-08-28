@@ -727,6 +727,41 @@ def admin_test_domain(name: str = "Satispay", code: str = "it",
             f"verify() board  : {board}\n")
 
 
+@router.get("/admin/test-careers", response_class=PlainTextResponse)
+def admin_test_careers(name: str = "", domain: str = "",
+                       _: bool = Depends(require_admin),
+                       db: DbSession = Depends(get_session)):
+    """Diagnose the careers-page scraper on ONE company: resolve its domain (if not
+    given), fetch its careers page, and show how many openings we get and how many
+    carry a full JD — plus whether it came free (JSON-LD) or needed the LLM. Proves
+    the JS-page scraping actually works before running the bulk custom scrape.
+    e.g. /admin/test-careers?name=Satispay  or  ?domain=satispay.com"""
+    from jobhunter.sources.careers_scrape import scrape_careers
+
+    from ..services import companies_service as cs
+    from ..services.profile_service import engine_settings
+
+    if not name and not domain:
+        return "pass ?name=<company> or ?domain=<site>"
+    if not domain:
+        domain = cs._resolve_domain(name, "")
+    if not domain:
+        return f"no domain resolved for {name!r} (Clearbit + guessing both empty)"
+
+    settings = engine_settings(premium=True)
+    try:
+        jobs = scrape_careers(domain, name or domain, settings) or []
+    except Exception as exc:
+        return f"domain = {domain}\nEXCEPTION: {type(exc).__name__}: {exc}"
+
+    full = [j for j in jobs if len(j.description or "") >= 300]
+    lines = [f"domain = {domain}",
+             f"openings found = {len(jobs)}   with full JD (>=300c) = {len(full)}", ""]
+    for j in jobs[:8]:
+        lines.append(f"  · {j.title[:60]!r}  [{len(j.description or '')}c]  {(j.url or '')[:70]}")
+    return "\n".join(lines)
+
+
 @router.get("/admin/reprobe-unresolved", response_class=PlainTextResponse)
 def admin_reprobe_unresolved(_: bool = Depends(require_admin),
                              db: DbSession = Depends(get_session)):
