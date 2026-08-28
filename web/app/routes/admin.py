@@ -762,6 +762,55 @@ def admin_test_careers(name: str = "", domain: str = "",
     return "\n".join(lines)
 
 
+@router.get("/admin/test-careers-sample", response_class=PlainTextResponse)
+def admin_test_careers_sample(n: int = 10, country: str = "",
+                              _: bool = Depends(require_admin),
+                              db: DbSession = Depends(get_session)):
+    """Measure careers-scraper YIELD on the REAL tail: take the top-N companies with
+    thin jobs that aren't already a registered board, resolve each one's domain,
+    scrape its careers page, and report openings + full-JD counts. One call tells us
+    what fraction of the aggregator tail is reachable for free. e.g.
+    /admin/test-careers-sample?n=10  (optional ?country=it biases the domain TLD)."""
+    from sqlalchemy import func
+
+    from jobhunter.sources.careers_scrape import scrape_careers
+
+    from ..services import companies_service as cs
+    from ..services.profile_service import engine_settings
+
+    thin = func.coalesce(func.length(Job.description), 0) < 300
+    known = {(nm or "").strip().lower() for (nm,) in db.query(Company.name).all()}
+    rows = (db.query(Job.company, func.count(Job.id))
+            .filter(thin, Job.company.isnot(None), Job.company != "")
+            .group_by(Job.company).order_by(func.count(Job.id).desc())
+            .limit(max(1, min(n, 25)) * 8).all())
+    picked = [c for c, _ in rows if c and c.strip().lower() not in known][:max(1, min(n, 25))]
+    if not picked:
+        return "no unresolved thin-JD companies found"
+
+    settings = engine_settings(premium=True)
+    lines: list[str] = []
+    hit = 0
+    for name in picked:
+        domain, code = cs._corpus_hints(db, name)
+        if not domain:
+            domain = cs._resolve_domain(name, code or country)
+        if not domain:
+            lines.append(f"  {name[:28]:28}  ->  (no domain found)")
+            continue
+        try:
+            jobs = scrape_careers(domain, name, settings) or []
+        except Exception as exc:
+            lines.append(f"  {name[:28]:28}  {domain[:26]:26}  ERROR {type(exc).__name__}")
+            continue
+        full = sum(1 for j in jobs if len(j.description or "") >= 300)
+        if full:
+            hit += 1
+        lines.append(f"  {name[:28]:28}  {domain[:26]:26}  openings={len(jobs):<3} fullJD={full}")
+    return (f"sampled {len(picked)} thin-JD companies — {hit} yielded >=1 full JD "
+            f"({round(100*hit/len(picked))}%)\n\n" + "\n".join(lines))
+
+
 @router.get("/admin/reprobe-unresolved", response_class=PlainTextResponse)
 def admin_reprobe_unresolved(_: bool = Depends(require_admin),
                              db: DbSession = Depends(get_session)):
