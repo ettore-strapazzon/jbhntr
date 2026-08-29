@@ -268,6 +268,14 @@ def _resolve_domain(name: str, code: str) -> str:
         return -s
 
     cands = sorted(_clearbit_domains(name), key=_score) + _guess_domains(name, code)
+    # For an in-country company, prefer the market-TLD sibling of the best domain:
+    # a staffing agency's localised portal (randstad.it) carries THIS country's
+    # jobs, where the global .com carries other markets'.
+    t = _COUNTRY_TLD.get((code or "").lower())
+    if t and cands:
+        base = re.sub(r"[^a-z0-9]+", "", cands[0].split(".")[0].lower())
+        if base:
+            cands = [f"{base}.{t}"] + cands
     seen: set[str] = set()
     ordered: list[str] = []
     for d in cands:

@@ -97,9 +97,134 @@ def _jsonld_jobs(html: str, page_url: str, company: str) -> list[JobPosting]:
                 url=url or page_url))
     return out
 
+def _detail_posting(url: str, html: str, company: str, host: str) -> "JobPosting | None":
+    """One JobPosting from a job DETAIL page's JSON-LD (title + full description +
+    location). This is the free, reliable path for staffing-agency / portal jobs:
+    their listing is JS, but every detail page embeds JobPosting structured data for
+    Google-for-Jobs. Returns None if the page has no usable JobPosting schema."""
+    for m in _JSONLD.finditer(html):
+        try:
+            data = json.loads(m.group(1).strip())
+        except Exception:
+            continue
+        for node in _iter_nodes(data):
+            t = node.get("@type")
+            types = t if isinstance(t, list) else [t]
+            if not any(str(x).lower() == "jobposting" for x in types):
+                continue
+            title = (node.get("title") or "").strip()
+            desc = re.sub(r"\s+", " ", strip_html(str(node.get("description") or ""))).strip()
+            if title and len(desc) >= 200:
+                return JobPosting(source=f"scrape:{host}", title=title, company=company,
+                                  location=_jsonld_location(node), description=desc[:_DESC_CAP],
+                                  url=url)
+    return None
+
+
+# URL fragments that mark a job DETAIL/listing page (multi-language: it/fr/de/es/en).
+_JOB_URL_HINTS = (
+    "offerte-lavoro", "offerta", "/lavoro", "/job", "/jobs/", "/vacan", "/position",
+    "/opening", "/emploi", "/empleo", "/stelle", "/karriere", "/stellenangebot",
+    "/annunci", "/candidat", "/req", "/posting", "/career", "/vaga", "/praca",
+)
+
+
+def _sitemap_job_urls(domain: str, cap: int = 200) -> list[str]:
+    """Job-posting URLs from a site's sitemap(s). robots.txt -> Sitemap: lines plus
+    common sitemap paths, following sitemap-index nesting (prioritising job-named
+    sub-sitemaps). This reaches a staffing agency's thousands of portal jobs without
+    knowing its URL scheme (validated on randstad.it: 5000 job detail URLs)."""
+    starts: list[str] = []
+    with http_client(timeout=15.0) as c:
+        try:
+            r = c.get(f"https://{domain}/robots.txt", follow_redirects=True)
+            if r.status_code == 200:
+                starts += re.findall(r"(?im)^\s*sitemap:\s*(\S+)", r.text)
+        except Exception:
+            pass
+        starts += [f"https://{domain}/{p}" for p in
+                   ("sitemap.xml", "sitemap_index.xml", "sitemap-jobs.xml", "job-sitemap.xml")]
+        seen: set[str] = set()
+        jobs: list[str] = []
+        queue = list(dict.fromkeys(starts))
+        fetched = 0
+        while queue and len(jobs) < cap and fetched < 40:
+            sm = queue.pop(0)
+            if sm in seen:
+                continue
+            seen.add(sm)
+            fetched += 1
+            try:
+                r = c.get(sm, follow_redirects=True)
+                if r.status_code != 200 or "<loc>" not in r.text:
+                    continue
+            except Exception:
+                continue
+            locs = [x.strip() for x in re.findall(r"(?is)<loc>\s*(.*?)\s*</loc>", r.text)]
+            nested = [x for x in locs if x.lower().endswith(".xml")]
+            # Rank sub-sitemaps so the cap fills with JOB-DETAIL pages: 'detail'
+            # sitemaps first, then generic job ones, then listing/client/category
+            # ones last (those pages carry no JobPosting JSON-LD).
+            def _rank(u: str) -> int:
+                ul = u.lower()
+                if "detail" in ul:
+                    return 0
+                if any(k in ul for k in ("client", "listing", "categor", "company",
+                                         "aziend", "sitemap-main", "/page")):
+                    return 3
+                if any(k in ul for k in ("job", "offert", "vacan", "lavoro", "emploi",
+                                         "stelle", "annunci", "career", "empleo")):
+                    return 1
+                return 2
+            for x in sorted(nested, key=_rank):
+                if x not in seen and len(queue) < 80:
+                    queue.append(x)
+            queue.sort(key=_rank)   # keep the global queue detail-first
+            for x in locs:
+                if not x.lower().endswith(".xml") and any(h in x.lower() for h in _JOB_URL_HINTS):
+                    jobs.append(x)
+                    if len(jobs) >= cap:
+                        break
+    return list(dict.fromkeys(jobs))[:cap]
+
+
+_SITEMAP_WORKERS = 16     # detail-page fetches are HTTP-only; parallelise hard
+
+
+def _postings_from_sitemap(domain: str, company: str, cap: int) -> list[JobPosting]:
+    """Discover job URLs via sitemap, fetch each detail page concurrently, and keep
+    the ones with JobPosting JSON-LD (full JD). Free — HTTP + parse, no LLM."""
+    urls = _sitemap_job_urls(domain, cap=cap)
+    if not urls:
+        return []
+    out: list[JobPosting] = []
+    with http_client(timeout=12.0) as c:
+        def _one(u: str):
+            try:
+                r = c.get(u, follow_redirects=True)
+                if r.status_code == 200:
+                    return _detail_posting(u, r.text, company, domain)
+            except Exception:
+                return None
+            return None
+        with ThreadPoolExecutor(max_workers=_SITEMAP_WORKERS) as pool:
+            for p in pool.map(_one, urls):
+                if p:
+                    out.append(p)
+    return out
+
+
+def _bare_domain(s: str) -> str:
+    s = (s or "").strip()
+    if s.startswith("http"):
+        return urlparse(s).netloc.replace("www.", "")
+    return s.strip("/").split("/")[0]
+
+
 # Paths a careers page commonly lives at, tried in order.
 CAREERS_PATHS = ("careers", "jobs", "careers/open-positions", "company/careers",
                  "about/careers", "join-us", "work-with-us")
+_MAX_SITEMAP = 120    # cap jobs via the sitemap path, per company per poll (rotates over polls)
 _MAX_HTML = 40_000    # cap the text handed to the LLM
 _MAX_JOBS = 40        # per company, per scrape
 _DESC_WORKERS = 6     # concurrent detail-page fetches (HTTP only, no LLM)
@@ -219,10 +344,8 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
     careers pages cost nothing.
     """
     page_url, html = _fetch_first(_candidate_urls(domain_or_url))
-    if not html:
-        return []
 
-    jobs = _jsonld_jobs(html, page_url, company)
+    jobs = _jsonld_jobs(html, page_url, company) if html else []
     if jobs:
         # Some JSON-LD lists a role without its description; fill those from the
         # role's own page (HTTP only, still free).
@@ -232,8 +355,19 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
         log.info("Careers scrape %s: %d openings via JSON-LD (free)", company, len(jobs))
         return jobs[:_MAX_JOBS]
 
-    # No structured data (likely a JS shell / SPA) — fall back to the LLM extractor.
-    if not llm.is_configured(settings):
+    # Rung 0b: the careers page had no listing JSON-LD (agency portal / JS listing).
+    # Discover job URLs via the site's SITEMAP and read each detail page's JSON-LD —
+    # still free, and how we reach staffing-agency portals (thousands of full JDs).
+    domain = _bare_domain(page_url) or _bare_domain(domain_or_url)
+    if domain:
+        sm_jobs = _postings_from_sitemap(domain, company, cap=_MAX_SITEMAP)
+        if sm_jobs:
+            log.info("Careers scrape %s: %d openings via sitemap JSON-LD (free)",
+                     company, len(sm_jobs))
+            return sm_jobs[:_MAX_SITEMAP]
+
+    # No structured data anywhere (true JS-only SPA) — fall back to the LLM extractor.
+    if not html or not llm.is_configured(settings):
         return []
     text = strip_html(html)[:_MAX_HTML]
     if len(text) < 200:                       # nothing readable (likely a JS shell)
