@@ -763,18 +763,24 @@ def admin_test_careers(name: str = "", domain: str = "",
 
 
 @router.get("/admin/thin-companies", response_class=PlainTextResponse)
-def admin_thin_companies(n: int = 30, _: bool = Depends(require_admin),
+def admin_thin_companies(n: int = 30, country: str = "",
+                         _: bool = Depends(require_admin),
                          db: DbSession = Depends(get_session)):
     """Show the top-N companies by THIN-JD job count, with what fraction of all thin
     jobs the top-N cover. Tells us whether the snippet tail is concentrated in a few
     posters (staffing agencies) — which would justify a handful of targeted portal
-    scrapers — or spread across a long tail of SMBs."""
-    from sqlalchemy import func
+    scrapers — or spread across a long tail of SMBs. ?country=it filters to a market."""
+    from sqlalchemy import String, func
 
     thin = func.coalesce(func.length(Job.description), 0) < 300
-    total = db.query(func.count(Job.id)).filter(thin).scalar() or 0
+    filt = [thin]
+    if country:
+        # Job.countries is a JSON list of ISO codes; match the quoted code in its
+        # text form (portable across SQLite/Postgres for an admin readout).
+        filt.append(func.cast(Job.countries, String).ilike(f'%"{country.lower()}"%'))
+    total = db.query(func.count(Job.id)).filter(*filt).scalar() or 0
     rows = (db.query(Job.company, func.count(Job.id).label("c"))
-            .filter(thin, Job.company.isnot(None), Job.company != "")
+            .filter(*filt, Job.company.isnot(None), Job.company != "")
             .group_by(Job.company).order_by(func.count(Job.id).desc())
             .limit(max(1, min(n, 100))).all())
     topsum = sum(c for _, c in rows)
