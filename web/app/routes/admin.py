@@ -762,6 +762,28 @@ def admin_test_careers(name: str = "", domain: str = "",
     return "\n".join(lines)
 
 
+@router.get("/admin/thin-companies", response_class=PlainTextResponse)
+def admin_thin_companies(n: int = 30, _: bool = Depends(require_admin),
+                         db: DbSession = Depends(get_session)):
+    """Show the top-N companies by THIN-JD job count, with what fraction of all thin
+    jobs the top-N cover. Tells us whether the snippet tail is concentrated in a few
+    posters (staffing agencies) — which would justify a handful of targeted portal
+    scrapers — or spread across a long tail of SMBs."""
+    from sqlalchemy import func
+
+    thin = func.coalesce(func.length(Job.description), 0) < 300
+    total = db.query(func.count(Job.id)).filter(thin).scalar() or 0
+    rows = (db.query(Job.company, func.count(Job.id).label("c"))
+            .filter(thin, Job.company.isnot(None), Job.company != "")
+            .group_by(Job.company).order_by(func.count(Job.id).desc())
+            .limit(max(1, min(n, 100))).all())
+    topsum = sum(c for _, c in rows)
+    lines = [f"{total} thin jobs total; top {len(rows)} companies cover {topsum} "
+             f"({round(100*topsum/total) if total else 0}%)", ""]
+    lines += [f"  {c:>6}  {(name or '')[:50]}" for name, c in rows]
+    return "\n".join(lines)
+
+
 @router.get("/admin/test-careers-sample", response_class=PlainTextResponse)
 def admin_test_careers_sample(n: int = 10, country: str = "",
                               _: bool = Depends(require_admin),
