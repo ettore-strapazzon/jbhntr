@@ -175,10 +175,12 @@ def _fetch(label: str, fn, *args) -> list:
         return []
 
 
-def _lane_a(db, settings: Settings, terms: list[str], countries: list[str]) -> list:
+def _lane_a(db, settings: Settings, terms: list[str], countries: list[str],
+           light: bool = False) -> list:
     """Global feeds + broad no-key aggregators. Keyword aggregators (adzuna) are
     queried per country with localized role titles; remote-only boards stay one
-    global English call."""
+    global English call. `light` skips the (LLM) term localization so an operator
+    run can't stall on OpenRouter latency."""
     from . import term_localize
 
     postings: list = []
@@ -198,7 +200,7 @@ def _lane_a(db, settings: Settings, terms: list[str], countries: list[str]) -> l
                     code = geo.country_of(country)
                     local_cache[country] = (
                         term_localize.localized_terms(db, settings, terms, code)
-                        if code else [])
+                        if code and not light else [])
                 cterms = (terms + [t for t in local_cache[country] if t not in terms])[:TERMS_MAX]
                 prof = Profile(raw={"locations": [country],
                                     "sources": {"aggregators": [name], "search_terms": cterms}})
@@ -211,11 +213,11 @@ def _lane_a(db, settings: Settings, terms: list[str], countries: list[str]) -> l
 
 
 def _lane_b(db, settings: Settings, terms: list[str], countries: list[str],
-           cadence: str) -> list:
+           cadence: str, light: bool = False) -> list:
     """Metered/keyed sources whose cadence matches this run. For non-English
     markets each country's query set is extended with localized role titles
     (e.g. 'Direttore Operativo' for Italy) so we don't miss postings written in
-    the local language."""
+    the local language. `light` skips the (LLM) localization for a fast operator run."""
     from . import term_localize
 
     postings: list = []
@@ -225,7 +227,8 @@ def _lane_b(db, settings: Settings, terms: list[str], countries: list[str],
         if country not in local_cache:
             code = geo.country_of(country)
             local_cache[country] = (
-                term_localize.localized_terms(db, settings, terms, code) if code else [])
+                term_localize.localized_terms(db, settings, terms, code)
+                if code and not light else [])
         return (terms + [t for t in local_cache[country] if t not in terms])[:TERMS_MAX]
 
     for name, (attr, fn) in KEYED_SOURCES.items():
@@ -320,13 +323,13 @@ def run(cadence: str = "daily", light: bool = False) -> dict:
         postings: list = []
         lanes: dict[str, int] = {}
         if cadence == "daily":
-            la = _lane_a(db, settings, terms, countries)              # Lane A daily only
-            lb = _lane_b(db, settings, terms, countries, "daily")
+            la = _lane_a(db, settings, terms, countries, light=light)    # Lane A daily only
+            lb = _lane_b(db, settings, terms, countries, "daily", light=light)
             lc = _lane_c(db, settings)                               # ATS boards (unmetered)
             lanes = {"a": len(la), "b": len(lb), "c": len(lc)}
             postings += la + lb + lc
         elif cadence == "weekly":
-            postings += _lane_b(db, settings, terms, countries, "weekly")
+            postings += _lane_b(db, settings, terms, countries, "weekly", light=light)
         else:
             raise ValueError(f"unknown cadence {cadence!r}")
 
@@ -347,7 +350,10 @@ def run(cadence: str = "daily", light: bool = False) -> dict:
         # Correct aggregator location errors from the source ATS (Ashby/Greenhouse
         # /Lever), then settle any remaining unplaceable country via one LLM lookup.
         corrected = correct_ats_locations(db, limit=ats_lim)
-        countried = backfill_countries(db, settings, limit=geo_lim)
+        # Geo backfill's residue uses (batched) LLM lookups — skip on a light
+        # operator run so it can't stall on OpenRouter; deterministic_tags already
+        # placed most rows at upsert, and the nightly cron does the full backfill.
+        countried = 0 if light else backfill_countries(db, settings, limit=geo_lim)
         # Re-tag work mode for jobs stuck at 'unknown' now that geo/descriptions grew.
         remoded = backfill_remote_modes(db, limit=rem_lim)
         result = {"cadence": cadence, "fetched": len(postings), "lanes": lanes,
