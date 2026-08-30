@@ -30,3 +30,8 @@ weasyprint>=61
 # Embeddings — on-device, free, no key/quota (jobhunter/embeddings.py "local").
 # ONNX-based (no PyTorch); downloads a ~150MB model on first use.
 fastembed>=0.3
+
+# Rung 1 careers scraping: drives Bright Data's REMOTE Scraping Browser over CDP
+# (connect_over_cdp), so no local Chromium is downloaded — only the lightweight
+# client/driver. Optional at runtime: without BROWSER_AUTH set, it's never imported.
+playwright>=1.40

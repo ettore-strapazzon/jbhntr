@@ -369,6 +369,18 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
                      company, len(sm_jobs))
             return sm_jobs[:_MAX_SITEMAP]
 
+    # Rung 1: JS-only portal with no sitemap (Adecco/Manpower). Render it with the
+    # Bright Data Scraping Browser (handles anti-bot) and read the jobs off the DOM.
+    # Paid, so it runs only here — after the two free rungs found nothing.
+    if domain:
+        from . import browser_sniff
+        if browser_sniff.is_configured(settings):
+            bd_jobs = browser_sniff.fetch_portal(domain, company, settings)
+            if bd_jobs:
+                log.info("Careers scrape %s: %d openings via Bright Data browser",
+                         company, len(bd_jobs))
+                return bd_jobs[:_MAX_SITEMAP]
+
     # No structured data anywhere (true JS-only SPA) — fall back to the LLM extractor.
     if not html or not llm.is_configured(settings):
         return []

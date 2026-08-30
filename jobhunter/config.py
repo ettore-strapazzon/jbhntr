@@ -305,6 +305,10 @@ class Settings:
     # run so the quota is spread evenly: queries x pages x ~30 days <= plan. With
     # 120 queries x 2 pages x 30 = 7.2k/mo (headroom under a 10k plan).
     jsearch_daily_queries: int = 120
+    # Bright Data Scraping Browser auth ("brd-customer-<id>-zone-<name>:<password>")
+    # for Rung 1 careers scraping — rendering JS-only agency portals (Adecco, Manpower)
+    # that have no sitemap. Empty = Rung 1 disabled (falls back to the LLM extractor).
+    brightdata_browser_auth: str = ""
     # France Travail (ex-Pôle Emploi) gov API — OAuth client credentials.
     france_travail_id: str = ""
     france_travail_secret: str = ""
@@ -370,6 +374,7 @@ class Settings:
             jsearch_key=g("JSEARCH_API_KEY"),
             jsearch_pages=int(g("JSEARCH_PAGES", "2") or "2"),
             jsearch_daily_queries=int(g("JSEARCH_DAILY_QUERIES", "120") or "120"),
+            brightdata_browser_auth=g("BROWSER_AUTH") or g("BRIGHTDATA_BROWSER_AUTH"),
             france_travail_id=g("FRANCE_TRAVAIL_ID"),
             france_travail_secret=g("FRANCE_TRAVAIL_SECRET"),
             jobtech_enabled=(g("JOBTECH_ENABLED", "true").lower() in ("1", "true", "yes")),

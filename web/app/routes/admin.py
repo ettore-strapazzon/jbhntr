@@ -762,6 +762,39 @@ def admin_test_careers(name: str = "", domain: str = "",
     return "\n".join(lines)
 
 
+@router.get("/admin/test-browser", response_class=PlainTextResponse)
+def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
+                       _: bool = Depends(require_admin),
+                       db: DbSession = Depends(get_session)):
+    """Diagnose Rung 1 (Bright Data browser) on ONE JS-only agency portal: render it
+    and report openings + full-JD count. Proves the paid browser path works before
+    the bulk run. Needs BROWSER_AUTH set. e.g. /admin/test-browser?name=Adecco"""
+    from jobhunter.sources import browser_sniff
+
+    from ..services import companies_service as cs
+    from ..services.profile_service import engine_settings
+
+    settings = engine_settings(premium=True)
+    if not browser_sniff.is_configured(settings):
+        return ("BROWSER_AUTH is not set — Rung 1 disabled.\n\nSet it on the web + cron "
+                "Railway services to 'brd-customer-<id>-zone-<zone>:<password>' from your "
+                "Bright Data Scraping Browser zone, then retry.")
+    if not domain:
+        domain = cs._resolve_domain(name, country)
+    if not domain:
+        return f"no domain resolved for {name!r}"
+    try:
+        jobs = browser_sniff.fetch_portal(domain, name or domain, settings) or []
+    except Exception as exc:
+        return f"domain = {domain}\nEXCEPTION: {type(exc).__name__}: {str(exc)[:200]}"
+    full = [j for j in jobs if len(j.description or "") >= 300]
+    lines = [f"domain = {domain}",
+             f"openings found = {len(jobs)}   with full JD (>=300c) = {len(full)}", ""]
+    for j in jobs[:8]:
+        lines.append(f"  · {j.title[:55]!r}  [{len(j.description or '')}c]  {(j.location or '')[:24]}")
+    return "\n".join(lines)
+
+
 @router.get("/admin/thin-companies", response_class=PlainTextResponse)
 def admin_thin_companies(n: int = 30, country: str = "",
                          _: bool = Depends(require_admin),
