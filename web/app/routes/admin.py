@@ -861,6 +861,37 @@ def admin_reprobe_unresolved(_: bool = Depends(require_admin),
             "Clearbit (real domains) instead of the tracker URL.")
 
 
+@router.get("/admin/run-agencies", response_class=PlainTextResponse)
+def admin_run_agencies(country: str = "it", n: int = 25,
+                       _: bool = Depends(require_admin)):
+    """Resolve + scrape the top-N thin-JD companies in a market to their LOCAL portal
+    (randstad.it, not randstad.com) and ingest their full-JD openings. Runs in the
+    background (big agency sitemaps exceed the web-request limit). Watch the
+    Background job log for the per-company trace + counts. e.g. ?country=it&n=25"""
+    from urllib.parse import quote
+
+    from ..db import SessionLocal
+    from ..services.companies_service import scrape_market_agencies
+
+    def _work():
+        db = SessionLocal()
+        try:
+            res = scrape_market_agencies(db, country=country, n=n)
+            head = (f"agencies[{country}]: {res['companies']}co -> {res['jobs']}j "
+                    f"+{res['added']}/{res['updated']}")
+            record_op("agencies", head + " · " + " | ".join(res["trace"][:20]))
+        except Exception as exc:
+            log.exception("market-agency scrape failed")
+            record_op("agencies", f"failed: {str(exc)[:200]}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = (f"Scraping top {n} thin-JD companies in {country} to their local portals. "
+           "Watch the Background job log in a few minutes.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/run-ingest")
 def admin_run_ingest(_: bool = Depends(require_admin)):
     """Operator: run a FULL pull now instead of waiting for the cron — every source

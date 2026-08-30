@@ -550,6 +550,56 @@ def scrape_custom_companies(db: DbSession, settings: Settings | None = None,
     return {"companies": len(companies), "jobs": len(postings), "full_jd": filled}
 
 
+def scrape_market_agencies(db: DbSession, country: str = "it", n: int = 25,
+                           settings: Settings | None = None) -> dict:
+    """Resolve the top-N THIN-JD companies in a specific market to their LOCAL-market
+    portal and scrape it. The fix for global agencies: Randstad's thin Italian jobs
+    need randstad.IT (its Italian portal), not the randstad.com the generic resolver
+    picks — so we force the country code, register the .it domain as custom, and
+    scrape it now (sitemap JSON-LD). Returns counts + a per-company trace."""
+    from sqlalchemy import String, func
+
+    from jobhunter.sources.careers_scrape import scrape_careers
+
+    from .corpus_service import upsert_jobs
+    from .profile_service import engine_settings
+
+    settings = settings or engine_settings(premium=True)
+    from ..models import Job
+    thin = func.coalesce(func.length(Job.description), 0) < 300
+    cfilt = func.cast(Job.countries, String).ilike(f'%"{country.lower()}"%')
+    rows = (db.query(Job.company, func.count(Job.id))
+            .filter(thin, cfilt, Job.company.isnot(None), Job.company != "")
+            .group_by(Job.company).order_by(func.count(Job.id).desc())
+            .limit(max(1, min(n, 60))).all())
+    picked = [c for c, _ in rows if c]
+
+    postings: list[JobPosting] = []
+    trace: list[str] = []
+    for name in picked:
+        dom = _resolve_domain(name, country)          # country -> .it portal
+        if not dom:
+            trace.append(f"{name[:26]}: no domain")
+            continue
+        upsert_custom_company(db, name, dom)          # register so nightly re-scrapes
+        try:
+            jobs = scrape_careers(dom, name, settings)
+        except Exception as exc:
+            trace.append(f"{name[:26]} ({dom}): error {type(exc).__name__}")
+            continue
+        full = sum(1 for j in jobs if len(j.description or "") >= 300)
+        trace.append(f"{name[:26]} ({dom}): {len(jobs)}j {full}full")
+        postings.extend(jobs)
+    db.commit()
+    added = updated = 0
+    if postings:
+        added, updated = upsert_jobs(db, postings)
+    log.info("Market agencies %s: %d companies -> %d jobs (+%d/%d)",
+             country, len(picked), len(postings), added, updated)
+    return {"country": country, "companies": len(picked), "jobs": len(postings),
+            "added": added, "updated": updated, "trace": trace}
+
+
 def poll_all(db: DbSession, settings: Settings | None = None) -> list[JobPosting]:
     """Lane C: fetch every registry company's public ATS board, concurrently.
 
