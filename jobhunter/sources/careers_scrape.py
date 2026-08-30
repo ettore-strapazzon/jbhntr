@@ -336,12 +336,15 @@ def _fill_descriptions(postings: list[JobPosting], listing_url: str) -> None:
 
 
 def scrape_careers(domain_or_url: str, company: str, settings: Settings,
-                   with_descriptions: bool = True) -> list[JobPosting]:
+                   with_descriptions: bool = True,
+                   sitemap_cap: int = _MAX_SITEMAP) -> list[JobPosting]:
     """Return the openings found on a company's careers page. [] on any failure.
 
     FREE path first: JobPosting JSON-LD embedded on the page (no LLM). Only pages
     with no structured data fall through to the LLM extractor, so most custom
-    careers pages cost nothing.
+    careers pages cost nothing. `sitemap_cap` bounds the detail-page fetches on the
+    sitemap path — keep it small for a synchronous request (a diagnostic), full for
+    the background scrape.
     """
     page_url, html = _fetch_first(_candidate_urls(domain_or_url))
 
@@ -360,7 +363,7 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
     # still free, and how we reach staffing-agency portals (thousands of full JDs).
     domain = _bare_domain(page_url) or _bare_domain(domain_or_url)
     if domain:
-        sm_jobs = _postings_from_sitemap(domain, company, cap=_MAX_SITEMAP)
+        sm_jobs = _postings_from_sitemap(domain, company, cap=sitemap_cap)
         if sm_jobs:
             log.info("Careers scrape %s: %d openings via sitemap JSON-LD (free)",
                      company, len(sm_jobs))

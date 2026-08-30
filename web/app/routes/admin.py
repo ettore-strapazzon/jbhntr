@@ -750,7 +750,7 @@ def admin_test_careers(name: str = "", domain: str = "",
 
     settings = engine_settings(premium=True)
     try:
-        jobs = scrape_careers(domain, name or domain, settings) or []
+        jobs = scrape_careers(domain, name or domain, settings, sitemap_cap=10) or []
     except Exception as exc:
         return f"domain = {domain}\nEXCEPTION: {type(exc).__name__}: {exc}"
 
@@ -827,7 +827,7 @@ def admin_test_careers_sample(n: int = 10, country: str = "",
             lines.append(f"  {name[:28]:28}  ->  (no domain found)")
             continue
         try:
-            jobs = scrape_careers(domain, name, settings) or []
+            jobs = scrape_careers(domain, name, settings, sitemap_cap=8) or []
         except Exception as exc:
             lines.append(f"  {name[:28]:28}  {domain[:26]:26}  ERROR {type(exc).__name__}")
             continue
