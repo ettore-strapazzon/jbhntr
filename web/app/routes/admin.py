@@ -744,7 +744,7 @@ def admin_test_careers(name: str = "", domain: str = "",
     if not name and not domain:
         return "pass ?name=<company> or ?domain=<site>"
     if not domain:
-        domain = cs._resolve_domain(name, "")
+        domain = cs._resolve_domain(name, country)   # country biases to the local portal (.it)
     if not domain:
         return f"no domain resolved for {name!r} (Clearbit + guessing both empty)"
 
@@ -880,6 +880,14 @@ def admin_run_ingest(_: bool = Depends(require_admin)):
                 extra = f" [fetched {r.get('fetched', 0)}: A={ln.get('a')} B={ln.get('b')} C={ln.get('c')}]"
             elif "fetched" in r:
                 extra = f" [fetched {r.get('fetched', 0)}]"
+            if isinstance(r.get("resolve"), dict):
+                rv = r["resolve"]
+                extra += (f" resolve[{rv.get('resolved', 0)}board/"
+                          f"{rv.get('custom', 0)}custom of {rv.get('probed', 0)}]")
+            if isinstance(r.get("custom_scrape"), dict):
+                sc = r["custom_scrape"]
+                extra += (f" scrape[{sc.get('companies', 0)}co->{sc.get('jobs', 0)}j "
+                          f"{sc.get('full_jd', 0)}full]")
             return f"{c}: +{r.get('added', 0)}/{r.get('updated', 0)}{extra}"
         return f"{c}: {r}"
 
