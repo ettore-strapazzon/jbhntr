@@ -54,6 +54,20 @@ async def _render(url: str, auth: str) -> str:
         try:
             page = await browser.new_page()
             page.set_default_navigation_timeout(_NAV_TIMEOUT)
+
+            # Bandwidth = cost on the Browser API. Drop images/media/fonts/CSS — we
+            # only read the HTML + the JS-loaded job data, so this cuts traffic ~2-3x
+            # with no effect on extraction.
+            async def _block(route):
+                if route.request.resource_type in ("image", "media", "font", "stylesheet"):
+                    await route.abort()
+                else:
+                    await route.continue_()
+            try:
+                await page.route("**/*", _block)
+            except Exception:
+                pass
+
             await page.goto(url, wait_until="domcontentloaded")
             await page.wait_for_timeout(_SETTLE_MS)
             return await page.content()
