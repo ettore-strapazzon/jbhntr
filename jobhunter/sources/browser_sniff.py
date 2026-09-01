@@ -109,6 +109,46 @@ def _detail_links(html: str, base_url: str) -> list[str]:
     return out
 
 
+def debug_portal(domain: str, settings) -> dict:
+    """Diagnostic: render each candidate jobs path and report what came back, so we
+    can see WHY extraction found nothing (wrong page, jobs on another host, no
+    JSON-LD, links not matching hints)."""
+    from .careers_scrape import _jsonld_jobs
+    info: dict = {"domain": domain, "tried": []}
+    if not is_configured(settings):
+        info["error"] = "no BROWSER_AUTH"
+        return info
+    base = f"https://{domain}"
+    html = ""
+    rendered = base
+    for path in JOBS_PATHS:
+        u = f"{base}/{path}"
+        h = render_html(u, settings)
+        info["tried"].append({"url": u, "len": len(h),
+                              "hint": any(x in h.lower() for x in _DETAIL_HINTS),
+                              "jsonld": "jobposting" in h.lower()})
+        if h and len(h) > 3000 and any(x in h.lower() for x in _DETAIL_HINTS):
+            html, rendered = h, u
+            break
+    if not html:
+        html = render_html(base, settings)
+        info["home_len"] = len(html)
+    if html:
+        info["rendered"] = rendered
+        info["jsonld_jobs"] = len(_jsonld_jobs(html, rendered, "x"))
+        links = _detail_links(html, rendered)
+        info["detail_links_matched"] = len(links)
+        info["sample_matched"] = links[:6]
+        raw = [h for h in re.findall(r'href=["\']([^"\']+)["\']', html)
+               if "javascript" not in h.lower() and len(h) > 1][:400]
+        # host distribution of hrefs + a sample, to spot jobs on another host
+        from collections import Counter
+        hosts = Counter(urlparse(urljoin(rendered, h)).netloc for h in raw)
+        info["href_hosts"] = hosts.most_common(6)
+        info["sample_hrefs"] = raw[:14]
+    return info
+
+
 def fetch_portal(domain: str, company: str, settings) -> list:
     """Render a JS agency portal and return its openings with full JDs. [] on any
     failure. Renders the listing once (paid), then reads detail pages over free HTTP.

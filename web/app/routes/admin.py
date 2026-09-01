@@ -764,6 +764,7 @@ def admin_test_careers(name: str = "", domain: str = "",
 
 @router.get("/admin/test-browser", response_class=PlainTextResponse)
 def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
+                       debug: int = 0,
                        _: bool = Depends(require_admin),
                        db: DbSession = Depends(get_session)):
     """Diagnose Rung 1 (Bright Data browser) on ONE JS-only agency portal: render it
@@ -783,6 +784,12 @@ def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
         domain = cs._resolve_domain(name, country)
     if not domain:
         return f"no domain resolved for {name!r}"
+    if debug:
+        import json as _json
+        try:
+            return _json.dumps(browser_sniff.debug_portal(domain, settings), indent=2)[:4000]
+        except Exception as exc:
+            return f"debug EXCEPTION: {type(exc).__name__}: {str(exc)[:300]}"
     try:
         jobs = browser_sniff.fetch_portal(domain, name or domain, settings) or []
     except Exception as exc:
