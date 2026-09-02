@@ -382,10 +382,25 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
                 return bd_jobs[:_MAX_SITEMAP]
 
     # No structured data anywhere (true JS-only SPA) — fall back to the LLM extractor.
+    out = llm_extract(html, page_url, company, settings)
+    # Fill each opening's description from its own page (HTTP only), so embedding
+    # and scoring work on the full job content — not just the title.
+    if out and with_descriptions:
+        _fill_descriptions(out, page_url)
+    if out:
+        log.info("Careers scrape %s: %d openings via LLM", company, len(out))
+    return out
+
+
+def llm_extract(html: str, page_url: str, company: str, settings) -> list[JobPosting]:
+    """Extract openings (title/location/url) from a page's text with the LLM — the
+    GENERAL extractor: no per-site code, works on any careers/agency page whose jobs
+    are visible in the (rendered) text. Descriptions are filled separately. []
+    without an LLM, on a JS shell with no readable text, or on any error."""
     if not html or not llm.is_configured(settings):
         return []
     text = strip_html(html)[:_MAX_HTML]
-    if len(text) < 200:                       # nothing readable (likely a JS shell)
+    if len(text) < 200:
         return []
     try:
         data = llm.get_client(settings).json(
@@ -393,9 +408,8 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
             user=f"Company: {company}\nCareers page: {page_url}\n\n{text}",
             schema=_SCHEMA, tier=llm.SCORING, max_tokens=2000, cache_system=False)
     except Exception as exc:
-        log.warning("Careers scrape LLM failed for %s: %s", company, exc)
+        log.warning("Careers LLM extract failed for %s: %s", company, exc)
         return []
-
     host = urlparse(page_url).netloc or (company or "")
     out: list[JobPosting] = []
     for j in (data.get("jobs") or [])[:_MAX_JOBS]:
@@ -406,13 +420,7 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
         if url and not url.startswith("http"):
             url = urljoin(page_url, url)
         out.append(JobPosting(
-            source=f"scrape:{host}",
-            title=title, company=company,
+            source=f"scrape:{host}", title=title, company=company,
             location=(j.get("location") or "").strip(),
             description="", url=url or page_url))
-    # Fill each opening's description from its own page (HTTP only), so embedding
-    # and scoring work on the full job content — not just the title.
-    if with_descriptions:
-        _fill_descriptions(out, page_url)
-    log.info("Careers scrape %s (%s): %d openings", company, host, len(out))
     return out

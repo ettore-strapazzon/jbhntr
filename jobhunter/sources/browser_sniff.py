@@ -270,14 +270,49 @@ def _portal_subdomain(html: str, domain: str) -> str:
     return ""
 
 
-def _from_render(html: str, bodies: list, page_url: str, company: str, host: str) -> list:
-    """Jobs from a rendered page: captured API JSON first (SPAs), then rendered
-    JSON-LD."""
-    from .careers_scrape import _jsonld_jobs
+def _from_render(html: str, bodies: list, page_url: str, company: str, host: str,
+                 settings) -> list:
+    """Jobs from a rendered page, most-structured first: captured API JSON (SPAs),
+    then rendered JSON-LD, then the GENERAL LLM extractor on the rendered text (which
+    needs no per-agency code — this is what makes it scale across all agencies)."""
+    from .careers_scrape import _jsonld_jobs, llm_extract
     jobs = _jobs_from_json(bodies, company, host)
-    if jobs:
-        return jobs
-    return _jsonld_jobs(html, page_url, company)
+    if not jobs:
+        jobs = _jsonld_jobs(html, page_url, company)
+    if not jobs:
+        jobs = llm_extract(html, page_url, company, settings)
+    return jobs
+
+
+def _enrich_descriptions(jobs: list, settings) -> None:
+    """Fill the full JD for jobs that came back with a title but a thin/empty
+    description (listing/summary APIs). Follow each job's own URL: free HTTP first
+    (most detail pages are server-rendered with JobPosting JSON-LD), then a bounded
+    number of browser renders for JS-only detail pages."""
+    from .careers_scrape import _detail_description
+    todo = [j for j in jobs
+            if len(j.description or "") < 300 and (j.url or "").startswith("http")]
+    if not todo:
+        return
+    need_render: list = []
+    with http_client(timeout=12.0) as c:
+        for j in todo[:60]:
+            try:
+                r = c.get(j.url, follow_redirects=True)
+                if r.status_code == 200:
+                    d = _detail_description(r.text)
+                    if len(d) >= 300:
+                        j.description = d[:8000]
+                        continue
+            except Exception:
+                pass
+            need_render.append(j)
+    for j in need_render[:20]:                # JS-only detail pages (paid, bounded)
+        dh, _b = render_capture(j.url, settings)
+        if dh:
+            d = _detail_description(dh)
+            if len(d) >= 300:
+                j.description = d[:8000]
 
 
 def fetch_portal(domain: str, company: str, settings) -> list:
@@ -301,17 +336,19 @@ def fetch_portal(domain: str, company: str, settings) -> list:
     if not html:
         return []
 
-    jobs = _from_render(html, bodies, rendered, company, domain)
+    jobs = _from_render(html, bodies, rendered, company, domain, settings)
     if jobs:
-        log.info("Browser portal %s: %d via render (API/JSON-LD)", company, len(jobs))
+        _enrich_descriptions(jobs, settings)
+        log.info("Browser portal %s: %d via render (API/JSON-LD/LLM)", company, len(jobs))
         return jobs[:_MAX_RETURN]
 
     # Marketing site delegates jobs to a separate SPA (candidate.adecco.com): render it.
     portal = _portal_subdomain(html, domain)
     if portal:
         ph, pb = render_capture(portal, settings)
-        jobs = _from_render(ph, pb, portal, company, domain)
+        jobs = _from_render(ph, pb, portal, company, domain, settings)
         if jobs:
+            _enrich_descriptions(jobs, settings)
             log.info("Browser portal %s: %d via jobs subdomain %s",
                      company, len(jobs), portal)
             return jobs[:_MAX_RETURN]
