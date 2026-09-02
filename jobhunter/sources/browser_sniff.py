@@ -26,6 +26,7 @@ _CDP_HOST = "brd.superproxy.io:9222"
 _NAV_TIMEOUT = 90_000     # ms — Bright Data recommends ~2 min ceilings
 _SETTLE_MS = 4_000        # let the SPA's XHR job list populate after load
 _MAX_LINKS = 60           # detail pages to follow per portal per poll
+_MAX_RETURN = 300         # cap jobs returned per portal per poll
 
 # Where an agency's job search commonly lives (it/fr/de/es/en).
 JOBS_PATHS = (
@@ -303,7 +304,7 @@ def fetch_portal(domain: str, company: str, settings) -> list:
     jobs = _from_render(html, bodies, rendered, company, domain)
     if jobs:
         log.info("Browser portal %s: %d via render (API/JSON-LD)", company, len(jobs))
-        return jobs[:_MAX_SITEMAP]
+        return jobs[:_MAX_RETURN]
 
     # Marketing site delegates jobs to a separate SPA (candidate.adecco.com): render it.
     portal = _portal_subdomain(html, domain)
@@ -313,7 +314,7 @@ def fetch_portal(domain: str, company: str, settings) -> list:
         if jobs:
             log.info("Browser portal %s: %d via jobs subdomain %s",
                      company, len(jobs), portal)
-            return jobs[:_MAX_SITEMAP]
+            return jobs[:_MAX_RETURN]
 
     # Last resort: DOM detail links -> read each detail page's JSON-LD over HTTP.
     links = _detail_links(html, rendered)
