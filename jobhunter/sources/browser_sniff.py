@@ -245,6 +245,14 @@ def debug_portal(domain: str, settings) -> dict:
         info["job_arrays_found"] = [len(a) for a in arrays][:6]
         info["json_jobs"] = len(_jobs_from_json(bodies, "x", domain))
         info["json_response_urls"] = [u[:90] for u, _ in bodies][:10]
+        # raw sample of the FIRST detected job object, so we can see its url/id field
+        if arrays and arrays[0]:
+            obj = arrays[0][0]
+            if isinstance(obj, dict):
+                info["sample_job_keys"] = list(obj.keys())[:25]
+                info["sample_job"] = {k: (str(v)[:70]) for k, v in list(obj.items())[:25]}
+        # rendered text sample, to see if the LLM extractor has any jobs to read
+        info["text_sample"] = re.sub(r"\s+", " ", strip_html(html)).strip()[:700]
         info["jsonld_jobs"] = len(_jsonld_jobs(html, rendered, "x"))
         info["portal_subdomain"] = _portal_subdomain(html, domain)
         from collections import Counter
