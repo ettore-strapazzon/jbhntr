@@ -584,7 +584,7 @@ def scrape_market_agencies(db: DbSession, country: str = "it", n: int = 25,
             continue
         upsert_custom_company(db, name, dom)          # register so nightly re-scrapes
         try:
-            jobs = scrape_careers(dom, name, settings)
+            jobs = scrape_careers(dom, name, settings, country=country)
         except Exception as exc:
             trace.append(f"{name[:26]} ({dom}): error {type(exc).__name__}")
             continue

@@ -791,7 +791,7 @@ def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
         except Exception as exc:
             return f"debug EXCEPTION: {type(exc).__name__}: {str(exc)[:300]}"
     try:
-        jobs = browser_sniff.fetch_portal(domain, name or domain, settings) or []
+        jobs = browser_sniff.fetch_portal(domain, name or domain, settings, country=country) or []
     except Exception as exc:
         return f"domain = {domain}\nEXCEPTION: {type(exc).__name__}: {str(exc)[:200]}"
     full = [j for j in jobs if len(j.description or "") >= 300]

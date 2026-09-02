@@ -263,6 +263,127 @@ def debug_portal(domain: str, settings) -> dict:
     return info
 
 
+def _build_url(template: str, job: dict) -> str:
+    """Fill a detail-API template from a job object. Supports {field} and
+    {field:lower}. Returns "" if a required field is missing/empty."""
+    low = {k.lower(): v for k, v in job.items()}
+    out = template
+    for m in re.findall(r"\{([^}]+)\}", template):
+        field, _, mod = m.partition(":")
+        v = low.get(field.lower())
+        if v is None or str(v).strip() in ("", "None"):
+            return ""
+        s = str(v).strip()
+        if mod == "lower":
+            s = s.lower()
+        out = out.replace("{" + m + "}", s)
+    return out
+
+
+def _detail_desc_from_json(body) -> str:
+    """The full JD from a detail-API JSON response: prefer a description-named field,
+    else the longest substantial string anywhere in the payload."""
+    best = ""
+
+    def _named(x, depth=0):
+        nonlocal best
+        if depth > 8:
+            return
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if isinstance(v, str) and k.lower() in _DESC_KEYS and len(v) > len(best):
+                    best = v
+                elif isinstance(v, (dict, list)):
+                    _named(v, depth + 1)
+        elif isinstance(x, list):
+            for i in x:
+                _named(i, depth + 1)
+
+    _named(body)
+    if len(strip_html(best)) < 200:
+        longest = [""]
+
+        def _long(x, depth=0):
+            if depth > 8:
+                return
+            if isinstance(x, str):
+                if len(x) > len(longest[0]):
+                    longest[0] = x
+            elif isinstance(x, dict):
+                for v in x.values():
+                    _long(v, depth + 1)
+            elif isinstance(x, list):
+                for i in x:
+                    _long(i, depth + 1)
+        _long(body)
+        if len(strip_html(longest[0])) > len(strip_html(best)):
+            best = longest[0]
+    return re.sub(r"\s+", " ", strip_html(best)).strip()
+
+
+def _jobs_via_hint(bodies: list, company: str, host: str, hint: dict, settings) -> list:
+    """Extract jobs from a hinted agency's captured API and, when the list is
+    summary-only, fetch each job's FULL JD from the hint's detail_api template."""
+    from ..models import JobPosting
+    arrays: list = []
+    for _u, body in bodies:
+        _find_job_arrays(body, arrays)
+    if not arrays:
+        return []
+    arrays.sort(key=len, reverse=True)
+    raw = arrays[0]
+    template = hint.get("detail_api")
+    out: list = []
+    with http_client(timeout=12.0) as c:
+        for d in raw[:_MAX_RETURN]:
+            if not isinstance(d, dict):
+                continue
+            title = _pick(d, _TITLE_KEYS)
+            if not title:
+                continue
+            desc = _pick(d, _DESC_KEYS)
+            if len(desc) < 200 and template:
+                url = _build_url(template, d)
+                if url:
+                    try:
+                        r = c.get(url, headers={"Accept": "application/json"},
+                                  follow_redirects=True)
+                        if r.status_code == 200:
+                            desc = _detail_desc_from_json(r.json()) or desc
+                    except Exception:
+                        pass
+            url_field = _pick(d, _URL_KEYS)
+            out.append(JobPosting(
+                source=f"scrape:{host}", title=title, company=company,
+                location=_pick(d, _LOC_KEYS),
+                description=re.sub(r"\s+", " ", strip_html(desc)).strip()[:8000],
+                url=url_field if url_field.startswith("http") else ""))
+    return out
+
+
+_JOBS_LINK_HINTS = ("offerte-lavoro", "offerte-di-lavoro", "cerca-lavoro",
+                    "ricerca-lavoro", "candidati", "lavora-con-noi", "job", "career",
+                    "offerte", "empleo", "emploi", "vacan")
+
+
+def _discover_jobs_url(html: str, base: str) -> str:
+    """Find the real job-search URL from a rendered homepage's links, so we don't
+    depend on guessing the path (Manpower's jobs aren't at /offerte-lavoro)."""
+    best = ""
+    for m in re.finditer(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', html, re.I | re.S):
+        href, text = m.group(1), strip_html(m.group(2)).lower()
+        low = href.lower()
+        if any(h in low for h in _JOBS_LINK_HINTS) or any(
+                w in text for w in ("offerte", "lavora", "candidati", "cerca lavoro", "jobs", "careers")):
+            url = urljoin(base, href)
+            if urlparse(url).netloc and "javascript" not in low:
+                # prefer a listing-looking path over a single detail link
+                if "offerte-lavoro" in low or "cerca-lavoro" in low or "ricerca" in low:
+                    return url
+                best = best or url
+    return best
+
+
 def _portal_subdomain(html: str, domain: str) -> str:
     """A jobs-portal subdomain the page links to (candidate.adecco.com, jobs.x.com),
     for agencies whose marketing site hands the actual jobs to a separate SPA."""
@@ -323,24 +444,47 @@ def _enrich_descriptions(jobs: list, settings) -> None:
                 j.description = d[:8000]
 
 
-def fetch_portal(domain: str, company: str, settings) -> list:
+def fetch_portal(domain: str, company: str, settings, country: str = "") -> list:
     """Render a JS agency portal and return its openings with full JDs. [] on any
-    failure. Captures the portal's own job API (the SPA data source) — the robust
-    path — and follows a separate jobs subdomain (candidate.adecco.com) when the
-    marketing site delegates to one. Import kept local so playwright stays optional."""
+    failure. Uses a per-agency hint (the exact jobs URL + detail-API for the top
+    posters) when one exists, else the general path: render, capture the job API,
+    JSON-LD or LLM-extract, and follow a jobs subdomain / discovered jobs URL."""
     if not is_configured(settings):
         return []
+    from . import agency_hints
     from .careers_scrape import _detail_posting
+
+    # Hinted agency (Adecco, …): render the known jobs URL and use its detail API.
+    hint = agency_hints.hint_for(company, country)
+    if hint and hint.get("listing"):
+        h, b = render_capture(hint["listing"], settings)
+        if h:
+            jobs = _jobs_via_hint(b, company, domain, hint, settings)
+            if not jobs:                         # API shape changed? fall back generally
+                jobs = _from_render(h, b, hint["listing"], company, domain, settings)
+            if jobs:
+                _enrich_descriptions(jobs, settings)
+                log.info("Browser portal %s: %d via hint", company, len(jobs))
+                return jobs[:_MAX_RETURN]
 
     base = f"https://{domain}"
     html, bodies, rendered = "", [], base
     for path in JOBS_PATHS:
         h, b = render_capture(f"{base}/{path}", settings)
-        if h and len(h) > 3000 and any(x in h.lower() for x in _DETAIL_HINTS):
+        # a 404 page can still contain the hint words; require it to NOT look like one
+        if (h and len(h) > 3000 and any(x in h.lower() for x in _DETAIL_HINTS)
+                and "not found" not in h[:2000].lower() and "page-not-found" not in h.lower()):
             html, bodies, rendered = h, b, f"{base}/{path}"
             break
     if not html:
-        html, bodies = render_capture(base, settings)
+        # None of the guessed paths worked — render the homepage and DISCOVER the
+        # real jobs URL from its links (Manpower's jobs aren't at /offerte-lavoro).
+        home, hb = render_capture(base, settings)
+        jobs_url = _discover_jobs_url(home, base) if home else ""
+        if jobs_url:
+            html, bodies, rendered = *render_capture(jobs_url, settings), jobs_url
+        else:
+            html, bodies = home, hb
     if not html:
         return []
 

@@ -337,7 +337,8 @@ def _fill_descriptions(postings: list[JobPosting], listing_url: str) -> None:
 
 def scrape_careers(domain_or_url: str, company: str, settings: Settings,
                    with_descriptions: bool = True,
-                   sitemap_cap: int = _MAX_SITEMAP) -> list[JobPosting]:
+                   sitemap_cap: int = _MAX_SITEMAP,
+                   country: str = "") -> list[JobPosting]:
     """Return the openings found on a company's careers page. [] on any failure.
 
     FREE path first: JobPosting JSON-LD embedded on the page (no LLM). Only pages
@@ -375,7 +376,7 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
     if domain:
         from . import browser_sniff
         if browser_sniff.is_configured(settings):
-            bd_jobs = browser_sniff.fetch_portal(domain, company, settings)
+            bd_jobs = browser_sniff.fetch_portal(domain, company, settings, country=country)
             if bd_jobs:
                 log.info("Careers scrape %s: %d openings via Bright Data browser",
                          company, len(bd_jobs))
