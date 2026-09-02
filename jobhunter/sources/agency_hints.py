@@ -27,9 +27,15 @@ AGENCY_HINTS: dict[str, dict[str, dict]] = {
             "detail_api": ("https://www.adecco.com/api/data/jobs/"
                            "job-description-details/{jobId}/{brandName:lower}/it/it-IT/job"),
         },
+        # Listing-only hints: the general extractor (captured API / JSON-LD / LLM +
+        # detail-follow) fills the jobs; a detail_api is added later if the list is
+        # summary-only. The value here is the CORRECT jobs URL (Manpower's jobs are at
+        # /it/trova-lavoro, not the /offerte-lavoro that 404s).
+        "manpower": {"listing": "https://www.manpower.it/it/trova-lavoro"},
+        "etjca": {"listing": "https://career.etjca.it/jobs.php?lan=it"},
         # Sitemap agencies (Randstad, Gi Group, Areajob) need no hint — Rung 0 reads
-        # their sitemaps for free. Add the JS-only ones (Manpower, Synergie,
-        # Openjobmetis, ADHR, Etjca, Orienta, Umana…) here as each is decoded.
+        # their sitemaps for free. Add the remaining JS-only ones (Synergie,
+        # Openjobmetis, ADHR, Orienta, Umana…) here as each is decoded.
     },
 }
 

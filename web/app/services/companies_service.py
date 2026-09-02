@@ -584,7 +584,8 @@ def scrape_market_agencies(db: DbSession, country: str = "it", n: int = 25,
             continue
         upsert_custom_company(db, name, dom)          # register so nightly re-scrapes
         try:
-            jobs = scrape_careers(dom, name, settings, country=country)
+            # Agencies have huge sitemaps — pull a deep page (600) of full JDs per run.
+            jobs = scrape_careers(dom, name, settings, sitemap_cap=600, country=country)
         except Exception as exc:
             trace.append(f"{name[:26]} ({dom}): error {type(exc).__name__}")
             continue

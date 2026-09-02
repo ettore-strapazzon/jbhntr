@@ -368,7 +368,7 @@ def scrape_careers(domain_or_url: str, company: str, settings: Settings,
         if sm_jobs:
             log.info("Careers scrape %s: %d openings via sitemap JSON-LD (free)",
                      company, len(sm_jobs))
-            return sm_jobs[:_MAX_SITEMAP]
+            return sm_jobs                        # already bounded by sitemap_cap
 
     # Rung 1: JS-only portal with no sitemap (Adecco/Manpower). Render it with the
     # Bright Data Scraping Browser (handles anti-bot) and read the jobs off the DOM.
