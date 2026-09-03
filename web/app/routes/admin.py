@@ -802,6 +802,96 @@ def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
     return "\n".join(lines)
 
 
+@router.get("/admin/agencies", response_class=HTMLResponse)
+def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
+                   db: DbSession = Depends(get_session)):
+    """One dashboard for agency JD coverage across every market: per-country coverage
+    %, then the top posters in the selected country with their full-vs-thin split, so
+    a working agency (mostly full) vs a broken one (all thin) is obvious at a glance."""
+    from sqlalchemy import String, case, func
+
+    from jobhunter import geo
+    from jobhunter.sources.agency_hints import AGENCY_HINTS, hint_for
+    from ..services.ingest import DEFAULT_COUNTRIES
+
+    def cfilt(code):
+        return func.cast(Job.countries, String).ilike(f'%"{(code or "").lower()}"%')
+
+    full_len = func.coalesce(func.length(Job.description), 0) >= 300
+
+    # ---- per-country coverage summary ---------------------------------------
+    summary = []
+    for name in DEFAULT_COUNTRIES:
+        code = (geo.country_of(name) or "").lower()
+        if not code:
+            continue
+        tot = db.query(func.count(Job.id)).filter(cfilt(code)).scalar() or 0
+        full = db.query(func.count(Job.id)).filter(cfilt(code), full_len).scalar() or 0
+        n_hints = len(AGENCY_HINTS.get(code, {}))
+        summary.append((name, code, tot, full, n_hints))
+
+    # ---- selected-country top posters (agencies dominate the thin tail) ------
+    code = (country or "it").lower()
+    rows = (db.query(Job.company, func.count(Job.id).label("t"),
+                     func.sum(case((full_len, 1), else_=0)).label("f"))
+            .filter(cfilt(code), Job.company.isnot(None), Job.company != "")
+            .group_by(Job.company).order_by(func.count(Job.id).desc()).limit(40).all())
+
+    def _bar(pct):
+        c = "#1a7f37" if pct >= 60 else ("#b58900" if pct >= 15 else "#cf222e")
+        return (f'<div style="background:#eee;width:120px;height:12px;display:inline-block;'
+                f'border-radius:3px;overflow:hidden;vertical-align:middle">'
+                f'<div style="background:{c};width:{pct}%;height:12px"></div></div>')
+
+    sel_tabs = " · ".join(
+        (f'<b>{c}</b>' if c == code else f'<a href="/admin/agencies?country={c}">{c}</a>')
+        for _n, c, *_ in summary)
+
+    srows = ""
+    for name, c, tot, full, nh in summary:
+        pct = round(100 * full / tot) if tot else 0
+        srows += (f'<tr><td><a href="/admin/agencies?country={c}">{name}</a> ({c})</td>'
+                  f'<td style="text-align:right">{tot:,}</td>'
+                  f'<td style="text-align:right">{full:,}</td>'
+                  f'<td>{_bar(pct)} {pct}%</td>'
+                  f'<td style="text-align:center">{nh}</td></tr>')
+
+    drows = ""
+    for comp, t, f in rows:
+        f = int(f or 0)
+        pct = round(100 * f / t) if t else 0
+        hinted = "✓ hint" if hint_for(comp, code) else ""
+        status = ("working" if pct >= 60 else ("partial" if pct >= 15 else "THIN — needs scrape"))
+        color = "#1a7f37" if pct >= 60 else ("#b58900" if pct >= 15 else "#cf222e")
+        drows += (f'<tr><td>{(comp or "")[:40]}</td>'
+                  f'<td style="text-align:right">{t:,}</td>'
+                  f'<td style="text-align:right">{f:,}</td>'
+                  f'<td style="text-align:right">{t - f:,}</td>'
+                  f'<td>{_bar(pct)} {pct}%</td>'
+                  f'<td style="color:{color}">{status}</td>'
+                  f'<td style="text-align:center">{hinted}</td></tr>')
+
+    css = ("body{font:14px system-ui,sans-serif;margin:24px;color:#111}"
+           "table{border-collapse:collapse;margin:8px 0 28px}"
+           "th,td{padding:5px 12px;border-bottom:1px solid #eee;font-size:13px}"
+           "th{text-align:left;color:#555;border-bottom:2px solid #ddd}"
+           "a{color:#0969da;text-decoration:none}h2{margin:18px 0 6px}")
+    return f"""<html><head><meta charset="utf-8"><style>{css}</style>
+<title>Agency JD monitor</title></head><body>
+<a href="/admin">&larr; Admin</a>
+<h2>Agency JD coverage — every market</h2>
+<table><tr><th>Country</th><th>Jobs</th><th>Full JD</th><th>Coverage</th><th>Hints</th></tr>
+{srows}</table>
+<h2>Top posters in: {sel_tabs}</h2>
+<p style="color:#666">Full = description ≥300c. A staffing agency should be mostly
+<b>full</b> (green) once scraped; <b>THIN</b> (red) means we're not getting its JDs yet —
+add a hint via <code>/admin/test-browser?name=NAME&country={code}&debug=1</code>.</p>
+<table><tr><th>Company</th><th>Jobs</th><th>Full</th><th>Thin</th><th>Full %</th>
+<th>Status</th><th>Registry</th></tr>
+{drows}</table>
+</body></html>"""
+
+
 @router.get("/admin/thin-companies", response_class=PlainTextResponse)
 def admin_thin_companies(n: int = 30, country: str = "",
                          _: bool = Depends(require_admin),
