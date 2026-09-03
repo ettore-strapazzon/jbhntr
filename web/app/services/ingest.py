@@ -103,6 +103,8 @@ TERMS_CAP = 25          # pad user terms up to this with defaults
 TERMS_MAX = 40          # absolute ceiling
 COUNTRIES_CAP = 6       # pad user countries up to this with defaults
 COUNTRIES_MAX = 10      # absolute ceiling
+_AGENCY_MARKETS = 3     # top active markets to scrape agency portals for (nightly)
+_AGENCY_N = 15          # top thin-JD companies per market to resolve+scrape
 
 # code -> display name, built from the picker list so provider locations resolve.
 _CODE_TO_NAME: dict[str, str] = {}
@@ -305,7 +307,8 @@ def run(cadence: str = "daily", light: bool = False) -> dict:
         # writes companies, not jobs, so daily Lane C then polls them.
         if cadence == "discover":
             from .companies_service import (
-                discover_all_active, resolve_corpus_companies, scrape_custom_companies,
+                discover_all_active, resolve_corpus_companies,
+                scrape_market_agencies, scrape_custom_companies,
             )
             res = discover_all_active(db)
             # Resolve the most common corpus companies to their ATS board (HTTP
@@ -315,8 +318,23 @@ def run(cadence: str = "daily", light: bool = False) -> dict:
             # Scrape the careers pages of non-ATS companies discovery registered
             # (premium-sourced, but the jobs land in the shared corpus for all).
             scraped = scrape_custom_companies(db, settings)
-            log.info("ingest discover: %s | resolve: %s | custom-scrape: %s",
-                     res, resolved, scraped)
+            # Staffing-agency portals per active market (their full JDs dedup-upgrade
+            # the thin careerjet snippets). Nightly only — skipped on a light operator
+            # run, which stays fast (use /admin/run-agencies for a manual pull). Heavy
+            # but bounded; each market fail-soft.
+            agencies: dict = {}
+            if not light:
+                for cname in countries[:_AGENCY_MARKETS]:
+                    code = geo.country_of(cname)
+                    if not code:
+                        continue
+                    try:
+                        agencies[code] = scrape_market_agencies(
+                            db, country=code, n=_AGENCY_N, settings=settings)
+                    except Exception as exc:
+                        log.warning("agency scrape %s failed: %s", code, exc)
+            log.info("ingest discover: %s | resolve: %s | custom-scrape: %s | agencies: %s",
+                     res, resolved, scraped, {k: v.get("added") for k, v in agencies.items()})
             return {"cadence": "discover", **res, "resolve": resolved,
                     "custom_scrape": scraped}
 
