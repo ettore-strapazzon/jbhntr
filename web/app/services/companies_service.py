@@ -434,18 +434,30 @@ def discover_for_user(db: DbSession, user: User, target: int | None = None) -> d
             if upsert_company(db, c.get("ats", ""), c.get("token", ""),
                               c.get("name", ""), source="discovered", user_id=user.id):
                 added += 1
-        # Companies with no readable ATS but a known domain: register them for a
-        # careers-page scrape (bounded per run so one user can't flood the table).
+        # Companies with no readable ATS: register them for a careers-page scrape
+        # (bounded per run). If the LLM gave no domain, resolve one via Clearbit so
+        # the company still flows through the careers ladder (sitemap -> browser ->
+        # LLM) instead of being dropped — this is what makes discovery from the
+        # user's vertical/stage/country preferences actually land jobs, not just
+        # from named seeds.
+        from jobhunter import geo
+        pref_code = ""
+        for loc in (profile.locations or []):
+            pref_code = geo.country_of(loc) or ""
+            if pref_code:
+                break
         seen_dom: set[str] = set()
         for c in rejected:
             if custom >= MAX_CUSTOM_PER_RUN:
                 break
+            cname = (c.get("name") or "").strip()
             dom = (c.get("domain") or "").strip().lower()
-            if dom and dom in seen_dom:
+            if not dom and cname:
+                dom = _resolve_domain(cname, pref_code)     # Clearbit fallback
+            if not dom or dom in seen_dom:
                 continue
             seen_dom.add(dom)
-            if upsert_custom_company(db, c.get("name", ""), c.get("domain", ""),
-                                     user_id=user.id):
+            if upsert_custom_company(db, cname, dom, user_id=user.id):
                 custom += 1
         # Record what this run was based on, so the next cadence check can tell
         # whether the profile has since changed materially (seeds, verticals,

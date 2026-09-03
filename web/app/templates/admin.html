@@ -200,6 +200,24 @@
         re-verifies every board/aggregator link older than {{ config.reaper_recheck_days }}d,
         so the whole checkable corpus cycles about every {{ config.reaper_recheck_days }} days
         (ATS/scraped jobs prune on their poll window instead).</p>
+      <div style="margin-top:14px;padding:10px 12px;background:#f3f7f4;border-radius:8px">
+        <b>Agency JD coverage</b>
+        <p class="small muted" style="margin:4px 0 8px">Full-JD scraping of staffing-agency
+          portals per country — the fix for the thin snippet tail.</p>
+        <p style="margin:6px 0">
+          <a class="btn ghost small" href="/admin/agencies">Open agency monitor →</a>
+        </p>
+        <form method="get" action="/admin/run-agencies" style="margin-top:4px">
+          <label class="small">Scrape agencies now for country
+            <input name="country" value="it" maxlength="2"
+                   style="width:44px;text-transform:lowercase">
+          </label>
+          <input type="hidden" name="n" value="25">
+          <button class="ghost small" type="submit">Run</button>
+          <span class="small muted">Top thin-JD companies in that market → local portal
+            → full JDs (background).</span>
+        </form>
+      </div>
       <form method="post" action="/admin/run-maintenance" style="margin-top:6px">
         <button class="ghost" type="submit">Run maintenance now</button>
         <span class="small muted">Reaper (full due-set) + a corpus snapshot.</span>
