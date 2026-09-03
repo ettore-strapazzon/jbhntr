@@ -33,11 +33,38 @@ AGENCY_HINTS: dict[str, dict[str, dict]] = {
         # /it/trova-lavoro, not the /offerte-lavoro that 404s).
         "manpower": {"listing": "https://www.manpower.it/it/trova-lavoro"},
         "etjca": {"listing": "https://career.etjca.it/jobs.php?lan=it"},
+        "synergie": {"listing": "https://www.synergie-italia.it/candidato/offerte-di-lavoro"},
+        "adhr": {"listing": "https://candidati.adhr.it/it"},
         # Sitemap agencies (Randstad, Gi Group, Areajob) need no hint — Rung 0 reads
-        # their sitemaps for free. Add the remaining JS-only ones (Synergie,
-        # Openjobmetis, ADHR, Orienta, Umana…) here as each is decoded.
+        # their sitemaps for free. Add the remaining JS-only ones (Openjobmetis,
+        # Orienta, Umana…) here as each is decoded.
     },
 }
+
+# Correct employer domain when Clearbit mis-resolves an ambiguous agency name to a
+# wrong (often foreign) site. Checked BEFORE Clearbit/guessing in _resolve_domain.
+# Keyed by country -> normalized name. (Orienta -> a Malaysian paper, Ali -> Alight,
+# Synergie's real site is synergie-italia.it not synergie.it.)
+DOMAIN_OVERRIDES: dict[str, dict[str, str]] = {
+    "it": {
+        "synergie": "synergie-italia.it",
+        "ali": "alispa.it",
+        "orienta": "orienta.it",
+        "during": "during.it",
+    },
+}
+
+
+def domain_for(company: str, country: str) -> str:
+    """A pinned correct domain for a mis-resolving agency, or "" if none."""
+    market = DOMAIN_OVERRIDES.get((country or "").lower(), {})
+    norm = _norm(company)
+    if not norm:
+        return ""
+    for key, dom in market.items():
+        if norm == key or norm.startswith(key) or key in norm:
+            return dom
+    return ""
 
 
 def _norm(s: str) -> str:

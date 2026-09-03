@@ -191,12 +191,27 @@ def _sitemap_job_urls(domain: str, cap: int = 200) -> list[str]:
 _SITEMAP_WORKERS = 16     # detail-page fetches are HTTP-only; parallelise hard
 
 
+_SITEMAP_COLLECT = 8000   # job URLs to enumerate from the sitemap (cheap XML parse)
+
+
 def _postings_from_sitemap(domain: str, company: str, cap: int) -> list[JobPosting]:
-    """Discover job URLs via sitemap, fetch each detail page concurrently, and keep
-    the ones with JobPosting JSON-LD (full JD). Free — HTTP + parse, no LLM."""
-    urls = _sitemap_job_urls(domain, cap=cap)
-    if not urls:
+    """Discover job URLs via sitemap, fetch a rotating `cap`-slice of detail pages
+    concurrently, and keep the ones with JobPosting JSON-LD (full JD). Free.
+
+    A big agency has thousands of sitemap URLs but we only fetch `cap` detail pages
+    per run, so we ROTATE the slice by day-of-run: over ~(total/cap) days we cover
+    the whole agency and then refresh it, instead of re-fetching the same first cap
+    every run. Stateless (offset derived from the date), so no per-company bookkeeping."""
+    import time
+    all_urls = _sitemap_job_urls(domain, cap=_SITEMAP_COLLECT)   # enumerate everything
+    if not all_urls:
         return []
+    n = len(all_urls)
+    if n > cap:
+        start = (int(time.time() // 86400) * cap) % n
+        urls = (all_urls[start:] + all_urls[:start])[:cap]       # rotate + wrap-around
+    else:
+        urls = all_urls
     out: list[JobPosting] = []
     with http_client(timeout=12.0) as c:
         def _one(u: str):

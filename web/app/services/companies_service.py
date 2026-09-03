@@ -257,6 +257,13 @@ def _resolve_domain(name: str, code: str) -> str:
     """Best-effort employer domain for a company we have none for. Ask Clearbit
     (real, name-matched domains), rank them, append TLD guesses as a fallback, and
     return the first candidate that actually answers HTTP. '' if none resolve."""
+    # A pinned override wins outright (fixes Clearbit mis-resolutions like
+    # Orienta -> a Malaysian newspaper, Synergie's real site synergie-italia.it).
+    from jobhunter.sources.agency_hints import domain_for
+    pinned = domain_for(name, code)
+    if pinned:
+        return pinned
+
     norm = re.sub(r"[^a-z0-9]+", "", (name or "").lower())
 
     def _score(dom: str) -> int:

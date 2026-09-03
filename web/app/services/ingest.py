@@ -93,7 +93,8 @@ DEFAULT_TERMS = [
     "head of operations", "strategy", "project manager", "product manager",
     "program manager", "general manager", "founders associate",
 ]
-DEFAULT_COUNTRIES = ["United States", "United Kingdom", "Italy", "Germany", "France"]
+DEFAULT_COUNTRIES = ["United States", "United Kingdom", "Italy", "Germany",
+                     "France", "Spain", "Canada"]
 
 # Floors give a cold/small corpus broad coverage; ceilings bound API-call volume
 # (countries × terms × pages × sources). Between them, EVERY active user's own
@@ -101,10 +102,10 @@ DEFAULT_COUNTRIES = ["United States", "United Kingdom", "Italy", "Germany", "Fra
 # ingested from the next run, never crowded out by the defaults.
 TERMS_CAP = 25          # pad user terms up to this with defaults
 TERMS_MAX = 40          # absolute ceiling
-COUNTRIES_CAP = 6       # pad user countries up to this with defaults
+COUNTRIES_CAP = 7       # pad user countries up to this with defaults (the 7 majors)
 COUNTRIES_MAX = 10      # absolute ceiling
-_AGENCY_MARKETS = 3     # top active markets to scrape agency portals for (nightly)
-_AGENCY_N = 15          # top thin-JD companies per market to resolve+scrape
+_AGENCY_MARKETS = 7     # top active markets to scrape agency portals for (nightly)
+_AGENCY_N = 10          # top thin-JD companies per market to resolve+scrape
 
 # code -> display name, built from the picker list so provider locations resolve.
 _CODE_TO_NAME: dict[str, str] = {}
