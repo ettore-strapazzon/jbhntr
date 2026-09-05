@@ -830,12 +830,14 @@ def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
         n_hints = len(AGENCY_HINTS.get(code, {}))
         summary.append((name, code, tot, full, n_hints))
 
-    # ---- selected-country top posters (agencies dominate the thin tail) ------
+    # ---- selected-country top posters, worst-first (most THIN jobs at the top,
+    # so the biggest scraping gaps are what you see) --------------------------
     code = (country or "it").lower()
+    thin_expr = func.count(Job.id) - func.sum(case((full_len, 1), else_=0))
     rows = (db.query(Job.company, func.count(Job.id).label("t"),
                      func.sum(case((full_len, 1), else_=0)).label("f"))
             .filter(cfilt(code), Job.company.isnot(None), Job.company != "")
-            .group_by(Job.company).order_by(func.count(Job.id).desc()).limit(40).all())
+            .group_by(Job.company).order_by(thin_expr.desc()).limit(40).all())
 
     def _bar(pct):
         c = "#1a7f37" if pct >= 60 else ("#b58900" if pct >= 15 else "#cf222e")
