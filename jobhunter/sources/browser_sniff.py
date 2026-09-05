@@ -122,8 +122,8 @@ _DESC_KEYS = ("description", "jobdescription", "job_description", "descrizione",
               "body", "content", "jobdesc", "descriptionhtml", "fulldescription")
 _LOC_KEYS = ("location", "city", "citta", "città", "luogo", "place", "sede",
              "region", "regione", "province", "provincia", "worklocation")
-_URL_KEYS = ("url", "joburl", "job_url", "link", "applyurl", "apply_url", "detailurl",
-             "detail_url", "permalink", "canonicalurl", "slug", "jobid", "id")
+_URL_KEYS = ("url", "joburl", "job_url", "link", "href", "applyurl", "apply_url",
+             "detailurl", "detail_url", "permalink", "canonicalurl", "slug", "jobid", "id")
 
 
 def _pick(d: dict, keys) -> str:
@@ -163,23 +163,29 @@ def _find_job_arrays(data, out: list, depth: int = 0) -> None:
 
 def _jobs_from_json(bodies: list, company: str, host: str) -> list:
     """Extract JobPostings from captured API JSON: find the array(s) of job-like
-    objects and map their title/description/location/url by key heuristics."""
+    objects and map their title/description/location/url by key heuristics. A
+    relative job URL (e.g. ADHR's `href: /it/offerte.../production-planner-113485`)
+    is resolved against the API response's own origin, so the detail-follow can
+    reach it for the full JD."""
     from ..models import JobPosting
-    arrays: list = []
-    for _url, body in bodies:
-        _find_job_arrays(body, arrays)
-    # de-dupe by identity, keep the largest arrays first
-    arrays.sort(key=len, reverse=True)
+    scored: list = []                       # (response_url, job_array)
+    for burl, body in bodies:
+        arrs: list = []
+        _find_job_arrays(body, arrs)
+        for a in arrs:
+            scored.append((burl, a))
+    scored.sort(key=lambda x: len(x[1]), reverse=True)
     out: list = []
     seen: set = set()
-    for arr in arrays:
+    for burl, arr in scored:
         for d in arr:
             title = _pick(d, _TITLE_KEYS)
             if not title:
                 continue
-            desc = _pick(d, _DESC_KEYS)
-            desc = re.sub(r"\s+", " ", strip_html(desc)).strip()
+            desc = re.sub(r"\s+", " ", strip_html(_pick(d, _DESC_KEYS))).strip()
             url = _pick(d, _URL_KEYS)
+            if url and not url.startswith("http"):
+                url = urljoin(burl, url)        # relative href -> absolute (API origin)
             key = (title.lower(), _pick(d, _LOC_KEYS).lower())
             if key in seen:
                 continue
@@ -212,10 +218,11 @@ def _detail_links(html: str, base_url: str) -> list[str]:
     return out
 
 
-def debug_portal(domain: str, settings) -> dict:
-    """Diagnostic: render each candidate jobs path and report what came back, so we
-    can see WHY extraction found nothing (wrong page, jobs on another host, no
-    JSON-LD, links not matching hints)."""
+def debug_portal(domain: str, settings, listing: str = "") -> dict:
+    """Diagnostic: render the jobs page and report what came back, so we can see WHY
+    extraction found nothing. If a `listing` URL (from the agency hint) is given,
+    render THAT — otherwise the generic path guessing may hit a 404 while the hint
+    URL works (Manpower)."""
     from .careers_scrape import _jsonld_jobs
     info: dict = {"domain": domain, "tried": []}
     if not is_configured(settings):
@@ -223,13 +230,13 @@ def debug_portal(domain: str, settings) -> dict:
         return info
     base = f"https://{domain}"
     html, bodies, rendered = "", [], base
-    for path in JOBS_PATHS:
-        u = f"{base}/{path}"
+    paths = [listing] if listing else [f"{base}/{p}" for p in JOBS_PATHS]
+    for u in paths:
         h, b = render_capture(u, settings)
         info["tried"].append({"url": u, "len": len(h), "json_resp": len(b),
                               "hint": any(x in h.lower() for x in _DETAIL_HINTS),
                               "jsonld": "jobposting" in h.lower()})
-        if h and len(h) > 3000 and any(x in h.lower() for x in _DETAIL_HINTS):
+        if h and len(h) > 3000 and (listing or any(x in h.lower() for x in _DETAIL_HINTS)):
             html, bodies, rendered = h, b, u
             break
     if not html:
@@ -325,6 +332,12 @@ def _jobs_via_hint(bodies: list, company: str, host: str, hint: dict, settings) 
     """Extract jobs from a hinted agency's captured API and, when the list is
     summary-only, fetch each job's FULL JD from the hint's detail_api template."""
     from ..models import JobPosting
+    template = hint.get("detail_api")
+    if not template:
+        # No detail template: the href-aware JSON extractor already gets each job's
+        # URL for the description-follow (ADHR, Synergie…). Only the summary-only
+        # APIs that need a constructed detail URL (Adecco) use the template below.
+        return _jobs_from_json(bodies, company, host)
     arrays: list = []
     for _u, body in bodies:
         _find_job_arrays(body, arrays)
@@ -332,7 +345,6 @@ def _jobs_via_hint(bodies: list, company: str, host: str, hint: dict, settings) 
         return []
     arrays.sort(key=len, reverse=True)
     raw = arrays[0]
-    template = hint.get("detail_api")
     out: list = []
     with http_client(timeout=12.0) as c:
         for d in raw[:_MAX_RETURN]:

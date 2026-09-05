@@ -588,11 +588,12 @@ def scrape_market_agencies(db: DbSession, country: str = "it", n: int = 25,
     from ..models import Job
     thin = func.coalesce(func.length(Job.description), 0) < 300
     cfilt = func.cast(Job.countries, String).ilike(f'%"{country.lower()}"%')
+    from jobhunter.sources.agency_hints import is_ignored
     rows = (db.query(Job.company, func.count(Job.id))
             .filter(thin, cfilt, Job.company.isnot(None), Job.company != "")
             .group_by(Job.company).order_by(func.count(Job.id).desc())
-            .limit(max(1, min(n, 60))).all())
-    picked = [c for c, _ in rows if c]
+            .limit(max(1, min(n, 60)) * 2).all())          # over-fetch, we drop boards
+    picked = [c for c, _ in rows if c and not is_ignored(c)][:max(1, min(n, 60))]
 
     postings: list[JobPosting] = []
     trace: list[str] = []

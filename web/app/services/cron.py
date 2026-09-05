@@ -99,11 +99,14 @@ def nightly(today: datetime.date | None = None) -> dict:
 
     # Premium daily/weekly digest (R13.4). No-op unless SMTP is configured.
     from ..db import SessionLocal
+    from .corpus_service import merge_thin_duplicates
     from .digest import run_digests
     db = SessionLocal()
     try:
         _stage(out, "digests", lambda: run_digests(db, is_weekly_day=is_weekly))
         _stage(out, "pageview_pruned", lambda: _prune_pageviews(db))
+        # Drop thin careerjet snippets that duplicate a full scraped job.
+        _stage(out, "dedup_merged", lambda: merge_thin_duplicates(db))
     finally:
         db.close()
 

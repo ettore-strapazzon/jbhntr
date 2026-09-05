@@ -11,6 +11,7 @@ See docs/ARCHITECTURE.md → "Scaling: the shared job corpus".
 from __future__ import annotations
 
 import logging
+import re
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session as DbSession
@@ -21,6 +22,7 @@ from jobhunter.tags import deterministic_tags
 from ..models import Job, aware, utcnow
 
 log = logging.getLogger("jbhntr.corpus")
+_FULL_CHARS = 300       # description length at/above which a job counts as "full JD"
 
 _FRESH_DAYS = 30   # match the search-time freshness window
 
@@ -95,6 +97,63 @@ def _apply_one(db: DbSession, key: str, p: JobPosting, existing: dict, now) -> s
         row.location = (p.location or row.location)[:200]
         _apply_tags(row, tags)
     return "u"
+
+
+_GENDER_RE = re.compile(r"(?i)\(?\s*[mfwvnd](\s*/\s*[mfwvnbd])+\s*\)?")
+_CONTRACT_RE = re.compile(
+    r"(?i)\b(tempo (in)?determinato|full[- ]?time|part[- ]?time|stagionale|"
+    r"apprendistat\w*|categorie protette|cat\.?\s*prot\w*|l\.?\s*68|somministrazione)\b")
+
+
+def _norm_title(t: str) -> str:
+    """Title reduced to its core for duplicate matching: drop gender markers
+    ((m/f/d)/(f/m/nb)), contract noise, punctuation; lowercase; collapse spaces."""
+    t = _GENDER_RE.sub(" ", (t or "").lower())
+    t = _CONTRACT_RE.sub(" ", t)
+    t = re.sub(r"[^a-z0-9à-ÿ ]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _norm_city(loc: str) -> str:
+    """First locality token of a location, normalized (Milano, Lombardia, IT -> milano)."""
+    first = re.split(r"[,\-/(]", (loc or ""), 1)[0]
+    return re.sub(r"[^a-z0-9à-ÿ]", "", first.lower())
+
+
+def merge_thin_duplicates(db: DbSession, limit: int = 4000) -> dict:
+    """Remove thin rows that duplicate a FULL row of the same company (same
+    normalized title + city). These are careerjet snippets of jobs we've now
+    scraped in full elsewhere — keeping the full (good-URL) version and dropping the
+    thin (dead-tracker) duplicate cleans both the coverage stat and search results.
+    Conservative (exact company + normalized title + city); never raises."""
+    from sqlalchemy import func
+    try:
+        thin = func.coalesce(func.length(Job.description), 0) < _FULL_CHARS
+        full = func.coalesce(func.length(Job.description), 0) >= _FULL_CHARS
+        comps = (db.query(Job.company, func.count(Job.id))
+                 .filter(thin, Job.company.isnot(None), Job.company != "")
+                 .group_by(Job.company).order_by(func.count(Job.id).desc()).limit(80).all())
+        removed = 0
+        for comp, _n in comps:
+            fulls = db.query(Job.title, Job.location).filter(Job.company == comp, full).all()
+            if not fulls:
+                continue
+            sigs = {(_norm_title(t), _norm_city(loc)) for t, loc in fulls}
+            for j in db.query(Job).filter(Job.company == comp, thin).all():
+                if (_norm_title(j.title), _norm_city(j.location)) in sigs:
+                    db.delete(j)
+                    removed += 1
+                    if removed >= limit:
+                        break
+            db.commit()
+            if removed >= limit:
+                break
+        log.info("Dedup-merge: removed %d thin duplicates of full jobs", removed)
+        return {"removed": removed}
+    except Exception as exc:
+        log.warning("Dedup-merge skipped: %s", exc)
+        db.rollback()
+        return {"removed": 0, "error": str(exc)[:150]}
 
 
 def upsert_jobs(db: DbSession, postings: list[JobPosting]) -> tuple[int, int]:

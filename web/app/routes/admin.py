@@ -786,8 +786,13 @@ def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
         return f"no domain resolved for {name!r}"
     if debug:
         import json as _json
+
+        from jobhunter.sources import agency_hints
+        h = agency_hints.hint_for(name, country) if name else None
+        listing = (h or {}).get("listing", "")
         try:
-            return _json.dumps(browser_sniff.debug_portal(domain, settings), indent=2)[:4000]
+            return _json.dumps(
+                browser_sniff.debug_portal(domain, settings, listing=listing), indent=2)[:4000]
         except Exception as exc:
             return f"debug EXCEPTION: {type(exc).__name__}: {str(exc)[:300]}"
     try:
@@ -811,7 +816,7 @@ def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
     from sqlalchemy import String, case, func
 
     from jobhunter import geo
-    from jobhunter.sources.agency_hints import AGENCY_HINTS, hint_for
+    from jobhunter.sources.agency_hints import AGENCY_HINTS, hint_for, is_ignored
     from ..services.ingest import DEFAULT_COUNTRIES
 
     def cfilt(code):
@@ -863,8 +868,14 @@ def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
         f = int(f or 0)
         pct = round(100 * f / t) if t else 0
         hinted = "✓ hint" if hint_for(comp, code) else ""
-        status = ("working" if pct >= 60 else ("partial" if pct >= 15 else "THIN — needs scrape"))
-        color = "#1a7f37" if pct >= 60 else ("#b58900" if pct >= 15 else "#cf222e")
+        if is_ignored(comp):
+            status, color = "board — skip", "#888"
+        elif pct >= 60:
+            status, color = "working", "#1a7f37"
+        elif pct >= 15:
+            status, color = "partial", "#b58900"
+        else:
+            status, color = "THIN — needs scrape", "#cf222e"
         drows += (f'<tr><td>{(comp or "")[:40]}</td>'
                   f'<td style="text-align:right">{t:,}</td>'
                   f'<td style="text-align:right">{f:,}</td>'
@@ -1120,21 +1131,28 @@ def admin_run_maintenance(_: bool = Depends(require_admin)):
     cron. Bounded (the reaper caps its own work)."""
     from urllib.parse import quote
 
+    from ..db import SessionLocal
+    from ..services.corpus_service import merge_thin_duplicates
     from ..services.cron import _record_corpus_stat
     from ..services.reaper import run as reaper_run
 
     def _work():
         try:
             res = reaper_run()
+            db = SessionLocal()
+            try:
+                merged = merge_thin_duplicates(db)
+            finally:
+                db.close()
             _record_corpus_stat({"reaper": res})
-            log.info("manual maintenance: %s", res)
-            record_op("maintenance", str(res)[:400])
+            log.info("manual maintenance: %s | dedup: %s", res, merged)
+            record_op("maintenance", f"{str(res)[:300]} · dedup removed {merged.get('removed', 0)}")
         except Exception as exc:
             log.exception("manual maintenance failed")
             record_op("maintenance", f"failed: {str(exc)[:200]}")
 
     threading.Thread(target=_work, daemon=True).start()
-    msg = "Maintenance started (reaper + corpus snapshot). Refresh in a minute."
+    msg = "Maintenance started (reaper + dedup-merge + snapshot). Refresh in a minute."
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 

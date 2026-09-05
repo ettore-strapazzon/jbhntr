@@ -34,7 +34,9 @@ AGENCY_HINTS: dict[str, dict[str, dict]] = {
         "manpower": {"listing": "https://www.manpower.it/it/trova-lavoro"},
         "etjca": {"listing": "https://career.etjca.it/jobs.php?lan=it"},
         "synergie": {"listing": "https://www.synergie-italia.it/candidato/offerte-di-lavoro"},
-        "adhr": {"listing": "https://candidati.adhr.it/it"},
+        # ADHR: adhr.it/offerte-di-lavoro loads candidati.adhr.it/api/it/announcements
+        # (jobs carry a relative href we now follow for the JD).
+        "adhr": {"listing": "https://www.adhr.it/offerte-di-lavoro"},
         # Sitemap agencies (Randstad, Gi Group, Areajob) need no hint — Rung 0 reads
         # their sitemaps for free. Add the remaining JS-only ones (Openjobmetis,
         # Orienta, Umana…) here as each is decoded.
@@ -53,6 +55,22 @@ DOMAIN_OVERRIDES: dict[str, dict[str, str]] = {
         "during": "during.it",
     },
 }
+
+
+# Companies that dominate the thin tail but are NOT a single scrapable employer —
+# job-board aggregators (their "jobs" come from many companies, like careerjet) or
+# obvious non-agencies. Skipped by the agency scrape and flagged in the monitor so
+# they stop showing as "needs scrape". Global (a board is a board everywhere).
+NOT_SCRAPABLE = {
+    "impiegando", "jobcamere", "jobrapido", "jooble", "indeed", "linkedin",
+    "glassdoor", "monster", "infojobs", "subito", "bakeca", "trovit",
+}
+
+
+def is_ignored(company: str) -> bool:
+    """True if `company` is an aggregator/board we shouldn't try to scrape."""
+    norm = _norm(company)
+    return bool(norm) and any(norm == k or k in norm for k in NOT_SCRAPABLE)
 
 
 def domain_for(company: str, country: str) -> str:
