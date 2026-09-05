@@ -119,7 +119,14 @@ def render_capture(url: str, settings) -> tuple:
 _TITLE_KEYS = ("title", "jobtitle", "job_title", "titolo", "position", "posizione",
                "jobname", "job_name", "offertitle", "roletitle")
 _DESC_KEYS = ("description", "jobdescription", "job_description", "descrizione",
-              "body", "content", "jobdesc", "descriptionhtml", "fulldescription")
+              "body", "content", "jobdesc", "descriptionhtml", "fulldescription",
+              "publicdescription", "openingparagraph")
+# Substrings marking a field that holds part of the JD, for APIs that SPLIT the
+# description across several fields (Synergie/Inrecruiting: description_position,
+# description_requirements, description_company, description_other_info).
+_DESC_PART_HINTS = ("descript", "requirement", "requisit", "responsabilit",
+                    "posizione", "mansion", "profilo", "openingparagraph",
+                    "publicdescription", "companydescription")
 _LOC_KEYS = ("location", "city", "citta", "città", "luogo", "place", "sede",
              "region", "regione", "province", "provincia", "worklocation")
 _URL_KEYS = ("url", "joburl", "job_url", "link", "href", "applyurl", "apply_url",
@@ -137,6 +144,28 @@ def _pick(d: dict, keys) -> str:
                 if isinstance(v.get(kk), str) and v[kk].strip():
                     return v[kk].strip()
     return ""
+
+
+def _extract_desc(d: dict) -> str:
+    """Full JD from a job object: the best single description field, or — when the
+    API splits the JD across fields (description_position/_requirements/_company…) —
+    the concatenation of all description-part fields (plain text preferred over the
+    _html duplicates)."""
+    best = _pick(d, _DESC_KEYS)
+    if len(strip_html(best)) >= 300:
+        return best
+    parts: list[str] = []
+    for k, v in d.items():
+        if not isinstance(v, str) or not v.strip():
+            continue
+        kl = k.lower()
+        if not any(h in kl for h in _DESC_PART_HINTS):
+            continue
+        if kl.endswith("_html") and isinstance(d.get(k[:-5]), str) and d[k[:-5]].strip():
+            continue                              # prefer the plain sibling
+        parts.append(v)
+    joined = " ".join(dict.fromkeys(parts))       # de-dupe identical parts, keep order
+    return joined if len(strip_html(joined)) > len(strip_html(best)) else best
 
 
 def _looks_job(d) -> bool:
@@ -182,7 +211,7 @@ def _jobs_from_json(bodies: list, company: str, host: str) -> list:
             title = _pick(d, _TITLE_KEYS)
             if not title:
                 continue
-            desc = re.sub(r"\s+", " ", strip_html(_pick(d, _DESC_KEYS))).strip()
+            desc = re.sub(r"\s+", " ", strip_html(_extract_desc(d))).strip()
             url = _pick(d, _URL_KEYS)
             if url and not url.startswith("http"):
                 url = urljoin(burl, url)        # relative href -> absolute (API origin)
