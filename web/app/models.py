@@ -61,6 +61,18 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
+    # --- Early Access credit economy (Guide v3.0, LEDGER-02) ---
+    # Denormalised mirror of SUM(credit_ledger.delta); written only by services/credits.
+    credit_balance: Mapped[int] = mapped_column(Integer, default=0)
+    # Set when the onboarding scan ran; the free first scan is once per account.
+    first_scan_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Referral payout requires a verified address (VERIFY-01).
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Short, case-insensitive invite code; generated on first need (REFERRAL-01).
+    referral_code: Mapped[str | None] = mapped_column(String(12), unique=True, index=True, default=None)
+    # Consent to publish hiring-process reports in aggregate (DATA-06).
+    data_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
     # Premium similar-company discovery: when it last ran for this user, and the
     # profile signals it ran against — so a material change (>=3 new seeds, or any
     # new vertical / company type / market) can trigger a fresh run before the cadence.
@@ -75,6 +87,8 @@ class User(Base):
     materials: Mapped[list["Material"]] = relationship(cascade="all, delete-orphan")
     seeds: Mapped[list["SeedCompany"]] = relationship(cascade="all, delete-orphan")
     searches: Mapped[list["Search"]] = relationship(cascade="all, delete-orphan")
+    # Cascade the credit economy's rows on account deletion (GDPR — test 44).
+    credit_rows: Mapped[list["CreditLedger"]] = relationship(cascade="all, delete-orphan")
 
     @property
     def is_premium(self) -> bool:
@@ -548,3 +562,64 @@ class SiteFeedback(Base):
     other: Mapped[str] = mapped_column(Text, default="")
     path: Mapped[str] = mapped_column(String(255), default="")   # where they were
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+# --------------------------------------------------------------------------- #
+# Early Access credit economy (Guide v3.0)
+# --------------------------------------------------------------------------- #
+# Reasons a ledger row exists. Never renumber or reuse a value — the ledger is
+# permanent and the admin UI reads these strings.
+CREDIT_REASONS = {
+    # grants
+    "signup_grant":        "Welcome credits",
+    "referral_activated":  "Someone you invited started using JBHNTR",
+    "referral_bonus":      "Invited by a friend",
+    "outcome_report":      "Reported an application outcome",
+    "outcome_details":     "Completed process details",
+    "product_feedback":    "Told us how JBHNTR is working",
+    "operator_adjustment": "Adjustment by JBHNTR",
+    # debits
+    "search":              "Market scan",
+    "external_import":     "Imported and scored an external job",
+    "doc_cv":              "Tailored CV",
+    "doc_cl":              "Cover letter",
+    "doc_bundle":          "Tailored CV and cover letter",
+    "doc_regen":           "New version of an existing document",
+    # zero-delta records, kept for a legible history
+    "first_scan_free":     "First market scan — on us",
+    "search_refund":       "Refund — scan did not complete",
+}
+
+
+class CreditLedger(Base):
+    """Immutable credit transactions. The balance is a projection of this table.
+
+    Nothing may write a balance directly: every change is a row here, and
+    User.credit_balance is a denormalised mirror maintained only by
+    services/credits.py. Rows are never updated or deleted — a mistake is
+    corrected with a compensating row.
+    """
+
+    __tablename__ = "credit_ledger"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_ledger_idem"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    delta: Mapped[int] = mapped_column(Integer)            # +grant / -debit / 0 record
+    reason: Mapped[str] = mapped_column(String(24), index=True)
+    balance_after: Mapped[int] = mapped_column(Integer)    # snapshot, for auditability
+
+    # What this row paid for or was earned by: ("search", 812), ("document", 44),
+    # ("job_state", "<dedup_key>"), ("referral", 9), ("site_feedback", 3).
+    ref_type: Mapped[str] = mapped_column(String(24), default="")
+    ref_id: Mapped[str] = mapped_column(String(120), default="")
+
+    # Stable per-action key, e.g. "search:812" or "doc:cv:44". A retried request,
+    # a double-submitted form or a re-run worker collides here instead of charging twice.
+    idempotency_key: Mapped[str] = mapped_column(String(80))
+    note: Mapped[str] = mapped_column(String(200), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True)

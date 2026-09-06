@@ -31,6 +31,23 @@ def init_db() -> None:
     _add_missing_columns()
     _backfill()
     _migrate_profiles()
+    _migrate_credits()
+
+
+def _migrate_credits() -> None:
+    """Open existing accounts on the credit economy (idempotent). Local import to
+    avoid a circular dependency; never blocks startup."""
+    import logging
+    log = logging.getLogger("jbhntr.db")
+    try:
+        from .services.migrate_credits import run
+        db = SessionLocal()
+        try:
+            run(db)
+        finally:
+            db.close()
+    except Exception:
+        log.exception("credit migration skipped")
 
 
 def _remap(values, mapping: dict, allowed) -> list:
@@ -124,7 +141,13 @@ def _add_missing_columns() -> None:
                   "discovery_seeds": ("TEXT", "DEFAULT '[]'"),
                   "discovery_verticals": ("TEXT", "DEFAULT '[]'"),
                   "discovery_company_types": ("TEXT", "DEFAULT '[]'"),
-                  "discovery_countries": ("TEXT", "DEFAULT '[]'")},
+                  "discovery_countries": ("TEXT", "DEFAULT '[]'"),
+                  # Early Access credit economy (Guide v3.0, LEDGER-02)
+                  "credit_balance": ("INTEGER", "DEFAULT 0"),
+                  "first_scan_used_at": ("TIMESTAMP", ""),
+                  "email_verified_at": ("TIMESTAMP", ""),
+                  "referral_code": ("TEXT", ""),
+                  "data_consent_at": ("TIMESTAMP", "")},
         "job_states": {"digest_sent_at": ("TIMESTAMP", ""),
                        "next_step": ("TEXT", "DEFAULT ''"),
                        "next_step_on": ("DATE", ""),

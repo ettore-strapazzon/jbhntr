@@ -118,13 +118,41 @@ class WebConfig:
     max_upload_bytes: int = 1024 * 1024          # 1 MB, per the spec
     max_feedback_chars: int = 300
 
-    # Free users get the cheap model; premium gets the better one.
+    # One quality level for everyone (Guide v3.0 D-2 / PLAN-01): scoring_model is the
+    # single model the app reads. free_/premium_scoring_model stay as deprecated,
+    # unread aliases for one release.
+    scoring_model: str = os.environ.get(
+        "SCORING_MODEL", os.environ.get("PREMIUM_SCORING_MODEL", "anthropic/claude-haiku-4.5")
+    )
     free_scoring_model: str = os.environ.get(
         "FREE_SCORING_MODEL", "google/gemini-2.5-flash-lite"
     )
     premium_scoring_model: str = os.environ.get(
         "PREMIUM_SCORING_MODEL", "anthropic/claude-haiku-4.5"
     )
+
+    # --- Early Access credit economy (Guide v3.0, LEDGER-04) ---
+    signup_grant_credits:     int = _int("SIGNUP_GRANT_CREDITS", 10)
+    first_scan_free:         bool = _b("FIRST_SCAN_FREE", "true")
+
+    cost_search:              int = _int("COST_SEARCH", 2)
+    cost_external_import:     int = _int("COST_EXTERNAL_IMPORT", 1)
+    cost_cv:                  int = _int("COST_CV", 3)
+    cost_cover_letter:        int = _int("COST_COVER_LETTER", 3)
+    cost_bundle:              int = _int("COST_BUNDLE", 5)
+    cost_regenerate:          int = _int("COST_REGENERATE", 1)
+
+    referral_credits:         int = _int("REFERRAL_CREDITS", 15)
+    referral_friend_credits:  int = _int("REFERRAL_FRIEND_CREDITS", 5)
+    outcome_credits:          int = _int("OUTCOME_CREDITS", 2)
+    outcome_details_credits:  int = _int("OUTCOME_DETAILS_CREDITS", 3)
+    product_feedback_credits: int = _int("PRODUCT_FEEDBACK_CREDITS", 3)
+
+    weekly_earn_cap:          int = _int("WEEKLY_EARN_CAP", 30)
+    # Below the cost of one CV-plus-scan, so the warning arrives while the user can act.
+    low_balance_at:           int = _int("LOW_BALANCE_AT", 4)
+    outcome_nudge_days:       int = _int("OUTCOME_NUDGE_DAYS", 14)
+    watch_my_market_enabled: bool = _b("WATCH_MY_MARKET_ENABLED", "false")
 
     # --- premium multi-model "panel" for CV / cover-letter generation ---
     # Diverse models each draft a version, critique each other, revise, and vote;
