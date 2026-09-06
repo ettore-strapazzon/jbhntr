@@ -49,8 +49,16 @@ def create_user(db: DbSession, email: str, password: Optional[str] = None,
     db.add(user)
     db.flush()
     db.add(Profile(user_id=user.id))  # empty profile so onboarding has a home
+    # Google-authenticated accounts are email-verified on creation (VERIFY-01).
+    if google_sub:
+        user.email_verified_at = utcnow()
     db.commit()
     db.refresh(user)
+    # ONBOARD-01: welcome credits, immediately, once per account.
+    from .config import config
+    from .services import credits
+    credits.grant(db, user, config.signup_grant_credits, "signup_grant",
+                  idempotency_key=f"signup:{user.id}")
     return user
 
 

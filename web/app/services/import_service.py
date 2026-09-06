@@ -102,7 +102,7 @@ def import_job(db: DbSession, user: User, url: str) -> tuple[JobResult, int]:
     if not re.match(r"^https?://", url):
         raise JobImportError("Please paste a full http(s) job URL.")
 
-    settings = engine_settings(premium=user.is_premium)
+    settings = engine_settings()          # best settings for everyone (PLAN-01)
     posting = _extract_posting(url, settings)
     deterministic_tags(posting)   # geo/remote/salary (no-op fields the matcher reads)
 

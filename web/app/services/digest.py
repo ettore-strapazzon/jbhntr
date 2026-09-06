@@ -86,8 +86,6 @@ def run_digests(db: DbSession, *, is_weekly_day: bool) -> dict:
     for user in users:
         if user.digest == "weekly" and not is_weekly_day:
             continue
-        if not user.is_premium:
-            continue
         try:
             ctx = build_digest(db, user)
             if ctx and mail.send_digest(user.email, ctx, mail.make_unsub_token(user.id)):

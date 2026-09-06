@@ -193,6 +193,9 @@ class Search(Base):
     notify_email: Mapped[bool] = mapped_column(Boolean, default=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Hash of the profile fields the engine reads, so an unchanged re-run within
+    # 24h is free (PRICE-04) rather than teaching users not to refine.
+    profile_hash: Mapped[str] = mapped_column(String(64), default="")
 
     results: Mapped[list["JobResult"]] = relationship(cascade="all, delete-orphan")
 

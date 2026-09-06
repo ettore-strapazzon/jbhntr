@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<main class="wrap" style="max-width:720px;margin:0 auto;padding:24px 16px">
+
+  {% if user %}
+    <p class="eyebrow">EARLY ACCESS</p>
+    <h1 style="margin:.2em 0">{{ balance }} credit{% if balance != 1 %}s{% endif %}</h1>
+    <p class="muted">A market scan costs {{ config.cost_search }} credits; a tailored CV
+      costs {{ config.cost_cv }}. Saving, tracking, notes and exporting are always free.</p>
+  {% else %}
+    <p class="eyebrow">EARLY ACCESS</p>
+    <h1 style="margin:.2em 0">Free while we're building it</h1>
+    <p>Your first market scan is on us. You'll also start with
+      {{ config.signup_grant_credits }} credits for more scans and tailored applications.</p>
+    <p><a class="btn" href="/signup">Start your first scan</a></p>
+  {% endif %}
+
+  <section style="margin-top:28px">
+    <p>JBHNTR is free while we're building it. Rather than charge you now, we reward the
+      two things that make the product better: bringing in other job seekers, and
+      contributing anonymous hiring-process data.</p>
+  </section>
+
+  {% if user %}
+  <section style="margin-top:24px;padding:14px 16px;background:#f3f7f4;border-radius:8px">
+    <h2 style="margin:.2em 0;font-size:1.05rem">Invite a job seeker</h2>
+    <p class="muted">Give a friend {{ config.referral_friend_credits }} credits. You get
+      {{ config.referral_credits }} when they complete their profile and first scan.</p>
+    <p class="muted"><em>Your invite link appears here once referrals are live.</em></p>
+  </section>
+
+  <section style="margin-top:20px">
+    <h2 style="margin:.2em 0;font-size:1.05rem">Contribute hiring data</h2>
+    <p class="muted">Tell us how an application went (+{{ config.outcome_credits }}), and
+      complete the process details when it's decided (+{{ config.outcome_details_credits }}).
+      → <a href="/applications">Your tracked jobs</a></p>
+  </section>
+  {% endif %}
+
+  <section style="margin-top:24px">
+    <h2 style="margin:.2em 0;font-size:1.05rem">What credits cost</h2>
+    <table style="border-collapse:collapse;width:100%;font-size:.95rem">
+      <tr><th style="text-align:left;padding:4px 0">Action</th><th style="text-align:right">Credits</th></tr>
+      <tr><td>Market scan</td><td style="text-align:right">{{ config.cost_search }}</td></tr>
+      <tr><td>Tailored CV</td><td style="text-align:right">{{ config.cost_cv }}</td></tr>
+      <tr><td>Cover letter</td><td style="text-align:right">{{ config.cost_cover_letter }}</td></tr>
+      <tr><td>CV + cover letter</td><td style="text-align:right">{{ config.cost_bundle }}</td></tr>
+      <tr><td>New version of a document</td><td style="text-align:right">{{ config.cost_regenerate }}</td></tr>
+      <tr><td>Score an external job</td><td style="text-align:right">{{ config.cost_external_import }}</td></tr>
+    </table>
+    <p class="muted" style="margin-top:6px">Credits never expire.</p>
+  </section>
+
+  {% if user and ledger %}
+  <section style="margin-top:24px">
+    <h2 style="margin:.2em 0;font-size:1.05rem">History</h2>
+    <table style="border-collapse:collapse;width:100%;font-size:.9rem">
+      {% for row in ledger %}
+      <tr>
+        <td style="padding:3px 0;color:#666">{{ row.created_at.strftime('%d %b') }}</td>
+        <td>{{ reasons.get(row.reason, row.reason) }}</td>
+        <td style="text-align:right;color:{% if row.delta > 0 %}#1a7f37{% elif row.delta < 0 %}#cf222e{% else %}#888{% endif %}">
+          {% if row.delta > 0 %}+{% endif %}{{ row.delta }}</td>
+        <td style="text-align:right;color:#888">{{ row.balance_after }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </section>
+  {% endif %}
+
+  <section style="margin-top:24px">
+    <h2 style="margin:.2em 0;font-size:1.05rem">Buying credits</h2>
+    <p class="muted">Not yet. While we're in Early Access, credits are earned rather than
+      sold — we'd rather find out what this is worth to you than guess at a price.</p>
+  </section>
+
+</main>
+{% endblock %}

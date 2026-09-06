@@ -59,8 +59,6 @@ def discovery_change_trigger(user: User, signals: dict) -> bool:
     Premium only. Excludes the weekly refresh (occasion 4), which the Monday cron
     applies to everyone via `due_for_discovery`.
     """
-    if not user.is_premium:
-        return False
     if aware(user.last_discovery_at) is None:
         return True
     new_seeds = set(signals["seeds"]) - set(user.discovery_seeds or [])
@@ -79,8 +77,6 @@ def due_for_discovery(user: User, signals: dict, now=None) -> bool:
     run (occasions 1-3, `discovery_change_trigger`).
     """
     from datetime import timedelta
-    if not user.is_premium:
-        return False
     now = now or utcnow()
     last = aware(user.last_discovery_at)
     if last is None:
@@ -404,8 +400,6 @@ def discover_for_user(db: DbSession, user: User, target: int | None = None) -> d
 
     target = target or config.discover_target
     try:
-        if not user.is_premium:
-            return {"discovered": 0, "added": 0, "reason": "not premium"}
         # Seeds are the strongest signal but NOT required: discovery can run from
         # the market profile alone (objective, verticals, company types, countries).
         # Only bail when there is no usable signal at all.
@@ -504,7 +498,7 @@ def discover_all_active(db: DbSession, force: bool = False) -> dict:
     """
     totals = {"users": 0, "skipped": 0, "added": 0, "premium": 0, "per_user": []}
     for user in db.query(User).all():
-        if not user.profile or not user.is_premium:
+        if not user.profile:
             totals["skipped"] += 1
             continue
         totals["premium"] += 1

@@ -252,6 +252,14 @@ async def save_words(
     db.commit()
     # Words is the last step; if the profile is now searchable, onboarding is done.
     if completeness(db, user).can_search:
+        from ..config import config
         from ..services.events import record_once
         record_once(db, "onboarding_completed", user.id)
+        # ONBOARD-02: run the first market scan straight away — that one's on us.
+        if user.first_scan_used_at is None and config.first_scan_free:
+            from ..services.search_service import QuotaError, start_search
+            try:
+                start_search(db, user, free=True)
+            except QuotaError:
+                pass
     return RedirectResponse("/matches", status_code=303)

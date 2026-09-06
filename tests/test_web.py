@@ -138,20 +138,10 @@ def test_premium_waitlist_htmx_swaps_button_and_sends_once(client, monkeypatch):
 
 
 def test_premium_page_has_banner_and_no_price(client):
-    """Round 5b: the logged-in Premium tab is the shared pricing page with an
-    auth-aware frame — 'Your plan' heading, current-plan badge, remaining-allowance
-    figures, waitlist CTA, and no quoted price."""
+    """One product now (Guide v3.0): /premium 301s to /credits (PUBLIC-03)."""
     signup(client, email="pp@example.com")
-    r = client.get("/premium")
-    assert r.status_code == 200
-    assert "Your plan" in r.text                      # h1
-    assert "Your current plan" in r.text              # Free-box badge, logged in
-    assert "Coming soon" in r.text                    # Premium badge (CSS uppercases)
-    assert "Join the Premium waitlist" in r.text
-    assert "Affordable" in r.text                     # Premium price, soft promise
-    from web.app.config import config
-    assert f"of {config.free_searches}" in r.text     # remaining-allowance figures
-    assert "$" not in r.text                           # no price is quoted
+    r = client.get("/premium", follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == "/credits"
 
 
 def test_waitlist_email_renders_in_shell_and_carries_unsub():
@@ -634,9 +624,12 @@ def test_new_user_cannot_search_until_profile_is_complete(client):
     assert "Finish the search profile first" in body
 
 
-def test_free_quota_is_shown(client):
+def test_credit_cost_is_shown(client):
+    """Credit economy: the matches page (where /search now lands) states the scan
+    cost and the user's balance, not a free-searches quota."""
     signup(client, "quota@example.com")
-    assert "free" in client.get("/search").text.lower()
+    page = client.get("/search").text.lower()
+    assert "credit" in page and "scan" in page
 
 
 # ------------------------------ uploads ----------------------------------- #
@@ -1007,8 +1000,8 @@ def test_discovery_change_trigger_occasions(monkeypatch):
     assert T(prem(**base), sig(["a"], ["fin"], ["startup"], ["it", "de"])) is True       # +country
     # No change and just ran -> the change trigger stays quiet (Monday cron covers it).
     assert T(prem(**base), sig(["a"], ["fin"], ["startup"], ["it"])) is False
-    # Free users never trigger it.
-    assert T(User(email="y", plan="free", last_discovery_at=None), sig()) is False
+    # Plan is no longer a gate — discovery runs for everyone (credit economy).
+    assert T(User(email="y", plan="free", last_discovery_at=None), sig()) is True
 
 
 # ---------------------------- corpus embeddings --------------------------- #
@@ -2101,7 +2094,7 @@ def test_sitemap_contains_only_public_canonicals(client):
 def test_public_marketing_pages_are_indexable_single_h1(client):
     import re
     from web.app import seo
-    for path in ("/how-it-works", "/security", "/pricing", "/compare/linkedin-jobs"):
+    for path in ("/how-it-works", "/security", "/credits", "/compare/linkedin-jobs"):
         page = client.get(path).text
         assert 'name="robots" content="index,follow' in page       # public
         assert f'rel="canonical" href="{seo.absolute_url(path)}"' in page
@@ -2392,27 +2385,32 @@ def test_doc_quota_free_lifetime_premium_monthly(client):
         db.close()
 
 
-def test_generation_blocked_when_free_quota_exhausted(client):
+def test_generation_blocked_when_credits_exhausted(client):
+    """Credit economy: a tailored CV costs config.cost_cv. With the balance drained
+    below that, generation is refused and sends the user to /credits — nothing is
+    written and no credits move."""
+    from web.app.config import config
     from web.app.db import SessionLocal
     from web.app.models import Document, JobResult, Search, User
+    from web.app.services import credits
     signup(client, "exhaust@example.com")
     db = SessionLocal()
     u = db.query(User).filter_by(email="exhaust@example.com").one()
+    # Spend the signup grant down to less than one CV.
+    spend = credits.balance(db, u) - (config.cost_cv - 1)
+    if spend > 0:
+        credits.debit(db, u, spend, "doc_cv", idempotency_key="drain:1")
     s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
-    ids = []
-    for i in range(4):
-        jr = JobResult(search_id=s.id, user_id=u.id, position=i + 1, short_id=f"x{i}",
-                       tier=1, title="T", company="C")
-        db.add(jr); db.flush(); ids.append(jr.id)
-    for j in ids[:3]:                                    # use all 3 free CV allowances
-        db.add(Document(user_id=u.id, job_result_id=j, kind="cv", content="c"))
-    db.commit(); fourth = ids[3]; db.close()
+    jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="x0",
+                   tier=1, title="T", company="C")
+    db.add(jr); db.commit(); jid = jr.id; before = credits.balance(db, u); db.close()
 
-    r = client.post(f"/generate/{fourth}/cv", follow_redirects=False)
-    assert r.status_code == 303 and "error=" in r.headers["location"]
-    assert "free" in r.headers["location"].lower()
+    r = client.post(f"/generate/{jid}/cv", follow_redirects=False)
+    assert r.status_code == 303 and "/credits" in r.headers["location"]
     db = SessionLocal()
-    assert db.query(Document).filter_by(job_result_id=fourth).count() == 0   # nothing generated
+    u = db.query(User).filter_by(email="exhaust@example.com").one()
+    assert db.query(Document).filter_by(job_result_id=jid).count() == 0   # nothing generated
+    assert credits.balance(db, u) == before                               # nothing charged
     db.close()
 
 
@@ -2442,33 +2440,15 @@ def test_pricing_and_premium_have_no_banned_plan_words(client):
 
 # --------------------------- Round 6 -------------------------------------- #
 def test_compare_table_is_one_shared_component(client):
-    """Round 6.1: the LinkedIn 'Where they differ' table and the pricing table are
-    the same .compare component in a .compare-scroll wrapper. Only pricing is tinted,
-    and the LinkedIn table no longer carries the old .apptable style."""
-    pricing = client.get("/pricing").text
+    """Round 6.1 (post-credits): the pricing page is gone (301 -> /credits), but the
+    LinkedIn 'Where they differ' table survives as the .compare component in a
+    .compare-scroll wrapper, untinted and without the old .apptable style."""
     linkedin = client.get("/compare/linkedin-jobs").text
-    for page in (pricing, linkedin):
-        assert 'class="compare-scroll"' in page
-        assert '<table class="compare' in page
-    assert "compare--pricing" in pricing                 # Premium column tinted
+    assert 'class="compare-scroll"' in linkedin
+    assert '<table class="compare' in linkedin
     assert "compare--pricing" not in linkedin            # LinkedIn table untinted
     assert "apptable" not in linkedin                    # dropped the second table style
     assert "Where they differ" in linkedin and "Dimension" in linkedin
-    assert "Job-market searches" in pricing              # a pricing row survives
-
-
-def test_benefits_boxes_on_premium(client):
-    """Round 6.3: the three numbered benefit boxes, under one eyebrow, no decorative
-    square, on the Premium pitch page."""
-    signup(client, email="ben@example.com")
-    page = client.get("/premium").text
-    assert "WHAT PREMIUM CHANGES" in page
-    for h in ("Always searching", "More of the market", "Ready to apply"):
-        assert h in page
-    assert 'class="benefit-num">01<' in page
-    assert 'class="benefit-num">02<' in page
-    assert 'class="benefit-num">03<' in page
-    assert "value-mark" not in page                      # the green square is gone
 
 
 def test_mobile_menu_carries_full_nav_with_premium(client):
@@ -2478,9 +2458,8 @@ def test_mobile_menu_carries_full_nav_with_premium(client):
     page = client.get("/account").text
     assert 'class="nav-toggle"' in page
     assert 'id="mobile-menu"' in page
-    assert 'class="badge-soon">Coming soon' in page
-    for label in ("Pricing", "How it works", "Comparisons"):
-        assert label in page
+    assert "Coming soon" not in page                     # nothing is coming soon now
+    assert ">Credits<" in page and "How it works" in page
 
 
 def test_bottombar_four_tabs_svg_icons_and_active(client):
@@ -2854,11 +2833,10 @@ def test_due_for_discovery_rules():
                 "company_types": list(company_types), "countries": list(countries)}
 
     now = utcnow()
-    free = User(plan="free")
     prem = User(plan="premium")
 
-    # free never qualifies
-    assert due_for_discovery(free, sig(["A", "B", "C", "D"]), now) is False
+    # Plan is no longer a gate — a never-run user is always due (credit economy).
+    assert due_for_discovery(User(plan="free"), sig(["A", "B", "C", "D"]), now) is True
     # premium, never run -> due
     assert due_for_discovery(prem, sig(["A"]), now) is True
     # ran just now, nothing changed -> not due
@@ -2876,7 +2854,9 @@ def test_due_for_discovery_rules():
     assert due_for_discovery(prem, sig(["A", "B"], ["ai", "fintech"]), now) is True
 
 
-def test_discover_for_user_is_premium_gated(client):
+def test_discover_for_user_needs_a_signal(client):
+    """No longer premium-gated: discovery runs for everyone, but a fresh account
+    with no seeds and no market profile has nothing to search from."""
     from web.app.db import SessionLocal
     from web.app.models import User
     from web.app.services.companies_service import discover_for_user
@@ -2885,7 +2865,7 @@ def test_discover_for_user_is_premium_gated(client):
     try:
         u = db.query(User).filter_by(email="freeuser@example.com").one()
         res = discover_for_user(db, u)
-        assert res.get("reason") == "not premium" and res.get("added") == 0
+        assert res.get("added") == 0 and "no seeds or market profile" in (res.get("reason") or "")
     finally:
         db.close()
 
@@ -3376,10 +3356,10 @@ def test_import_job_creates_scored_card(client, monkeypatch):
 
 
 def test_import_route_is_premium_gated(client, monkeypatch):
-    signup(client, email="free-imp@example.com")     # free user
+    signup(client, email="free-imp@example.com")     # anyone can import now (IMPORT-01)
     r = client.post("/matches/import", data={"url": "https://x.com/job"},
                     follow_redirects=False)
-    assert r.status_code == 303 and "Premium" in r.headers["location"]
+    assert r.status_code == 303 and "Premium" not in r.headers["location"]
 
 
 def test_upsert_company_dedupes_same_run_without_poisoning():
@@ -3641,38 +3621,8 @@ def test_panel_drops_a_failing_model(monkeypatch):
     assert res["content"] == "FINAL"
 
 
-def test_admin_reset_clears_premium_daily_cap(client, monkeypatch):
-    from datetime import timedelta
-
-    from web.app.config import config
-    from web.app.db import SessionLocal
-    from web.app.models import Search, User, utcnow
-    from web.app.services.reset_usage import reset
-    from web.app.services.search_service import QuotaError, check_quota
-    monkeypatch.setattr(config, "premium_searches_per_day", 2)
-    signup(client, email="cap@example.com")
-    earlier = utcnow() - timedelta(minutes=1)            # clearly before the reset
-    db = SessionLocal()
-    try:
-        u = db.query(User).filter_by(email="cap@example.com").one()
-        u.plan = "premium"
-        db.add(Search(user_id=u.id, status="done", started_at=earlier))  # two today = at cap
-        db.add(Search(user_id=u.id, status="done", started_at=earlier))
-        db.commit()
-        with __import__("pytest").raises(QuotaError):
-            check_quota(db, u)                            # fair-use cap hit
-    finally:
-        db.close()
-
-    reset("cap@example.com")                              # operator reset
-
-    db = SessionLocal()
-    try:
-        u = db.query(User).filter_by(email="cap@example.com").one()
-        assert u.usage_reset_at is not None
-        check_quota(db, u)                                # daily cap cleared -> no raise
-    finally:
-        db.close()
+# (removed test_admin_reset_clears_premium_daily_cap — the premium daily fair-use
+#  cap no longer exists; credits govern quantity now, Guide v3.0 D-14.)
 
 
 # --------------------------- gated-link recovery -------------------------- #

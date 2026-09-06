@@ -24,20 +24,10 @@ def _waitlist_ahead(db: DbSession) -> int:
     return db.query(User).filter(User.premium_requested_at.isnot(None)).count()
 
 
-@router.get("/premium", response_class=HTMLResponse)
-def premium(request: Request, user: User = Depends(require_user),
-            requested: str = "", db: DbSession = Depends(get_session)):
-    from ..services import doc_quota
-    remaining = {
-        "searches": user.searches_remaining(config.free_searches) or 0,
-        "cv": doc_quota.left(db, user, "cv"),
-        "cl": doc_quota.left(db, user, "cl"),
-    }
-    return templates.TemplateResponse(request, "premium.html",
-        {"request": request, "user": user, "requested": requested,
-         "ahead": _waitlist_ahead(db), "plan_authed": True,
-         "plan_remaining": remaining,
-         "plan_on_waitlist": user.premium_requested_at is not None})
+@router.get("/premium")
+def premium():
+    """One product now — /premium 301s to /credits (PUBLIC-03)."""
+    return RedirectResponse("/credits", status_code=301)
 
 
 @router.post("/premium/waitlist")

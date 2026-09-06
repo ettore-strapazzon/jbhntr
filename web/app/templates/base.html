@@ -67,12 +67,12 @@
       <a href="/matches"{% if cur.startswith('/matches') or cur == '/search' %} aria-current="page"{% endif %}>Matches</a>
       <a id="nav-myjobs" href="/applications"{% if cur.startswith('/applications') %} aria-current="page"{% endif %}>My Jobs</a>
       <a href="/profile"{% if cur.startswith('/profile') %} aria-current="page"{% endif %}>Profile</a>
-      <a href="/premium" class="pill">{% if user.is_premium %}<span class="pill-dot" aria-hidden="true"></span>{% endif %}Premium</a>
+      <a href="/credits" class="pill pill-credits{% if user.credit_balance <= config.low_balance_at %} pill-credits-low{% endif %}">{{ user.credit_balance }} credit{% if user.credit_balance != 1 %}s{% endif %}</a>
       <a href="/account"{% if cur.startswith('/account') %} aria-current="page"{% endif %}>Account</a>
       <a href="/logout">Log out</a>
     {% else %}
       <a href="/how-it-works">How it works</a>
-      <a href="/pricing">Pricing</a>
+      <a href="/credits">Credits</a>
       <a href="/security">Security</a>
       <a href="/login">Log in</a>
       <a href="/signup" class="pill">Start your search</a>
@@ -92,11 +92,9 @@
 {% if user %}
 {# Full site nav for mobile, in normal flow directly under the header (the header
    is not sticky, so the toggle is only reachable at the top of the page, where an
-   in-flow panel appears right beside it). Premium leads, with the coming-soon badge. #}
+   in-flow panel appears right beside it). Credits leads (D-10). #}
 <nav id="mobile-menu" class="mobile-menu" aria-label="All pages" hidden>
-  <a href="/premium" class="mm-premium">Premium{% if not user.is_premium %}
-    <span class="badge-soon">Coming soon</span>{% endif %}</a>
-  <a href="/pricing">Pricing</a>
+  <a href="/credits" class="mm-premium">Credits</a>
   <a href="/how-it-works">How it works</a>
   <a href="/compare/linkedin-jobs">Comparisons</a>
   <a href="/account">Account</a>

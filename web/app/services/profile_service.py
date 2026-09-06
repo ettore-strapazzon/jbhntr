@@ -445,8 +445,7 @@ def build_generation_context(db: Session, user: User, result, config):
     from jobhunter.models import JobPosting
 
     settings = EngineSettings.from_env()
-    model = config.premium_scoring_model if user.is_premium else config.free_scoring_model
-    settings.scoring_model = model
+    settings.scoring_model = config.scoring_model   # one quality level (D-2)
     settings.generation_model = model
     posting = JobPosting(source=result.source, title=result.title, company=result.company,
                          location=result.location, description=result.description,

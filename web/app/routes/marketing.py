@@ -96,15 +96,39 @@ def security(request: Request):
         og_title="Your CV is used to search for you, not to sell you")
 
 
-@router.get("/pricing", response_class=HTMLResponse)
-def pricing(request: Request):
-    return _public_page(
-        request, "marketing/pricing.html",
-        title="JBHNTR Pricing | Free Job Search and Planned Premium",
-        description=("Run complete JBHNTR searches free. See current limits and "
-                     "what planned Premium automation will add when it opens."),
-        path="/pricing",
-        og_title="Free to prove the search. Premium for continuity.")
+@router.get("/pricing")
+def pricing():
+    """One canonical page now — /pricing 301s to /credits (PUBLIC-02)."""
+    return RedirectResponse("/credits", status_code=301)
+
+
+@router.get("/credits", response_class=HTMLResponse)
+def credits_page(request: Request):
+    """Early Access credits — one page, public and authenticated variants share it
+    (PRICE-06 / PUBLIC-02). Prices come from config; no credit figure is hard-coded."""
+    from ..auth import current_user
+    from ..db import SessionLocal
+    from ..services import credits as credit_svc
+
+    db = SessionLocal()
+    try:
+        user = current_user(request, db)
+        ctx = {"request": request, "user": user, "config": config,
+               **seo.public_seo(
+                   title="JBHNTR Credits & Early Access",
+                   description=("JBHNTR is free while we build it. Your first market "
+                                "scan is on us; earn more credits by inviting other "
+                                "job seekers and sharing anonymous hiring data."),
+                   path="/credits",
+                   og_title="Free while we build it — Early Access credits")}
+        if user is not None:
+            from ..models import CREDIT_REASONS
+            ctx["balance"] = credit_svc.balance(db, user)
+            ctx["ledger"] = credit_svc.history(db, user, limit=20)
+            ctx["reasons"] = CREDIT_REASONS
+        return templates.TemplateResponse(request, "credits.html", ctx)
+    finally:
+        db.close()
 
 
 @router.get("/compare/linkedin-jobs", response_class=HTMLResponse)

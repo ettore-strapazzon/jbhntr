@@ -32,8 +32,11 @@ def search_redirect():
 @router.post("/search")
 def run_search(request: Request, user: User = Depends(require_user),
                db: DbSession = Depends(get_session)):
+    from ..services.credits import InsufficientCredits
     try:
         start_search(db, user)
+    except InsufficientCredits:
+        return RedirectResponse("/credits?from=scan", status_code=303)
     except QuotaError as exc:
         return RedirectResponse(f"/matches?error={quote(str(exc))}", status_code=303)
     return RedirectResponse("/matches", status_code=303)
@@ -43,17 +46,25 @@ def run_search(request: Request, user: User = Depends(require_user),
 def import_from_url(request: Request, url: str = Form(...),
                     user: User = Depends(require_user),
                     db: DbSession = Depends(get_session)):
-    """Premium: paste a job URL, score it, and show it as a card on the board."""
-    if not user.is_premium:
-        return RedirectResponse(
-            "/matches?error=" + quote("Importing a job by link is a Premium feature."),
-            status_code=303)
+    """Paste a job URL, score it against you, and show it as a card (IMPORT-01).
+    Costs config.cost_external_import; free actions stay free."""
+    import hashlib
+
+    from ..services import credits
     from ..services.import_service import JobImportError, import_job
+    key = f"import:{hashlib.sha1((url or '').encode()).hexdigest()[:16]}:{user.id}"
+    try:
+        row = credits.debit(db, user, config.cost_external_import, "external_import",
+                            ref_type="import", ref_id=url[:120], idempotency_key=key)
+    except credits.InsufficientCredits:
+        return RedirectResponse("/credits?from=import", status_code=303)
     try:
         _, search_id = import_job(db, user, url)
     except JobImportError as exc:
+        credits.refund(db, row, reason="search_refund")
         return RedirectResponse("/matches?error=" + quote(str(exc)), status_code=303)
     except Exception:
+        credits.refund(db, row, reason="search_refund")
         log.exception("Job import failed")
         return RedirectResponse(
             "/matches?error=" + quote("Import failed — please try again."), status_code=303)
@@ -119,17 +130,28 @@ def generate(result_id: int, kind: str, request: Request,
     if not result or result.user_id != user.id:
         return RedirectResponse("/matches", status_code=303)
 
-    # Per-type free allowance, checked server-side (the greyed button is a hint).
-    # Regenerating a doc this job already has is always free.
-    from ..services import doc_quota
-    already = (db.query(Document)
-                 .filter(Document.job_result_id == result.id,
-                         Document.kind == kind, Document.user_id == user.id).first())
-    if not already and doc_quota.left(db, user, kind) == 0:
-        label = "tailored CVs" if kind == "cv" else "cover letters"
-        msg = (f"You have used this month's {label} allowance; it resets on the 1st."
-               if user.is_premium
-               else f"You have used your free {label}.")
+    # Priced in credits (PLAN-02/PRICE-05): first CV/CL at its price, any later
+    # version of the same (job, kind) at the cheaper regenerate price. Debit before
+    # compute; refund on failure. Editing/exporting an existing doc stays free.
+    from ..services import credits
+    versions = (db.query(Document)
+                .filter(Document.job_result_id == result.id,
+                        Document.kind == kind, Document.user_id == user.id).all())
+    if versions:
+        price, reason = config.cost_regenerate, "doc_regen"
+        idem = f"doc:{kind}:{result.id}:v{len(versions) + 1}"
+    else:
+        price = config.cost_cv if kind == "cv" else config.cost_cover_letter
+        reason = "doc_cv" if kind == "cv" else "doc_cl"
+        idem = f"doc:{kind}:{result.id}"
+    try:
+        charge = credits.debit(db, user, price, reason, ref_type="document",
+                               ref_id=str(result.id), idempotency_key=idem)
+    except credits.InsufficientCredits:
+        return RedirectResponse("/credits?from=doc", status_code=303)
+
+    def _fail(msg: str):
+        credits.refund(db, charge, reason="search_refund")
         return RedirectResponse("/applications?error=" + quote(msg), status_code=303)
 
     from jobhunter.models import MatchResult, RankedJob
@@ -155,10 +177,10 @@ def generate(result_id: int, kind: str, request: Request,
             content = built
             note = "Tailored from your CV's structure — sections, roles and metrics kept."
 
-    # Premium: a multi-model panel for a stronger result than a single model can
-    # give. Runs for cover letters, and for a CV only if the structured build
-    # above failed. Free users, and any panel failure, fall back to single-model.
-    if not content and user.is_premium:
+    # A multi-model panel for a stronger result than a single model can give — for
+    # everyone now (one quality level, D-2). Runs for cover letters, and for a CV
+    # only if the structured build above failed; any panel failure falls back.
+    if not content:
         try:
             from ..services import panel
             pr = panel.deliberate(kind, eng_materials, posting, settings, config)
@@ -185,22 +207,16 @@ def generate(result_id: int, kind: str, request: Request,
             content = (ranked[0].documents or {}).get("cv", "")
     except Exception as exc:
         log.exception("Document generation failed")
-        return RedirectResponse(
-            "/applications?error=" + quote(f"Couldn't generate that document: {exc}"),
-            status_code=303)
+        return _fail(f"Couldn't generate that document: {exc}")
 
     if not content:
-        return RedirectResponse(
-            "/applications?error=" + quote("Generation returned nothing. Try again."),
-            status_code=303)
+        return _fail("Generation returned nothing. Try again.")
 
     # Strip any dashes the model slips through, so the draft never reads as
     # machine-written (R2).
     from ..services.text import humanise
     db.add(Document(user_id=user.id, job_result_id=result.id, kind=kind,
                     content=humanise(content), note=humanise(note)))
-    if not user.is_premium:
-        user.documents_used += 1
     db.commit()
     from ..services.events import record
     record(db, "document_generated", user_id=user.id, kind=kind)

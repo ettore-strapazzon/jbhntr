@@ -39,53 +39,68 @@ class QuotaError(RuntimeError):
 
 
 # --------------------------------------------------------------------------- #
-def check_quota(db: DbSession, user: User) -> None:
-    """Raise QuotaError if this user may not start another search."""
-    if user.is_premium:
-        # Premium runs a daily automatic search plus manual runs under a
-        # fair-use ceiling — see docs/ARCHITECTURE.md. An operator reset moves the
-        # window start forward (usage_reset_at), so it also clears this daily cap.
-        since = utcnow() - timedelta(days=1)
-        reset_at = aware(user.usage_reset_at)
-        if reset_at and reset_at > since:
-            since = reset_at
-        today = (
-            db.query(Search)
-            .filter(Search.user_id == user.id, Search.started_at >= since)
-            .count()
-        )
-        if today >= config.premium_searches_per_day:
-            raise QuotaError(
-                f"You've run {today} searches in the last 24 hours. "
-                "Fair-use limit reached — try again tomorrow."
-            )
-        return
-
-    remaining = user.searches_remaining(config.free_searches)
-    if remaining is not None and remaining <= 0:
-        raise QuotaError(
-            f"You've used all {config.free_searches} free searches. "
-            "Premium searches for you every day."
-        )
+def _profile_hash(user: User) -> str:
+    """Stable hash of the profile fields the engine reads, for the free-rerun check."""
+    import hashlib
+    import json
+    p = user.profile
+    if not p:
+        return ""
+    payload = json.dumps({
+        "objective": p.objective, "seniority": sorted(p.seniority or []),
+        "company_type": sorted(p.company_type or []), "verticals": sorted(p.verticals or []),
+        "locations": sorted(p.locations or []), "work_modes": sorted(p.work_modes or []),
+        "search_terms": sorted(p.search_terms or []), "salary_floor_eur": p.salary_floor_eur,
+    }, sort_keys=True, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def start_search(db: DbSession, user: User) -> Search:
-    """Validate, create the row, and kick off the work in the background."""
+def _free_rerun(db: DbSession, user: User, phash: str) -> bool:
+    """An identical-profile re-run within 24h of a completed scan is free (PRICE-04)."""
+    if not phash:
+        return False
+    since = utcnow() - timedelta(days=1)
+    return db.query(Search).filter(
+        Search.user_id == user.id, Search.status == "done",
+        Search.profile_hash == phash,
+        Search.finished_at >= aware(since)).count() > 0
+
+
+def start_search(db: DbSession, user: User, free: bool = False) -> Search:
+    """Validate, create the row, charge credits (or run free), and kick off the
+    work. Raises QuotaError (profile incomplete) or credits.InsufficientCredits
+    (which the route renders as the zero state). Debit BEFORE compute — the worker
+    refunds on failure (`_run_search`)."""
+    from . import credits
     state = completeness(db, user)
     if not state.can_search:
         raise QuotaError("Finalise your profile first: " + ", ".join(state.missing_required))
-    check_quota(db, user)
 
-    search = Search(user_id=user.id, status="queued", stage="Starting…")
+    phash = _profile_hash(user)
+    free_kind = "first" if free else ("rerun" if _free_rerun(db, user, phash) else "paid")
+    if free_kind == "paid" and not credits.can_afford(db, user, config.cost_search):
+        raise credits.InsufficientCredits(config.cost_search, credits.balance(db, user))
+
+    search = Search(user_id=user.id, status="queued", stage="Starting…", profile_hash=phash)
     db.add(search)
-    user.searches_used += 1          # count on start, so retries can't farm it
     db.commit()
     db.refresh(search)
+
+    if free_kind == "first":
+        user.first_scan_used_at = utcnow()
+        credits.record(db, user, "first_scan_free", ref_type="search", ref_id=str(search.id))
+    elif free_kind == "rerun":
+        credits.record(db, user, "search", ref_type="search", ref_id=str(search.id),
+                       note="Repeat scan within 24 hours")
+    else:
+        credits.debit(db, user, config.cost_search, "search", ref_type="search",
+                      ref_id=str(search.id), idempotency_key=f"search:{search.id}")
+    db.commit()
 
     from .events import record
     record(db, "scan_started", user_id=user.id)
 
-    threading.Thread(target=_run_search, args=(search.id, user.id), daemon=True).start()
+    threading.Thread(target=_run_search, args=(search.id, user.id, free_kind), daemon=True).start()
     return search
 
 
@@ -113,7 +128,7 @@ def _trigger_discovery_if_changed(user_id: int) -> None:
                 discover_for_user, discovery_change_trigger, discovery_signals,
             )
             user = db.get(User, user_id)
-            if not user or not user.is_premium:
+            if not user:
                 return
             if not discovery_change_trigger(user, discovery_signals(db, user)):
                 return
@@ -127,8 +142,9 @@ def _trigger_discovery_if_changed(user_id: int) -> None:
     threading.Thread(target=_work, daemon=True).start()
 
 
-def _run_search(search_id: int, user_id: int) -> None:
-    """Background worker. Owns its own DB session."""
+def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
+    """Background worker. Owns its own DB session. `free_kind` (paid|first|rerun)
+    decides the credit correction if the scan fails."""
     db = SessionLocal()
     try:
         search = db.get(Search, search_id)
@@ -137,10 +153,7 @@ def _run_search(search_id: int, user_id: int) -> None:
             return
 
         settings = EngineSettings.from_env()
-        # Free users are scored with the cheap model; premium gets the better one.
-        settings.scoring_model = (
-            config.premium_scoring_model if user.is_premium else config.free_scoring_model
-        )
+        settings.scoring_model = config.scoring_model   # one quality level (D-2)
 
         # Premium: if the profile just changed materially (first run, 3+ new seed
         # companies, or a new vertical), kick off similar-company discovery in the
@@ -289,8 +302,22 @@ def _run_search(search_id: int, user_id: int) -> None:
             if search:
                 _set(db, search, status="failed", stage="",
                      error=str(exc)[:500], finished_at=utcnow())
+            # Never charge for a failure: refund a paid scan, or free the first-scan
+            # slot so the user can retry for free (PRICE-04 / ONBOARD-02).
+            from . import credits
+            from ..models import CreditLedger
+            if free_kind == "paid":
+                row = (db.query(CreditLedger)
+                       .filter(CreditLedger.idempotency_key == f"search:{search_id}").first())
+                if row is not None:
+                    credits.refund(db, row)
+            elif free_kind == "first":
+                u = db.get(User, user_id)
+                if u is not None and u.first_scan_used_at is not None:
+                    u.first_scan_used_at = None
+                    db.commit()
         except Exception:
-            pass
+            log.exception("credit correction after failed search %s", search_id)
     finally:
         db.close()
 

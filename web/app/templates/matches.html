@@ -17,32 +17,30 @@
   <div class="matches-run">
     {% if not running %}
       <form method="post" action="/search" style="margin:0">
-        <button type="submit"
-          {% if not state.can_search or (searches_left is not none and searches_left <= 0) %}disabled{% endif %}>
-          Scan for new jobs</button>
+        <button type="submit"{% if not state.can_search %} disabled{% endif %}>
+          Scan for new jobs · {{ config.cost_search }} credits</button>
       </form>
     {% endif %}
-    {% if user.is_premium %}
-      <span class="small muted">Up to {{ config.premium_searches_per_day }} scans a day under fair use</span>
-    {% elif searches_left <= 0 %}
-      <span class="small muted">You have used all {{ config.free_searches }} free scans.
-        Your shortlist stays here. <a href="/premium">See Premium</a>.</span>
+    {% if user.credit_balance <= config.low_balance_at %}
+      <span class="small muted">{{ user.credit_balance }} credit{% if user.credit_balance != 1 %}s{% endif %} left.
+        Invite someone who's also job hunting, or report how an application went, to get more.
+        → <a href="/credits">Credits</a></span>
     {% else %}
-      <span class="small muted">{{ searches_left }} of {{ config.free_searches }} free scans left</span>
+      <span class="small muted">{{ user.credit_balance }} credits · a scan costs {{ config.cost_search }}.</span>
     {% endif %}
   </div>
 </div>
 
-{# ---- premium: import & score a job from a link ---- #}
-{% if user.is_premium and not running %}
+{# ---- import & score a job from a link (everyone, priced — IMPORT-01) ---- #}
+{% if not running %}
   <form method="post" action="/matches/import" class="import-bar"
         style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 14px">
     <input type="url" name="url" required placeholder="Paste a job link to score it…"
            style="flex:1; min-width:220px; padding:8px 10px"
            oninvalid="this.setCustomValidity('Paste a full http(s) job URL')"
            oninput="this.setCustomValidity('')">
-    <button type="submit" class="ghost">Import &amp; score</button>
-    <span class="small muted">Premium · scores one posting into a card on your board.</span>
+    <button type="submit" class="ghost">Score this job · {{ config.cost_external_import }}</button>
+    <span class="small muted">Scores one posting into a card on your board.</span>
   </form>
 {% endif %}
 
