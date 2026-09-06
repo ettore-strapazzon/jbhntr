@@ -205,6 +205,18 @@ _COUNTRY_TLD = {
 }
 
 
+def _foreign_tld(domain: str, code: str) -> bool:
+    """True when a country-targeted resolve landed on a DIFFERENT country's ccTLD
+    (an Italy scrape resolving to gottardo.de / staffspa.co.uk) — a mis-resolution
+    to skip. Generic TLDs (com/io/co/ai…) and the target market's own ccTLD pass."""
+    if not code:
+        return False
+    last = (domain or "").lower().rsplit(".", 1)[-1]
+    if len(last) != 2 or last in ("io", "co", "ai"):   # 2-letter generics aren't ccTLDs
+        return False
+    return last != code.lower()
+
+
 def _guess_domains(name: str, code: str) -> list[str]:
     """Candidate website domains for a company we have no domain for: the
     squished name across common TLDs, market TLD first. Best-effort — wrong
@@ -601,6 +613,9 @@ def scrape_market_agencies(db: DbSession, country: str = "it", n: int = 25,
         dom = _resolve_domain(name, country)          # country -> .it portal
         if not dom:
             trace.append(f"{name[:26]}: no domain")
+            continue
+        if _foreign_tld(dom, country):                # Gottardo->.de, Staff->.co.uk
+            trace.append(f"{name[:26]}: foreign domain {dom} — skip")
             continue
         upsert_custom_company(db, name, dom)          # register so nightly re-scrapes
         try:
