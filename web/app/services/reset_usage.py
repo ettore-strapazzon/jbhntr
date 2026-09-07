@@ -1,14 +1,15 @@
-"""One-off operator tool: reset a single user's free-tier usage.
+"""One-off operator tool: reset a single tester on the credit economy.
 
 Run it on a box that can reach the database (locally against the dev DB, or on
 Railway against production):
 
     python -m web.app.services.reset_usage e.strapazzon@gmail.com
 
-It sets searches_used and documents_used back to 0 and deletes that user's
-generated documents, so the per-distinct-job free CV / cover-letter allowance
-starts fresh. It does NOT touch the account, profile, uploaded materials,
-searches or results. Only the named user is affected.
+It re-enables the free first scan (clears first_scan_used_at) and deletes that
+user's generated documents so they can regenerate from scratch. It does NOT
+change the credit balance (use the admin "Grant credits" tool for that), the
+account, profile, uploaded materials, searches or results. Only the named user
+is affected.
 """
 
 from __future__ import annotations
@@ -16,11 +17,12 @@ from __future__ import annotations
 import sys
 
 from ..db import SessionLocal
-from ..models import Document, User, utcnow
+from ..models import Document, User
 
 
 def reset(email: str) -> str:
-    """Reset one user's free-tier usage. Returns a human-readable result line."""
+    """Reset one tester's free first scan + generated documents. Returns a
+    human-readable result line."""
     email = (email or "").strip().lower()
     if not email:
         return "No email given — nothing changed."
@@ -29,19 +31,15 @@ def reset(email: str) -> str:
         user = db.query(User).filter(User.email == email).first()
         if not user:
             return f"No user found with email {email!r} — nothing changed."
-        before_s, before_d = user.searches_used, user.documents_used
+        had_free_scan = user.first_scan_used_at is not None
         deleted = (db.query(Document)
                    .filter(Document.user_id == user.id)
                    .delete(synchronize_session=False))
-        user.searches_used = 0
-        user.documents_used = 0
-        # Also clear the premium daily fair-use cap: it only counts searches
-        # started after this point, so the user can search again immediately.
-        user.usage_reset_at = utcnow()
+        user.first_scan_used_at = None      # first scan is on us again
         db.commit()
-        return (f"Reset {email}: searches_used {before_s} -> 0, "
-                f"documents_used {before_d} -> 0, deleted {deleted} generated documents, "
-                f"and cleared the daily search cap. Free and premium usage are fresh.")
+        return (f"Reset {email}: free first scan re-enabled"
+                f"{' (was used)' if had_free_scan else ''}, "
+                f"deleted {deleted} generated documents. Credit balance unchanged.")
     finally:
         db.close()
 

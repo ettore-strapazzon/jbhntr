@@ -70,6 +70,8 @@ class User(Base):
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     # Short, case-insensitive invite code; generated on first need (REFERRAL-01).
     referral_code: Mapped[str | None] = mapped_column(String(12), unique=True, index=True, default=None)
+    # Who invited this account (their User.id), set once at signup from ?ref (REFERRAL-02).
+    referred_by_user_id: Mapped[int | None] = mapped_column(Integer, index=True, default=None)
     # Consent to publish hiring-process reports in aggregate (DATA-06).
     data_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 

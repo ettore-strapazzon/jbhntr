@@ -474,6 +474,33 @@ def admin_reset_usage(_: bool = Depends(require_admin), email: str = Form(...)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.post("/admin/grant-credits")
+def admin_grant_credits(_: bool = Depends(require_admin), email: str = Form(...),
+                        amount: int = Form(...), db: DbSession = Depends(get_session)):
+    """Operator action: add credits to a tester's balance (credit economy). Logged
+    as an operator adjustment in the immutable ledger."""
+    from urllib.parse import quote
+
+    from ..models import utcnow
+    from ..services import credits
+    user = db.query(User).filter(User.email == email.strip().lower()).first()
+    key = f"operator:{user.id if user else 0}:{int(utcnow().timestamp())}"
+    if not user:
+        msg = f"No account for {email}."
+    elif amount == 0:
+        msg = "Amount was 0 — nothing changed."
+    elif amount > 0:
+        credits.grant(db, user, amount, "operator_adjustment", idempotency_key=key)
+        msg = f"Granted {amount} credits to {user.email}. Balance is now {credits.balance(db, user)}."
+    else:
+        try:
+            credits.debit(db, user, -amount, "operator_adjustment", idempotency_key=key)
+            msg = f"Removed {-amount} credits from {user.email}. Balance is now {credits.balance(db, user)}."
+        except credits.InsufficientCredits:
+            msg = f"{user.email} only has {credits.balance(db, user)} credits — can't remove {-amount}."
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/set-plan")
 def admin_set_plan(_: bool = Depends(require_admin), email: str = Form(...),
                    plan: str = Form(...), db: DbSession = Depends(get_session)):

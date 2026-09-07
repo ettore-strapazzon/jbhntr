@@ -294,6 +294,12 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
         log.info("Search %s finished: %d results", search.id, len(ranked))
         from .events import record
         record(db, "scan_completed", user_id=user_id, count=len(ranked))
+        # A completed scan is the referred friend's activation — pay the inviter once
+        # (idempotent; no-op for a non-referred user). REFERRAL-02.
+        from . import referral
+        u = db.get(User, user_id)
+        if u is not None:
+            referral.reward_inviter_if_activated(db, u)
 
     except Exception as exc:  # never leave a search stuck in 'running'
         log.exception("Search %s failed", search_id)

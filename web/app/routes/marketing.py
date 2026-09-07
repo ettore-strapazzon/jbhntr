@@ -123,9 +123,14 @@ def credits_page(request: Request):
                    og_title="Free while we build it — Early Access credits")}
         if user is not None:
             from ..models import CREDIT_REASONS
+            from ..services import referral
             ctx["balance"] = credit_svc.balance(db, user)
             ctx["ledger"] = credit_svc.history(db, user, limit=20)
             ctx["reasons"] = CREDIT_REASONS
+            code = referral.ensure_code(db, user)   # any legacy account still missing one
+            db.commit()
+            ctx["referral_code"] = code
+            ctx["invite_url"] = referral.invite_url(code)
         return templates.TemplateResponse(request, "credits.html", ctx)
     finally:
         db.close()

@@ -147,6 +147,7 @@ def _add_missing_columns() -> None:
                   "first_scan_used_at": ("TIMESTAMP", ""),
                   "email_verified_at": ("TIMESTAMP", ""),
                   "referral_code": ("TEXT", ""),
+                  "referred_by_user_id": ("INTEGER", ""),
                   "data_consent_at": ("TIMESTAMP", "")},
         "job_states": {"digest_sent_at": ("TIMESTAMP", ""),
                        "next_step": ("TEXT", "DEFAULT ''"),

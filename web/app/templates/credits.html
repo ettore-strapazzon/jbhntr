@@ -26,7 +26,16 @@
     <h2 style="margin:.2em 0;font-size:1.05rem">Invite a job seeker</h2>
     <p class="muted">Give a friend {{ config.referral_friend_credits }} credits. You get
       {{ config.referral_credits }} when they complete their profile and first scan.</p>
-    <p class="muted"><em>Your invite link appears here once referrals are live.</em></p>
+    {% if invite_url %}
+    <label class="small muted" for="invite">Your invite link</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+      <input id="invite" type="text" readonly value="{{ invite_url }}"
+             onclick="this.select()" style="flex:1;min-width:220px;padding:8px 10px;
+             font-size:.9rem;border:1px solid #cdd8d2;border-radius:6px">
+      <button type="button" class="ghost" onclick="navigator.clipboard&amp;&amp;navigator.clipboard.writeText('{{ invite_url }}');this.textContent='Copied'">Copy</button>
+    </div>
+    <p class="muted" style="margin-top:6px">Invite code: <b style="letter-spacing:1px">{{ referral_code }}</b></p>
+    {% endif %}
   </section>
 
   <section style="margin-top:20px">

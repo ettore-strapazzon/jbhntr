@@ -2298,28 +2298,32 @@ def test_job_actions_and_milestones_record_events(client):
         db.close()
 
 
-def test_reset_usage_clears_free_tier(client):
+def test_reset_usage_reenables_free_scan(client):
+    """Credit-era operator reset: re-enable the free first scan and clear generated
+    documents; the credit balance is left alone."""
     from web.app.db import SessionLocal
-    from web.app.models import Document, JobResult, Search, User
+    from web.app.models import Document, JobResult, Search, User, utcnow
+    from web.app.services import credits
     from web.app.services.reset_usage import reset
     signup(client, "reset@example.com")
     db = SessionLocal()
     u = db.query(User).filter_by(email="reset@example.com").one()
-    u.searches_used, u.documents_used = 3, 2
+    u.first_scan_used_at = utcnow()
     s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
     jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="rr",
                    tier=1, title="R", company="C")
     db.add(jr); db.flush()
     db.add(Document(user_id=u.id, job_result_id=jr.id, kind="cv", content="x"))
-    db.commit(); db.close()
+    db.commit(); bal = credits.balance(db, u); db.close()
 
     msg = reset("reset@example.com")
-    assert "searches_used 3 -> 0" in msg
+    assert "free first scan re-enabled" in msg
 
     db = SessionLocal()
     u = db.query(User).filter_by(email="reset@example.com").one()
-    assert u.searches_used == 0 and u.documents_used == 0
+    assert u.first_scan_used_at is None
     assert db.query(Document).filter_by(user_id=u.id).count() == 0
+    assert credits.balance(db, u) == bal                   # balance untouched
     db.close()
     # unknown email is a safe no-op
     assert "No user found" in reset("nobody@example.com")
@@ -2329,17 +2333,18 @@ def test_admin_reset_usage_endpoint(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal
     from web.app.models import User
+    from web.app.models import utcnow
     monkeypatch.setattr(config, "admin_token", "s3cret")
     signup(client, "areset@example.com")
     db = SessionLocal()
     u = db.query(User).filter_by(email="areset@example.com").one()
-    u.searches_used = 5; db.commit(); db.close()
+    u.first_scan_used_at = utcnow(); db.commit(); db.close()
 
     r = client.post("/admin/reset-usage", data={"email": "areset@example.com"},
                     auth=("op", "s3cret"), follow_redirects=False)
     assert r.status_code == 303 and "reset_msg=" in r.headers["location"]
     db = SessionLocal()
-    assert db.query(User).filter_by(email="areset@example.com").one().searches_used == 0
+    assert db.query(User).filter_by(email="areset@example.com").one().first_scan_used_at is None
     db.close()
     # gated by admin auth
     assert client.post("/admin/reset-usage", data={"email": "x@y.com"}).status_code == 401
@@ -2433,6 +2438,73 @@ def test_generation_context_builds_without_error(client):
         assert gen.settings.scoring_model and gen.settings.generation_model
     finally:
         db.close()
+
+
+def test_referral_redemption_end_to_end(client):
+    """A friend who signs up via ?ref gets their starter bonus and is attributed;
+    the inviter is paid once when the friend completes (activates) their first scan."""
+    from web.app.auth import create_user
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services import credits, referral
+    db = SessionLocal()
+    inviter = create_user(db, "inviter@example.com")
+    code = inviter.referral_code
+    inviter_start = credits.balance(db, inviter)
+    db.close()
+    assert code                                             # minted at signup
+
+    client.get(f"/signup?ref={code}")                      # drops the jb_ref cookie
+    signup(client, "friend@example.com")                   # cookie rides along
+
+    db = SessionLocal()
+    friend = db.query(User).filter_by(email="friend@example.com").one()
+    assert friend.referred_by_user_id == inviter.id
+    assert credits.balance(db, friend) == config.signup_grant_credits + config.referral_friend_credits
+
+    # Activation: paid once, and idempotent on repeat.
+    referral.reward_inviter_if_activated(db, friend)
+    inviter = db.query(User).filter_by(email="inviter@example.com").one()
+    assert credits.balance(db, inviter) == inviter_start + config.referral_credits
+    referral.reward_inviter_if_activated(db, friend)
+    assert credits.balance(db, inviter) == inviter_start + config.referral_credits
+    db.close()
+
+
+def test_referral_ignores_self_and_bad_codes(client):
+    from web.app.auth import create_user
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.services import credits, referral
+    db = SessionLocal()
+    try:
+        u = create_user(db, "solo@example.com")
+        base = credits.balance(db, u)
+        assert referral.attach_and_reward_friend(db, u, u.referral_code) is None   # self
+        assert referral.attach_and_reward_friend(db, u, "NOPESUCHCODE") is None    # unknown
+        assert credits.balance(db, u) == base and u.referred_by_user_id is None
+    finally:
+        db.close()
+
+
+def test_admin_grant_credits(client, monkeypatch):
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services import credits
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    signup(client, "tester@example.com")
+    db = SessionLocal(); u = db.query(User).filter_by(email="tester@example.com").one()
+    before = credits.balance(db, u); db.close()
+
+    r = client.post("/admin/grant-credits", auth=("op", "s3cret"),
+                    data={"email": "tester@example.com", "amount": "7"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    db = SessionLocal(); u = db.query(User).filter_by(email="tester@example.com").one()
+    assert credits.balance(db, u) == before + 7
+    db.close()
 
 
 def test_landing_flow_steps_and_credit_metrics(client):

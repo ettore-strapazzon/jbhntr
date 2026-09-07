@@ -30,8 +30,14 @@ def _render(request: Request, page: str, **ctx):
 
 # --------------------------------------------------------------------------- #
 @router.get("/signup", response_class=HTMLResponse)
-def signup_form(request: Request):
-    return _render(request, "signup.html")
+def signup_form(request: Request, ref: str = ""):
+    resp = _render(request, "signup.html")
+    # Remember the invite code across the form submit and the Google round-trip, so
+    # whichever path completes signup can credit the referrer (REFERRAL-02).
+    if ref.strip():
+        resp.set_cookie("jb_ref", ref.strip()[:12], max_age=60 * 60 * 24 * 30,
+                        httponly=True, samesite="lax")
+    return resp
 
 
 @router.post("/signup")
@@ -66,12 +72,18 @@ def signup(
     from ..services.events import record
     record(db, "signup_completed", user_id=user.id)
 
+    # Redeem an invite code (REFERRAL-02): credit the friend now; the inviter is paid
+    # when this account completes its first scan.
+    from ..services import referral
+    referral.attach_and_reward_friend(db, user, request.cookies.get("jb_ref", ""))
+
     from ..services.email import send_welcome
     send_welcome(user.email, user.referral_code or "")   # no-op until SMTP is configured
 
     session = login(db, user)
     response = RedirectResponse("/onboarding", status_code=303)
     set_cookie(response, session.token)
+    response.delete_cookie("jb_ref")
     return response
 
 
@@ -174,6 +186,8 @@ async def google_callback(request: Request, db: DbSession = Depends(get_session)
             db.commit()
         else:
             user = create_user(db, email, google_sub=sub)
+            from ..services import referral
+            referral.attach_and_reward_friend(db, user, request.cookies.get("jb_ref", ""))
             from ..services.email import send_welcome
             send_welcome(user.email, user.referral_code or "")   # new account -> welcome
 
@@ -181,6 +195,7 @@ async def google_callback(request: Request, db: DbSession = Depends(get_session)
     destination = "/matches" if user.profile and user.profile.objective else "/onboarding"
     response = RedirectResponse(destination, status_code=303)
     set_cookie(response, session.token)
+    response.delete_cookie("jb_ref")
     return response
 
 
