@@ -142,8 +142,11 @@ def send_password_reset(email: str, token: str) -> bool:
     return send(email, "Reset your JBHNTR password", text, html)
 
 
-def send_welcome(email: str) -> bool:
-    html, text = render("welcome", {"free_searches": config.free_searches})
+def send_welcome(email: str, referral_code: str = "") -> bool:
+    from .referral import invite_url
+    ctx = {"referral_code": referral_code or "",
+           "invite_url": invite_url(referral_code) if referral_code else ""}
+    html, text = render("welcome", ctx)
     return send(email, "Welcome to JBHNTR", text, html)
 
 

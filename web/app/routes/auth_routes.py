@@ -67,7 +67,7 @@ def signup(
     record(db, "signup_completed", user_id=user.id)
 
     from ..services.email import send_welcome
-    send_welcome(user.email)   # no-op until SMTP is configured
+    send_welcome(user.email, user.referral_code or "")   # no-op until SMTP is configured
 
     session = login(db, user)
     response = RedirectResponse("/onboarding", status_code=303)
@@ -175,7 +175,7 @@ async def google_callback(request: Request, db: DbSession = Depends(get_session)
         else:
             user = create_user(db, email, google_sub=sub)
             from ..services.email import send_welcome
-            send_welcome(user.email)   # new account -> welcome
+            send_welcome(user.email, user.referral_code or "")   # new account -> welcome
 
     session = login(db, user)
     destination = "/matches" if user.profile and user.profile.objective else "/onboarding"

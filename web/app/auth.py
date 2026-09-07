@@ -52,6 +52,9 @@ def create_user(db: DbSession, email: str, password: Optional[str] = None,
     # Google-authenticated accounts are email-verified on creation (VERIFY-01).
     if google_sub:
         user.email_verified_at = utcnow()
+    # Mint the invite code now so the welcome email and /credits can show it.
+    from .services import referral
+    referral.ensure_code(db, user)
     db.commit()
     db.refresh(user)
     # ONBOARD-01: welcome credits, immediately, once per account.

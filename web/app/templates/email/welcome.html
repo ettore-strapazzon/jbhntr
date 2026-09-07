@@ -13,8 +13,27 @@
     <a href="{{ base_url }}/onboarding" style="display:inline-block;padding:14px 22px;
        font:600 15px/1 Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none">Build my search profile</a>
   </td></tr></table>
-<p style="margin:0 0 12px">Your account includes {{ free_searches }} complete scans. No
-  card is required. A scan can take a few minutes and continues if you close the tab.</p>
+<p style="margin:0 0 8px"><b>How credits work.</b> Your first market scan is on us, and you
+  start with {{ config.signup_grant_credits }} credits. A market scan costs
+  {{ config.cost_search }} credits and a tailored CV {{ config.cost_cv }}. Saving, tracking and
+  exporting are always free, credits never expire, and no card is required. A scan can take a
+  few minutes and continues if you close the tab.</p>
+{% if invite_url %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"
+       style="margin:16px 0;width:100%;background:#f3f7f4;border-radius:8px">
+  <tr><td style="padding:16px 18px">
+    <p style="margin:0 0 8px"><b>Refer a friend and earn credits.</b> They start with
+      {{ config.referral_friend_credits }} credits; you get {{ config.referral_credits }} when
+      they complete their profile and first scan.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:10px 0 6px">
+      <tr><td style="background:#174b3e">
+        <a href="{{ invite_url }}" style="display:inline-block;padding:12px 20px;
+           font:600 15px/1 Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none">Refer a friend and earn credits</a>
+      </td></tr></table>
+    <p style="margin:6px 0 0;font-size:13px;color:#4a5a52">Your invite code:
+      <b style="letter-spacing:1px">{{ referral_code }}</b></p>
+  </td></tr></table>
+{% endif %}
 <p style="margin:0 0 12px">Your profile is private by default. Employers and recruiters
   cannot browse it. Career text is processed by the services described in the Privacy
   Policy, stored uploads are encrypted at rest, and you can export or delete your account data.</p>

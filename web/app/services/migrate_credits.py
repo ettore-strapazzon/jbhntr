@@ -22,7 +22,8 @@ log = logging.getLogger("jbhntr.migrate_credits")
 def run(db) -> dict:
     """Grant the signup credits to any user missing them; mark existing searchers'
     free scan as used. Returns counts; records an OpsLog row."""
-    granted = scan_marked = 0
+    from . import referral
+    granted = scan_marked = coded = 0
     have_grant = {uid for (uid,) in db.query(CreditLedger.user_id)
                   .filter(CreditLedger.reason == "signup_grant").all()}
     for user in db.query(User).all():
@@ -35,8 +36,12 @@ def run(db) -> dict:
         if user.first_scan_used_at is None and (user.searches_used or 0) > 0:
             user.first_scan_used_at = user.created_at or utcnow()
             scan_marked += 1
+        # Every account needs an invite code for the referral link (REFERRAL groundwork).
+        if not user.referral_code:
+            referral.ensure_code(db, user)
+            coded += 1
     db.commit()
-    res = {"granted": granted, "scan_marked": scan_marked}
+    res = {"granted": granted, "scan_marked": scan_marked, "coded": coded}
     db.add(OpsLog(kind="migrate_credits", detail=str(res)))
     db.commit()
     log.info("migrate_credits: %s", res)

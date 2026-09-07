@@ -10,8 +10,19 @@ Three things give the first scan enough context:
 
 Build my search profile: {{ base_url }}/onboarding
 
-Your account includes {{ free_searches }} complete scans. No card is required.
-A scan can take a few minutes and continues if you close the tab.
+How credits work. Your first market scan is on us, and you start with
+{{ config.signup_grant_credits }} credits. A market scan costs {{ config.cost_search }}
+credits and a tailored CV {{ config.cost_cv }}. Saving, tracking and exporting are
+always free, credits never expire, and no card is required. A scan can take a few
+minutes and continues if you close the tab.
+{% if invite_url %}
+Refer a friend and earn credits. They start with {{ config.referral_friend_credits }}
+credits; you get {{ config.referral_credits }} when they complete their profile and
+first scan.
+
+Refer a friend: {{ invite_url }}
+Your invite code: {{ referral_code }}
+{% endif %}
 
 Your profile is private by default. Employers and recruiters cannot browse it.
 Career text is processed by the services described in the Privacy Policy,
