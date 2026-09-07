@@ -89,6 +89,9 @@ class WebConfig:
     # (ATS/scraped jobs are never link-checked; they prune on the poll window.)
     reaper_recheck_days: int = _int("REAPER_RECHECK_DAYS", 2)
     reaper_workers: int = _int("REAPER_WORKERS", 24)
+    # How long a confirmed-dead posting stays tombstoned so a re-listing source
+    # (careerjet keeps serving expired jobviewtrack redirects) can't resurrect it.
+    dead_link_ttl_days: int = _int("DEAD_LINK_TTL_DAYS", 45)
     # Description enrichment: fetch the real posting page for jobs an aggregator
     # stored only a snippet for, so work-mode tagging AND match scoring improve.
     # HTTP only (no API $); each job is fetched at most once, so it's a one-time

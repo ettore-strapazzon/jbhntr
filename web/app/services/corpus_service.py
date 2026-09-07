@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session as DbSession
 from jobhunter.models import JobPosting
 from jobhunter.tags import deterministic_tags
 
-from ..models import Job, aware, utcnow
+from ..models import DeadLink, Job, aware, utcnow
 
 log = logging.getLogger("jbhntr.corpus")
 _FULL_CHARS = 300       # description length at/above which a job counts as "full JD"
@@ -179,6 +179,24 @@ def upsert_jobs(db: DbSession, postings: list[JobPosting]) -> tuple[int, int]:
 
         added = updated = failed = 0
         now = utcnow()
+
+        # Refuse re-ingestion of postings the reaper confirmed dead within the TTL:
+        # careerjet keeps re-listing expired jobviewtrack redirects under the same
+        # company|title dedup_key, which without this resurrects them every run.
+        from datetime import timedelta
+
+        from ..config import config
+        cutoff = now - timedelta(days=config.dead_link_ttl_days)
+        tomb_skipped = 0
+        for sub in _chunks(list(by_key.keys()), _IN_CHUNK):
+            for (k,) in db.query(DeadLink.dedup_key).filter(
+                    DeadLink.dedup_key.in_(sub), DeadLink.created_at >= cutoff):
+                if by_key.pop(k, None) is not None:
+                    tomb_skipped += 1
+        if tomb_skipped:
+            log.info("Corpus upsert: skipped %d re-listed dead postings (tombstoned)", tomb_skipped)
+        if not by_key:
+            return (0, 0)
         for chunk in _chunks(list(by_key.items()), _UPSERT_CHUNK):
             keys = [k for k, _ in chunk]
             existing: dict[str, Job] = {}

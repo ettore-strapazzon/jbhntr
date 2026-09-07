@@ -3311,6 +3311,45 @@ def test_reaper_detects_multilang_expired_offers(monkeypatch):
     assert verdict("Cerchiamo un impiegato a Milano. Inizio disponibile subito.") == "active"
 
 
+def test_dead_link_tombstone_blocks_reingest(client, monkeypatch):
+    """Reaper confirms a posting gone -> tombstone by company|title; a re-listing feed
+    (careerjet's expired jobviewtrack redirects) can't resurrect it within the TTL,
+    but can once the tombstone expires."""
+    from datetime import timedelta
+
+    from jobhunter.models import JobPosting
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import DeadLink, Job, utcnow
+    from web.app.services import corpus_service, reaper
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: "gone")
+    p = JobPosting(source="api:careerjet", title="Impiegato Ufficio", company="Impiegando",
+                   url="https://acme.example/jobs/dead1")
+    key = p.dedup_key()
+    db = SessionLocal()
+    try:
+        db.add(Job(dedup_key=key, source=p.source, title=p.title, company=p.company,
+                   url=p.url, last_seen_at=utcnow(), last_checked_at=None))
+        db.commit()
+        reaper.sweep(db, check_limit=0, recheck_days=0, workers=1)
+        assert db.query(Job).filter_by(dedup_key=key).first() is None    # reaped
+        assert db.get(DeadLink, key) is not None                         # tombstoned
+
+        # careerjet re-lists the same job -> ingest refuses it (tombstone fresh).
+        added, _ = corpus_service.upsert_jobs(db, [p])
+        assert added == 0 and db.query(Job).filter_by(dedup_key=key).first() is None
+
+        # Age the tombstone past the TTL -> the role can return.
+        db.get(DeadLink, key).created_at = utcnow() - timedelta(days=config.dead_link_ttl_days + 1)
+        db.commit()
+        corpus_service.upsert_jobs(db, [p])
+        assert db.query(Job).filter_by(dedup_key=key).first() is not None
+    finally:
+        db.query(Job).filter_by(dedup_key=key).delete()
+        db.query(DeadLink).filter_by(dedup_key=key).delete()
+        db.commit(); db.close()
+
+
 def test_verify_links_drops_dead_and_purges_corpus(client, monkeypatch):
     """The top results are link-checked before showing: dead/gated links are
     dropped from the shortlist and deleted from the corpus; survivors are stamped."""

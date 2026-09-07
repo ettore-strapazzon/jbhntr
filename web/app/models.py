@@ -293,6 +293,22 @@ class Job(Base):
     embedding_model: Mapped[str] = mapped_column(String(64), default="")
 
 
+class DeadLink(Base):
+    """Tombstone for a posting the reaper CONFIRMED gone (hard 404 or an explicit
+    'no longer available' page). Keyed on the posting's stable dedup_key (company|
+    title), so a source that re-lists the same expired job — careerjet keeps serving
+    dead jobviewtrack redirects — is refused re-ingestion instead of resurrecting it.
+    Time-limited (see corpus_service): a genuinely reopened role reappears after the
+    window, and dedup_key collisions can't suppress a live posting forever."""
+
+    __tablename__ = "dead_links"
+
+    dedup_key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    url: Mapped[str] = mapped_column(String(1000), default="")
+    reason: Mapped[str] = mapped_column(String(32), default="gone")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Company(Base):
     """Shared company registry — employers whose public ATS board we poll.
 

@@ -29,7 +29,7 @@ import httpx
 from sqlalchemy import or_
 from sqlalchemy.orm import Session as DbSession
 
-from ..models import Job, utcnow
+from ..models import DeadLink, Job, utcnow
 
 log = logging.getLogger("jbhntr.reaper")
 
@@ -238,6 +238,14 @@ def sweep(
         ats_pruned = ats_q.delete(synchronize_session=False)
         db.commit()
 
+        # Expire old tombstones so a genuinely reopened role (or a live posting that
+        # merely shares a company|title with a dead one) can return after the window.
+        from ..config import config as _cfg
+        db.query(DeadLink).filter(
+            DeadLink.created_at < now - timedelta(days=_cfg.dead_link_ttl_days)
+        ).delete(synchronize_session=False)
+        db.commit()
+
         # 2. Link-check a bounded batch: never-checked or checked long ago, oldest
         #    first, so a daily run chips through the whole corpus. Skip API-verified
         #    sources (above) — their Cloudflare-walled pages only produce noise.
@@ -269,6 +277,10 @@ def sweep(
                 if verdict == "gone":
                     if job.dedup_key:
                         reaped_keys.append(job.dedup_key)
+                        # Tombstone it so a re-listing feed (careerjet's expired
+                        # jobviewtrack redirects) can't resurrect it next ingest.
+                        db.merge(DeadLink(dedup_key=job.dedup_key, url=job.url or "",
+                                          reason="gone", created_at=now))
                     db.delete(job)
                     gone += 1
                     continue
