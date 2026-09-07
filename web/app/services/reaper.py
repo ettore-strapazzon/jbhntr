@@ -201,6 +201,13 @@ def sweep(
         #     and (b) prune them on a tight window once the poll stops surfacing
         #     them (a closed ATS role drops out of the API next poll).
         api_src = or_(Job.source.like("ats:%"), Job.source.like("scrape:%"))
+        # Real ATS APIs (Lever/Ashby/Greenhouse) are liveness-verified by the poll and
+        # their pages are Cloudflare-walled, so they stay out of the HTML link-check.
+        # Careers-page SCRAPES are different: their apply URLs genuinely 404 when a
+        # role closes, and nothing else catches that (the scrape can keep re-listing a
+        # dead URL, so last_seen never goes stale). So link-check scrape jobs too and
+        # delete only on a hard 404/410 — see the ~ats_src filter below.
+        ats_src = Job.source.like("ats:%")
         unflagged = (db.query(Job)
                      .filter(Job.link_status == "unverified", api_src)
                      .update({Job.link_status: ""}, synchronize_session=False))
@@ -218,7 +225,7 @@ def sweep(
             db.query(Job)
             .filter(or_(Job.last_checked_at.is_(None),
                         Job.last_checked_at < recheck_before),
-                    ~api_src)
+                    ~ats_src)
             .order_by(Job.last_checked_at.is_(None).desc(),
                       Job.last_checked_at.asc())
         )
@@ -246,9 +253,12 @@ def sweep(
                     continue
                 job.last_checked_at = now
                 if verdict == "blocked":
-                    # Couldn't read past a captcha/bot-wall — flag it so the count is
-                    # visible and the card can warn. Not deleted: it may still be live.
-                    job.link_status = "unverified"
+                    # Couldn't read past a captcha/bot-wall — not deleted, it may still
+                    # be live. Flag it so the count is visible and the card can warn —
+                    # except for scrape sources, whose pages are Cloudflare-walled by
+                    # default (the unflag step above clears theirs each run anyway).
+                    if not (job.source or "").startswith("scrape:"):
+                        job.link_status = "unverified"
                     blocked += 1
                 elif verdict == "active" and job.link_status:
                     job.link_status = ""      # recovered a clean read -> clear the flag

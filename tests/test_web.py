@@ -3891,6 +3891,67 @@ def test_reaper_trusts_ats_source_not_html_check(client, monkeypatch):
         db.commit(); db.close()
 
 
+def test_reaper_link_checks_scrape_but_not_ats(client, monkeypatch):
+    """Careers-page SCRAPES get link-checked now (their apply URLs genuinely 404 when
+    a role closes, and nothing else caught that); real ATS APIs stay exempt. Only a
+    hard 'gone' deletes."""
+    from web.app.db import SessionLocal
+    from web.app.models import Job, utcnow
+    from web.app.services import reaper
+    checked = []
+    monkeypatch.setattr(reaper, "check_url",
+                        lambda url, c: checked.append(url) or ("gone" if "dead" in url else "active"))
+    db = SessionLocal()
+    try:
+        now = utcnow()
+        db.add(Job(dedup_key="sc-dead", source="scrape:acme.it", title="x",
+                   url="https://acme.it/jobs/dead", last_seen_at=now, last_checked_at=None))
+        db.add(Job(dedup_key="ats-dead", source="ats:lever:acme", title="x",
+                   url="https://jobs.lever.co/acme/dead", last_seen_at=now, last_checked_at=None))
+        db.commit()
+        reaper.sweep(db, check_limit=0, ats_stale_days=10)
+        rows = {r.dedup_key for r in db.query(Job).filter(Job.dedup_key.in_(["sc-dead", "ats-dead"]))}
+        assert "sc-dead" not in rows                        # scrape 404 -> deleted
+        assert "ats-dead" in rows                           # ats exempt -> never link-checked
+        assert "https://acme.it/jobs/dead" in checked and "https://jobs.lever.co/acme/dead" not in checked
+    finally:
+        db.query(Job).filter(Job.dedup_key.in_(["sc-dead", "ats-dead"])).delete()
+        db.commit(); db.close()
+
+
+def test_enrich_reaps_stale_trackers_keeps_live_boards(client, monkeypatch):
+    """A redirect tracker (careerjet/adzuna) the feed stopped refreshing is a dead
+    link — reap it. A still-listed tracker, and a live board we simply can't scrape
+    (LinkedIn), are kept and just skipped."""
+    from datetime import timedelta
+
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import Job, utcnow
+    from web.app.services import enrich_service
+    monkeypatch.setattr(config, "enrich_enabled", True)
+    db = SessionLocal()
+    try:
+        now = utcnow()
+        db.add(Job(dedup_key="trk-stale", source="careerjet", title="x", description="short",
+                   url="https://www.jobviewtrack.com/aaa", last_seen_at=now - timedelta(days=30)))
+        db.add(Job(dedup_key="trk-recent", source="careerjet", title="x", description="short",
+                   url="https://www.jobviewtrack.com/bbb", last_seen_at=now))
+        db.add(Job(dedup_key="li-stale", source="linkedin", title="x", description="short",
+                   url="https://linkedin.com/jobs/ccc", last_seen_at=now - timedelta(days=30)))
+        db.commit()
+        res = enrich_service.enrich_thin_descriptions(db, limit=10)
+        rows = {r.dedup_key: r for r in db.query(Job)
+                .filter(Job.dedup_key.in_(["trk-stale", "trk-recent", "li-stale"]))}
+        assert "trk-stale" not in rows                      # stale expired tracker -> reaped
+        assert rows["trk-recent"].desc_enriched is True     # still-listed tracker -> kept, skipped
+        assert rows["li-stale"].desc_enriched is True       # live board -> kept, skipped
+        assert res.get("reaped_dead") == 1
+    finally:
+        db.query(Job).filter(Job.dedup_key.in_(["trk-stale", "trk-recent", "li-stale"])).delete()
+        db.commit(); db.close()
+
+
 def test_reaper_recheck_days_zero_forces_recently_checked(client, monkeypatch):
     """recheck_days=0 (deep clean) re-examines a job checked moments ago, so a new
     checker (e.g. captcha detection) runs against the whole corpus — whereas the

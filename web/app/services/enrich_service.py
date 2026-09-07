@@ -20,6 +20,7 @@ import json
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DbSession
@@ -29,7 +30,7 @@ from jobhunter.sources.base import http_client, strip_html
 from jobhunter.tags import deterministic_tags
 
 from ..config import config
-from ..models import Job
+from ..models import Job, aware, utcnow
 
 log = logging.getLogger("jbhntr.enrich")
 
@@ -55,6 +56,20 @@ _DEAD_URL_BITS = (
 def _is_dead_url(url: str) -> bool:
     u = (url or "").lower()
     return any(bit in u for bit in _DEAD_URL_BITS)
+
+
+# Redirect trackers (careerjet/adzuna) that 404 once the underlying job expires —
+# unlike the live boards in _DEAD_URL_BITS (indeed/linkedin/glassdoor), which are
+# real destinations we simply can't scrape. A tracker row the feed has stopped
+# refreshing is a dead link: reap it instead of cementing it as permanently thin,
+# so it stops cluttering the thin/agency views (DATA-cleanup).
+_TRACKER_BITS = ("jobviewtrack.com", "/jobs/land/")
+_TRACKER_STALE_DAYS = 14
+
+
+def _is_expired_tracker(url: str) -> bool:
+    u = (url or "").lower()
+    return any(bit in u for bit in _TRACKER_BITS)
 
 # Page chrome to drop BEFORE extracting text, so we store the JD rather than the
 # nav/footer/cookie banner (whole-page strip_html was polluting descriptions).
@@ -231,14 +246,21 @@ def enrich_thin_descriptions(db: DbSession, limit: int | None = None) -> dict:
                   .order_by(Job.last_seen_at.desc())
                   .limit(limit * 3).all())
     dead = [r for r in candidates if _is_dead_url(r.url)]
+    stale_before = utcnow() - timedelta(days=_TRACKER_STALE_DAYS)
+    reaped_dead = 0
     for r in dead:
-        r.desc_enriched = True          # URL can never yield a JD — stop re-queuing it
+        seen = aware(r.last_seen_at)
+        if _is_expired_tracker(r.url) and seen is not None and seen < stale_before:
+            db.delete(r)                # expired redirect tracker, no longer refreshed -> dead link
+            reaped_dead += 1
+        else:
+            r.desc_enriched = True      # live board or still-listed tracker — stop re-queuing, keep the row
     rows = [r for r in candidates if not _is_dead_url(r.url)][:limit]
     if not rows:
         if dead:
             db.commit()
         return {"enriched": 0, "attempted": 0, "remaining": pending_count(db),
-                "skipped_dead": len(dead)}
+                "skipped_dead": len(dead) - reaped_dead, "reaped_dead": reaped_dead}
 
     # Fetch concurrently (network-bound); apply results on the main thread since a
     # SQLAlchemy session isn't thread-safe.
@@ -265,7 +287,8 @@ def enrich_thin_descriptions(db: DbSession, limit: int | None = None) -> dict:
             enriched += 1
     db.commit()
     remaining = pending_count(db)
-    log.info("Enrichment: %d filled of %d attempted, %d dead-skipped, %d remaining",
-             enriched, len(rows), len(dead), remaining)
+    log.info("Enrichment: %d filled of %d attempted, %d dead-skipped, %d dead-reaped, %d remaining",
+             enriched, len(rows), len(dead) - reaped_dead, reaped_dead, remaining)
     return {"enriched": enriched, "attempted": len(rows),
-            "skipped_dead": len(dead), "remaining": remaining}
+            "skipped_dead": len(dead) - reaped_dead, "reaped_dead": reaped_dead,
+            "remaining": remaining}
