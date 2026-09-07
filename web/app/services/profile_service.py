@@ -446,7 +446,7 @@ def build_generation_context(db: Session, user: User, result, config):
 
     settings = EngineSettings.from_env()
     settings.scoring_model = config.scoring_model   # one quality level (D-2)
-    settings.generation_model = model
+    settings.generation_model = config.scoring_model
     posting = JobPosting(source=result.source, title=result.title, company=result.company,
                          location=result.location, description=result.description,
                          url=result.apply_url)

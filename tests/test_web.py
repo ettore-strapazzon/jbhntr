@@ -2414,6 +2414,27 @@ def test_generation_blocked_when_credits_exhausted(client):
     db.close()
 
 
+def test_generation_context_builds_without_error(client):
+    """Regression: the one-quality-level refactor once left an undefined `model`
+    on settings.generation_model, so every real CV/CL generation raised NameError.
+    Build the context for real and assert both engine models are populated."""
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, Search, User
+    from web.app.services.profile_service import build_generation_context
+    signup(client, "genctx@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="genctx@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="gc",
+                       tier=1, title="T", company="C"); db.add(jr); db.commit()
+        gen, _, _, _ = build_generation_context(db, u, jr, config)
+        assert gen.settings.scoring_model and gen.settings.generation_model
+    finally:
+        db.close()
+
+
 def test_landing_flow_steps_and_credit_metrics(client):
     """HIW-01 five-step flow in order; Early Access credit figures are config-driven
     (no premium plan metrics remain on the landing)."""
