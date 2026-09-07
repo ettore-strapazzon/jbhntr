@@ -3286,6 +3286,31 @@ def test_reaper_marks_registration_wall_as_gated_not_gone(monkeypatch):
     assert reaper.check_url("https://x/y", _Client(_Dead())) == "gone"    # truly closed
 
 
+def test_reaper_detects_multilang_expired_offers(monkeypatch):
+    """Soft-404: a closed posting that returns HTTP 200 with an 'offer no longer
+    available' page (Italian and other languages) is 'gone', not 'active' — while a
+    live JD that merely uses the word 'disponibile' is not falsely deleted."""
+    from web.app.services import reaper
+
+    class _Resp:
+        def __init__(self, text):
+            self.status_code = 200; self.text = text; self.url = "https://x/y"
+    class _Client:
+        def __init__(self, r): self.r = r
+        def get(self, url, follow_redirects=True): return self.r
+
+    def verdict(text):
+        return reaper.check_url("https://x/y", _Client(_Resp(text)))
+
+    assert verdict("Questa offerta non è più disponibile.") == "gone"        # IT è-form
+    assert verdict("L'annuncio non più disponibile") == "gone"              # IT non-è form
+    assert verdict("Le candidature chiuse per questa posizione") == "gone"  # IT closed
+    assert verdict("Cette offre n'est plus disponible") == "gone"           # FR
+    assert verdict("Esta oferta ya no está disponible") == "gone"           # ES
+    # A live posting that merely uses the word 'disponibile' must stay active.
+    assert verdict("Cerchiamo un impiegato a Milano. Inizio disponibile subito.") == "active"
+
+
 def test_verify_links_drops_dead_and_purges_corpus(client, monkeypatch):
     """The top results are link-checked before showing: dead/gated links are
     dropped from the shortlist and deleted from the corpus; survivors are stamped."""

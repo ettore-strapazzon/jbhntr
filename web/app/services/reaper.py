@@ -47,13 +47,34 @@ BROWSER_HEADERS = {
 }
 
 # A 200 page containing any of these is a genuinely closed/removed posting.
+# Multi-word phrases only: a soft-404 landing page says these outright, whereas a
+# single word like "expired"/"scaduta" can appear inside a live JD, so we never
+# match on those alone (a false match here deletes a real job).
 DEAD_MARKERS = (
+    # English
     "no longer available", "no longer accepting", "no longer open",
     "position has been filled", "has been filled", "this position is closed",
     "posting is closed", "vacancy is closed", "applications are closed",
     "job is no longer", "position is no longer", "job has expired",
     "this job has expired", "job not found", "page not found",
     "the job you are looking for", "not currently accepting",
+    "this vacancy is no longer", "advert has expired", "advertisement has expired",
+    # Italian (the agency tail — Manpower/Adecco/Synergie et al. soft-404s). Both
+    # the "non più" and the "non è più" phrasings, always qualified by offerta/
+    # annuncio/posizione so a stray "non è più disponibile" in a JD can't match.
+    "offerta non più disponibile", "offerta non è più disponibile",
+    "annuncio non più disponibile", "annuncio non è più disponibile",
+    "posizione non più disponibile", "posizione non è più disponibile",
+    "offerta di lavoro non più disponibile", "offerta non più attiva",
+    "annuncio non più attivo", "annuncio scaduto", "offerta scaduta",
+    "candidature chiuse", "selezione chiusa", "ricerca chiusa",
+    "posizione ricoperta", "annuncio non trovato", "pagina non trovata",
+    # German / French / Spanish (multi-country coverage)
+    "nicht mehr verfügbar", "stellenangebot nicht mehr", "anzeige ist nicht mehr",
+    "offre n'est plus disponible", "cette offre a expiré", "offre expirée",
+    "annonce n'est plus disponible", "poste n'est plus disponible", "offre pourvue",
+    "oferta ya no está disponible", "esta oferta ha caducado", "oferta caducada",
+    "vacante cubierta", "proceso de selección cerrado",
 )
 
 # A closed posting often SERVER-SIDE redirects to a URL that flags it, even when
