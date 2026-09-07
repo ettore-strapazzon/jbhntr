@@ -46,8 +46,8 @@
   <form method="post" action="/document/{{ r.id }}/{{ kind }}/refine" class="refine-box">
     <label for="refine-{{ kind }}"><b>Request changes</b></label>
     <p class="small muted">Describe what to change and JBHNTR will redraft this {{ kind_label }}
-      (e.g. "shorter, lead with the fintech role, warmer tone, drop the 2016 job"). Free — it
-      doesn't use another allowance.</p>
+      (e.g. "shorter, lead with the fintech role, warmer tone, drop the 2016 job"). Free —
+      refining a draft you've already generated doesn't cost more credits.</p>
     <textarea id="refine-{{ kind }}" name="feedback" rows="3" placeholder="What should change?"></textarea>
     <input type="hidden" name="content" value="{{ doc.content }}">
     <button type="submit">Redraft with these changes</button>

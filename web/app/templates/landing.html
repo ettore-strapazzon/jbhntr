@@ -19,7 +19,7 @@
           <a class="btn" href="/signup">Start your search</a>
           <a class="btn ghost" href="/how-it-works">See how it works</a>
         </p>
-        <p class="small muted">{{ config.free_searches }} searches free. No card. Your CV stays private.</p>
+        <p class="small muted">Your first scan is free. No card. Your CV stays private.</p>
       </div>
 
       {# NOTE (TODO PROOF-001): illustrative until an approved anonymised result. #}
@@ -219,14 +219,31 @@
 <section class="section" id="pricing" aria-labelledby="pricing-title">
   <div class="container">
     <div class="section-head">
-      <p class="eyebrow">FREE AND PREMIUM</p>
-      <h2 id="pricing-title">Start free. Go Premium when you want JBHNTR working every day.</h2>
-      <p>Run {{ config.free_searches }} complete searches for free. Premium searches
-        every day, reaches further across company career pages, and gives you more
-        powerful matching and application tools.</p>
+      <p class="eyebrow">EARLY ACCESS</p>
+      <h2 id="pricing-title">Free while we're building it.</h2>
+      <p>Your first market scan is on us, and you start with
+        {{ config.signup_grant_credits }} credits for more scans and tailored
+        applications. Rather than charge you now, we reward the two things that make
+        JBHNTR better: bringing in other job seekers, and contributing anonymous
+        hiring-process data. Credits never expire.</p>
     </div>
-    {% include "partials/_plans.html" %}
-    {% include "partials/_compare.html" %}
+    <div class="ea-cards" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:8px">
+      <div class="ea-card" style="flex:1;min-width:220px">
+        <h3 style="margin:.2em 0">A scan costs {{ config.cost_search }} credits</h3>
+        <p class="muted">A tailored CV is {{ config.cost_cv }}, a cover letter
+          {{ config.cost_cover_letter }}. Saving, tracking, notes and exporting are
+          always free.</p>
+      </div>
+      <div class="ea-card" style="flex:1;min-width:220px">
+        <h3 style="margin:.2em 0">Earn more, don't buy</h3>
+        <p class="muted">Invite a fellow job seeker, or tell us how an application
+          went. Credits aren't for sale during Early Access.</p>
+      </div>
+    </div>
+    <p style="text-align:center;margin-top:18px">
+      <a class="btn" href="/signup">Start your first scan</a>
+      <a class="btn ghost" href="/credits" style="margin-left:8px">How credits work</a>
+    </p>
   </div>
 </section>
 
@@ -267,7 +284,7 @@
       <h2>Let JBHNTR read the market for you.</h2>
       <p>Upload a CV, describe the work you want and run your first scan.</p>
       <p class="cta"><a class="btn" href="/signup">Start your search</a></p>
-      <p class="small muted">{{ config.free_searches }} searches free. No card. Your CV stays private.</p>
+      <p class="small muted">Your first scan is free. No card. Your CV stays private.</p>
     </div>
   </div>
 </section>

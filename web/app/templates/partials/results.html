@@ -22,12 +22,13 @@
       <p class="muted">Clear one or more filters to return to the full shortlist.</p>
       <p><a class="btn ghost" href="/matches">Clear filters</a></p>
     </section>
-  {% elif searches_left is not none and searches_left <= 0 %}
+  {% elif user.credit_balance is not none and user.credit_balance < config.cost_search and not m.latest %}
     <section class="emptybox">
-      <h2>You have used the free scan allowance.</h2>
+      <h2>You're out of credits for a new scan.</h2>
       <p class="muted">Your existing shortlist, saved roles and applications remain
-        available. Planned Premium will add recurring scans; you can join the waitlist.</p>
-      <p><a class="btn" href="/premium">Join the waiting list</a></p>
+        available. Invite another job seeker, or report how an application went, to earn
+        more credits.</p>
+      <p><a class="btn" href="/credits">Credits</a></p>
     </section>
   {% elif m.latest %}
     <section class="emptybox">

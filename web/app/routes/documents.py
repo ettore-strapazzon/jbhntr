@@ -174,7 +174,8 @@ def refine(result_id: int, kind: str, feedback: str = Form(...),
            content: str = Form(default=""),
            user: User = Depends(require_user), db: DbSession = Depends(get_session)):
     """Redraft the CV/CL from the user's feedback + the current draft, as a new
-    revision. Free — the job's allowance was already spent on the first draft."""
+    revision. Free — credits were already spent generating the first draft; the
+    refine loop is how you iterate on it (regenerating from scratch is priced)."""
     from ..services.events import record
     from ..services.profile_service import build_generation_context
     from ..services.text import humanise

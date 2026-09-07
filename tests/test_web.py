@@ -2414,8 +2414,9 @@ def test_generation_blocked_when_credits_exhausted(client):
     db.close()
 
 
-def test_landing_flow_steps_and_plan_metrics(client):
-    """HIW-01 five-step flow in order; PRC-01 config-driven plan metrics."""
+def test_landing_flow_steps_and_credit_metrics(client):
+    """HIW-01 five-step flow in order; Early Access credit figures are config-driven
+    (no premium plan metrics remain on the landing)."""
     from web.app.config import config
     page = client.get("/").text
     labels = ["<h3>Search profile</h3>", "<h3>Market scan</h3>", "<h3>Two-way fit</h3>",
@@ -2423,9 +2424,10 @@ def test_landing_flow_steps_and_plan_metrics(client):
     pos = [page.find(x) for x in labels]
     assert all(p != -1 for p in pos), "all five flow labels present"
     assert pos == sorted(pos), "flow labels in order"
-    assert f">{config.free_searches}</b>" in page          # 3 searches (plan-figs)
-    assert f">{config.premium_cvs_monthly}</b>" in page     # 30 CVs
-    assert f">{config.premium_cover_letters_monthly}</b>" in page  # 20 letters
+    assert str(config.signup_grant_credits) in page       # starter grant
+    assert str(config.cost_search) in page                # scan price
+    assert str(config.cost_cv) in page                    # tailored CV price
+    assert "EARLY ACCESS" in page and "Go Premium" not in page
 
 
 def test_pricing_and_premium_have_no_banned_plan_words(client):
