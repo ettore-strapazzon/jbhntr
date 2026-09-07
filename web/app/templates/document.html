@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Your {{ kind_label }} · JBHNTR{% endblock %}
 {% block content %}
-<a class="small muted" href="/matches">← Back to your shortlist</a>
+<a class="small muted" href="/applications">← Back to My Jobs</a>
 <h1>Your {{ kind_label }} for {{ r.title }} at {{ r.company }}</h1>
 <p class="muted">A first draft, not a final one. Verify every role, date, metric and
   claim before you send it. JBHNTR drafts from the material you supplied; it cannot
   know whether every generated sentence is accurate.</p>
+<p class="small muted">This draft is saved to <a href="/applications">My Jobs</a> under
+  {{ r.company }} — reopen or edit it anytime, even if you don't download it now.</p>
 {% if saved %}<div class="notice ok" role="status">Saved.</div>{% endif %}
 {% if refined %}<div class="notice ok" role="status">Revised. Review the new draft below.</div>{% endif %}
 {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}

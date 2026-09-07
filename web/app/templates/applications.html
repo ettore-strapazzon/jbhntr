@@ -54,4 +54,38 @@
     {% endif %}
   {% endfor %}
 {% endif %}
+
+{# Generation is a synchronous, ~30-60s POST. Give immediate feedback so it never
+   looks stuck (UX-01). Full-page submit, so the busy state simply persists until
+   the redirect to the finished draft. #}
+{% raw %}
+<style>
+  #gen-overlay{position:fixed;inset:0;background:rgba(248,250,249,.92);z-index:1000;
+    display:none;align-items:center;justify-content:center;text-align:center}
+  #gen-overlay .gen-spin{width:34px;height:34px;margin:0 auto 14px;border:3px solid #cdd8d2;
+    border-top-color:#174b3e;border-radius:50%;animation:gen-rot .8s linear infinite}
+  @keyframes gen-rot{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){ #gen-overlay .gen-spin{animation:none} }
+</style>
+<div id="gen-overlay" aria-live="assertive">
+  <div>
+    <div class="gen-spin" aria-hidden="true"></div>
+    <p id="gen-msg" style="font-weight:600;margin:0 0 4px">Creating your tailored CV…</p>
+    <p class="small muted" style="margin:0">This can take up to a minute. Please keep this tab open.</p>
+  </div>
+</div>
+<script>
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f || !f.matches || !f.matches('form[action*="/generate/"]')) return;
+    var isCv = /\/cv$/.test(f.getAttribute('action') || '');
+    var msg = document.getElementById('gen-msg');
+    if (msg) msg.textContent = isCv ? 'Creating your tailored CV…' : 'Writing your cover letter…';
+    var ov = document.getElementById('gen-overlay');
+    if (ov) ov.style.display = 'flex';
+    var b = f.querySelector('button[type="submit"], button:not([type])');
+    if (b) { b.disabled = true; }
+  }, true);
+</script>
+{% endraw %}
 {% endblock %}

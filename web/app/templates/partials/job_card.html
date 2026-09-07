@@ -90,7 +90,15 @@
       </div>
 
       {# Craft (CV / cover-letter generation) now lives in My Jobs, not Matches:
-         Matches is a decide-surface. See the tracker card. #}
+         Matches is a decide-surface. See the tracker card. But if a draft already
+         exists for this job, link straight to it so it's never lost (UX-01). #}
+      {% if (r.id, 'cv') in docs or (r.id, 'cl') in docs %}
+        <p class="small muted" style="margin:0 0 6px">Draft saved:
+          {% if (r.id, 'cv') in docs %}<a href="/document/{{ r.id }}/cv">CV</a>{% endif %}
+          {% if (r.id, 'cv') in docs and (r.id, 'cl') in docs %} · {% endif %}
+          {% if (r.id, 'cl') in docs %}<a href="/document/{{ r.id }}/cl">cover letter</a>{% endif %}
+        </p>
+      {% endif %}
       <div class="actiongroup triage">
         {% if saved %}
           <form method="post" action="/job/{{ r.id }}/unsave" hx-post="/job/{{ r.id }}/unsave"
