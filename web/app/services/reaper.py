@@ -263,6 +263,8 @@ def sweep(
         batch = q.all()
 
         checked = gone = blocked = 0
+        from collections import Counter
+        by_source: dict[str, Counter] = {}
         if batch:
             with httpx.Client(timeout=15.0, headers=BROWSER_HEADERS) as client:
                 def _one(job: Job) -> tuple[int, str]:
@@ -270,10 +272,20 @@ def sweep(
 
                 with ThreadPoolExecutor(max_workers=workers) as pool:
                     verdicts = dict(pool.map(_one, batch))
+                    # A single GET is flaky at scale (a transient timeout/reset reads
+                    # as 'unknown' and leaves a dead link for "next run"). Retry only
+                    # the unknowns once, so a confirmable 404 is caught this pass.
+                    retry = [j for j in batch if verdicts.get(j.id) == "unknown"]
+                    if retry:
+                        for jid, v in pool.map(_one, retry):
+                            if v != "unknown":
+                                verdicts[jid] = v
 
             for job in batch:
                 verdict = verdicts.get(job.id, "unknown")
                 checked += 1
+                src = ":".join((job.source or "?").split(":")[:2])
+                by_source.setdefault(src, Counter())[verdict] += 1
                 if verdict == "gone":
                     if job.dedup_key:
                         reaped_keys.append(job.dedup_key)
@@ -303,11 +315,15 @@ def sweep(
         board_purged = _purge_deprecated_results(db, reaped_keys)
 
         unverified_total = db.query(Job).filter(Job.link_status == "unverified").count()
+        # Per-source verdict breakdown (top by volume) — so we can SEE whether e.g.
+        # careerjet's dead links are being checked and what they resolve to.
+        top = sorted(by_source.items(), key=lambda kv: -sum(kv[1].values()))[:12]
+        src_verdicts = {s: dict(c) for s, c in top}
         result = {"ttl_deleted": ttl_deleted + gated_deleted, "checked": checked,
                   "gone_deleted": gone, "gated_deleted": gated_deleted,
                   "blocked": blocked, "unverified_pruned": unverified_pruned,
                   "ats_unflagged": unflagged, "ats_pruned": ats_pruned,
-                  "unverified_total": unverified_total,
+                  "unverified_total": unverified_total, "by_source": src_verdicts,
                   "board_purged": board_purged, "remaining": db.query(Job).count()}
         log.info("Reaper: %s", result)
         return result

@@ -1202,7 +1202,7 @@ def admin_deep_clean(_: bool = Depends(require_admin)):
             res = reaper_run(check_limit=0, recheck_days=0, workers=24)
             _record_corpus_stat({"reaper": res})
             log.info("deep clean: %s", res)
-            record_op("deep-clean", str(res)[:400])
+            record_op("deep-clean", str(res)[:900])   # room for the per-source breakdown
         except Exception as exc:
             log.exception("deep clean failed")
             record_op("deep-clean", f"failed: {str(exc)[:200]}")
