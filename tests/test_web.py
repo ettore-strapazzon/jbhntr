@@ -1962,20 +1962,28 @@ def test_admin_corpus_explorer_filters(client, monkeypatch):
     ])
     db.commit(); db.close()
 
-    # Off without a token.
-    monkeypatch.setattr(config, "admin_token", "")
-    assert client.get("/admin/corpus").status_code == 404
-    monkeypatch.setattr(config, "admin_token", "s3cret")
+    try:
+        # Off without a token.
+        monkeypatch.setattr(config, "admin_token", "")
+        assert client.get("/admin/corpus").status_code == 404
+        monkeypatch.setattr(config, "admin_token", "s3cret")
 
-    # Unfiltered lists both.
-    r = client.get("/admin/corpus", auth=("op", "s3cret"))
-    assert r.status_code == 200 and "Head of Operations" in r.text and "Sales Rep" in r.text
-    # Country filter (JSON tag) narrows to Italy.
-    r = client.get("/admin/corpus?country=it", auth=("op", "s3cret"))
-    assert "Head of Operations" in r.text and "Sales Rep" not in r.text
-    # Title + remote filters compose.
-    r = client.get("/admin/corpus?q=sales&remote=remote", auth=("op", "s3cret"))
-    assert "Sales Rep" in r.text and "Head of Operations" not in r.text
+        # Unfiltered lists both.
+        r = client.get("/admin/corpus", auth=("op", "s3cret"))
+        assert r.status_code == 200 and "Head of Operations" in r.text and "Sales Rep" in r.text
+        # Country filter (JSON tag) narrows to Italy.
+        r = client.get("/admin/corpus?country=it", auth=("op", "s3cret"))
+        assert "Head of Operations" in r.text and "Sales Rep" not in r.text
+        # Title + remote filters compose.
+        r = client.get("/admin/corpus?q=sales&remote=remote", auth=("op", "s3cret"))
+        assert "Sales Rep" in r.text and "Head of Operations" not in r.text
+    finally:
+        # Clean up our own rows — these are api:careerjet/ats corpus jobs that would
+        # otherwise leak into the shared DB and pollute the whole-corpus reaper sweeps.
+        db = SessionLocal()
+        db.query(Job).filter(Job.dedup_key.in_(["cx-it", "cx-us"])).delete(
+            synchronize_session=False)
+        db.commit(); db.close()
 
 
 # --------------------------- visitor analytics ---------------------------- #
@@ -2872,11 +2880,18 @@ def test_admin_corpus_panel(client, monkeypatch):
         db.commit()
     finally:
         db.close()
-    page = client.get("/admin", auth=("op", "s3cret")).text
-    assert "Corpus &amp; sources" in page
-    assert "jobs in corpus" in page
-    assert "api:adzuna" in page                    # top-source breakdown
-    assert "1234" in page and "\u2212" in page + "-"  # a churn row rendered
+    try:
+        page = client.get("/admin", auth=("op", "s3cret")).text
+        assert "Corpus &amp; sources" in page
+        assert "jobs in corpus" in page
+        assert "api:adzuna" in page                    # top-source breakdown
+        assert "1234" in page and "\u2212" in page + "-"  # a churn row rendered
+    finally:
+        # Don't leak cs-1 into the shared DB \u2014 it would show up in whole-corpus
+        # reaper sweeps run by later tests.
+        db = SessionLocal()
+        db.query(Job).filter_by(dedup_key="cs-1").delete(synchronize_session=False)
+        db.commit(); db.close()
 
 
 def test_cron_records_corpus_stat(client):
@@ -3111,9 +3126,18 @@ def test_admin_shows_scrape_line(client, monkeypatch):
         db.commit()
     finally:
         db.close()
-    page = client.get("/admin", auth=("op", "s3cret")).text
-    assert "jobs from custom scraping" in page
-    assert "custom career pages" in page
+    try:
+        page = client.get("/admin", auth=("op", "s3cret")).text
+        assert "jobs from custom scraping" in page
+        assert "custom career pages" in page
+    finally:
+        # Clean up our own rows — sc-1 is a scrape: job (link-checked by the reaper),
+        # so leaving it leaks into later whole-corpus reaper sweeps.
+        db = SessionLocal()
+        db.query(Job).filter_by(dedup_key="sc-1").delete(synchronize_session=False)
+        db.query(Company).filter_by(ats_token="scalapay.com", source="scraped").delete(
+            synchronize_session=False)
+        db.commit(); db.close()
 
 
 # --------------------------- ingest breadth ------------------------------- #
@@ -3407,7 +3431,20 @@ def test_admin_growth_chart(client, monkeypatch):
 
 def test_admin_run_maintenance(client, monkeypatch):
     from web.app.config import config
+    from web.app.services import corpus_service, cron, reaper
     monkeypatch.setattr(config, "admin_token", "s3cret")
+    # /admin/run-maintenance fires a DETACHED daemon thread that runs a REAL reaper
+    # sweep — real network link-checks and row deletes — over the shared test DB.
+    # Left to run, that daemon outlives this test and races later reaper/corpus tests
+    # (deleting or re-stamping their seeded jobs mid-sweep), which is the source of
+    # the intermittent failures in the whole-corpus reaper tests. Stub the heavy
+    # background work: this test only asserts the endpoint's response + gating, not
+    # what the daemon does. The handler binds these names at request time, so the
+    # daemon captures the stubs even after the monkeypatch is torn down.
+    monkeypatch.setattr(reaper, "run", lambda *a, **k: {})
+    monkeypatch.setattr(corpus_service, "merge_thin_duplicates",
+                        lambda *a, **k: {"removed": 0})
+    monkeypatch.setattr(cron, "_record_corpus_stat", lambda *a, **k: None)
     r = client.post("/admin/run-maintenance", auth=("op", "s3cret"), follow_redirects=False)
     assert r.status_code == 303 and "Maintenance" in r.headers["location"]   # url-encoded msg
     assert client.post("/admin/run-maintenance").status_code == 401     # gated
@@ -4014,6 +4051,36 @@ def test_enrich_reaps_stale_trackers_keeps_live_boards(client, monkeypatch):
     finally:
         db.query(Job).filter(Job.dedup_key.in_(["trk-stale", "trk-recent", "li-stale"])).delete()
         db.commit(); db.close()
+
+
+def test_reingest_refreshes_expiring_tracker_url(client):
+    """careerjet's jobviewtrack tokens expire in ~a day; re-ingesting the same job
+    (fresh token) must refresh the stored URL so the link keeps working — but a real
+    employer/ATS URL must never be downgraded to a tracker."""
+    from jobhunter.models import JobPosting
+    from web.app.db import SessionLocal
+    from web.app.models import Job
+    from web.app.services import corpus_service
+
+    p1 = JobPosting(source="api:careerjet", title="Impiegato Refresh", company="AcmeRef",
+                    url="https://jobviewtrack.com/v2/TOKEN1")
+    key = p1.dedup_key()
+    db = SessionLocal()
+    try:
+        corpus_service.upsert_jobs(db, [p1])
+        assert db.query(Job).filter_by(dedup_key=key).one().url.endswith("TOKEN1")
+        # Same job re-listed with a fresh token -> stored URL refreshed.
+        p2 = JobPosting(source="api:careerjet", title="Impiegato Refresh", company="AcmeRef",
+                        url="https://jobviewtrack.com/v2/TOKEN2")
+        corpus_service.upsert_jobs(db, [p2])
+        assert db.query(Job).filter_by(dedup_key=key).one().url.endswith("TOKEN2")
+        # A tracker URL never overwrites a real employer URL already stored.
+        db.query(Job).filter_by(dedup_key=key).update({"url": "https://acme.example/jobs/1"})
+        db.commit()
+        corpus_service.upsert_jobs(db, [p2])
+        assert db.query(Job).filter_by(dedup_key=key).one().url == "https://acme.example/jobs/1"
+    finally:
+        db.query(Job).filter_by(dedup_key=key).delete(); db.commit(); db.close()
 
 
 def test_aggregator_calibrate_cutoff_and_purge(client, monkeypatch):

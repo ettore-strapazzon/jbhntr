@@ -39,6 +39,17 @@ def is_gated_url(url: str) -> bool:
     return any(host == h or host.endswith("." + h) for h in GATED_HOSTS)
 
 
+# Aggregator redirect trackers whose apply URL carries a short-lived token: the stored
+# link 404s within ~a day (careerjet's jobviewtrack is the #1 case). We refresh these to
+# the latest on re-ingest so a re-listed live job keeps a working link.
+_EPHEMERAL_URL_BITS = ("jobviewtrack.com", "/jobs/land/")
+
+
+def _is_ephemeral_url(url: str) -> bool:
+    u = (url or "").lower()
+    return any(b in u for b in _EPHEMERAL_URL_BITS)
+
+
 def count_matching(db: DbSession, profile) -> int:
     """How many fresh corpus postings match this profile's geography (§11.3).
 
@@ -90,6 +101,12 @@ def _apply_one(db: DbSession, key: str, p: JobPosting, existing: dict, now) -> s
         db.add(_new_row(key, p, tags, now))
         return "a"
     row.last_seen_at = now
+    # Refresh an expiring aggregator tracker URL with the freshest one seen. careerjet's
+    # jobviewtrack tokens die within ~a day, and we used to freeze the URL at first sight
+    # — so a re-listed live job's stored link went 404 anyway. Only when the CURRENT URL
+    # is such a tracker, so a real employer/ATS link is never downgraded to a tracker.
+    if p.url and p.url != row.url and _is_ephemeral_url(row.url):
+        row.url = p.url[:1000]
     # A later fetch may carry a fuller description (post-enrichment); upgrade the
     # row and re-tag from the richer text.
     if len(p.description or "") > len(row.description or ""):
