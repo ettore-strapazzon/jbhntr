@@ -4026,12 +4026,15 @@ def test_aggregator_calibrate_cutoff_and_purge(client, monkeypatch):
     from web.app.services import aggregator_calibrate as cal
 
     monkeypatch.setattr(cal, "_auth", lambda: "fake-auth")
-    # Offline check: parse the age out of the url; links die at age >= 15 days.
+    # Offline check -> {url: (status, final_url)}; links die at age >= 15 days. Model a
+    # dead one as a 200 that bounced back to a careerjet domain (not a hard 404), to
+    # exercise the _is_dead host rule the browser path actually relies on.
     def fake_check(urls):
         out = {}
         for u in urls:
             age = int(u.split("/x")[1].split("_")[0])
-            out[u] = 404 if age >= 15 else 200
+            out[u] = (200, "https://www.careerjet.it/jobs?s=x") if age >= 15 \
+                else (200, "https://acme-employer.example/jobs/1")
         return out
     monkeypatch.setattr(cal, "_check", fake_check)
 

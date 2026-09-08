@@ -18,7 +18,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from collections import Counter
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from ..models import DeadLink, Job, aware, utcnow
 
@@ -27,7 +29,22 @@ log = logging.getLogger("jbhntr.calibrate")
 _CDP_HOST = "brd.superproxy.io:9222"
 AGG_SOURCES = ("api:careerjet", "api:jooble")
 _DEAD_STATUSES = (404, 410)
-_DEAD_MIN = 2            # a bucket is "dead" at >= this many 404s in its sample (>=2/5)
+_DEAD_MIN = 2            # a bucket is "dead" at >= this many dead hits in its sample (>=2/5)
+
+# A dead careerjet/jooble tracker doesn't 404 through a real browser — it bounces the
+# viewer to a "similar jobs" search on one of the aggregator's OWN domains. So landing
+# back on any of these (rather than a real employer/ATS site) means the job is gone.
+_AGG_HOSTS = ("jobviewtrack.com", "careerjet.", "optioncarriere.", "opcionempleo.",
+              "jobrapido.", "jooble.", "whatjobs.", "trovit.", "jobisjob.")
+
+
+def _is_dead(status, final_url: str) -> bool:
+    if status in _DEAD_STATUSES:
+        return True
+    if status is None:
+        return False                    # couldn't load — unknown, not counted dead
+    host = urlparse(final_url or "").netloc.lower()
+    return any(h in host for h in _AGG_HOSTS)
 
 
 def _auth() -> str:
@@ -35,12 +52,13 @@ def _auth() -> str:
     return getattr(Settings.from_env(), "brightdata_browser_auth", "") or ""
 
 
-async def _statuses(urls: list[str], auth: str, concurrency: int = 5) -> dict[str, int | None]:
-    """{url: final HTTP status or None} via one Scraping Browser session, a few pages
-    at a time. Images/media/CSS are blocked to keep Browser-API bandwidth (=cost) low."""
+async def _statuses(urls: list[str], auth: str, concurrency: int = 5) -> dict[str, tuple]:
+    """{url: (final_status, final_url)} via one Scraping Browser session, a few pages at
+    a time. We keep the final URL because a dead tracker bounces to a 200 aggregator
+    page rather than 404ing. Images/media/CSS blocked to keep Browser bandwidth low."""
     from playwright.async_api import async_playwright
 
-    out: dict[str, int | None] = {}
+    out: dict[str, tuple] = {}
     sem = asyncio.Semaphore(concurrency)
     async with async_playwright() as p:
         browser = await p.chromium.connect_over_cdp(f"wss://{auth}@{_CDP_HOST}")
@@ -61,9 +79,10 @@ async def _statuses(urls: list[str], auth: str, concurrency: int = 5) -> dict[st
                     except Exception:
                         pass
                     resp = await page.goto(u, wait_until="domcontentloaded")
-                    out[u] = resp.status if resp else None
+                    await page.wait_for_timeout(1200)          # let JS/meta redirects settle
+                    out[u] = ((resp.status if resp else None), page.url)
                 except Exception:
-                    out[u] = None
+                    out[u] = (None, "")
                 finally:
                     try:
                         await page.close()
@@ -77,8 +96,8 @@ async def _statuses(urls: list[str], auth: str, concurrency: int = 5) -> dict[st
     return out
 
 
-def _check(urls: list[str]) -> dict[str, int | None]:
-    """Sync wrapper. Returns {} if no creds or the whole run fails."""
+def _check(urls: list[str]) -> dict[str, tuple]:
+    """Sync wrapper -> {url: (status, final_url)}. Returns {} if no creds or it fails."""
     auth = _auth()
     if not auth or not urls:
         return {}
@@ -115,13 +134,18 @@ def calibrate(db, sources: tuple[str, ...] = AGG_SOURCES,
         per_bucket[age] = {"n": len(urls), "sampled": len(picks), "dead": 0, "_urls": picks}
         to_check += picks
 
-    statuses = _check(to_check)
+    statuses = _check(to_check)      # {url: (status, final_url)}
     if not statuses:
         return {"error": "browser check returned nothing (creds/blocked?)",
                 "sampled": len(to_check)}
+
+    status_dist: Counter = Counter()
+    final_hosts: Counter = Counter()
+    for st, final in statuses.values():
+        status_dist[str(st)] += 1
+        final_hosts[urlparse(final or "").netloc.lower() or "(none)"] += 1
     for age, d in per_bucket.items():
-        d["dead"] = sum(1 for u in d["_urls"] if statuses.get(u) in _DEAD_STATUSES)
-        d["live"] = sum(1 for u in d["_urls"] if statuses.get(u) and statuses[u] < 400)
+        d["dead"] = sum(1 for u in d["_urls"] if _is_dead(*statuses.get(u, (None, ""))))
         del d["_urls"]
 
     ages = sorted(per_bucket)
@@ -132,12 +156,13 @@ def calibrate(db, sources: tuple[str, ...] = AGG_SOURCES,
             if nxt is None or per_bucket[nxt]["dead"] >= _DEAD_MIN:
                 cutoff = a
                 break
-    would_purge = 0
-    if cutoff is not None:
-        would_purge = sum(v["n"] for a, v in per_bucket.items() if a >= cutoff)
-    curve = {a: f"{per_bucket[a]['dead']}/{per_bucket[a]['sampled']} dead (n={per_bucket[a]['n']})"
+    would_purge = sum(v["n"] for a, v in per_bucket.items()
+                      if cutoff is not None and a >= cutoff)
+    curve = {a: f"{per_bucket[a]['dead']}/{per_bucket[a]['sampled']} (n={per_bucket[a]['n']})"
              for a in ages}
+    # Key diagnostics FIRST so they survive any log truncation; the long curve last.
     res = {"cutoff_days": cutoff, "would_purge": would_purge, "checked": len(statuses),
+           "status_dist": dict(status_dist), "final_hosts": dict(final_hosts.most_common(12)),
            "sources": list(sources), "curve": curve}
     log.info("calibrate: %s", res)
     return res

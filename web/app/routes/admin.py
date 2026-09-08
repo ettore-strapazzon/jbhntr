@@ -1242,7 +1242,7 @@ def admin_calibrate_aggregators(_: bool = Depends(require_admin)):
         db = SessionLocal()
         try:
             res = cal.calibrate(db)
-            record_op("calibrate-agg", str(res)[:900])
+            record_op("calibrate-agg", str(res)[:4000])
             log.info("calibrate-aggregators: %s", res)
         except Exception as exc:
             log.exception("calibrate-aggregators failed")
