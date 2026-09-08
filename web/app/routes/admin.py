@@ -1213,6 +1213,20 @@ def admin_deep_clean(_: bool = Depends(require_admin)):
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
+@router.get("/admin/sample-urls", response_class=PlainTextResponse)
+def admin_sample_urls(_: bool = Depends(require_admin), source: str = "api:careerjet",
+                      n: int = 60, db: DbSession = Depends(get_session)):
+    """Dump a random sample of stored apply URLs for one source, as plain text, so
+    they can be link-checked from a non-blocked IP — prod's IP is refused by some
+    hosts (jobviewtrack/jooble), which reads as 'unknown' in the reaper and hides
+    whether a job is actually live or dead. Read-only diagnostic."""
+    rows = (db.query(Job.url)
+            .filter(Job.source == source, Job.url != "")
+            .order_by(func.random())
+            .limit(max(1, min(n, 300))).all())
+    return PlainTextResponse("\n".join(u for (u,) in rows) or "(no rows for that source)")
+
+
 @router.post("/admin/run-discovery")
 def admin_run_discovery(_: bool = Depends(require_admin)):
     """Operator: run similar-company discovery + custom careers-page scraping now,
