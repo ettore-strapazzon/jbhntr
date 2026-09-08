@@ -52,47 +52,59 @@ def _auth() -> str:
     return getattr(Settings.from_env(), "brightdata_browser_auth", "") or ""
 
 
-async def _statuses(urls: list[str], auth: str, concurrency: int = 5) -> dict[str, tuple]:
-    """{url: (final_status, final_url)} via one Scraping Browser session, a few pages at
-    a time. We keep the final URL because a dead tracker bounces to a 200 aggregator
-    page rather than 404ing. Images/media/CSS blocked to keep Browser bandwidth low."""
+async def _statuses(urls: list[str], auth: str, connections: int = 3) -> dict[str, tuple]:
+    """{url: (final_status, final_url)}. The Bright Data Scraping Browser is one page
+    per CDP session — opening several pages on ONE session errors them all (that's why
+    an earlier run read 214/215 as None). So open a few SEPARATE sessions and let each
+    walk its slice sequentially (fresh page per URL). We keep the final URL because a
+    dead tracker bounces to a 200 aggregator page rather than 404ing; images/media/CSS
+    are blocked to keep Browser bandwidth (=cost) low."""
     from playwright.async_api import async_playwright
 
     out: dict[str, tuple] = {}
-    sem = asyncio.Semaphore(concurrency)
+
+    async def _block(route):
+        if route.request.resource_type in ("image", "media", "font", "stylesheet"):
+            await route.abort()
+        else:
+            await route.continue_()
+
     async with async_playwright() as p:
-        browser = await p.chromium.connect_over_cdp(f"wss://{auth}@{_CDP_HOST}")
-
-        async def _block(route):
-            if route.request.resource_type in ("image", "media", "font", "stylesheet"):
-                await route.abort()
-            else:
-                await route.continue_()
-
-        async def _one(u: str):
-            async with sem:
-                page = await browser.new_page()
-                page.set_default_navigation_timeout(45000)
-                try:
-                    try:
-                        await page.route("**/*", _block)
-                    except Exception:
-                        pass
-                    resp = await page.goto(u, wait_until="domcontentloaded")
-                    await page.wait_for_timeout(1200)          # let JS/meta redirects settle
-                    out[u] = ((resp.status if resp else None), page.url)
-                except Exception:
+        async def _worker(chunk: list[str]):
+            try:
+                browser = await p.chromium.connect_over_cdp(f"wss://{auth}@{_CDP_HOST}")
+            except Exception as exc:
+                log.warning("calibrate: CDP connect failed: %s", str(exc)[:160])
+                for u in chunk:
                     out[u] = (None, "")
-                finally:
+                return
+            try:
+                for u in chunk:
+                    page = await browser.new_page()
+                    page.set_default_navigation_timeout(45000)
                     try:
-                        await page.close()
+                        try:
+                            await page.route("**/*", _block)
+                        except Exception:
+                            pass
+                        resp = await page.goto(u, wait_until="domcontentloaded")
+                        await page.wait_for_timeout(1000)      # let JS/meta redirects settle
+                        out[u] = ((resp.status if resp else None), page.url)
                     except Exception:
-                        pass
+                        out[u] = (None, "")
+                    finally:
+                        try:
+                            await page.close()
+                        except Exception:
+                            pass
+            finally:
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
 
-        try:
-            await asyncio.gather(*[_one(u) for u in urls])
-        finally:
-            await browser.close()
+        chunks = [urls[i::connections] for i in range(connections)]
+        await asyncio.gather(*[_worker(c) for c in chunks if c])
     return out
 
 

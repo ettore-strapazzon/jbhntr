@@ -1227,6 +1227,33 @@ def admin_sample_urls(_: bool = Depends(require_admin), source: str = "api:caree
     return PlainTextResponse("\n".join(u for (u,) in rows) or "(no rows for that source)")
 
 
+@router.get("/admin/sample-urls-by-age", response_class=PlainTextResponse)
+def admin_sample_urls_by_age(_: bool = Depends(require_admin), source: str = "api:careerjet",
+                             per: int = 5, max_age: int = 45,
+                             db: DbSession = Depends(get_session)):
+    """Plain-text sample of `per` random URLs for EACH days-since-last-seen cohort, so
+    you can click through and see by eye where a source's links start going dead.
+    Read-only diagnostic."""
+    import random
+
+    from ..models import aware, utcnow
+    now = utcnow()
+    rows = (db.query(Job.url, Job.last_seen_at)
+            .filter(Job.source == source, Job.url != "").all())
+    buckets: dict[int, list[str]] = {}
+    for url, ls in rows:
+        age = (now - (aware(ls) or now)).days
+        if 0 <= age <= max_age:
+            buckets.setdefault(age, []).append(url)
+    lines: list[str] = []
+    for age in sorted(buckets):
+        picks = random.sample(buckets[age], min(max(1, per), len(buckets[age])))
+        lines.append(f"===== {age} days since last seen  (n={len(buckets[age])}) =====")
+        lines += picks
+        lines.append("")
+    return PlainTextResponse("\n".join(lines) or "(no rows for that source)")
+
+
 @router.post("/admin/calibrate-aggregators")
 def admin_calibrate_aggregators(_: bool = Depends(require_admin)):
     """Operator: sample careerjet/jooble links per age-cohort through the Bright Data
