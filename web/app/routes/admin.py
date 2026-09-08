@@ -1227,6 +1227,65 @@ def admin_sample_urls(_: bool = Depends(require_admin), source: str = "api:caree
     return PlainTextResponse("\n".join(u for (u,) in rows) or "(no rows for that source)")
 
 
+@router.post("/admin/calibrate-aggregators")
+def admin_calibrate_aggregators(_: bool = Depends(require_admin)):
+    """Operator: sample careerjet/jooble links per age-cohort through the Bright Data
+    Scraping Browser and report the dead-rate curve + proposed cutoff. REPORT ONLY —
+    deletes nothing. Read the result in the job log, then run the purge with a cutoff.
+    Slow (opens a residential browser) — runs in the background."""
+    from urllib.parse import quote
+
+    from ..db import SessionLocal
+    from ..services import aggregator_calibrate as cal
+
+    def _work():
+        db = SessionLocal()
+        try:
+            res = cal.calibrate(db)
+            record_op("calibrate-agg", str(res)[:900])
+            log.info("calibrate-aggregators: %s", res)
+        except Exception as exc:
+            log.exception("calibrate-aggregators failed")
+            record_op("calibrate-agg", f"failed: {str(exc)[:200]}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = ("Calibrating careerjet/jooble via Bright Data (report only, nothing deleted). "
+           "Check the job log in a few minutes for the dead-rate curve and cutoff.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
+@router.post("/admin/purge-aggregators")
+def admin_purge_aggregators(_: bool = Depends(require_admin), cutoff: int = Form(...)):
+    """Operator: delete careerjet/jooble jobs whose last_seen is older than `cutoff`
+    days (the value from a prior calibrate run). Tombstones + purges boards."""
+    from urllib.parse import quote
+
+    from ..db import SessionLocal
+    from ..services import aggregator_calibrate as cal
+
+    if cutoff < 1:
+        return RedirectResponse("/admin?reset_msg=" + quote("Cutoff must be >= 1 day."),
+                                status_code=303)
+
+    def _work():
+        db = SessionLocal()
+        try:
+            res = cal.purge(db, cutoff_days=cutoff)
+            record_op("purge-agg", str(res)[:400])
+            log.info("purge-aggregators: %s", res)
+        except Exception as exc:
+            log.exception("purge-aggregators failed")
+            record_op("purge-agg", f"failed: {str(exc)[:200]}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_work, daemon=True).start()
+    msg = f"Purging careerjet/jooble older than {cutoff} days. Check the job log shortly."
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
 @router.post("/admin/run-discovery")
 def admin_run_discovery(_: bool = Depends(require_admin)):
     """Operator: run similar-company discovery + custom careers-page scraping now,

@@ -256,6 +256,18 @@
         <span class="small muted">One-time full sweep of the whole corpus — slow,
           runs in the background.</span>
       </form>
+      <form method="post" action="/admin/calibrate-aggregators" style="margin-top:6px">
+        <button class="ghost" type="submit">Calibrate careerjet/jooble age (report only)</button>
+        <span class="small muted">Samples links per age-cohort via Bright Data and
+          logs the dead-rate curve + a proposed cutoff. Deletes nothing.</span>
+      </form>
+      <form method="post" action="/admin/purge-aggregators" style="margin-top:6px">
+        <input type="number" name="cutoff" min="1" placeholder="days" required
+               style="max-width:90px">
+        <button class="ghost" type="submit">Purge careerjet/jooble older than N days</button>
+        <span class="small muted">Use the cutoff from the calibrate run. Deletes aged-out
+          aggregator jobs (tombstoned so they can't return).</span>
+      </form>
       <form method="post" action="/admin/embed-now" style="margin-top:6px">
         <button class="ghost" type="submit">Embed backlog now</button>
         <span class="small muted">Vectorise unembedded jobs so they become

@@ -4016,6 +4016,52 @@ def test_enrich_reaps_stale_trackers_keeps_live_boards(client, monkeypatch):
         db.commit(); db.close()
 
 
+def test_aggregator_calibrate_cutoff_and_purge(client, monkeypatch):
+    """Calibrate finds the age where an aggregator's links start dying (>=2/5 404,
+    confirmed by the next bucket) and purge deletes only the aged-out tail."""
+    from datetime import timedelta
+
+    from web.app.db import SessionLocal
+    from web.app.models import DeadLink, Job, utcnow
+    from web.app.services import aggregator_calibrate as cal
+
+    monkeypatch.setattr(cal, "_auth", lambda: "fake-auth")
+    # Offline check: parse the age out of the url; links die at age >= 15 days.
+    def fake_check(urls):
+        out = {}
+        for u in urls:
+            age = int(u.split("/x")[1].split("_")[0])
+            out[u] = 404 if age >= 15 else 200
+        return out
+    monkeypatch.setattr(cal, "_check", fake_check)
+
+    now = utcnow()
+    keys = []
+    db = SessionLocal()
+    try:
+        for age in (0, 1, 2, 3, 20, 21, 22, 25):
+            for i in range(6):
+                k = f"cal-{age}-{i}"
+                keys.append(k)
+                db.add(Job(dedup_key=k, source="api:careerjet",
+                           url=f"https://jobviewtrack.com/x{age}_{i}",
+                           last_seen_at=now - timedelta(days=age, hours=1)))
+        db.commit()
+
+        res = cal.calibrate(db, sample=5, max_age=60)
+        assert res["cutoff_days"] == 20 and res["would_purge"] > 0
+
+        pres = cal.purge(db, cutoff_days=res["cutoff_days"])
+        assert pres["deleted"] == 24                       # ages 20,21,22,25 x6
+        alive = {r.dedup_key for r in db.query(Job).filter(Job.dedup_key.in_(keys))}
+        assert all(k.split("-")[1] in ("0", "1", "2", "3") for k in alive)   # young kept
+        assert db.get(DeadLink, "cal-25-0") is not None    # aged-out ones tombstoned
+    finally:
+        db.query(Job).filter(Job.dedup_key.in_(keys)).delete()
+        db.query(DeadLink).filter(DeadLink.dedup_key.in_(keys)).delete()
+        db.commit(); db.close()
+
+
 def test_reaper_recheck_days_zero_forces_recently_checked(client, monkeypatch):
     """recheck_days=0 (deep clean) re-examines a job checked moments ago, so a new
     checker (e.g. captcha detection) runs against the whole corpus — whereas the
