@@ -42,7 +42,11 @@ def run(db) -> dict:
             coded += 1
     db.commit()
     res = {"granted": granted, "scan_marked": scan_marked, "coded": coded}
-    db.add(OpsLog(kind="migrate_credits", detail=str(res)))
-    db.commit()
-    log.info("migrate_credits: %s", res)
+    # Runs on every boot (init_db) but is a one-time backfill — new accounts already get
+    # their grant + code at signup. Only record/log when it actually changed something,
+    # so routine restarts don't spam the ops log with '0/0/0'.
+    if granted or scan_marked or coded:
+        db.add(OpsLog(kind="migrate_credits", detail=str(res)))
+        db.commit()
+        log.info("migrate_credits: %s", res)
     return res
