@@ -1254,6 +1254,33 @@ def admin_sample_urls_by_age(_: bool = Depends(require_admin), source: str = "ap
     return PlainTextResponse("\n".join(lines) or "(no rows for that source)")
 
 
+@router.get("/admin/source-freshness", response_class=PlainTextResponse)
+def admin_source_freshness(_: bool = Depends(require_admin), source: str = "api:careerjet",
+                           db: DbSession = Depends(get_session)):
+    """How fresh a source's stored links are: total vs last-seen-today, plus a short
+    age histogram (days since last seen). For careerjet, 'age 0' ~= the links that
+    still work; everything older is an expired token. Read-only."""
+    from collections import Counter
+
+    from ..models import aware, utcnow
+    now = utcnow()
+    rows = db.query(Job.last_seen_at).filter(Job.source == source).all()
+    total = len(rows)
+    if not total:
+        return PlainTextResponse(f"{source}: 0 jobs in corpus")
+    ages: Counter = Counter((now - (aware(ls) or now)).days for (ls,) in rows)
+    today = ages.get(0, 0)
+    lines = [f"{source}: total {total:,}",
+             f"  last seen TODAY (age 0): {today:,}  ({100 * today / total:.0f}%)",
+             f"  older (age >= 1, expired links): {total - today:,}  "
+             f"({100 * (total - today) / total:.0f}%)",
+             "  --- age histogram (days since last seen) ---"]
+    for a in range(0, 8):
+        lines.append(f"  {a}d: {ages.get(a, 0):,}")
+    lines.append(f"  8d+: {sum(c for age, c in ages.items() if age >= 8):,}")
+    return PlainTextResponse("\n".join(lines))
+
+
 @router.post("/admin/calibrate-aggregators")
 def admin_calibrate_aggregators(_: bool = Depends(require_admin)):
     """Operator: sample careerjet/jooble links per age-cohort through the Bright Data
