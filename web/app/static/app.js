@@ -311,3 +311,38 @@ document.addEventListener("input", function (e) {
   ed.addEventListener('input', render);
   render();
 })();
+
+// Brand v3 P11: theme toggle. Cycle light<->dark, persist in localStorage; a
+// three-way System/Light/Dark <select> on /account. No-flash init lives inline in
+// base.html <head>; this only wires the controls.
+(function () {
+  function apply(t) {
+    if (t) document.documentElement.setAttribute("data-theme", t);
+    else document.documentElement.removeAttribute("data-theme");
+  }
+  function systemDark() {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function cycle() {
+    var now = document.documentElement.getAttribute("data-theme");
+    var effective = now || (systemDark() ? "dark" : "light");
+    var next = effective === "dark" ? "light" : "dark";
+    apply(next);
+    try { localStorage.setItem("jbhntr:theme", next); } catch (e) {}
+  }
+  document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
+    b.addEventListener("click", cycle);
+  });
+  var sel = document.getElementById("theme-select");
+  if (sel) {
+    try {
+      var saved = localStorage.getItem("jbhntr:theme");
+      sel.value = saved === "dark" || saved === "light" ? saved : "system";
+    } catch (e) {}
+    sel.addEventListener("change", function () {
+      var v = sel.value;
+      if (v === "system") { apply(null); try { localStorage.removeItem("jbhntr:theme"); } catch (e) {} }
+      else { apply(v); try { localStorage.setItem("jbhntr:theme", v); } catch (e) {} }
+    });
+  }
+})();

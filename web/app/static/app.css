@@ -89,6 +89,52 @@
   --space-tight:12px;
 }
 @media (max-width:1279px){ :root{ --container:1120px; } }
+
+/* ---- Brand v3 P11: dark mode. Token overrides only; components resolve through them.
+   The [data-theme="dark"] and prefers-color-scheme bodies MUST stay in sync. ---- */
+[data-theme="dark"]{
+  --surface-canvas:var(--navy-950); --surface-raised:var(--navy-900); --surface-sunken:#071220;
+  --surface-inverse:var(--navy-100);
+  --text-primary:var(--navy-50); --text-secondary:var(--navy-300); --text-on-inverse:var(--navy-950);
+  --border-subtle:var(--navy-700); --border-strong:var(--navy-400);
+  --action-primary:var(--corn-300); --action-primary-hover:var(--corn-200); --action-primary-ink:var(--navy-950);
+  --accent-selected:var(--corn-950); --accent-warm:var(--apr-400);
+  --focus-ring:var(--corn-400); --link:var(--corn-300); --link-hover:var(--corn-200);
+  --status-success:#6CC29A; --status-success-bg:#12301F;
+  --status-attention:#DDAE5C; --status-attention-bg:#33260D;
+  --status-error:#F09098; --status-error-bg:#3A151A;
+  --elev-1:none; --elev-2:none;
+  --tier-1:#A9C1EB; --tier-2:#8FADE4; --tier-3:#7599DB; --tier-4:#6B8CA5; --tier-5:#97AEC1;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --surface-canvas:var(--navy-950); --surface-raised:var(--navy-900); --surface-sunken:#071220;
+  --surface-inverse:var(--navy-100);
+  --text-primary:var(--navy-50); --text-secondary:var(--navy-300); --text-on-inverse:var(--navy-950);
+  --border-subtle:var(--navy-700); --border-strong:var(--navy-400);
+  --action-primary:var(--corn-300); --action-primary-hover:var(--corn-200); --action-primary-ink:var(--navy-950);
+  --accent-selected:var(--corn-950); --accent-warm:var(--apr-400);
+  --focus-ring:var(--corn-400); --link:var(--corn-300); --link-hover:var(--corn-200);
+  --status-success:#6CC29A; --status-success-bg:#12301F;
+  --status-attention:#DDAE5C; --status-attention-bg:#33260D;
+  --status-error:#F09098; --status-error-bg:#3A151A;
+  --elev-1:none; --elev-2:none;
+  --tier-1:#A9C1EB; --tier-2:#8FADE4; --tier-3:#7599DB; --tier-4:#6B8CA5; --tier-5:#97AEC1;
+}}
+/* dark: tier chips take navy text on all five steps; paper previews stay light; mark on a plate */
+[data-theme="dark"] .tier-1,[data-theme="dark"] .tier-2,[data-theme="dark"] .tier-3,
+[data-theme="dark"] .tier-4,[data-theme="dark"] .tier-5,
+:root:not([data-theme="light"]) .tier-1{color:var(--navy-950)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tier-1,
+  :root:not([data-theme="light"]) .tier-2,:root:not([data-theme="light"]) .tier-3,
+  :root:not([data-theme="light"]) .tier-4,:root:not([data-theme="light"]) .tier-5{color:var(--navy-950)}}
+[data-theme="dark"] .brand img{background:var(--navy-800);border-radius:8px;padding:4px}
+[data-theme="dark"] .doc-preview,[data-theme="dark"] .doc-preview .pv-contact,
+[data-theme="dark"] .sheet{background:#fff;color:#1a1a1a}
+[data-theme="dark"] .doc-preview,[data-theme="dark"] .sheet{border-color:var(--navy-800)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .brand img{background:var(--navy-800);border-radius:8px;padding:4px}
+  :root:not([data-theme="light"]) .doc-preview,:root:not([data-theme="light"]) .sheet{background:#fff;color:#1a1a1a;border-color:var(--navy-800)}
+}
 *{box-sizing:border-box}
 /* ---- Brand v3 P2: typography ---- */
 body{margin:0;font:400 16px/1.5 var(--font-text);background:var(--surface-canvas);color:var(--text-primary);
@@ -1125,3 +1171,23 @@ a.plan-cta,.plan-cta .btn{align-self:start}
   .funnel-bar{animation:none;transform:none}
 }
 
+
+/* Brand v3 P11: theme toggle controls */
+.theme-toggle{display:inline-flex;align-items:center;justify-content:center;
+  width:40px;min-height:40px;padding:0;border-radius:var(--r-chip);
+  background:transparent;border:1px solid transparent;color:var(--text-secondary);cursor:pointer;
+  transition:color var(--dur-state) var(--ease-state),background var(--dur-state) var(--ease-state)}
+.theme-toggle:hover{color:var(--text-primary);background:var(--surface-sunken)}
+.theme-toggle svg{display:block}
+.mm-theme{display:block;width:100%;text-align:left;background:none;border:0;
+  color:var(--text-primary);font:inherit;padding:12px 4px;cursor:pointer;min-height:44px}
+.mm-theme:hover{color:var(--link)}
+/* Account three-way segmented theme control */
+.theme-seg{display:inline-flex;gap:2px;border:1px solid var(--border-strong);
+  border-radius:var(--r-ctrl);padding:2px;background:var(--surface-raised)}
+.theme-seg label{display:inline-flex;align-items:center;min-height:36px;padding:0 14px;
+  border-radius:6px;cursor:pointer;font-weight:500;color:var(--text-secondary);margin:0}
+.theme-seg input{position:absolute;opacity:0;width:1px;height:1px}
+.theme-seg input:checked + span{background:var(--accent-selected);color:var(--text-primary)}
+.theme-seg span{display:inline-flex;align-items:center;min-height:36px;padding:0 14px;border-radius:6px}
+.theme-seg input:focus-visible + span{outline:3px solid var(--focus-ring);outline-offset:2px}

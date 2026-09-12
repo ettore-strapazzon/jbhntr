@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){try{var t=localStorage.getItem('jbhntr:theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 
 {# --- SEO metadata contract (SEO-001/002). Any route that does not pass public
    SEO context stays noindex by default — that is intentional. --- #}
@@ -27,7 +28,8 @@
 <link rel="icon" href="/static/icon-16.svg?v={{ asset_v }}" sizes="16x16" type="image/svg+xml">
 <link rel="icon" href="/static/icon.svg?v={{ asset_v }}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/icon-192.png?v={{ asset_v }}">
-<meta name="theme-color" content="#17334B">
+<meta name="theme-color" content="#FBF8F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1A27" media="(prefers-color-scheme: dark)">
 <link rel="preload" href="/static/fonts/dmsans-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/static/fonts/plusjakartasans-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/app.css?v={{ asset_v }}">
@@ -80,6 +82,12 @@
       <a href="/signup" class="pill">Start your search</a>
     {% endif %}
   </nav>
+  <button class="theme-toggle" type="button" data-theme-toggle
+          aria-label="Switch colour theme" title="Switch colour theme">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M12 3a9 9 0 000 18z" fill="currentColor"/></svg>
+  </button>
   {% if user %}
   {# Mobile-only menu button (§Round 6.2). The bottom bar holds the four daily
      destinations; this opens the full site nav that the bar cannot carry. #}
@@ -100,6 +108,7 @@
   <a href="/how-it-works">How it works</a>
   <a href="/compare/linkedin-jobs">Comparisons</a>
   <a href="/account">Account</a>
+  <button class="mm-theme" type="button" data-theme-toggle>Switch colour theme</button>
   <a href="/logout">Log out</a>
 </nav>
 {% endif %}

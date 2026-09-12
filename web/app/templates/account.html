@@ -16,6 +16,17 @@
     Searches used: {{ user.searches_used }} · Documents generated: {{ user.documents_used }}</p>
 </div>
 
+<div class="card" id="appearance">
+  <h2>Appearance</h2>
+  <p class="small muted">Choose a colour theme. “System” follows your device setting.</p>
+  <label for="theme-select">Theme</label>
+  <select id="theme-select" style="max-width:220px">
+    <option value="system">System</option>
+    <option value="light">Light</option>
+    <option value="dark">Dark</option>
+  </select>
+</div>
+
 <div class="card{% if not user.is_premium %} locked{% endif %}" id="email">
   {% if not user.is_premium %}
     <div class="premium-only"><span class="po-sq" aria-hidden="true"></span>PREMIUM ONLY</div>

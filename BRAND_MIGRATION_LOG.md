@@ -97,3 +97,16 @@ recoloured to navy, kept as a brief 2x state cue (not continuous). app.js: no sl
 score counters, no fake scanning progress, no confetti/parallax (the char-counter and funnel
 one-time reveal are fine; funnel already respects reduced-motion).
 
+## P11 — Dark mode
+Files: web/app/static/app.css, app.js, templates/base.html, account.html, main.py
+[data-theme="dark"] + prefers-color-scheme:dark token overrides (kept in sync); dark tier
+values + navy-950 chip text; mark on a navy-800 plate in dark; doc-preview/.sheet light-locked
+on a navy frame; elevation -> none in dark. No-flash inline script in <head> (CSP sha256 added
+to main.py script-src). Dual theme-color. Controls: header contrast-icon toggle (cycles
+light<->dark, data-theme-toggle), mobile-menu toggle, and a System/Light/Dark <select> on
+/account (#theme-select). Persist to localStorage jbhntr:theme. Verified: toggle flips tokens,
+persists across navigation, no white flash, no CSP/console errors, cornflower primary/links in
+dark, credits table readable.
+Decision: skipped TIER_COLOURS_DARK in Python (no inline TIER_COLOURS usage; CSS --tier-N
+redefinition covers it). Account control is a <select> (manual allowed select or radio).
+
