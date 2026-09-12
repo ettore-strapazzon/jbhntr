@@ -68,3 +68,14 @@ strengthline.band-thin .dot, .band-thin .s-thin, .needs li.overdue. Fixed 3 P3-m
 .ev-interview). Tier chips already carry text labels (r.tier_label) so "never a number alone"
 holds; label WORDING left to copy owners (do-not #10). Tier visuals verified in P10.
 
+## P7 — Homepage composition
+Files: web/app/templates/landing.html, web/app/static/app.css
+Hero -> ~45/55 (copy left, photographic diptych right). Diptych = square-cornered
+(radius 0) cornflower/apricot tints with a 2px seam + data-brand-placeholder="hero-diptych"
+(B2: real photography pending). Hero h1 -> --step-hero/800. Added the navy evidence band
+(--surface-inverse, full-bleed) carrying one real role + two fit dimensions (white +
+corn-300), which absorbs the illustrative example the old hero card showed. One primary
+CTA (ghost secondary). Verified desktop: split, diptych, evidence band all render.
+Decision to flag: the old illustrative hero card was replaced by the diptych placeholder
+per the book; hero-right is now an empty photo slot until B2 photography lands.
+

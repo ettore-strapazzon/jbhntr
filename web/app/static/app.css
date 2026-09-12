@@ -642,10 +642,10 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
 /* ---- hero ---- */
 .hero{padding-block:clamp(36px,3.4vw,56px) var(--space-section)}
 .hero-grid{display:grid;gap:clamp(32px,5vw,72px);align-items:center;
-  grid-template-columns:minmax(0,1fr) minmax(0,30rem)}
+  grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}   /* ~45/55, copy left */
 @media (max-width:940px){.hero-grid{grid-template-columns:minmax(0,1fr)}}
 .hero-copy .eyebrow{margin:0 0 12px}
-.hero h1{margin:0 0 .5em;font-size:var(--step-h1);line-height:1.02;
+.hero h1{margin:0 0 .5em;font:800 var(--step-hero)/1.05 var(--font-display);
   letter-spacing:-.03em;text-wrap:balance}
 .hero h1 .turn{display:block;color:var(--action-primary)}
 .hero .lede{max-width:34ch;margin:0 0 1em;font-size:var(--step-lede);
@@ -653,8 +653,33 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
 .proofline{font-size:14px;color:var(--text-secondary);margin:0 0 18px;max-width:48ch}
 .hero .cta{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 8px}
 
-/* proof cards: normal flow - no height, no overflow, no absolute (fixes L-01) */
+/* Hero photographic diptych (book §10) — square-cornered, 2px seam. Photography
+   pending (B2); the two tints stand in and mark the greppable slot. */
 .hero-visual{display:flex;flex-direction:column;gap:14px}
+.hero-diptych{display:grid;grid-template-columns:1fr 1fr;gap:2px;
+  border:1px solid var(--border-subtle);border-radius:0;overflow:hidden;
+  aspect-ratio:8/5;background:var(--border-subtle)}
+.hero-diptych>div{aspect-ratio:3/4;min-height:0}
+.hero-diptych-a{background:var(--corn-100)}
+.hero-diptych-b{background:var(--apr-100)}
+
+/* Navy evidence band — a page-level device, never a component background. */
+.evidence-band{background:var(--surface-inverse);color:var(--text-on-inverse);
+  padding-block:var(--sp-12);margin-block:var(--space-section) 0}
+.evidence-inner{display:grid;gap:var(--sp-4)}
+.evidence-eyebrow{color:var(--corn-300);margin:0 0 var(--sp-2)}
+.evidence-title{font:700 var(--step-h3)/1.2 var(--font-display);margin:0;color:var(--text-on-inverse)}
+.evidence-meta{color:var(--corn-300);font-size:14px;margin:4px 0 0}
+.evidence-dims{display:grid;gap:14px;max-width:640px;margin-top:var(--sp-2)}
+.evidence-dim{display:flex;align-items:center;gap:12px}
+.evidence-dim-label{flex:0 0 200px;font-size:14px;color:var(--corn-300)}
+.evidence-bar{flex:1;height:8px;border-radius:999px;background:var(--navy-700);overflow:hidden}
+.evidence-bar>div{height:100%;background:var(--corn-400)}
+.evidence-num{flex:0 0 auto;font-family:var(--mono);font-size:18px;color:var(--text-on-inverse)}
+@media (max-width:560px){
+  .evidence-dim{flex-wrap:wrap}
+  .evidence-dim-label{flex:1 0 100%}
+}
 .proof-card{background:var(--surface-raised);border:1px solid var(--border-subtle);border-radius:14px;
   padding:18px 20px}
 .proof-card--lead{border-color:var(--corn-200)}
