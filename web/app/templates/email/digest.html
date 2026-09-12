@@ -7,20 +7,20 @@
 {% for j in jobs %}
   <div style="border:1px solid #e2ded6;border-radius:9px;padding:12px 14px;background:#fff;margin:0 0 8px">
     <p style="margin:0 0 4px">
-      <span style="font:700 15px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#174b3e">{{ j.score }}</span>
+      <span style="font:700 15px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#17334B">{{ j.score }}</span>
       <span style="font:600 9.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;
-        text-transform:uppercase;background:#174b3e;color:#fff;padding:4px 6px;border-radius:4px">{{ j.tier_label }}</span></p>
+        text-transform:uppercase;background:#17334B;color:#fff;padding:4px 6px;border-radius:4px">{{ j.tier_label }}</span></p>
     <p style="margin:0 0 2px;font-weight:600">{{ j.title }}</p>
-    <p style="margin:0 0 7px;font-size:13px;color:#6b6862">{{ j.company }}{% if j.location %} · {{ j.location }}{% endif %}</p>
+    <p style="margin:0 0 7px;font-size:13px;color:#526273">{{ j.company }}{% if j.location %} · {{ j.location }}{% endif %}</p>
     {% if j.good %}<p style="margin:0 0 3px;font-size:13.5px">{{ j.good }}.{% if j.bad %} {{ j.bad }}.{% endif %}</p>{% endif %}
     <p style="margin:0;font-size:13.5px">
-      <a href="{{ base_url }}/matches#card-{{ j.id }}" style="color:#174b3e">Open match in JBHNTR</a></p>
+      <a href="{{ base_url }}/matches#card-{{ j.id }}" style="color:#17334B">Open match in JBHNTR</a></p>
   </div>
 {% endfor %}
 {% if remaining %}
   <p style="margin:8px 0 14px">{{ remaining }} more cleared the bar{% if remaining_longshots %},
     including {{ remaining_longshots }} long shots{% endif %}.
-    <a href="{{ base_url }}/matches" style="color:#174b3e">Open the full shortlist</a>.</p>
+    <a href="{{ base_url }}/matches" style="color:#17334B">Open the full shortlist</a>.</p>
 {% endif %}
-<p style="margin:14px 0 0;color:#6b6862">{{ closing }}</p>
+<p style="margin:14px 0 0;color:#526273">{{ closing }}</p>
 {% endblock %}

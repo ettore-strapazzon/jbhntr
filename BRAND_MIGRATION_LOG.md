@@ -79,3 +79,12 @@ CTA (ghost secondary). Verified desktop: split, diptych, evidence band all rende
 Decision to flag: the old illustrative hero card was replaced by the diptych placeholder
 per the book; hero-right is now an empty photo slot until B2 photography lands.
 
+## P8 — Email system
+Files: web/app/templates/email/_shell.html + welcome/reset/digest/premium_waitlist .html
+Shell: ground #FBF8F2, card #FFFFFF + 1px #D8DFE5, navy #17334B brand band with Plus
+Jakarta Sans wordmark, DM Sans/Arial 16/24 body #17334B, footer #526273. Buttons ->
+bulletproof pill (border-radius:999px, DM Sans 16px). All literal hex (no CSS vars).
+.txt twins unchanged (no styling). Rendered welcome: navy/warm-white/DM Sans/pill OK,
+no legacy hex. Note (B3): footer mark PNG (32px) not added — kept the wordmark band
+instead (no raster pipeline).
+
