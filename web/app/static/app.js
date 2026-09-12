@@ -140,7 +140,7 @@ document.addEventListener("input", function (e) {
   var pv = document.getElementById('doc-preview');
   if (!ed || !pv) return;
   var font = pv.getAttribute('data-font') || '';
-  var accent = pv.getAttribute('data-accent') || '#1f2a24';
+  var accent = pv.getAttribute('data-accent') || '#17334B';
   var upper = pv.getAttribute('data-upper') === '1';
   var boldHeads = pv.getAttribute('data-bold') !== '0';
   pv.style.fontFamily = font;

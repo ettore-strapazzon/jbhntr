@@ -23,6 +23,6 @@ templates.env.globals["rating_labels"] = RATING_LABELS
 templates.env.globals["asset_v"] = (
     os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")[:8] or str(int(time.time()))
 )
-templates.env.globals["TIER_COLOURS"] = {
+templates.env.globals["TIER_COLOURS"] = {  # TODO(P6): re-value to the navy-scaled fit tiers
     1: "#0a7c42", 2: "#3d8b37", 3: "#b8860b", 4: "#9a6a00", 5: "#8b0000",
 }

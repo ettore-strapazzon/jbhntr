@@ -24,3 +24,14 @@ Decision: kept 5 component sub-head <h3> sizes (.step/.benefit/.au-run/.market-f
 display font, and the clamp would break those card layouts (hard-constraint #1). Flagged for
 review if strict acceptance is required.
 
+## P3 — Colour sweep
+Files: web/app/static/app.css, web/app/static/app.js, web/app/templating.py, 3 templates
+Swept ~90 literal hex + 17 alias vars (269 alias refs) to canonical tokens; deleted the
+legacy alias block. a{}->--link + a:hover; :focus-visible 3px/--focus-ring. plan--premium
+navy-surface: rgba(255,255,255,.x) -> corn-300 (text/marks), navy-600 (figs border), btn
+border corn-300. toast bg -> navy-900, toast link/x -> corn-300. app.js toast default
+#1f2a24->#17334B. TIER_COLOURS marked TODO(P6). Verified /, /credits: no legacy hex, no
+console errors, tabular figures align. Loadbar shimmer rgba left for P9.
+Unmapped: none. Decisions: #eee/#ddd->--border-subtle, #444->--text-primary, #1b7a43
+(offer)->--status-success, step-marker white ring kept as --white.
+

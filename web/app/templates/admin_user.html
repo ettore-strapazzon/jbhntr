@@ -75,7 +75,7 @@
       <p class="small muted" style="margin:0 0 4px">
         {{ s.raw_count }} collected · {{ s.located_count }} in-region ·
         {{ s.ranked_count }} shortlisted · {{ s.scored_count }} kept
-        {% if s.error %}· <span style="color:var(--err)">{{ s.error }}</span>{% endif %}</p>
+        {% if s.error %}· <span style="color:var(--status-error)">{{ s.error }}</span>{% endif %}</p>
 
       {% for r in run.results %}
         <div class="au-res">
