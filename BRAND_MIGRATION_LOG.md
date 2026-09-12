@@ -35,3 +35,15 @@ console errors, tabular figures align. Loadbar shimmer rgba left for P9.
 Unmapped: none. Decisions: #eee/#ddd->--border-subtle, #444->--text-primary, #1b7a43
 (offer)->--status-success, step-marker white ring kept as --white.
 
+## P4 — Component state matrix
+Files: web/app/static/app.css
+Buttons -> pill (--r-chip) with full state matrix (default/hover/active/disabled/busy;
+ghost/link/danger; lg/md/sm sizes). Inputs -> border-strong + focus (3px focus-ring)/
+invalid/disabled. Card -> border + --elev-0, .card--selected 2px, mobile sp-4 padding.
+Selection states (.chipcheck.on/.ratebtn.on/.btn.on/.actiongroup.on/.plan-row:hover) ->
+2px border + --accent-selected tint (no fill-alone). Elevation only on overlays: stripped
+textarea/proof-card/marker shadows; toast + cookie-note -> --elev-2. Old-pine rgba(23,75,62)
+-> navy rgba. Verified /signup: pill button, styled inputs, 3px focus ring, border-only card.
+Observation (not fixed, copy is out of scope): /signup subtitle still says "run 25 complete
+market scans" (pre-credits copy).
+
