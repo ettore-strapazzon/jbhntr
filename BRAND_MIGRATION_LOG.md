@@ -88,3 +88,12 @@ bulletproof pill (border-radius:999px, DM Sans 16px). All literal hex (no CSS va
 no legacy hex. Note (B3): footer mark PNG (32px) not added — kept the wordmark band
 instead (no raster pipeline).
 
+## P9 — Motion
+Files: web/app/static/app.css
+Added the §10 reduced-motion block (clamp durations, one iteration, keep changes visible).
+Removed the continuous loadbar shimmer (kept the determinate width bar on --dur-reveal) and
+the infinite active-stage dot pulse (colour/weight carry the state). Nav attention pulse
+recoloured to navy, kept as a brief 2x state cue (not continuous). app.js: no slot-machine
+score counters, no fake scanning progress, no confetti/parallax (the char-counter and funnel
+one-time reveal are fine; funnel already respects reduced-motion).
+

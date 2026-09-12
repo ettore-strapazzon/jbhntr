@@ -405,18 +405,15 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 /* Search progress bar: width set inline by stage; the shimmer keeps it feeling
    live between the 3s status polls. */
 .loadbar{height:6px;border-radius:999px;background:color-mix(in srgb,var(--action-primary) 15%,transparent);overflow:hidden}
-.loadbar-fill{height:100%;border-radius:999px;background:var(--action-primary);transition:width .6s ease;position:relative;overflow:hidden}
-.loadbar-fill::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);animation:loadbar-shim 1.2s linear infinite}
-@keyframes loadbar-shim{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
-@media (prefers-reduced-motion: reduce){.loadbar-fill::after{animation:none}}
+.loadbar-fill{height:100%;border-radius:999px;background:var(--action-primary);transition:width var(--dur-reveal) var(--ease-reveal)}
 .stage-rail{display:flex;gap:14px;flex-wrap:wrap}
 .stage{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary)}
 .stage i{width:9px;height:9px;border-radius:99px;background:var(--border-subtle);flex:0 0 9px}
 .stage.done{color:var(--text-primary)} .stage.done i{background:var(--action-primary)}
-.stage.on{color:var(--text-primary);font-weight:600} .stage.on i{background:var(--action-primary);animation:pulse 1s infinite}
+.stage.on{color:var(--text-primary);font-weight:600} .stage.on i{background:var(--action-primary)}
 .stage-n{font:600 11px/1 var(--mono);color:var(--text-secondary);letter-spacing:.02em}
 .stage.done .stage-n,.stage.on .stage-n{color:var(--text-primary)}
-@keyframes pulse{50%{opacity:.35}}
+/* pulse keyframe removed (P9: no continuous pulsing) */
 
 /* job results */
 .job{border:1px solid var(--border-subtle);border-left:4px solid var(--border-subtle);
@@ -1091,7 +1088,7 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .toast a{color:var(--corn-300);white-space:nowrap}
 .toast.out{opacity:0;transform:translateY(8px)}
 .toast-x{background:none;border:0;color:var(--corn-300);font-size:1.1rem;cursor:pointer;line-height:1;padding:0 2px}
-@keyframes navpulse{0%,100%{box-shadow:0 0 0 0 rgba(31,122,67,0)}30%{box-shadow:0 0 0 4px rgba(31,122,67,.35)}}
+@keyframes navpulse{0%,100%{box-shadow:0 0 0 0 rgba(23,51,75,0)}30%{box-shadow:0 0 0 4px rgba(23,51,75,.30)}}
 #nav-myjobs.pulse{border-radius:6px;animation:navpulse 1.2s ease-in-out 2}
 
 /* --- My Jobs craft entry points + refine loop --- */
@@ -1118,3 +1115,13 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .doc-preview .pv-p{margin:2px 0}
 .doc-preview .pv-ul{margin:2px 0 8px;padding-left:20px}
 .doc-preview .pv-ul li{margin:2px 0}
+
+/* Brand v3 P9: reduced-motion — clamp durations, one iteration, keep changes visible */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:var(--dur-state)!important;animation-iteration-count:1!important;
+    transition-duration:var(--dur-state)!important;
+  }
+  .funnel-bar{animation:none;transform:none}
+}
+
