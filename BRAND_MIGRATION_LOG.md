@@ -134,3 +134,19 @@ they inherit the token layer verified on public pages, and their theme-specific 
 chips, statebadge, steprail, doc-preview light-lock, evidence) were fixed directly. Recommend a
 post-deploy spot-check or a test session to pixel-verify them.
 
+
+## Post-QA — Hero visual + go-live (2026-09-12)
+Files: web/app/templates/landing.html, web/app/static/app.css
+The book's hero slot (B2) is commissioned editorial photography, not delivered. Per user
+decision, replaced the empty photographic-diptych placeholder with an illustrative match card
+in the in-app style: tier chip (Strong match), two-way fit bars (92 / 78), for/against reasons
+with success/attention left rules, labelled "Illustrative example". Removed the navy evidence
+band, which duplicated the same role + scores immediately below the hero. .hero-diptych styles
+retained so photography can be swapped in when B2 lands.
+Verified light + dark + mobile(375) + desktop(1280): side-by-side hero at >=940px, card stacks
+full-width below breakpoint, bars/labels reflow cleanly on mobile, no horizontal scroll, chip and
+bar contrast pass in both themes. Full suite: 573 passed, 1 skipped.
+DEPLOYED: pushed to main (Railway prod) per user go-ahead.
+Still outstanding (B3, no local raster pipeline — cairo unavailable on Windows): icon-192.png,
+apple-touch-icon, og-default.png, and the email footer mark still show the OLD three-bar mark.
+In-browser favicon + header logo (SVG) are on-brand. Needs an eng raster step to regenerate PNGs.
