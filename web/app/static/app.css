@@ -82,7 +82,7 @@
   /* Legacy aliases removed in P3 (all references repointed to canonical tokens). */
   /* Preserved from the old second :root (not in the manual's block; kept so P1 breaks
      nothing — tier scale is re-valued in P6, spacing/lede survive as-is). */
-  --tier-1:#14663f; --tier-2:#2f6f2b; --tier-3:#8a6d00; --tier-4:#9a5b00; --tier-5:#8b2020;
+  --tier-1:#17334B; --tier-2:#35599A; --tier-3:#5B87D0; --tier-4:#97AEC1; --tier-5:#718399;
   --step-lede:clamp(1.0625rem, 0.98rem + 0.5vw, 1.375rem);
   --space-section:clamp(48px, 4.6vw, 76px);
   --space-block:clamp(20px, 2vw, 32px);
@@ -276,7 +276,7 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 .strengthline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;
   border:1px solid var(--border-subtle);border-radius:var(--r-card);padding:10px 14px;margin:14px 0}
 .strengthline .dot{width:10px;height:10px;border-radius:99px;background:var(--status-attention);flex:0 0 10px}
-.strengthline.band-thin .dot{background:var(--status-error)} .strengthline.band-basic .dot{background:var(--status-attention)}
+.strengthline.band-thin .dot{background:var(--status-attention)} .strengthline.band-basic .dot{background:var(--status-attention)}
 .filterbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;
   position:sticky;top:0;z-index:5;background:var(--surface-canvas);border-bottom:1px solid var(--border-subtle);
   padding:10px 0;margin:14px 0}
@@ -300,7 +300,7 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 .strength{border:1px solid var(--border-subtle);border-radius:var(--r-card);padding:16px 18px;margin-bottom:18px}
 .bandbar{display:flex;gap:4px;margin-bottom:10px}
 .bandbar .seg{flex:1;height:8px;border-radius:4px;background:var(--border-subtle)}
-.band-thin .s-thin{background:var(--status-error)}
+.band-thin .s-thin{background:var(--status-attention)}
 .band-basic .s-thin,.band-basic .s-basic{background:var(--status-attention)}
 .band-good .s-thin,.band-good .s-basic,.band-good .s-good{background:var(--status-attention)}
 .band-strong .seg{background:var(--action-primary)}
@@ -440,6 +440,7 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 /* fixed, contrast-checked tier fills — replaces the inline background */
 .tier-1{background:var(--tier-1)} .tier-2{background:var(--tier-2)}
 .tier-3{background:var(--tier-3)} .tier-4{background:var(--tier-4)} .tier-5{background:var(--tier-5)}
+.tier-4,.tier-5{color:var(--navy-950)}
 .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .tag{font-size:11px;background:var(--surface-sunken);border:1px solid var(--border-subtle);
   padding:2px 8px;border-radius:99px;color:var(--text-secondary)}
@@ -482,7 +483,7 @@ details.desc>summary{cursor:pointer;font-size:14px;color:var(--text-secondary);p
 .statebadge.saved{background:var(--status-success-bg);color:var(--action-primary);border:1px solid var(--corn-200)}
 .statebadge.new{background:var(--text-primary);color:var(--white)}
 .statebadge.applied{background:var(--corn-100);color:var(--navy-800);border:1px solid var(--corn-200)}
-.statebadge.unverified{background:var(--surface-raised)4e5;color:var(--status-attention);border:1px solid var(--apr-300)}
+.statebadge.unverified{background:var(--status-attention-bg);color:var(--status-attention);border:1px solid var(--apr-300)}
 .job.is-applied{opacity:.85}
 .btn.on,button.on,.btn.ghost.on{background:var(--accent-selected);border:2px solid var(--action-primary);color:var(--action-primary)}
 .job-title{flex:1;min-width:240px}
@@ -1029,7 +1030,7 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .needs{border:1px solid var(--border-subtle);border-radius:10px;padding:12px 14px;margin:0 0 18px;background:var(--surface-canvas)}
 .needs h2{margin:0 0 6px}
 .needs ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.needs li.overdue b{color:var(--status-error)}
+.needs li.overdue b{color:var(--status-attention)}
 .trk-group{border-top:1px solid var(--border-subtle);margin:0}
 .trk-grouphead{cursor:pointer;font-size:1.05rem;font-weight:600;padding:12px 0;list-style:none}
 .trk-grouphead::-webkit-details-marker{display:none}
@@ -1042,7 +1043,7 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .trk-badge{white-space:nowrap;font-size:.78rem;padding:2px 8px;border-radius:999px;background:var(--border-subtle);color:var(--text-primary)}
 .trk-badge.s-saved{background:var(--corn-100)}
 .trk-badge.s-applied{background:var(--corn-100);color:var(--navy-800)}
-.trk-badge.s-interviewing{background:var(--surface-raised)2d9;color:var(--status-attention)}
+.trk-badge.s-interviewing{background:var(--status-attention-bg);color:var(--status-attention)}
 .trk-badge.s-offer{background:var(--status-success-bg);color:var(--status-success)}
 .trk-badge.s-closed{background:var(--surface-sunken);color:var(--text-secondary)}
 .trk-next{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
@@ -1055,7 +1056,7 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .trk-events{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
 .trk-events li{display:flex;gap:8px;align-items:baseline}
 .ev-kind{font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;padding:1px 6px;border-radius:4px;background:var(--surface-sunken);color:var(--text-secondary)}
-.ev-interview{background:var(--surface-raised)2d9;color:var(--status-attention)}
+.ev-interview{background:var(--status-attention-bg);color:var(--status-attention)}
 .ev-offer{background:var(--status-success-bg);color:var(--status-success)}
 .ev-body{flex:1}
 

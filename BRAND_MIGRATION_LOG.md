@@ -59,3 +59,12 @@ BLOCKER B3 (unresolved): could not rasterize icon-192.png / apple-touch-icon / o
 OLD mark and need an eng raster pipeline. base.html apple-touch-icon still points at the stale
 icon-192.png.
 
+## P6 — Fit tiers + status semantics
+Files: web/app/templating.py, web/app/static/app.css
+TIER_COLOURS + --tier-1..5 -> navy scale (1 #17334B ... 5 #718399); tiers 4-5 take navy-950
+text (white fails on navy-300/border-strong). Reassigned non-failure reds to --status-attention:
+strengthline.band-thin .dot, .band-thin .s-thin, .needs li.overdue. Fixed 3 P3-mangled hexes
+(#fff4e5/#fff2d9 -> --status-attention-bg on .statebadge.unverified/.trk-badge.s-interviewing/
+.ev-interview). Tier chips already carry text labels (r.tier_label) so "never a number alone"
+holds; label WORDING left to copy owners (do-not #10). Tier visuals verified in P10.
+
