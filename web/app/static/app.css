@@ -119,7 +119,8 @@ main{max-width:var(--container);margin:0 auto;padding:28px 24px 64px}
   max-width:var(--container);margin:0 auto}
 .brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none}
 .brand img{display:block}
-.brand span{font:700 17px/1 var(--mono);letter-spacing:.11em;color:var(--action-primary)}
+.brand span{font:800 18px/1 var(--font-display);letter-spacing:-.02em;color:var(--text-primary)}
+.brand img{margin-inline-end:2px}   /* clear space ~= a quarter of the mark height */
 /* marketing pages: brass rule under the last four letters (R4.3) */
 .wordmark-rule{border-bottom:4px solid var(--brass);padding-bottom:2px}
 .bar nav{display:flex;gap:16px;align-items:center;flex-wrap:wrap}

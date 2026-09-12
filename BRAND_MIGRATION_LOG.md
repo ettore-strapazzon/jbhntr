@@ -47,3 +47,15 @@ textarea/proof-card/marker shadows; toast + cookie-note -> --elev-2. Old-pine rg
 Observation (not fixed, copy is out of scope): /signup subtitle still says "run 25 complete
 market scans" (pre-credits copy).
 
+## P5 — Identity assets
+Files: web/app/static/logo.svg, icon.svg, icon-16.svg, templates/base.html, app.css(.brand)
+New paired mark (navy + cornflower squares, apricot lens as a real third shape) in logo.svg;
+icon.svg/icon-16.svg = mark on a navy #17334B rounded field (64%/72% scale for 16px lens
+visibility). Header <img> 26x26; wordmark -> Plus Jakarta Sans 800, -.02em, --text-primary.
+Cache-bust ?v=asset_v on logo + favicons. Verified: paired mark + display wordmark render.
+BLOCKER B3 (unresolved): could not rasterize icon-192.png / apple-touch-icon / og-default.png
+(1200x630) — no cairo backend in this env (cairosvg + svglib both need cairo). SVG surfaces
+(favicon, header) are updated; the PNGs (iOS home-screen icon + social/OG card) still show the
+OLD mark and need an eng raster pipeline. base.html apple-touch-icon still points at the stale
+icon-192.png.
+

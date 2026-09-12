@@ -24,9 +24,9 @@
 <meta name="twitter:description" content="{{ og_description or meta_description or '' }}">
 <meta name="twitter:image" content="{{ config.base_url.rstrip('/') }}{{ config.og_image_path }}">
 
-<link rel="icon" href="/static/icon-16.svg" sizes="16x16" type="image/svg+xml">
-<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/icon-16.svg?v={{ asset_v }}" sizes="16x16" type="image/svg+xml">
+<link rel="icon" href="/static/icon.svg?v={{ asset_v }}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-192.png?v={{ asset_v }}">
 <meta name="theme-color" content="#17334B">
 <link rel="preload" href="/static/fonts/dmsans-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/static/fonts/plusjakartasans-800.woff2" as="font" type="font/woff2" crossorigin>
@@ -61,7 +61,7 @@
 {% set cur = request.url.path if request else "" %}
 <header class="bar">
   <a class="brand" href="/">
-    <img src="/static/logo.svg" width="26" height="18" alt="" aria-hidden="true">
+    <img src="/static/logo.svg?v={{ asset_v }}" width="26" height="26" alt="" aria-hidden="true">
     <span>JBHNTR</span>
   </a>
   <nav aria-label="Main">
