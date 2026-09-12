@@ -266,7 +266,8 @@
                style="max-width:90px">
         <button class="ghost" type="submit">Purge careerjet/jooble older than N days</button>
         <span class="small muted">Use the cutoff from the calibrate run. Deletes aged-out
-          aggregator jobs (tombstoned so they can't return).</span>
+          aggregator jobs (their link token has expired). The nightly reaper now does this
+          automatically at {{ config.aggregator_stale_days }} days.</span>
       </form>
       <form method="post" action="/admin/embed-now" style="margin-top:6px">
         <button class="ghost" type="submit">Embed backlog now</button>

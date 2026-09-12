@@ -22,7 +22,7 @@ from collections import Counter
 from datetime import timedelta
 from urllib.parse import urlparse
 
-from ..models import DeadLink, Job, aware, utcnow
+from ..models import Job, aware, utcnow
 
 log = logging.getLogger("jbhntr.calibrate")
 
@@ -181,15 +181,14 @@ def calibrate(db, sources: tuple[str, ...] = AGG_SOURCES,
 
 
 def purge(db, cutoff_days: int, sources: tuple[str, ...] = AGG_SOURCES) -> dict:
-    """Delete aggregator jobs whose last_seen_at is older than cutoff_days, tombstone
-    them (so a straggler re-list can't resurrect one), and purge their board rows."""
+    """Delete aggregator jobs whose last_seen_at is older than cutoff_days and purge
+    their board rows. NOT tombstoned: an age-out isn't a confirmed-dead job — if the
+    feed lists it again with a fresh (working) token we want it back."""
     from .reaper import _purge_deprecated_results
     now = utcnow()
     before = now - timedelta(days=cutoff_days)
     q = db.query(Job).filter(Job.source.in_(sources), Job.last_seen_at < before)
     keys = [k for (k,) in q.with_entities(Job.dedup_key) if k]
-    for k in keys:
-        db.merge(DeadLink(dedup_key=k, url="", reason="aggregator_aged_out", created_at=now))
     deleted = q.delete(synchronize_session=False)
     db.commit()
     board = _purge_deprecated_results(db, keys)

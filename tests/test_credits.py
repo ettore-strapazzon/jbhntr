@@ -1,11 +1,24 @@
 """Credit ledger tests (Guide v3.0 §18, items 1–8)."""
 
+import os
+import tempfile
+
+# Run against a fresh temp DB when this file is exercised on its own — otherwise it
+# falls back to the persistent dev DB and re-runs collide. setdefault, so in the full
+# suite test_web.py's DATABASE_URL still wins and nothing changes there.
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp()}/test_credits.sqlite")
+
 import pytest
 
 
 def _fresh_user(db, email):
+    import uuid
+
     from web.app.models import User
-    u = User(email=email, password_hash="x")
+    # The db fixture shares a dev DB and doesn't reset between runs, so give each user a
+    # unique address — otherwise re-running this file alone trips users.email UNIQUE.
+    # Tests key off the returned user's id, never the literal email, so this is safe.
+    u = User(email=email.replace("@", f"+{uuid.uuid4().hex[:8]}@"), password_hash="x")
     db.add(u)
     db.commit()
     return u

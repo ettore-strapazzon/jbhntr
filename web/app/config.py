@@ -92,6 +92,10 @@ class WebConfig:
     # How long a confirmed-dead posting stays tombstoned so a re-listing source
     # (careerjet keeps serving expired jobviewtrack redirects) can't resurrect it.
     dead_link_ttl_days: int = _int("DEAD_LINK_TTL_DAYS", 45)
+    # careerjet/jooble apply-URL tokens expire within ~a day; a job we haven't re-seen
+    # this long has a dead link we can't refresh, so the reaper purges it (not
+    # tombstoned — a fresh re-list is welcome back).
+    aggregator_stale_days: int = _int("AGGREGATOR_STALE_DAYS", 2)
     # Description enrichment: fetch the real posting page for jobs an aggregator
     # stored only a snippet for, so work-mode tagging AND match scoring improve.
     # HTTP only (no API $); each job is fetched at most once, so it's a one-time

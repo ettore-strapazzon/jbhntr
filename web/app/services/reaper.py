@@ -238,11 +238,26 @@ def sweep(
         ats_pruned = ats_q.delete(synchronize_session=False)
         db.commit()
 
+        # 1d. Aggregator age-out. careerjet/jooble apply URLs carry a token that expires
+        #     in ~a day, and we can't refresh a link on a job we've stopped seeing — so a
+        #     stale one is a dead link. Purge on a tight window. NOT tombstoned: if the
+        #     feed lists it again with a fresh token we WANT it back (unlike a confirmed
+        #     404, which the link-check tombstones below).
+        from ..config import config as _cfg
+        agg_src = or_(Job.source == "api:careerjet", Job.source == "api:jooble")
+        agg_before = now - timedelta(days=_cfg.aggregator_stale_days)
+        agg_q = db.query(Job).filter(agg_src, Job.last_seen_at < agg_before)
+        reaped_keys += [k for (k,) in agg_q.with_entities(Job.dedup_key) if k]
+        agg_pruned = agg_q.delete(synchronize_session=False)
+        db.commit()
+
         # Expire old tombstones so a genuinely reopened role (or a live posting that
         # merely shares a company|title with a dead one) can return after the window.
-        from ..config import config as _cfg
+        # Also drop any 'aggregator_aged_out' tombstones from before age-outs stopped
+        # being tombstoned — those must never block a fresh re-list.
         db.query(DeadLink).filter(
-            DeadLink.created_at < now - timedelta(days=_cfg.dead_link_ttl_days)
+            or_(DeadLink.created_at < now - timedelta(days=_cfg.dead_link_ttl_days),
+                DeadLink.reason == "aggregator_aged_out")
         ).delete(synchronize_session=False)
         db.commit()
 
@@ -323,6 +338,7 @@ def sweep(
                   "gone_deleted": gone, "gated_deleted": gated_deleted,
                   "blocked": blocked, "unverified_pruned": unverified_pruned,
                   "ats_unflagged": unflagged, "ats_pruned": ats_pruned,
+                  "agg_pruned": agg_pruned,
                   "unverified_total": unverified_total, "by_source": src_verdicts,
                   "board_purged": board_purged, "remaining": db.query(Job).count()}
         log.info("Reaper: %s", result)

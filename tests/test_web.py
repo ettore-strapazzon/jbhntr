@@ -4083,6 +4083,39 @@ def test_reingest_refreshes_expiring_tracker_url(client):
         db.query(Job).filter_by(dedup_key=key).delete(); db.commit(); db.close()
 
 
+def test_reaper_prunes_aged_out_aggregator_jobs(client, monkeypatch):
+    """Auto age-TTL: careerjet/jooble jobs not seen within aggregator_stale_days are
+    purged (their link token has expired and we can't refresh it), fresh ones kept, and
+    NOT tombstoned (a fresh re-list is welcome back)."""
+    from datetime import timedelta
+
+    from web.app.config import config
+    from web.app.db import SessionLocal
+    from web.app.models import DeadLink, Job, utcnow
+    from web.app.services import reaper
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: "active")
+    now = utcnow()
+    old = now - timedelta(days=config.aggregator_stale_days + 1)
+    keys = ["agg-fresh", "agg-stale", "jooble-stale"]
+    db = SessionLocal()
+    try:
+        db.add(Job(dedup_key="agg-fresh", source="api:careerjet", title="x",
+                   url="https://jobviewtrack.com/a", last_seen_at=now, last_checked_at=now))
+        db.add(Job(dedup_key="agg-stale", source="api:careerjet", title="x",
+                   url="https://jobviewtrack.com/b", last_seen_at=old, last_checked_at=now))
+        db.add(Job(dedup_key="jooble-stale", source="api:jooble", title="x", url="u",
+                   last_seen_at=old, last_checked_at=now))
+        db.commit()
+        reaper.sweep(db, check_limit=0, recheck_days=0, workers=1)
+        alive = {r.dedup_key for r in db.query(Job).filter(Job.dedup_key.in_(keys))}
+        assert alive == {"agg-fresh"}                       # stale purged, fresh kept
+        assert db.get(DeadLink, "agg-stale") is None        # age-outs are NOT tombstoned
+    finally:
+        db.query(Job).filter(Job.dedup_key.in_(keys)).delete()
+        db.query(DeadLink).filter(DeadLink.dedup_key.in_(keys)).delete()
+        db.commit(); db.close()
+
+
 def test_aggregator_calibrate_cutoff_and_purge(client, monkeypatch):
     """Calibrate finds the age where an aggregator's links start dying (>=2/5 404,
     confirmed by the next bucket) and purge deletes only the aged-out tail."""
@@ -4125,7 +4158,7 @@ def test_aggregator_calibrate_cutoff_and_purge(client, monkeypatch):
         assert pres["deleted"] == 24                       # ages 20,21,22,25 x6
         alive = {r.dedup_key for r in db.query(Job).filter(Job.dedup_key.in_(keys))}
         assert all(k.split("-")[1] in ("0", "1", "2", "3") for k in alive)   # young kept
-        assert db.get(DeadLink, "cal-25-0") is not None    # aged-out ones tombstoned
+        assert db.get(DeadLink, "cal-25-0") is None        # age-outs are NOT tombstoned
     finally:
         db.query(Job).filter(Job.dedup_key.in_(keys)).delete()
         db.query(DeadLink).filter(DeadLink.dedup_key.in_(keys)).delete()
