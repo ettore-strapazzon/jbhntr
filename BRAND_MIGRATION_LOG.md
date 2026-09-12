@@ -110,3 +110,10 @@ dark, credits table readable.
 Decision: skipped TIER_COLOURS_DARK in Python (no inline TIER_COLOURS usage; CSS --tier-N
 redefinition covers it). Account control is a <select> (manual allowed select or radio).
 
+## P12 — Admin screens
+Files: web/app/static/app.css
+Admin inherits the token layer (P3 swept all admin colours) — no admin-only hues/fonts.
+Funnel bars -> cornflower ramp (corn-200/400/600 -> navy last) instead of flat corn-100.
+.quad-cell.muted-cell -> --surface-sunken. Layout untouched. Admin renders through the same
+tokens verified in light+dark; /admin not viewable locally (no ADMIN_TOKEN) but inherits.
+
