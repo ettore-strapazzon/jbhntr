@@ -22,37 +22,36 @@
         <p class="small muted">Your first scan is free. No card. Your CV stays private.</p>
       </div>
 
-      {# Photographic diptych (book §10). Photography commissioned, not delivered (B2):
-         render two square-cornered tinted rectangles as the greppable slot. #}
+      {# Hero visual. The book's slot is commissioned photography (B2, not
+         delivered). Until it lands, an illustrative match card in the in-app
+         style stands in. Swap to the retained .hero-diptych markup when photos
+         are ready. #}
       <div class="hero-visual">
-        <div class="hero-diptych" data-brand-placeholder="hero-diptych" role="img"
-             aria-label="Editorial photography, coming soon">
-          <div class="hero-diptych-a"></div>
-          <div class="hero-diptych-b"></div>
+        <div class="hero-card" role="img"
+             aria-label="Illustrative example of a scored match: Senior Product Manager, Payments at Meridian Pay, a strong match scored 92 on fit for you and 78 on your fit for the role.">
+          <div class="hero-card-top">
+            <span class="tier tier-2">Strong match</span>
+            <span class="hero-card-illus">Illustrative example</span>
+          </div>
+          <p class="hero-card-role">Senior Product Manager, Payments</p>
+          <p class="hero-card-meta">Meridian Pay · Milan, hybrid · posted 2 days ago</p>
+          <div class="hero-card-dims">
+            <div class="hero-card-dim">
+              <span class="hero-card-dim-label">Fits what you want</span>
+              <div class="hero-card-bar" aria-hidden="true"><div style="width:92%"></div></div>
+              <span class="hero-card-num">92</span>
+            </div>
+            <div class="hero-card-dim">
+              <span class="hero-card-dim-label">You fit their requirements</span>
+              <div class="hero-card-bar" aria-hidden="true"><div style="width:78%"></div></div>
+              <span class="hero-card-num">78</span>
+            </div>
+          </div>
+          <div class="hero-card-reasons">
+            <p class="hero-card-reason for"><span>For</span>Payments scope and hybrid working in Milan match your must-haves.</p>
+            <p class="hero-card-reason against"><span>Against</span>The role asks for 8+ years; your track record is a little shorter.</p>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-{# ===== Navy evidence band (book §10): one real role, scored both ways ===== #}
-<section class="evidence-band">
-  <div class="container evidence-inner">
-    <p class="overline evidence-eyebrow">Illustrative example · scored both ways</p>
-    <div class="evidence-role">
-      <p class="evidence-title">Senior Product Manager, Payments</p>
-      <p class="evidence-meta">Meridian Pay · Milan, hybrid · posted 2 days ago</p>
-    </div>
-    <div class="evidence-dims">
-      <div class="evidence-dim">
-        <span class="evidence-dim-label">Fits what you want</span>
-        <div class="evidence-bar" aria-hidden="true"><div style="width:92%"></div></div>
-        <span class="evidence-num">92</span>
-      </div>
-      <div class="evidence-dim">
-        <span class="evidence-dim-label">You fit their requirements</span>
-        <div class="evidence-bar" aria-hidden="true"><div style="width:78%"></div></div>
-        <span class="evidence-num">78</span>
       </div>
     </div>
   </div>

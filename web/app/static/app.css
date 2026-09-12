@@ -697,9 +697,36 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
 .proofline{font-size:14px;color:var(--text-secondary);margin:0 0 18px;max-width:48ch}
 .hero .cta{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 8px}
 
-/* Hero photographic diptych (book §10) — square-cornered, 2px seam. Photography
-   pending (B2); the two tints stand in and mark the greppable slot. */
+/* Hero example card. The book's hero slot is commissioned photography (B2, not
+   delivered); until it lands, an illustrative match card in the in-app style
+   stands in so the hero reads as full and intentional. Swap for photography by
+   restoring the .hero-diptych markup (styles kept below). */
 .hero-visual{display:flex;flex-direction:column;gap:14px}
+.hero-card{background:var(--surface-raised);border:1px solid var(--border-subtle);
+  border-radius:var(--r-card);box-shadow:var(--elev-1);
+  padding:clamp(18px,2.2vw,24px);display:grid;gap:14px}
+.hero-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.hero-card-illus{font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text-secondary)}
+.hero-card-role{font:700 var(--step-h3)/1.2 var(--font-display);margin:0;color:var(--text-primary)}
+.hero-card-meta{font-size:14px;color:var(--text-secondary);margin:-4px 0 0}
+.hero-card-dims{display:grid;gap:12px}
+.hero-card-dim{display:flex;align-items:center;gap:12px}
+.hero-card-dim-label{flex:0 0 168px;font-size:13px;color:var(--text-secondary)}
+.hero-card-bar{flex:1;height:8px;border-radius:999px;background:var(--surface-sunken);overflow:hidden}
+.hero-card-bar>div{height:100%;background:var(--action-primary)}
+.hero-card-num{flex:0 0 auto;font-family:var(--mono);font-size:16px;font-weight:700;color:var(--text-primary)}
+.hero-card-reasons{display:grid;gap:9px;border-top:1px solid var(--border-subtle);padding-top:14px}
+.hero-card-reason{margin:0;font-size:13px;line-height:1.45;color:var(--text-secondary);
+  padding-left:12px;border-left:3px solid var(--border-subtle)}
+.hero-card-reason>span{font-weight:700;color:var(--text-primary);margin-right:6px}
+.hero-card-reason.for{border-left-color:var(--status-success)}
+.hero-card-reason.against{border-left-color:var(--status-attention)}
+@media (max-width:560px){
+  .hero-card-dim{flex-wrap:wrap}
+  .hero-card-dim-label{flex:1 0 100%}
+}
+/* Retained for when photography (B2) is delivered: restore .hero-diptych markup. */
 .hero-diptych{display:grid;grid-template-columns:1fr 1fr;gap:2px;
   border:1px solid var(--border-subtle);border-radius:0;overflow:hidden;
   aspect-ratio:8/5;background:var(--border-subtle)}
