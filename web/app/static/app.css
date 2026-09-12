@@ -128,6 +128,7 @@
   :root:not([data-theme="light"]) .tier-2,:root:not([data-theme="light"]) .tier-3,
   :root:not([data-theme="light"]) .tier-4,:root:not([data-theme="light"]) .tier-5{color:var(--navy-950)}}
 [data-theme="dark"] .brand img{background:var(--navy-800);border-radius:8px;padding:4px}
+[data-theme="dark"] .btn.danger:hover{color:var(--navy-950)}
 [data-theme="dark"] .doc-preview,[data-theme="dark"] .doc-preview .pv-contact,
 [data-theme="dark"] .sheet{background:#fff;color:#1a1a1a}
 [data-theme="dark"] .doc-preview,[data-theme="dark"] .sheet{border-color:var(--navy-800)}
@@ -153,7 +154,7 @@ main{max-width:var(--container);margin:0 auto;padding:28px 24px 64px}
 /* accessibility: one global focus ring, and a skip link for keyboard users */
 :focus-visible{outline:3px solid var(--focus-ring);outline-offset:2px;border-radius:3px}
 .skip-link{position:absolute;left:8px;top:-48px;z-index:200;background:var(--action-primary);
-  color:var(--white);padding:10px 14px;border-radius:8px;text-decoration:none;transition:top .12s}
+  color:var(--action-primary-ink);padding:10px 14px;border-radius:8px;text-decoration:none;transition:top .12s}
 .skip-link:focus{top:8px}
 /* visually hidden, still read by screen readers */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
@@ -168,7 +169,7 @@ main{max-width:var(--container);margin:0 auto;padding:28px 24px 64px}
 .brand span{font:800 18px/1 var(--font-display);letter-spacing:-.02em;color:var(--text-primary)}
 .brand img{margin-inline-end:2px}   /* clear space ~= a quarter of the mark height */
 /* marketing pages: brass rule under the last four letters (R4.3) */
-.wordmark-rule{border-bottom:4px solid var(--brass);padding-bottom:2px}
+.wordmark-rule{border-bottom:4px solid var(--accent-warm);padding-bottom:2px}
 .bar nav{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
 .bar nav a{text-decoration:none;color:var(--text-secondary);font-size:14px}
 .bar nav a:hover{color:var(--text-primary)}
@@ -383,7 +384,7 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 .steprail li.current{border-top-color:var(--text-primary);font-weight:600}
 .steprail-n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
   border-radius:99px;background:var(--border-subtle);color:var(--text-primary);font:700 11px/1 var(--mono);flex:0 0 20px}
-.steprail li.done .steprail-n,.steprail li.current .steprail-n{background:var(--action-primary);color:var(--white)}
+.steprail li.done .steprail-n,.steprail li.current .steprail-n{background:var(--action-primary);color:var(--action-primary-ink)}
 @media(max-width:560px){.steprail-t{display:none}.steprail li{justify-content:center}}
 
 .onboard .field{margin:0 0 22px}
@@ -524,7 +525,7 @@ details.desc>summary{cursor:pointer;font-size:14px;color:var(--text-secondary);p
 .statebadge{font:700 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;
   padding:5px 8px;border-radius:var(--r-chip);align-self:center}
 .statebadge.saved{background:var(--status-success-bg);color:var(--action-primary);border:1px solid var(--corn-200)}
-.statebadge.new{background:var(--text-primary);color:var(--white)}
+.statebadge.new{background:var(--action-primary);color:var(--action-primary-ink)}
 .statebadge.applied{background:var(--corn-100);color:var(--navy-800);border:1px solid var(--corn-200)}
 .statebadge.unverified{background:var(--status-attention-bg);color:var(--status-attention);border:1px solid var(--apr-300)}
 .job.is-applied{opacity:.85}
@@ -562,14 +563,14 @@ footer a{color:var(--text-secondary)}
 /* premium feature list */
 /* ===== premium page (Round 3 Pass I — S-06) ===== */
 .soon-banner{display:flex;align-items:center;gap:9px;background:var(--action-primary);
-  color:var(--white);font:700 11px/1 var(--mono);letter-spacing:.18em;
+  color:var(--action-primary-ink);font:700 11px/1 var(--mono);letter-spacing:.18em;
   padding:9px 14px;margin:0 0 22px;border-radius:6px}
-.soon-sq{width:6px;height:6px;background:var(--brass);flex:none}  /* the one brass mark */
+.soon-sq{width:6px;height:6px;background:var(--accent-warm);flex:none}
 
 /* premium-only lock (account email section): banner stays vivid, body greys out */
-.premium-only{display:flex;align-items:center;gap:9px;background:var(--action-primary);color:var(--white);
+.premium-only{display:flex;align-items:center;gap:9px;background:var(--action-primary);color:var(--action-primary-ink);
   font:700 11px/1 var(--mono);letter-spacing:.16em;padding:8px 12px;border-radius:8px;margin:0 0 14px}
-.premium-only .po-sq{width:6px;height:6px;background:var(--brass);flex:none}
+.premium-only .po-sq{width:6px;height:6px;background:var(--accent-warm);flex:none}
 .locked .lock-body{opacity:.5;pointer-events:none}
 
 .prem-head{display:grid;gap:clamp(18px,3vw,40px);align-items:start;margin:0 0 8px;
@@ -888,15 +889,15 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 
 /* ===== Alpha testing: top banner + feedback survey ===== */
 .alpha-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-  padding:8px clamp(16px,3vw,24px);background:var(--action-primary);color:var(--white);font-size:13.5px}
+  padding:8px clamp(16px,3vw,24px);background:var(--surface-inverse);color:var(--text-on-inverse);font-size:13.5px}
 .alpha-banner[hidden]{display:none}
 .alpha-msg{flex:1 1 auto;min-width:0}
 .alpha-tag{display:inline-block;font:700 9.5px/1 var(--mono);letter-spacing:.16em;
-  background:var(--accent-warm);color:var(--text-primary);border-radius:99px;padding:4px 8px;margin-right:8px;
+  background:var(--accent-warm);color:var(--navy-950);border-radius:99px;padding:4px 8px;margin-right:8px;
   vertical-align:middle}
-.alpha-cta{color:var(--white);font-weight:600;text-decoration:underline;white-space:nowrap}
-.alpha-cta:hover{color:var(--white)}
-.alpha-x{flex:0 0 auto;background:none;border:0;color:var(--white);font-size:20px;line-height:1;
+.alpha-cta{color:var(--text-on-inverse);font-weight:600;text-decoration:underline;white-space:nowrap}
+.alpha-cta:hover{color:var(--text-on-inverse)}
+.alpha-x{flex:0 0 auto;background:none;border:0;color:var(--text-on-inverse);font-size:20px;line-height:1;
   cursor:pointer;padding:2px 6px;min-height:32px;min-width:32px}
 .alpha-x:hover{opacity:.8}
 
@@ -913,7 +914,7 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .fb-dot span{display:inline-flex;align-items:center;justify-content:center;
   width:38px;height:38px;border:1.5px solid var(--border-subtle);border-radius:50%;
   font:600 14px/1 var(--mono);color:var(--text-secondary);transition:none}
-.fb-dot input:checked + span{background:var(--action-primary);border-color:var(--action-primary);color:var(--white)}
+.fb-dot input:checked + span{background:var(--action-primary);border-color:var(--action-primary);color:var(--action-primary-ink)}
 .fb-dot input:focus-visible + span{outline:2px solid var(--action-primary);outline-offset:2px}
 .fb-dot:hover span{border-color:var(--action-primary)}
 .fb-boxes{display:grid;gap:18px;margin:24px 0}

@@ -149,7 +149,7 @@ def test_waitlist_email_renders_in_shell_and_carries_unsub():
     html, text = mail.render("premium_waitlist", {
         "first_name": "", "search_url": "http://x/matches",
         "unsub_token": "TK", "unsub_url": "http://x/unsubscribe?t=TK&scope=waitlist"})
-    assert "#174b3e" in html and "Ettore" in html      # S4 pine shell, human signature
+    assert "#17334B" in html and "Ettore" in html      # v3 navy shell, human signature
     assert "You are on the list" in html
     assert "scope=waitlist" in html and "scope=waitlist" in text
     assert "Thanks." in text                            # empty first_name drops the name
@@ -453,7 +453,7 @@ def test_email_shell_brand_band_and_unsub_only_on_optin():
     Transactional mail (reset) shows no unsubscribe; opt-in mail (digest) does."""
     from web.app.services import email as mail
     reset_html, _ = mail.render("reset", {"token": "t"})
-    assert "#174b3e" in reset_html and "JBHNTR" in reset_html   # brand band
+    assert "#17334B" in reset_html and "JBHNTR" in reset_html   # v3 navy brand band
     assert "/unsubscribe" not in reset_html                     # transactional: no unsub
     digest_html, digest_txt = mail.render("digest", {
         "n": 1, "top_score": 90, "top_title": "A", "top_company": "B",

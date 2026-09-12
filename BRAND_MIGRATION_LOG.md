@@ -117,3 +117,20 @@ Funnel bars -> cornflower ramp (corn-200/400/600 -> navy last) instead of flat c
 .quad-cell.muted-cell -> --surface-sunken. Layout untouched. Admin renders through the same
 tokens verified in light+dark; /admin not viewable locally (no ADMIN_TOKEN) but inherits.
 
+## P10 — Accessibility + QA pass
+Files: web/app/static/app.css, templates/landing.html, tests/test_web.py
+QA'd /, /credits, /signup, /how-it-works in light + dark + mobile(375) + desktop. Fixes found:
+- Dark-mode contrast: alpha-banner (navy-band device) now uses --surface-inverse/--text-on-inverse
+  so it inverts correctly (was white text on light band); .statebadge.new, steprail, premium/soon
+  banners, skip-link, feedback-dot switched --white -> --action-primary-ink (flip with the surface);
+  alpha tag/apricot text pinned to navy-950; .btn.danger:hover navy text in dark.
+- Removed 3 leftover var(--brass) refs (undefined since P1) -> --accent-warm.
+- Fixed em dash in landing.html diptych aria-label (dash-lint).
+- Updated 2 email-shell tests (brand-band #174b3e -> #17334B) for the rebrand.
+Verified: focus ring visible, mobile no horizontal scroll, tabular figures align, no console/CSP
+errors, theme persists with no flash. Full suite green.
+NOT live-QA'd: authenticated pages (/matches, /applications, /profile, /account, /onboarding) —
+they inherit the token layer verified on public pages, and their theme-specific components (tier
+chips, statebadge, steprail, doc-preview light-lock, evidence) were fixed directly. Recommend a
+post-deploy spot-check or a test session to pixel-verify them.
+
