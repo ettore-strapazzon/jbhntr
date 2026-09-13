@@ -105,54 +105,15 @@ def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     assert r2.status_code == 303                  # non-HTMX keeps the redirect
 
 
-def test_f13_premium_waitlist_records_intent(client):
-    signup(client, email="f13@example.com")
-    r = client.post("/premium/waitlist", follow_redirects=False)
-    assert r.status_code == 303 and "requested=1" in r.headers["location"]
-    from web.app.db import SessionLocal
-    from web.app.models import User
-    db = SessionLocal()
-    try:
-        assert db.query(User).filter_by(email="f13@example.com").one().premium_requested_at
-    finally:
-        db.close()
-
-
-def test_premium_waitlist_htmx_swaps_button_and_sends_once(client, monkeypatch):
-    """S-06/S-07: an HTMX click returns the 'You are on the list' state without a
-    reload, and clicking twice sends exactly one waiting-list email."""
-    sent = []
-    from web.app.services import email as mail
-    # The route does `from ..services.email import send_premium_waitlist` at call
-    # time, so patching the module attribute intercepts the send.
-    monkeypatch.setattr(mail, "send_premium_waitlist",
-                        lambda *a, **k: sent.append(a) or True)
-    signup(client, email="wl@example.com")
-    r1 = client.post("/premium/waitlist", data={"region": "top"},
-                     headers={"HX-Request": "true"})
-    assert r1.status_code == 200 and "You're on the Premium waitlist" in r1.text
-    r2 = client.post("/premium/waitlist", data={"region": "top"},
-                     headers={"HX-Request": "true"})
-    assert r2.status_code == 200 and "You're on the Premium waitlist" in r2.text
-    assert len(sent) == 1                              # deduped: one email only
-
-
-def test_premium_page_has_banner_and_no_price(client):
-    """One product now (Guide v3.0): /premium 301s to /credits (PUBLIC-03)."""
+def test_premium_page_redirects_to_credits(client):
+    """One product now (Guide v3.0): /premium 301s to /credits (PUBLIC-03). The
+    Premium-era waitlist POST + email were removed with the credits migration
+    (QA-12); only the redirect remains, for inbound links."""
     signup(client, email="pp@example.com")
     r = client.get("/premium", follow_redirects=False)
     assert r.status_code == 301 and r.headers["location"] == "/credits"
-
-
-def test_waitlist_email_renders_in_shell_and_carries_unsub():
-    from web.app.services import email as mail
-    html, text = mail.render("premium_waitlist", {
-        "first_name": "", "search_url": "http://x/matches",
-        "unsub_token": "TK", "unsub_url": "http://x/unsubscribe?t=TK&scope=waitlist"})
-    assert "#17334B" in html and "Ettore" in html      # v3 navy shell, human signature
-    assert "You are on the list" in html
-    assert "scope=waitlist" in html and "scope=waitlist" in text
-    assert "Thanks." in text                            # empty first_name drops the name
+    # The waitlist endpoint is gone.
+    assert client.post("/premium/waitlist", follow_redirects=False).status_code == 404
 
 
 def test_unsubscribe_waitlist_scope_removes_intent(client):
@@ -2323,17 +2284,15 @@ def test_claim_lint_no_dashes_in_marketing_prose():
 
 
 # --------------------------- product events (PROOF-003) ------------------- #
-def test_signup_and_waitlist_record_product_events(client):
+def test_signup_records_product_event(client):
     from web.app.db import SessionLocal
     from web.app.models import ProductEvent, User
     signup(client, "ev@example.com")
-    client.post("/premium/waitlist", data={"region": "top"})
     db = SessionLocal()
     try:
         u = db.query(User).filter_by(email="ev@example.com").one()
         names = {e.name for e in db.query(ProductEvent).filter_by(user_id=u.id)}
         assert "signup_completed" in names
-        assert "premium_waitlist_joined" in names
     finally:
         db.close()
 

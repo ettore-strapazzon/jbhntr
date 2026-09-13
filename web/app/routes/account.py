@@ -18,40 +18,12 @@ from ..templating import templates
 router = APIRouter()
 
 
-def _waitlist_ahead(db: DbSession) -> int:
-    """How many people are already on the waiting list. Real count only — the
-    template renders it (S-06) only when it clears 50, and never fakes it."""
-    return db.query(User).filter(User.premium_requested_at.isnot(None)).count()
-
-
 @router.get("/premium")
 def premium():
-    """One product now — /premium 301s to /credits (PUBLIC-03)."""
+    """One product now — /premium 301s to /credits (PUBLIC-03). The Premium-era
+    waiting-list flow (POST /premium/waitlist + its email) was removed with the
+    credits migration (QA-12); the redirect is kept for any inbound links."""
     return RedirectResponse("/credits", status_code=301)
-
-
-@router.post("/premium/waitlist")
-def premium_waitlist(request: Request, region: str = Form("top"),
-                     user: User = Depends(require_user),
-                     db: DbSession = Depends(get_session)):
-    """Get-early-access (S-06). Records premium intent once per user (the waiting
-    list), and sends the confirmation only on the first insert — a second click is
-    a no-op, never a second email. HTMX swaps the button in place; a no-JS POST
-    falls back to a full-page redirect."""
-    from ..models import utcnow
-    if not user.premium_requested_at:
-        user.premium_requested_at = utcnow()
-        db.commit()
-        from ..services.events import record
-        record(db, "premium_waitlist_joined", user_id=user.id)
-        from ..services.email import send_premium_waitlist
-        # first_name is not stored yet, so the greeting drops the name.
-        send_premium_waitlist(user.email, user.id, first_name="")
-    if request.headers.get("HX-Request"):
-        return templates.TemplateResponse(request, "_early_access.html",
-            {"request": request, "user": user, "on_list": True,
-             "region": region, "ahead": 0})
-    return RedirectResponse("/premium?requested=1", status_code=303)
 
 
 @router.post("/account/digest")

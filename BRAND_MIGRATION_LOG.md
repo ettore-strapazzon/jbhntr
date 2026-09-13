@@ -173,8 +173,13 @@ P3 — QA-13 admin chart/monitor repainted pine/brass -> navy-800/cornflower-600
 hexes -> v3 tokens; QA-14 stale "brass" comment -> "apricot"; QA-15 preload Plus Jakarta 700
 (subsets verified to already carry Latin-Ext/accents, euro, curly quotes); QA-16 htmx vendored
 into /static and unpkg dropped from the CSP.
-Deferred to a founder decision: QA-12 (tear out the dead Premium-waitlist route/email/field +
-its ~5 tests) and QA-17 (embed DM Sans in exported CVs vs keep neutral — QA says flag, so kept
-neutral). Still needs a design pass, not a raster: og-default.png (1200x630 social card) predates
-v3 and shows the old mark.
-Suite: 577 passed, 1 skipped.
+QA-12 (founder chose full teardown): removed POST /premium/waitlist, send_premium_waitlist,
+the premium_waitlist email templates, _early_access.html, and the now-orphaned premium.html /
+marketing/pricing.html / partials/_plans.html; updated the 3 dependent tests. Kept the /premium
+and /pricing 301s, the premium_requested_at column (dropping it needs a Postgres migration, out
+of proportion), the unsubscribe scope=waitlist safety valve, and the historical
+premium_waitlist_joined event label.
+Deferred to a founder decision: QA-17 (embed DM Sans in exported CVs vs keep neutral — QA says
+flag, so kept neutral). Still needs a design pass, not a raster: og-default.png (1200x630 social
+card) predates v3 and shows the old mark.
+Suite: 574 passed, 1 skipped.

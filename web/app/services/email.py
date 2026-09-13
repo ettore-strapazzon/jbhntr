@@ -164,21 +164,3 @@ def send_digest(email: str, ctx: dict, unsub_token: str) -> bool:
     })
 
 
-def send_premium_waitlist(email: str, user_id: int, first_name: str = "") -> bool:
-    """S-07: the waiting-list confirmation. Transactional (goes out regardless of
-    digest preference) but carries an unsubscribe that also removes the waiting-list
-    row (scope=waitlist). Signed by a human — the one email where that is right."""
-    unsub = make_unsub_token(user_id)
-    base = config.base_url.rstrip("/")
-    unsub_url = f"{base}/unsubscribe?t={unsub}&scope=waitlist"
-    html, text = render("premium_waitlist", {
-        "first_name": first_name or "",
-        "search_url": f"{base}/matches",
-        "unsub_token": unsub, "unsub_url": unsub_url,
-    })
-    return send(email, "You are on the JBHNTR Premium waitlist", text, html, headers={
-        "List-Unsubscribe": f"<{unsub_url}>",
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-    })
-
-
