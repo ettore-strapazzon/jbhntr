@@ -35,6 +35,8 @@
    display weight. Preload both so headings don't swap in late (QA-15). #}
 <link rel="preload" href="/static/fonts/plusjakartasans-700.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/static/fonts/plusjakartasans-800.woff2" as="font" type="font/woff2" crossorigin>
+{# JetBrains Mono 700 is the eyebrow weight, above the fold on every page (PRO-07). #}
+<link rel="preload" href="/static/fonts/jetbrainsmono-700.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/app.css?v={{ asset_v }}">
 {# htmx is vendored into /static (QA-16): no third-party CDN in the CSP, and no
    outage or CDN compromise can touch an authenticated page. #}

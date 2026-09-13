@@ -4,6 +4,11 @@
 @font-face{font-family:'DM Sans';src:url('/static/fonts/dmsans-500.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
 @font-face{font-family:'DM Sans';src:url('/static/fonts/dmsans-600.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
 @font-face{font-family:'DM Sans';src:url('/static/fonts/dmsans-400-italic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+/* JetBrains Mono self-hosted (PRO-07): the mono face is the brand's connective tissue —
+   eyebrows, tier chips, scores, table heads, flow numbers, axis + funnel numerals. Without
+   it, all of that fell back to Consolas/Liberation Mono on every visitor's machine. */
+@font-face{font-family:'JetBrains Mono';src:url('/static/fonts/jetbrainsmono-400.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('/static/fonts/jetbrainsmono-700.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
 
 :root{
   /* ---- Tier 1: primitives. Frozen. Never referenced by a component rule. ---- */
@@ -75,7 +80,7 @@
   --measure:68ch;
 
   --step-hero:clamp(36px,4.4vw,56px);
-  --step-h1:clamp(30px,3.2vw,44px);
+  --step-h1:clamp(32px,4vw,52px);   /* PRO-08: one h1 scale, matching the .doc pages */
   --step-h2:clamp(26px,2.3vw,32px);
   --step-h3:clamp(20px,1.6vw,24px);
 
@@ -144,14 +149,18 @@
 }
 *{box-sizing:border-box}
 /* ---- Brand v3 P2: typography ---- */
+/* PRO-09: hanging-punctuation on prose; tabular figures are lifted off running text
+   (they space badly in sentences) and kept only on scores, figures and tables. */
 body{margin:0;font:400 16px/1.5 var(--font-text);background:var(--surface-canvas);color:var(--text-primary);
-  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+  -webkit-font-smoothing:antialiased;hanging-punctuation:first}
 h1,h2,h3,h4,.plan-name,.jt,.flow-title{font-family:var(--font-display);letter-spacing:-.02em;text-wrap:pretty}
+h2,h3{text-wrap:balance}   /* PRO-09: short headings balance across lines */
 .hero-title{font:800 var(--step-hero)/1.05 var(--font-display);letter-spacing:-.03em}
-.lede,.proofline{font:400 clamp(18px,1.4vw,20px)/1.5 var(--font-text);color:var(--text-secondary)}
+.lede,.proofline{font:400 var(--step-lede)/1.5 var(--font-text);color:var(--text-secondary)}  /* PRO-08: one lede scale */
 .overline{font:600 12px/1 var(--font-text);letter-spacing:.1em;text-transform:uppercase;color:var(--corn-800)}
 input,select,textarea{font:400 16px/1.4 var(--font-text)}   /* 16px floor: prevents iOS zoom */
-.score,.num,.tier,.sig-val{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.score,.num,.tier,.sig-val{font-family:var(--mono)}
+.score,.num,.tier,.sig-val,table,.hero-card-num,.funnel-pct,.stat b{font-variant-numeric:tabular-nums}
 p{max-width:var(--measure)}
 a{color:var(--link)}
 a:hover{color:var(--link-hover)}
@@ -186,8 +195,8 @@ main{max-width:var(--container);margin:0 auto;padding:28px 24px 64px}
 .pill-dot{width:7px;height:7px;border-radius:99px;background:var(--surface-raised)}
 
 /* blocks */
-.card{background:var(--surface-raised);border:1px solid var(--border-subtle);
-  border-radius:var(--r-card);box-shadow:var(--elev-0);padding:var(--sp-6);margin-bottom:16px}
+.card{background:var(--surface-raised);border:0;   /* PRO-04: raised surface -> elevation, no border */
+  border-radius:var(--r-card);box-shadow:var(--elev-1);padding:var(--sp-6);margin-bottom:16px}
 @media (max-width:639px){ .card{padding:var(--sp-4)} }
 .card--selected{border:2px solid var(--action-primary);background:var(--accent-selected)}
 h1{font:700 var(--step-h1)/1.1 var(--font-display);letter-spacing:-.025em;margin:0 0 var(--sp-3)}
@@ -644,7 +653,7 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
    Margins own the rhythm so the eyebrow can hug its heading (Fix 2). */
 .section-head{display:flex;flex-direction:column}
 .section-head .eyebrow{margin:0 0 4px;line-height:1.2}   /* 4px to the heading */
-.section-head h2{margin:0 0 12px;font-weight:600;letter-spacing:-.015em;line-height:1.1;
+.section-head h2{margin:0 0 12px;letter-spacing:-.015em;line-height:1.1;   /* PRO-08: 700 like every other h2 (was a 600 override) */
   font-size:var(--step-h2);text-wrap:balance}
 .section-head p{margin:0 0 12px;color:var(--text-secondary);max-width:34em}
 .section-head .cta{margin:0 0 12px}   /* last-child rule zeroes the final one */
@@ -1016,7 +1025,7 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 }
 
 /* ===== V4 two-way fit quadrant plot ===== */
-.card-grid > .quad-li{border:0;background:transparent;padding:0}   /* not a card */
+.card-grid > .quad-li{border:0;background:transparent;padding:0;box-shadow:none}   /* not a card (PRO-04/PRO-18) */
 .quadrant{display:flex;flex-direction:column;gap:10px}
 .quadrant-plot{position:relative;width:100%;max-width:320px;aspect-ratio:1;
   display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
@@ -1227,3 +1236,29 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .theme-seg input:checked + span{background:var(--accent-selected);color:var(--text-primary)}
 .theme-seg span{display:inline-flex;align-items:center;min-height:36px;padding:0 14px;border-radius:6px}
 .theme-seg input:focus-visible + span{outline:3px solid var(--focus-ring);outline-offset:2px}
+
+/* ============================================================================
+   ROUND 8 · PREMIUM POLISH. Layout, depth and motion only (no colours, no copy).
+   Placed last so these authoritative rules win over the per-component borders
+   defined earlier in the file.
+   ============================================================================ */
+
+/* PRO-04 · Give surfaces a job. Raised surfaces get elevation and lose their border;
+   sunken/quiet containers get a border and no shadow. Nothing gets both. */
+.card-grid > li,.card-grid > div,.panel,.prem-features li,.market-flow-step,.job{
+  border:0;background:var(--surface-raised);box-shadow:var(--elev-1);border-radius:var(--r-card)}
+.card-grid > .quad-li{box-shadow:none}   /* the plot is not a card (PRO-18) */
+.strength,.emptybox,.rail-box,.honesty,.dropzone{
+  box-shadow:none;border:1px solid var(--border-subtle);background:transparent}
+/* Dark mode nulls elevation (token block), so raised cards take a 1px border back —
+   shadow cannot carry separation there. Paired selectors per QA-07. */
+[data-theme="dark"] .card,[data-theme="dark"] .card-grid > li,
+[data-theme="dark"] .card-grid > div,[data-theme="dark"] .panel,
+[data-theme="dark"] .prem-features li,[data-theme="dark"] .market-flow-step,
+[data-theme="dark"] .job{border:1px solid var(--border-subtle)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .card,:root:not([data-theme="light"]) .card-grid > li,
+  :root:not([data-theme="light"]) .card-grid > div,:root:not([data-theme="light"]) .panel,
+  :root:not([data-theme="light"]) .prem-features li,:root:not([data-theme="light"]) .market-flow-step,
+  :root:not([data-theme="light"]) .job{border:1px solid var(--border-subtle)}
+}
