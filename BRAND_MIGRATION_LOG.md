@@ -150,3 +150,31 @@ DEPLOYED: pushed to main (Railway prod) per user go-ahead.
 Still outstanding (B3, no local raster pipeline — cairo unavailable on Windows): icon-192.png,
 apple-touch-icon, og-default.png, and the email footer mark still show the OLD three-bar mark.
 In-browser favicon + header logo (SVG) are on-brand. Needs an eng raster step to regenerate PNGs.
+
+## Live-site QA round 1 (2026-09-13)
+Against `# JBHNTR — Live Site QA & Brand Migration Feedback v1.0`. Fixed 15 of 17 items.
+P0 — QA-01 dark header mark now on warm-white plate (was navy-800, swallowed the mark's own
+navy square); QA-02 favicon/icon-16 plates warm-white (same collapse); QA-03 generated
+icon-192.png + icon-512.png via a new reproducible raster pipeline (scripts/gen-icons.mjs,
+@resvg/resvg-js — no system cairo needed), fixing the apple-touch 404; QA-04 removed the
+`:root:not([data-theme="light"]) .tier-1` selector that sat OUTSIDE the media query and painted
+navy-950 tier-1 text in default light mode.
+P1 — QA-05 deleted the unused TIER_COLOURS Python global (chips already theme via CSS classes,
+so there were no inline fills to fix); QA-06 app.js re-applies the saved theme defensively if the
+CSP-hashed inline script is ever blocked, plus a test recomputes that hash from base.html;
+QA-07 tests enforce the two dark token blocks stay identical and that no dark :root selector
+leaks outside the media query; QA-08 toggle now sets aria-pressed + a sun/moon icon + a stateful
+label.
+P2 — QA-09 replaced the "What will Premium add?" FAQ (contradicted Early Access) with "What
+happens when I run out of credits?"; QA-10 footer link relabelled Credits -> /credits (/pricing
+kept as a 301); QA-11 the earn-credits mechanics now show to logged-out visitors too, and the
+invite copy button was rewired off inline onclick (CSP) + legacy hexes tokenised.
+P3 — QA-13 admin chart/monitor repainted pine/brass -> navy-800/cornflower-600 and legacy status
+hexes -> v3 tokens; QA-14 stale "brass" comment -> "apricot"; QA-15 preload Plus Jakarta 700
+(subsets verified to already carry Latin-Ext/accents, euro, curly quotes); QA-16 htmx vendored
+into /static and unpkg dropped from the CSP.
+Deferred to a founder decision: QA-12 (tear out the dead Premium-waitlist route/email/field +
+its ~5 tests) and QA-17 (embed DM Sans in exported CVs vs keep neutral — QA says flag, so kept
+neutral). Still needs a design pass, not a raster: og-default.png (1200x630 social card) predates
+v3 and shows the old mark.
+Suite: 577 passed, 1 skipped.
