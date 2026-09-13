@@ -120,20 +120,26 @@
   --elev-1:none; --elev-2:none;
   --tier-1:#A9C1EB; --tier-2:#8FADE4; --tier-3:#7599DB; --tier-4:#6B8CA5; --tier-5:#97AEC1;
 }}
-/* dark: tier chips take navy text on all five steps; paper previews stay light; mark on a plate */
+/* dark: tier chips take navy text on all five steps; paper previews stay light; mark on a plate.
+   NB: every dark component rule below must be paired — one [data-theme="dark"] selector and one
+   inside @media(prefers-color-scheme:dark){:root:not([data-theme="light"])} — so an explicit
+   toggle and a system preference behave identically. Do not add a bare :root selector here: a
+   :root:not([data-theme="light"]) rule OUTSIDE the media query also matches default light
+   visitors (QA-04). */
 [data-theme="dark"] .tier-1,[data-theme="dark"] .tier-2,[data-theme="dark"] .tier-3,
-[data-theme="dark"] .tier-4,[data-theme="dark"] .tier-5,
-:root:not([data-theme="light"]) .tier-1{color:var(--navy-950)}
+[data-theme="dark"] .tier-4,[data-theme="dark"] .tier-5{color:var(--navy-950)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tier-1,
   :root:not([data-theme="light"]) .tier-2,:root:not([data-theme="light"]) .tier-3,
   :root:not([data-theme="light"]) .tier-4,:root:not([data-theme="light"]) .tier-5{color:var(--navy-950)}}
-[data-theme="dark"] .brand img{background:var(--navy-800);border-radius:8px;padding:4px}
+/* The mark sits on its intended warm-white ground so all three shapes stay legible; a navy
+   plate would swallow the mark's own navy square (QA-01). */
+[data-theme="dark"] .brand img{background:var(--warm-white);border-radius:8px;padding:4px}
 [data-theme="dark"] .btn.danger:hover{color:var(--navy-950)}
 [data-theme="dark"] .doc-preview,[data-theme="dark"] .doc-preview .pv-contact,
 [data-theme="dark"] .sheet{background:#fff;color:#1a1a1a}
 [data-theme="dark"] .doc-preview,[data-theme="dark"] .sheet{border-color:var(--navy-800)}
 @media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]) .brand img{background:var(--navy-800);border-radius:8px;padding:4px}
+  :root:not([data-theme="light"]) .brand img{background:var(--warm-white);border-radius:8px;padding:4px}
   :root:not([data-theme="light"]) .doc-preview,:root:not([data-theme="light"]) .sheet{background:#fff;color:#1a1a1a;border-color:var(--navy-800)}
 }
 *{box-sizing:border-box}
@@ -168,7 +174,7 @@ main{max-width:var(--container);margin:0 auto;padding:28px 24px 64px}
 .brand img{display:block}
 .brand span{font:800 18px/1 var(--font-display);letter-spacing:-.02em;color:var(--text-primary)}
 .brand img{margin-inline-end:2px}   /* clear space ~= a quarter of the mark height */
-/* marketing pages: brass rule under the last four letters (R4.3) */
+/* marketing pages: apricot rule under the last four letters (R4.3) */
 .wordmark-rule{border-bottom:4px solid var(--accent-warm);padding-bottom:2px}
 .bar nav{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
 .bar nav a{text-decoration:none;color:var(--text-secondary);font-size:14px}

@@ -81,7 +81,7 @@ def _fmt(n: float) -> str:
 
 
 def _dual_line_svg(dates, left, right, left_label, right_label,
-                   left_color="#174b3e", right_color="#c08a2e") -> str:
+                   left_color="#17334B", right_color="#5B87D0") -> str:  # navy-800 / cornflower-600
     """A dual-axis daily line chart as inline SVG (CSP-safe: no JS/chart libs).
 
     `dates` are short x labels; `left`/`right` are the two daily series, plotted
@@ -101,7 +101,7 @@ def _dual_line_svg(dates, left, right, left_label, right_label,
     # gridlines + both Y axes' tick values
     for f in (0, 0.25, 0.5, 0.75, 1):
         y = mt + ih - f * ih
-        p.append(f'<line x1="{ml}" y1="{y:.0f}" x2="{ml + iw}" y2="{y:.0f}" stroke="#e5e2dc"/>')
+        p.append(f'<line x1="{ml}" y1="{y:.0f}" x2="{ml + iw}" y2="{y:.0f}" stroke="#D8DFE5"/>')
         p.append(f'<text x="{ml - 6}" y="{y + 3:.0f}" text-anchor="end" '
                  f'fill="{left_color}">{_fmt(lmax * f)}</text>')
         p.append(f'<text x="{ml + iw + 6}" y="{y + 3:.0f}" text-anchor="start" '
@@ -110,7 +110,7 @@ def _dual_line_svg(dates, left, right, left_label, right_label,
     step = max(1, (n - 1) // 6) if n > 1 else 1
     for i in range(0, n, step):
         p.append(f'<text x="{xs[i]:.0f}" y="{H - 14}" text-anchor="middle" '
-                 f'fill="#5e5b55">{dates[i]}</text>')
+                 f'fill="#526273">{dates[i]}</text>')
     # the two series
     lp = " ".join(f"{xs[i]:.1f},{ly(left[i]):.1f}" for i in range(n))
     rp = " ".join(f"{xs[i]:.1f},{ry(right[i]):.1f}" for i in range(n))
@@ -896,13 +896,13 @@ def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
         pct = round(100 * f / t) if t else 0
         hinted = "✓ hint" if hint_for(comp, code) else ""
         if is_ignored(comp):
-            status, color = "board — skip", "#888"
+            status, color = "board — skip", "#526273"        # text-secondary
         elif pct >= 60:
-            status, color = "working", "#1a7f37"
+            status, color = "working", "#286447"             # status-success
         elif pct >= 15:
-            status, color = "partial", "#b58900"
+            status, color = "partial", "#805A22"             # status-attention
         else:
-            status, color = "THIN — needs scrape", "#cf222e"
+            status, color = "THIN — needs scrape", "#A42C3C"  # status-error
         drows += (f'<tr><td>{(comp or "")[:40]}</td>'
                   f'<td style="text-align:right">{t:,}</td>'
                   f'<td style="text-align:right">{f:,}</td>'
@@ -911,11 +911,11 @@ def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
                   f'<td style="color:{color}">{status}</td>'
                   f'<td style="text-align:center">{hinted}</td></tr>')
 
-    css = ("body{font:14px system-ui,sans-serif;margin:24px;color:#111}"
+    css = ("body{font:14px system-ui,sans-serif;margin:24px;color:#17334B}"  # navy-800 ink
            "table{border-collapse:collapse;margin:8px 0 28px}"
-           "th,td{padding:5px 12px;border-bottom:1px solid #eee;font-size:13px}"
-           "th{text-align:left;color:#555;border-bottom:2px solid #ddd}"
-           "a{color:#0969da;text-decoration:none}h2{margin:18px 0 6px}")
+           "th,td{padding:5px 12px;border-bottom:1px solid #EDF1F4;font-size:13px}"
+           "th{text-align:left;color:#526273;border-bottom:2px solid #D8DFE5}"
+           "a{color:#315BA8;text-decoration:none}h2{margin:18px 0 6px}")
     return f"""<html><head><meta charset="utf-8"><style>{css}</style>
 <title>Agency JD monitor</title></head><body>
 <a href="/admin">&larr; Admin</a>
@@ -923,7 +923,7 @@ def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
 <table><tr><th>Country</th><th>Jobs</th><th>Full JD</th><th>Coverage</th><th>Hints</th></tr>
 {srows}</table>
 <h2>Top posters in: {sel_tabs}</h2>
-<p style="color:#666">Full = description ≥300c. A staffing agency should be mostly
+<p style="color:#526273">Full = description ≥300c. A staffing agency should be mostly
 <b>full</b> (green) once scraped; <b>THIN</b> (red) means we're not getting its JDs yet —
 add a hint via <code>/admin/test-browser?name=NAME&country={code}&debug=1</code>.</p>
 <table><tr><th>Company</th><th>Jobs</th><th>Full</th><th>Thin</th><th>Full %</th>

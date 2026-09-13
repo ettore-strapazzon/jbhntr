@@ -21,6 +21,10 @@ config/companies.yaml
 # Editor / scratch backups
 *.bak
 
+# Node (icon raster tooling under scripts/)
+node_modules/
+scripts/package-lock.json
+
 # Python
 __pycache__/
 *.pyc
