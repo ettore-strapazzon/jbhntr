@@ -23,10 +23,9 @@ templates.env.globals["rating_labels"] = RATING_LABELS
 templates.env.globals["asset_v"] = (
     os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")[:8] or str(int(time.time()))
 )
-templates.env.globals["TIER_COLOURS"] = {  # v3 fit tiers: navy-scaled, error red is failure-only
-    1: "#17334B",  # navy 800     — strong fit
-    2: "#35599A",  # cornflower 800
-    3: "#5B87D0",  # cornflower 600
-    4: "#97AEC1",  # navy 300
-    5: "#718399",  # border-strong — weak fit, not a failure
-}
+# Fit-tier colours are owned entirely by CSS (`.tier-{1..5}` → `var(--tier-N)`),
+# which re-maps them per theme (light navy ramp; dark cornflower ramp with navy
+# ink). Chips render as `class="tier tier-{n}"` with no inline colour, so nothing
+# here needs a hex table — a Python one only re-introduces the un-themeable inline
+# fills QA-05 warned about. If a non-HTML surface (email, OG image) ever needs the
+# hexes, define them there, not as a global.

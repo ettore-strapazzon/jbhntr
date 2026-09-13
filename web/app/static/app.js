@@ -91,6 +91,20 @@
   });
 })();
 
+// Credits page: select-on-click for the invite field and a copy button. CSP forbids
+// inline onclick, so these are wired here via data-attributes (delegated so it also
+// works for HTMX-swapped content).
+document.addEventListener("click", function (e) {
+  var field = e.target.closest && e.target.closest("[data-select-on-click]");
+  if (field && field.select) field.select();
+  var copyBtn = e.target.closest && e.target.closest("[data-copy]");
+  if (copyBtn && navigator.clipboard) {
+    navigator.clipboard.writeText(copyBtn.getAttribute("data-copy")).then(function () {
+      copyBtn.textContent = "Copied";
+    }).catch(function () {});
+  }
+});
+
 // Live counter for the 300-character feedback boxes.
 document.addEventListener("input", function (e) {
   if (e.target && e.target.matches("textarea[data-counter]")) {
@@ -313,26 +327,70 @@ document.addEventListener("input", function (e) {
 })();
 
 // Brand v3 P11: theme toggle. Cycle light<->dark, persist in localStorage; a
-// three-way System/Light/Dark <select> on /account. No-flash init lives inline in
-// base.html <head>; this only wires the controls.
+// three-way System/Light/Dark <select> on /account. The no-flash init lives inline
+// in base.html <head>; this wires the controls AND, defensively, re-applies the
+// saved preference (QA-06): if the inline script is ever blocked (a CSP-hash drift
+// after an edit to base.html), a saved dark preference would otherwise be silently
+// dropped on load — this degrades that to a flash rather than a broken preference.
 (function () {
+  var root = document.documentElement;
   function apply(t) {
-    if (t) document.documentElement.setAttribute("data-theme", t);
-    else document.documentElement.removeAttribute("data-theme");
+    if (t) root.setAttribute("data-theme", t);
+    else root.removeAttribute("data-theme");
   }
   function systemDark() {
     return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
   }
+  function effective() {
+    return root.getAttribute("data-theme") || (systemDark() ? "dark" : "light");
+  }
+
+  // Defensive re-apply from storage (see note above).
+  try {
+    var pref = localStorage.getItem("jbhntr:theme");
+    if (pref === "dark" || pref === "light") apply(pref);
+  } catch (e) {}
+
+  // State on the toggle (QA-08): aria-pressed for assistive tech, and a sun/moon
+  // icon so sighted users see the current theme. The icon button carries an <svg>;
+  // the text button in the mobile menu keeps its label and only gets aria-pressed.
+  var MOON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">' +
+    '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" fill="currentColor"/></svg>';
+  var SUN = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="4" fill="currentColor"/>' +
+    '<g stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M16.9 16.9l2.1 2.1M19.1 4.9l-2.1 2.1M7.1 16.9l-2.1 2.1"/></g></svg>';
+  var toggles = document.querySelectorAll("[data-theme-toggle]");
+  function reflect() {
+    var isDark = effective() === "dark";
+    toggles.forEach(function (b) {
+      b.setAttribute("aria-pressed", isDark ? "true" : "false");
+      if (b.querySelector("svg")) {
+        var label = isDark ? "Switch to light theme" : "Switch to dark theme";
+        b.setAttribute("aria-label", label);
+        b.setAttribute("title", label);
+        b.innerHTML = isDark ? SUN : MOON;
+      }
+    });
+  }
+
   function cycle() {
-    var now = document.documentElement.getAttribute("data-theme");
-    var effective = now || (systemDark() ? "dark" : "light");
-    var next = effective === "dark" ? "light" : "dark";
+    var next = effective() === "dark" ? "light" : "dark";
     apply(next);
     try { localStorage.setItem("jbhntr:theme", next); } catch (e) {}
+    reflect();
   }
-  document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
-    b.addEventListener("click", cycle);
-  });
+  toggles.forEach(function (b) { b.addEventListener("click", cycle); });
+  reflect();
+
+  // When following the system and it flips, keep the icon honest.
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    var onChange = function () { if (!root.getAttribute("data-theme")) reflect(); };
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+
   var sel = document.getElementById("theme-select");
   if (sel) {
     try {
@@ -343,6 +401,7 @@ document.addEventListener("input", function (e) {
       var v = sel.value;
       if (v === "system") { apply(null); try { localStorage.removeItem("jbhntr:theme"); } catch (e) {} }
       else { apply(v); try { localStorage.setItem("jbhntr:theme", v); } catch (e) {} }
+      reflect();
     });
   }
 })();

@@ -71,11 +71,12 @@ FAQ_PAIRS: tuple[tuple[str, str], ...] = (
      "No. The profile supports different sectors, seniority levels, company "
      "types, contract types and locations. Result quality still depends on source "
      "coverage in your market and the detail in your profile."),
-    ("What will Premium add?",
-     "Premium is planned to add automatic recurring scans, more frequent "
-     "freshness, useful digests and expanded application workflow. The free "
-     "product uses the same core approach and is intended to be good enough to "
-     "judge the product honestly."),
+    ("What happens when I run out of credits?",
+     "Your first market scan is free and you start with a batch of credits. When "
+     "they run low you earn more by inviting other job seekers or by telling us "
+     "how an application went. Saving, tracking, notes and exporting never cost "
+     "credits, and credits do not expire. During Early Access credits are earned "
+     "rather than sold."),
 )
 
 

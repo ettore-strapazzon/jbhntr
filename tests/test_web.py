@@ -571,6 +571,114 @@ def test_csp_forbids_inline_scripts(client):
     assert "'unsafe-inline'" not in csp.split("style-src")[0]  # scripts only
 
 
+def test_theme_noflash_csp_hash_matches_base_html():
+    """The inline no-flash theme script in base.html is allowed by an exact sha256
+    in the CSP (main.py). Edit the script without updating the hash and the browser
+    silently blocks it: the saved dark preference stops being restored on load and
+    users get a permanent flash-to-light, invisibly in CI. Recompute the hash from
+    base.html and assert main.py's CSP still carries it (QA-06)."""
+    import base64
+    import hashlib
+    import re
+
+    from web.app.config import ROOT
+
+    html = (ROOT / "web" / "app" / "templates" / "base.html").read_text(encoding="utf-8")
+    m = re.search(r"<script>(?P<body>[^<]*jbhntr:theme[^<]*)</script>", html)
+    assert m, "inline no-flash theme script not found in base.html"
+    digest = base64.b64encode(hashlib.sha256(m.group("body").encode()).digest()).decode()
+
+    main_src = (ROOT / "web" / "app" / "main.py").read_text(encoding="utf-8")
+    assert f"sha256-{digest}" in main_src, (
+        "CSP script hash is stale: the inline theme script in base.html changed but "
+        f"the sha256 in main.py was not updated. Expected 'sha256-{digest}'.")
+
+
+def test_htmx_is_vendored_not_third_party(client):
+    """htmx is served from our own origin, and no third-party script CDN remains in
+    the CSP (QA-16)."""
+    page = client.get("/").text
+    assert "/static/htmx.min.js" in page
+    assert "unpkg.com" not in page
+    csp = client.get("/").headers["Content-Security-Policy"]
+    assert "unpkg.com" not in csp
+    assert client.get("/static/htmx.min.js").status_code == 200
+
+
+def _app_css_text():
+    from web.app.config import ROOT
+
+    return (ROOT / "web" / "app" / "static" / "app.css").read_text(encoding="utf-8")
+
+
+def _pcs_media_spans(css):
+    """(start, end) char spans of every @media(prefers-color-scheme:dark){...},
+    brace-matched so nested rules are included."""
+    import re
+
+    spans = []
+    for m in re.finditer(r"@media\s*\(prefers-color-scheme:\s*dark\)\s*\{", css):
+        depth, j = 0, m.end() - 1
+        while j < len(css):
+            if css[j] == "{":
+                depth += 1
+            elif css[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    spans.append((m.start(), j))
+                    break
+            j += 1
+    return spans
+
+
+def test_dark_theme_selector_never_leaks_into_light():
+    """`:root:not([data-theme="light"])` matches every default light visitor (they
+    carry no data-theme), so it may ONLY appear inside a prefers-color-scheme:dark
+    media block. Outside one it paints dark values in light mode — the tier-1
+    regression in QA-04. Brace-walk app.css and assert none leaks out."""
+    import re
+
+    # Strip comments first: the guidance comment in app.css names the very selector
+    # this test hunts for, and that mention is not a real rule.
+    css = re.sub(r"/\*.*?\*/", "", _app_css_text(), flags=re.S)
+    spans = _pcs_media_spans(css)
+    target = ':root:not([data-theme="light"])'
+    offenders, start = [], 0
+    while True:
+        idx = css.find(target, start)
+        if idx == -1:
+            break
+        if not any(s <= idx <= e for s, e in spans):
+            line = css.count("\n", 0, idx) + 1
+            offenders.append(line)
+        start = idx + 1
+    assert not offenders, (
+        "':root:not([data-theme=\"light\"])' outside a prefers-color-scheme block "
+        f"(leaks dark styling into light mode) at line(s): {offenders}")
+
+
+def test_dark_token_blocks_stay_in_sync():
+    """The [data-theme="dark"] token block and its prefers-color-scheme twin must
+    declare an identical set of custom properties (QA-07): the two are hand-kept in
+    sync, and any divergence is how a light/dark inconsistency slips in."""
+    import re
+
+    css = _app_css_text()
+    a = re.search(r'\[data-theme="dark"\]\s*\{(?P<body>[^{}]*)\}', css)
+    b = re.search(
+        r'@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*'
+        r':root:not\(\[data-theme="light"\]\)\s*\{(?P<body>[^{}]*)\}', css)
+    assert a and b, "could not locate both dark token blocks in app.css"
+
+    def toks(body):
+        return sorted(t.strip() for t in body.split(";")
+                      if t.strip().startswith("--"))
+
+    assert toks(a.group("body")) == toks(b.group("body")), (
+        "dark token blocks have drifted apart; keep [data-theme=\"dark\"] and the "
+        "prefers-color-scheme block declaring the same custom properties.")
+
+
 def test_no_hardcoded_search_term_fallback():
     """Regression: sources defaulted to 'backend engineer' for everyone."""
     import inspect
@@ -2126,8 +2234,11 @@ def test_home_faq_visible_matches_schema(client):
 
 def test_signed_out_nav_points_to_real_pages(client):
     page = client.get("/").text
-    for href in ('href="/how-it-works"', 'href="/pricing"', 'href="/security"'):
+    # Credits is the canonical pricing destination now; /pricing survives only as a
+    # 301 for inbound links and is no longer surfaced in nav or footer (QA-10).
+    for href in ('href="/how-it-works"', 'href="/credits"', 'href="/security"'):
         assert href in page
+    assert 'href="/pricing"' not in page
     assert 'href="/#how"' not in page and 'href="/#pricing"' not in page
 
 

@@ -81,9 +81,11 @@ async def security_and_analytics(request: Request, call_next):
     # Defence-in-depth headers. CSP is deliberately strict: no inline scripts,
     # no third-party origins except the analytics host.
     plausible = "https://plausible.io" if config.plausible_domain else ""
+    # htmx is vendored into /static (QA-16), so 'self' covers it — no third-party
+    # script origin remains except the optional analytics host.
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        f"script-src 'self' {plausible} https://unpkg.com "
+        f"script-src 'self' {plausible} "
         "'sha256-ntx7wp45fgdfZEYSiV0FvPXbyKjcO/RrsJtXQT/OCGE='; "  # theme no-flash inline script (P11)
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
