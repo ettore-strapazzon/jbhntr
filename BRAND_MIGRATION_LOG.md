@@ -183,3 +183,25 @@ Deferred to a founder decision: QA-17 (embed DM Sans in exported CVs vs keep neu
 flag, so kept neutral). Still needs a design pass, not a raster: og-default.png (1200x630 social
 card) predates v3 and shows the old mark.
 Suite: 574 passed, 1 skipped.
+
+## Round 8 — Premium Polish (2026-09-14)
+Against `JBHNTR Round 8 - Premium Polish Spec.pdf` (21 items, PRO-01..21). Layout/depth/motion
+only; no copy, no new colours, two new components (.doc-index, .hero-card-behind). 5 commits:
+- Foundations: self-host JetBrains Mono 400/700 (PRO-07); one type scale (PRO-08); optical
+  detail — balance, hanging-punctuation, tabular-nums off prose (PRO-09); elevation — raised
+  surfaces get --elev-1 + no border, sunken get border + no shadow, dark adds a border (PRO-04).
+- Spine: one 12-col grid with three layouts + two measures (PRO-01); hairlines gone, two sunken
+  bands mark the structural breaks (PRO-02); .doc pages centred with a sticky section index +
+  scroll-spy (PRO-03).
+- The seven: funnel capped/solo with % (PRO-16); problem points -> apricot-free navy aside,
+  tailored -> full-bleed navy spotlight (PRO-17); differentiators split (plot + 3-up) (PRO-18);
+  Early Access de-inlined + Credits on .doc (PRO-19); hero card stack (PRO-06).
+- Motion: section reveal (scroll-based, .js-gated) (PRO-10); hero bars fill + count up (PRO-11);
+  card hover lift (PRO-05/12); FAQ + rotates to x, height-animates (PRO-13); sticky marketing
+  header + shadow-on-scroll (PRO-14); apricot in exactly four judgement places (PRO-15). CSP hash
+  updated for the js-class addition.
+- Finish: market-flow rail (PRO-20); footer band, 1.5x closing, alpha apricot rule, normalised
+  closing gap (PRO-21); OG card re-cut on v3 via scripts/gen-og.mjs; 360px header + dark sweep
+  verified (fixed the tailored band's dark-mode flip).
+Suite: 574 passed, 1 skipped (pre-existing order-dependent reaper flake, unrelated). NOT pushed.
+Still open: exported-CV font (QA-17) — kept neutral pending a founder decision.
