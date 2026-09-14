@@ -27,6 +27,13 @@
          style stands in. Swap to the retained .hero-diptych markup when photos
          are ready. #}
       <div class="hero-visual">
+        {# PRO-06: a peer card offset behind, so the hero reads as "there are more of
+           these"  - the product promise. Decorative; the front card carries the label. #}
+        <div class="hero-card-behind" aria-hidden="true">
+          <span class="tier tier-3">Worth a look</span>
+          <p class="hero-card-role">Data Analyst, Lending</p>
+          <p class="hero-card-meta">Northwind Bank · Remote · posted 4 days ago</p>
+        </div>
         <div class="hero-card" role="img"
              aria-label="Illustrative example of a scored match: Senior Product Manager, Payments at Meridian Pay, a strong match scored 92 on fit for you and 78 on your fit for the role.">
           <div class="hero-card-top">
@@ -58,34 +65,38 @@
 </section>
 
 {# ============================ FUNNEL (V3) ============================ #}
+{# PRO-16: solo layout  - diagram capped at 720px in cols 1-8, caption in the aside. #}
 <section class="section" aria-labelledby="funnel-title">
-  <div class="container layout-full">
+  <div class="container layout-solo">
     <div class="section-head">
       <p class="eyebrow">WHAT ONE SCAN DOES</p>
       <h2 id="funnel-title">The whole market, narrowed to a decision.</h2>
     </div>
-    {% include "partials/funnel.html" %}
+    <div class="section-body">{% include "partials/funnel.html" %}</div>
+    <div class="section-aside">
+      <p class="funnel-note small muted">Every scan is different. The widths show the
+        shape, not a count.</p>
+    </div>
   </div>
 </section>
 
 {# ============================ PROBLEM (HOME-004) ============================ #}
+{# PRO-17: solo layout  - intro in cols 1-8, the three points as the aside (9-13). #}
 <section class="section" aria-labelledby="problem-title">
-  <div class="container layout-full">
-    <div class="section-solo">
-      <div class="section-head">
-        <p class="eyebrow">THE PROBLEM</p>
-        <h2 id="problem-title">The right role is rarely in one place.</h2>
-        <p>It may be on a major job board, a niche site or a company career page you
-          did not know to check. Alerts send every keyword hit. JBHNTR reads across the
-          market, removes duplicates and weak fits, and gives you the small set worth a
-          decision.</p>
-      </div>
-      <ul class="problem-points">
-        <li>Stop rebuilding the same search across different platforms.</li>
-        <li>Stop opening roles that fail your location, level or working constraints.</li>
-        <li>See adjacent roles that title-only alerts miss.</li>
-      </ul>
+  <div class="container layout-solo">
+    <div class="section-head">
+      <p class="eyebrow">THE PROBLEM</p>
+      <h2 id="problem-title">The right role is rarely in one place.</h2>
+      <p>It may be on a major job board, a niche site or a company career page you
+        did not know to check. Alerts send every keyword hit. JBHNTR reads across the
+        market, removes duplicates and weak fits, and gives you the small set worth a
+        decision.</p>
     </div>
+    <ul class="problem-points section-aside">
+      <li>Stop rebuilding the same search across different platforms.</li>
+      <li>Stop opening roles that fail your location, level or working constraints.</li>
+      <li>See adjacent roles that title-only alerts miss.</li>
+    </ul>
   </div>
 </section>
 
@@ -140,29 +151,31 @@
 </section>
 
 {# ======================= DIFFERENTIATORS (HOME-006, L-06) ======================= #}
+{# PRO-18: the plot is not a card. Split row (head 1-5 + plot 6-13), then the three
+   claims as a clean 3-up card row. 1 diagram + 3 cards, a symmetrical page. #}
 <section class="section" aria-labelledby="diff-title">
-  <div class="container layout-full">
+  <div class="container layout-split">
     <div class="section-head">
       <p class="eyebrow">WHY IT IS DIFFERENT</p>
       <h2 id="diff-title">Judgement in two directions, not a longer feed.</h2>
     </div>
-    <ul class="card-grid">
-      <li class="quad-li">
-        <div class="quad-frame">
-          <span class="quad-axis quad-axis-y">You fit the role &rarr;</span>
-          <div class="quad-col">
-            <div class="quadrant-plot" role="img"
-                 aria-label="Two-way fit plot: the example role is strong on both axes, so it lands in Apply now">
-              <div class="quad-cell"><b>You fit, role does not fit you</b>Likely to get it, likely to regret it. This is why “Watch out” exists.</div>
-              <div class="quad-cell"><b>You fit, role fits you</b>Apply now.</div>
-              <div class="quad-cell muted-cell"><b>Neither</b>Dismissed before you see it.</div>
-              <div class="quad-cell"><b>You do not fit, role fits you</b>A stretch worth a tailored application.</div>
-              <span class="quad-dot" aria-hidden="true"></span>
-            </div>
-            <span class="quad-axis quad-axis-x">Role fits you &rarr;</span>
-          </div>
+    <div class="quad-frame">
+      <span class="quad-axis quad-axis-y">You fit the role &rarr;</span>
+      <div class="quad-col">
+        <div class="quadrant-plot" role="img"
+             aria-label="Two-way fit plot: the example role is strong on both axes, so it lands in Apply now">
+          <div class="quad-cell"><b>You fit, role does not fit you</b>Likely to get it, likely to regret it. This is why “Watch out” exists.</div>
+          <div class="quad-cell"><b>You fit, role fits you</b>Apply now.</div>
+          <div class="quad-cell muted-cell"><b>Neither</b>Dismissed before you see it.</div>
+          <div class="quad-cell"><b>You do not fit, role fits you</b>A stretch worth a tailored application.</div>
+          <span class="quad-dot" aria-hidden="true"></span>
         </div>
-      </li>
+        <span class="quad-axis quad-axis-x">Role fits you &rarr;</span>
+      </div>
+    </div>
+  </div>
+  <div class="container layout-full">
+    <ul class="card-grid cols-3">
       <li><b>Understands the work, not only the title.</b><p>Semantic retrieval finds
         adjacent and equivalent roles, while hard constraints keep the list grounded
         in where and how you can actually work.</p></li>
@@ -176,17 +189,20 @@
 </section>
 
 {# ==================== TAILORED APPLICATIONS (HOME-007, L-03) ==================== #}
-<section class="section">
-  <div class="container layout-full">
-    <div class="section-solo">
-      <div class="section-head">
-        <p class="eyebrow">FROM DECISION TO APPLICATION</p>
-        <h2>Found a role worth applying to? Start with a tailored draft.</h2>
-        <p>JBHNTR can draft a CV and cover letter for that specific posting using the
-          career material you supplied. Edit the wording, verify every claim and export
-          it when it sounds like you. It is a first draft, never an application sent on
-          your behalf.</p>
-      </div>
+{# PRO-17: promote the lone paragraph to a full-bleed navy band with the
+   CV/cover-letter pair (existing .flow-docs) as the visual. #}
+<section class="section section--invert">
+  <div class="container layout-split">
+    <div class="section-head">
+      <p class="eyebrow">FROM DECISION TO APPLICATION</p>
+      <h2>Found a role worth applying to? Start with a tailored draft.</h2>
+      <p>JBHNTR can draft a CV and cover letter for that specific posting using the
+        career material you supplied. Edit the wording, verify every claim and export
+        it when it sounds like you. It is a first draft, never an application sent on
+        your behalf.</p>
+    </div>
+    <div class="tailored-visual" aria-hidden="true">
+      <div class="flow-docs"><span>CV</span><span>Cover letter</span></div>
     </div>
   </div>
 </section>
@@ -224,22 +240,18 @@
         JBHNTR better: bringing in other job seekers, and contributing anonymous
         hiring-process data. Credits never expire.</p>
     </div>
-    <div class="ea-cards" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:8px">
-      <div class="ea-card" style="flex:1;min-width:220px">
-        <h3 style="margin:.2em 0">A scan costs {{ config.cost_search }} credits</h3>
+    <ul class="card-grid">
+      <li><b>A scan costs {{ config.cost_search }} credits</b>
         <p class="muted">A tailored CV is {{ config.cost_cv }}, a cover letter
           {{ config.cost_cover_letter }}. Saving, tracking, notes and exporting are
-          always free.</p>
-      </div>
-      <div class="ea-card" style="flex:1;min-width:220px">
-        <h3 style="margin:.2em 0">Earn more, don't buy</h3>
+          always free.</p></li>
+      <li><b>Earn more, don't buy</b>
         <p class="muted">Invite a fellow job seeker, or tell us how an application
-          went. Credits aren't for sale during Early Access.</p>
-      </div>
-    </div>
-    <p style="text-align:center;margin-top:18px">
+          went. Credits aren't for sale during Early Access.</p></li>
+    </ul>
+    <p class="cta">
       <a class="btn" href="/signup">Start your first scan</a>
-      <a class="btn ghost" href="/credits" style="margin-left:8px">How credits work</a>
+      <a class="btn ghost" href="/credits">How credits work</a>
     </p>
   </div>
 </section>

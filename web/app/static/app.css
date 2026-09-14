@@ -1309,3 +1309,70 @@ body{overflow-x:clip}   /* contains the 100vw full-bleed band, no sideways scrol
   .doc-index{position:static;flex-direction:row;flex-wrap:wrap;grid-row:auto;
     gap:2px 14px;padding-top:0}
 }
+
+/* ---- Round 8 commit 3: the founder's seven ---- */
+
+/* PRO-16 · Funnel: capped, taller bars, primary labels, a mono % as a second edge. */
+.funnel{gap:10px;max-width:720px}
+.funnel-row{grid-template-columns:minmax(0,15rem) minmax(0,1fr) 3.5rem;gap:14px}
+.funnel-label{font-size:15px;font-weight:600;color:var(--text-primary)}
+.funnel-bar{height:26px;border-radius:4px}
+.funnel-pct{font:700 13px/1 var(--mono);color:var(--text-secondary);text-align:right;align-self:center}
+@media (max-width:860px){
+  .funnel-row{grid-template-columns:minmax(0,1fr) 3.5rem}
+  .funnel-label{grid-column:1 / -1}
+}
+
+/* PRO-17 · Problem: the three points become the solo aside, apricot-marked. */
+.problem-points.section-aside{margin:0;padding:0;list-style:none;
+  display:flex;flex-direction:column;gap:12px;max-width:none}
+.problem-points.section-aside li{position:relative;padding-left:20px;color:var(--text-secondary)}
+.problem-points.section-aside li::before{content:"";position:absolute;left:0;top:.5em;
+  width:8px;height:8px;border-radius:2px;background:var(--accent-warm)}
+
+/* PRO-17 · Tailored applications: promote the lone paragraph to a full-bleed navy
+   band (an inverted ground, not a new component) with the CV/cover-letter pair as the
+   visual via the existing .flow-docs. */
+.section--invert{background:var(--surface-inverse);color:var(--text-on-inverse);
+  margin-inline:calc(50% - 50vw);padding-inline:calc(50vw - 50%);
+  padding-block:calc(var(--space-section) * 1.1)}
+.section--invert .eyebrow{color:var(--corn-300)}
+.section--invert h2{color:var(--text-on-inverse)}
+.section--invert p{color:var(--corn-100)}
+.tailored-visual{display:flex;gap:16px;align-items:center;justify-content:flex-start}
+.tailored-visual .flow-docs{gap:14px}
+.tailored-visual .flow-docs span{font-size:15px;padding:18px 22px;border-radius:var(--r-card);
+  color:var(--corn-200);border-color:var(--corn-700);background:var(--navy-900)}
+@media (max-width:860px){.tailored-visual{justify-content:center;margin-top:8px}}
+
+/* PRO-18 · Differentiators: the plot fills its split half; the three claims are a
+   clean 3-up row below. A second container in a section keeps a rhythm gap. */
+.quadrant-plot{max-width:none;width:100%}
+.quad-cell{font-size:13px;line-height:1.4}
+.quad-cell b{font-size:13px}
+.section > .container + .container{margin-top:clamp(24px,3.2vw,44px)}
+.quad-frame{align-items:stretch}
+
+/* PRO-06 · Hero stack: a peer card offset behind, so it reads as "there are more". */
+.hero-visual{position:relative;isolation:isolate}
+.hero-card{position:relative;z-index:2;box-shadow:var(--elev-2);border:0}
+.hero-card-behind{position:absolute;z-index:1;inset:auto 0 -18px 0;
+  background:var(--surface-raised);border-radius:var(--r-card);box-shadow:var(--elev-1);
+  padding:16px 20px 40px;transform:scale(.94) rotate(-.6deg);transform-origin:bottom center;
+  opacity:.85;pointer-events:none}
+.hero-card-behind .hero-card-role{margin:0}
+.hero-card-behind .hero-card-meta{margin:4px 0 0}
+@media (max-width:940px){.hero-card-behind{display:none}}
+
+/* PRO-19 · Credits page uses .doc like the other sub-pages; these replace the inline
+   styles the page was built from. */
+.credit-table{width:100%;border-collapse:collapse;font-size:.95rem;margin:4px 0 0}
+.credit-table th{text-align:left;padding:6px 0;color:var(--text-secondary);
+  border-bottom:1px solid var(--border-subtle);font-weight:600}
+.credit-table td{padding:5px 0;border-bottom:1px solid var(--border-subtle)}
+.credit-table th:last-child,.credit-table td:last-child{text-align:right}
+.credit-ledger td:first-child{color:var(--text-secondary)}
+.invite-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.invite-row input{flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--border-subtle);
+  border-radius:var(--r-ctrl);background:var(--surface-raised);color:var(--text-primary)}
+.invite-code{letter-spacing:1px}
