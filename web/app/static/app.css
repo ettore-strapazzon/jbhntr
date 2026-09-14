@@ -1337,16 +1337,18 @@ body{overflow-x:clip}   /* contains the 100vw full-bleed band, no sideways scrol
 /* PRO-17 · Tailored applications: promote the lone paragraph to a full-bleed navy
    band (an inverted ground, not a new component) with the CV/cover-letter pair as the
    visual via the existing .flow-docs. */
-.section--invert{background:var(--surface-inverse);color:var(--text-on-inverse);
+/* A fixed navy spotlight in both themes (surface-inverse would flip to light in dark
+   mode and strand the text), full-bleed. */
+.section--invert{background:var(--navy-900);color:var(--navy-50);
   margin-inline:calc(50% - 50vw);padding-inline:calc(50vw - 50%);
   padding-block:calc(var(--space-section) * 1.1)}
 .section--invert .eyebrow{color:var(--corn-300)}
-.section--invert h2{color:var(--text-on-inverse)}
+.section--invert h2{color:var(--navy-50)}
 .section--invert p{color:var(--corn-100)}
 .tailored-visual{display:flex;gap:16px;align-items:center;justify-content:flex-start}
 .tailored-visual .flow-docs{gap:14px}
 .tailored-visual .flow-docs span{font-size:15px;padding:18px 22px;border-radius:var(--r-card);
-  color:var(--corn-200);border-color:var(--corn-700);background:var(--navy-900)}
+  color:var(--corn-200);border-color:var(--corn-700);background:var(--navy-950)}
 @media (max-width:860px){.tailored-visual{justify-content:center;margin-top:8px}}
 
 /* PRO-18 · Differentiators: the plot fills its split half; the three claims are a
@@ -1429,3 +1431,29 @@ body.home [id]{scroll-margin-top:80px}   /* anchor jumps clear the sticky header
   .faq details > .faq-body{grid-template-rows:1fr;transition:none}
   .faq summary::after{transition:none}
 }
+
+/* ---- Round 8 commit 5: finish ---- */
+
+/* PRO-20 · Market flow: five separate elevated cards (PRO-04) with real gaps, joined
+   by one continuous 1px rail behind them rather than per-card borders and dots. */
+.market-flow-steps{gap:clamp(12px,1.4vw,18px);position:relative}
+.market-flow-step{padding:18px 16px;border-radius:var(--r-card);z-index:1}
+.market-flow-step:first-child,.market-flow-step:last-child{border-radius:var(--r-card)}
+.market-flow-step::after{display:none}       /* drop the connector dots */
+.market-flow-step p{font-size:14px}           /* raise the body */
+.market-flow-steps::before{content:"";position:absolute;left:0;right:0;top:42px;height:1px;
+  background:var(--border-subtle);z-index:0}
+@media (max-width:860px){
+  .market-flow-steps::before{display:none}
+  .market-flow-steps{gap:10px}
+}
+
+/* PRO-21 · Footer full-bleed sunken; the closing gets 1.5x air; the alpha banner an
+   apricot rule; and one consistent closing space before the footer on every page. */
+.site-footer{max-width:none;margin:0;padding:0;
+  background:var(--surface-sunken);border-top:1px solid var(--border-subtle)}
+.foot-inner{max-width:calc(var(--container) + var(--gutter)*2);margin-inline:auto;
+  padding:clamp(32px,4vw,52px) var(--gutter)}
+.closing{padding-block:calc(var(--space-section) * 1.5)}
+.alpha-banner{border-bottom:3px solid var(--accent-warm)}
+body.home main{padding-bottom:0}              /* the last section's padding owns the closing space */

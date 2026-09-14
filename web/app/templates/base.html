@@ -141,28 +141,31 @@
 </nav>
 {% endif %}
 
+{# PRO-21: footer on a full-bleed sunken band so the page has a bottom. #}
 <footer class="site-footer">
-  <div class="foot-groups">
-    <div class="foot-group">
-      <b>Product</b>
-      <a href="/how-it-works">How it works</a>
-      <a href="/credits">Credits</a>
-      <a href="/compare/linkedin-jobs">Compare</a>
+  <div class="foot-inner">
+    <div class="foot-groups">
+      <div class="foot-group">
+        <b>Product</b>
+        <a href="/how-it-works">How it works</a>
+        <a href="/credits">Credits</a>
+        <a href="/compare/linkedin-jobs">Compare</a>
+      </div>
+      <div class="foot-group">
+        <b>Trust</b>
+        <a href="/security">Security</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/cookies">Cookies</a>
+      </div>
+      <div class="foot-group">
+        <b>Company</b>
+        {% if config.repo_url %}<a href="{{ config.repo_url }}" target="_blank" rel="noopener">Open-source repository</a>{% endif %}
+        <a href="mailto:{{ config.support_email }}">Support</a>
+      </div>
     </div>
-    <div class="foot-group">
-      <b>Trust</b>
-      <a href="/security">Security</a>
-      <a href="/privacy">Privacy</a>
-      <a href="/terms">Terms</a>
-      <a href="/cookies">Cookies</a>
-    </div>
-    <div class="foot-group">
-      <b>Company</b>
-      {% if config.repo_url %}<a href="{{ config.repo_url }}" target="_blank" rel="noopener">Open-source repository</a>{% endif %}
-      <a href="mailto:{{ config.support_email }}">Support</a>
-    </div>
+    <p class="foot-legal small muted">© {{ config.company_name }}</p>
   </div>
-  <p class="foot-legal small muted">© {{ config.company_name }}</p>
 </footer>
 
 <!-- Only a strictly-necessary session cookie is used, so this is an
