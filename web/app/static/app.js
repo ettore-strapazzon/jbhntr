@@ -59,6 +59,75 @@
   funnels.forEach(function (f) { io.observe(f); });
 })();
 
+// PRO-10: reveal section heads and card rows once, as they scroll in. A scroll-
+// position check (rather than IntersectionObserver) is used deliberately so that a
+// jump past a section — an anchor link, a fast fling — still reveals everything above
+// the trigger line and never strands a section invisible. Reduced-motion just shows
+// them; the .js CSS gate means no-JS visitors never see hidden content.
+(function () {
+  var els = [].slice.call(document.querySelectorAll("[data-reveal]"));
+  if (!els.length) return;
+  var reduce = window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) { els.forEach(function (e) { e.classList.add("in"); }); return; }
+  function check() {
+    var line = window.innerHeight * 0.88;
+    els = els.filter(function (e) {
+      if (e.getBoundingClientRect().top < line) { e.classList.add("in"); return false; }
+      return true;
+    });
+    if (!els.length) {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    }
+  }
+  var ticking = false;
+  function onScroll() {
+    if (!ticking) { ticking = true; requestAnimationFrame(function () { check(); ticking = false; }); }
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll, { passive: true });
+  check();
+})();
+
+// PRO-11: the hero card performs once on load — bars fill from 0 and the numerals
+// count up. The hero must never be hidden, so this only animates from a complete state.
+(function () {
+  var card = document.querySelector(".hero-card");
+  if (!card) return;
+  var reduce = window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) { card.classList.add("in"); return; }   // final state, no motion
+  var nums = [].slice.call(card.querySelectorAll(".hero-card-num"));
+  var finals = nums.map(function (n) { return parseInt(n.textContent, 10) || 0; });
+  nums.forEach(function (n) { n.textContent = "0"; });
+  setTimeout(function () {
+    card.classList.add("in");                          // bars scaleX 0 -> 1
+    var start = null, dur = 700;
+    (function tick(ts) {
+      if (start === null) start = ts;
+      var p = Math.min(1, (ts - start) / dur);
+      nums.forEach(function (n, i) { n.textContent = Math.round(finals[i] * p); });
+      if (p < 1) requestAnimationFrame(tick);
+    })(performance.now());
+  }, 120);
+})();
+
+// PRO-14: the marketing header gets a shadow only once the page is scrolled past 8px.
+(function () {
+  var bar = document.querySelector(".bar");
+  if (!bar) return;
+  var ticking = false;
+  function update() {
+    bar.classList.toggle("scrolled", window.scrollY > 8);
+    ticking = false;
+  }
+  window.addEventListener("scroll", function () {
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  }, { passive: true });
+  update();
+})();
+
 // Mobile full-nav sheet (Round 6). The button lives in the header; the panel is
 // in normal flow beneath it. CSP forbids inline handlers, so it is wired here.
 (function () {

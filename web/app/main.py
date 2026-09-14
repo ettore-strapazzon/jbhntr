@@ -86,7 +86,7 @@ async def security_and_analytics(request: Request, call_next):
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         f"script-src 'self' {plausible} "
-        "'sha256-ntx7wp45fgdfZEYSiV0FvPXbyKjcO/RrsJtXQT/OCGE='; "  # theme no-flash inline script (P11)
+        "'sha256-dbE9j8sAhjGFH934cIxvZvcRR4Cu5azC6mV1pJZiGik='; "  # theme no-flash + js-class inline script (P11/PRO-10)
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
         f"connect-src 'self' {plausible}; "

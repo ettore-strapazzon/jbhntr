@@ -736,7 +736,7 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
   padding-left:12px;border-left:3px solid var(--border-subtle)}
 .hero-card-reason>span{font-weight:700;color:var(--text-primary);margin-right:6px}
 .hero-card-reason.for{border-left-color:var(--status-success)}
-.hero-card-reason.against{border-left-color:var(--status-attention)}
+.hero-card-reason.against{border-left-color:var(--accent-warm)}   /* PRO-15: apricot marks reservation */
 @media (max-width:560px){
   .hero-card-dim{flex-wrap:wrap}
   .hero-card-dim-label{flex:1 0 100%}
@@ -773,7 +773,7 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
 .proof-meta{font:700 11px/1 var(--mono);letter-spacing:.06em;color:var(--text-secondary);
   margin:0 0 10px}
 .proof-card .jt{font-weight:600;margin:0 0 2px}
-.watch-out{border-left:3px solid var(--status-attention);padding-left:10px}
+.watch-out{border-left:3px solid var(--accent-warm);padding-left:10px}   /* PRO-15: apricot */
 .proof-card .fitbars{margin-top:12px}
 
 /* ---- keepers: badges, lists, honesty, FAQ, compare ---- */
@@ -802,10 +802,14 @@ body.home .bar{max-width:calc(var(--container) + var(--gutter)*2);
 .faq summary{cursor:pointer;font-weight:600;padding:14px 28px 14px 0;position:relative;
   list-style:none;min-height:44px;display:flex;align-items:center}
 .faq summary::-webkit-details-marker{display:none}
+/* PRO-13: a single + rotates 45deg into x; the body height-animates via grid rows. */
 .faq summary::after{content:"+";position:absolute;right:2px;color:var(--text-secondary);
-  font-weight:400;font-size:18px}
-.faq details[open] summary::after{content:"\2212"}
-.faq details > p{margin:0 0 16px;max-width:var(--measure);color:var(--text-secondary)}
+  font-weight:400;font-size:18px;transition:transform var(--dur-state) var(--ease-state)}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq details > .faq-body{display:grid;grid-template-rows:0fr;
+  transition:grid-template-rows var(--dur-panel) var(--ease-panel)}
+.faq details[open] > .faq-body{grid-template-rows:1fr}
+.faq details > .faq-body > p{overflow:hidden;margin:0 0 16px;color:var(--text-secondary)}
 
 /* ===== Round 6: one comparison table, shared by the LinkedIn page and pricing ===== */
 /* Horizontal-scroll wrapper with a right-edge fade that fades out at the end of
@@ -1328,7 +1332,7 @@ body{overflow-x:clip}   /* contains the 100vw full-bleed band, no sideways scrol
   display:flex;flex-direction:column;gap:12px;max-width:none}
 .problem-points.section-aside li{position:relative;padding-left:20px;color:var(--text-secondary)}
 .problem-points.section-aside li::before{content:"";position:absolute;left:0;top:.5em;
-  width:8px;height:8px;border-radius:2px;background:var(--accent-warm)}
+  width:8px;height:8px;border-radius:2px;background:var(--action-primary)}   /* navy: apricot is reserved (PRO-15) */
 
 /* PRO-17 · Tailored applications: promote the lone paragraph to a full-bleed navy
    band (an inverted ground, not a new component) with the CV/cover-letter pair as the
@@ -1376,3 +1380,52 @@ body{overflow-x:clip}   /* contains the 100vw full-bleed band, no sideways scrol
 .invite-row input{flex:1;min-width:220px;padding:8px 10px;border:1px solid var(--border-subtle);
   border-radius:var(--r-ctrl);background:var(--surface-raised);color:var(--text-primary)}
 .invite-code{letter-spacing:1px}
+
+/* ---- Round 8 commit 4: motion, kept honest + apricot has a job ---- */
+
+/* PRO-10 · Section reveal. Gated on .js (added by the head script) so no-JS visitors
+   never get hidden content. Never applied to the hero. */
+.js [data-reveal]{opacity:0;transform:translateY(10px);
+  transition:opacity var(--dur-reveal) var(--ease-reveal),
+             transform var(--dur-reveal) var(--ease-reveal)}
+.js [data-reveal].in{opacity:1;transform:none}
+.js [data-reveal].in:nth-child(2){transition-delay:50ms}
+.js [data-reveal].in:nth-child(3){transition-delay:100ms}
+.js [data-reveal].in:nth-child(4){transition-delay:150ms}
+
+/* PRO-11 · Hero bars fill from 0 on load and the numerals count up (app.js adds .in
+   and drives the count). scaleX is gated on .js so the bars start collapsed at first
+   paint (no flash); with no JS the bars are simply full at their inline width. */
+.js .hero-card-bar > div{transform:scaleX(0);transform-origin:left;
+  transition:transform var(--dur-reveal) var(--ease-reveal)}
+.hero-card.in .hero-card-bar > div{transform:scaleX(1)}
+
+/* PRO-05 / PRO-12 · Cards respond to the cursor: elevation + a 2px lift. */
+.card-grid > li:not(.quad-li),.card-grid > div,.prem-features li,.market-flow-step,.job{
+  transition:box-shadow var(--dur-state) var(--ease-state),
+             transform var(--dur-state) var(--ease-state)}
+.card-grid > li:not(.quad-li):hover,.card-grid > div:hover,.prem-features li:hover,
+.market-flow-step:hover,.job:hover{box-shadow:var(--elev-2);transform:translateY(-2px)}
+
+/* PRO-14 · Sticky marketing header, with a shadow only once scrolled (set by app.js).
+   Scoped to body.home so authed pages keep their own sticky sub-headers. */
+body.home .bar{position:sticky;top:0;z-index:100;
+  transition:box-shadow var(--dur-state) var(--ease-state)}
+body.home .bar.scrolled{box-shadow:0 1px 0 var(--border-subtle),0 6px 18px rgba(23,51,75,.06)}
+body.home [id]{scroll-margin-top:80px}   /* anchor jumps clear the sticky header */
+.doc-index{top:80px}                     /* doc pages are body.home; clear the header */
+
+/* PRO-15 · Apricot marks judgement/reservation — the honesty edge and the Watch-out
+   quadrant cell (the against-rule and doc-index current are handled at their rules). */
+.honesty{border-left:3px solid var(--accent-warm)}
+.quadrant-plot .quad-cell:first-child{box-shadow:inset 3px 0 0 var(--accent-warm)}
+
+@media (prefers-reduced-motion:reduce){
+  .js [data-reveal]{opacity:1;transform:none;transition:none}
+  .js .hero-card-bar > div{transform:none;transition:none}
+  body.home .bar{transition:none}
+  .card-grid > li:not(.quad-li):hover,.card-grid > div:hover,.prem-features li:hover,
+  .market-flow-step:hover,.job:hover{transform:none}
+  .faq details > .faq-body{grid-template-rows:1fr;transition:none}
+  .faq summary::after{transition:none}
+}
