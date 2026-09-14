@@ -1262,3 +1262,50 @@ a.plan-cta,.plan-cta .btn{align-self:start}
   :root:not([data-theme="light"]) .prem-features li,:root:not([data-theme="light"]) .market-flow-step,
   :root:not([data-theme="light"]) .job{border:1px solid var(--border-subtle)}
 }
+
+/* PRO-01 · One grid, three layouts, two measures. Every marketing section lays on the
+   same 12-column grid and picks one of three layouts. */
+:root{--grid-cols:12; --measure-read:64ch; --measure-lede:42ch}
+.section{border-top:0}                       /* PRO-02: no more full-bleed hairlines */
+.section:first-of-type{border-top:0}
+.section > .container{display:grid;
+  grid-template-columns:repeat(var(--grid-cols),minmax(0,1fr));
+  column-gap:clamp(16px,2vw,28px);row-gap:clamp(24px,3.2vw,44px)}
+.section > .container > * + *{margin-top:0}   /* grid row-gap owns vertical rhythm now */
+.layout-full > *{grid-column:1 / -1}
+.layout-split > .section-head{grid-column:1 / 6}
+.layout-split > :not(.section-head){grid-column:6 / -1}
+.layout-solo > .section-head,.layout-solo > .section-body{grid-column:1 / 9}
+.layout-solo > .section-aside{grid-column:9 / -1}   /* the held-open track */
+@media (max-width:860px){.section > .container > *{grid-column:1 / -1 !important}}
+.section-solo{max-width:none}
+/* one measure set; every other max-width on prose is retired */
+.section-head p,.section-lede,.doc .lede{max-width:var(--measure-lede)}
+.doc p,.doc ul,.honesty,.problem-points,.faq details > p,
+.faq details > .faq-body > p{max-width:var(--measure-read)}
+
+/* PRO-02 · Stop ruling every section. Space separates; the two structural breaks are
+   marked by a full-bleed sunken band instead of a hairline. */
+body{overflow-x:clip}   /* contains the 100vw full-bleed band, no sideways scroll */
+.section--band{background:var(--surface-sunken);
+  padding-block:calc(var(--space-section) * 1.1);
+  margin-inline:calc(50% - 50vw);padding-inline:calc(50vw - 50%)}
+
+/* PRO-03 · Doc pages: centre the column, fill the left track with a sticky index. */
+.doc{display:grid;max-width:none;margin-inline:0;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+  column-gap:clamp(16px,2vw,28px);padding-top:clamp(40px,4.4vw,72px)}
+.doc > *{grid-column:4 / 11}                 /* prose column, optically centred */
+.doc-index{grid-column:1 / 4;grid-row:2 / 99;position:sticky;top:24px;align-self:start;
+  display:flex;flex-direction:column;gap:2px;padding-top:6px}
+.doc-index a{font-size:13px;color:var(--text-secondary);text-decoration:none;
+  padding:6px 0 6px 12px;border-left:2px solid var(--border-subtle);
+  transition:color var(--dur-state) var(--ease-state),border-color var(--dur-state) var(--ease-state)}
+.doc-index a:hover{color:var(--text-primary)}
+.doc-index a[aria-current="true"]{color:var(--text-primary);font-weight:600;
+  border-left-color:var(--accent-warm)}      /* apricot marks position */
+@media (max-width:1023px){
+  .doc > *,.doc-index{grid-column:1 / -1}
+  .doc-index{position:static;flex-direction:row;flex-wrap:wrap;grid-row:auto;
+    gap:2px 14px;padding-top:0}
+}

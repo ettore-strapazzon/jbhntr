@@ -105,6 +105,44 @@ document.addEventListener("click", function (e) {
   }
 });
 
+// PRO-03: doc-index scroll-spy. Marks the section currently in view with
+// aria-current="true" (apricot rule in CSS). Degrades to a plain anchor list.
+(function () {
+  var index = document.querySelector("[data-doc-index]");
+  if (!index || !("IntersectionObserver" in window)) return;
+  var byId = {};
+  var targets = [];
+  [].forEach.call(index.querySelectorAll('a[href^="#"]'), function (a) {
+    var id = a.getAttribute("href").slice(1);
+    var el = id && document.getElementById(id);
+    if (el) { byId[id] = a; targets.push(el); }
+  });
+  if (!targets.length) return;
+  var current = null;
+  var visible = [];
+  function refresh() {
+    var top = null, topY = Infinity;
+    visible.forEach(function (t) {
+      var y = t.getBoundingClientRect().top;
+      if (y < topY) { topY = y; top = t; }
+    });
+    var a = top ? byId[top.id] : null;
+    if (a === current) return;
+    if (current) current.removeAttribute("aria-current");
+    current = a;
+    if (a) a.setAttribute("aria-current", "true");
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      var i = visible.indexOf(e.target);
+      if (e.isIntersecting && i < 0) visible.push(e.target);
+      else if (!e.isIntersecting && i >= 0) visible.splice(i, 1);
+    });
+    refresh();
+  }, { rootMargin: "-15% 0px -70% 0px", threshold: 0 });
+  targets.forEach(function (t) { io.observe(t); });
+})();
+
 // Live counter for the 300-character feedback boxes.
 document.addEventListener("input", function (e) {
   if (e.target && e.target.matches("textarea[data-counter]")) {
