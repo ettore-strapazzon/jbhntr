@@ -1028,29 +1028,7 @@ a.plan-cta,.plan-cta .btn{align-self:start}
   .funnel .funnel-bar{transform:none;transition:none}
 }
 
-/* ===== V4 two-way fit quadrant plot ===== */
-.card-grid > .quad-li{border:0;background:transparent;padding:0;box-shadow:none}   /* not a card (PRO-04/PRO-18) */
-.quadrant{display:flex;flex-direction:column;gap:10px}
-.quadrant-plot{position:relative;width:100%;max-width:320px;aspect-ratio:1;
-  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
-  border:1px solid var(--border-subtle);border-radius:12px;overflow:hidden;background:var(--surface-raised)}
-.quad-cell{padding:12px;font-size:11.5px;line-height:1.3;color:var(--text-secondary);
-  border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle)}
-.quad-cell:nth-child(2),.quad-cell:nth-child(4){border-right:0}
-.quad-cell:nth-child(3),.quad-cell:nth-child(4){border-bottom:0}
-.quad-cell b{display:block;color:var(--text-primary);font-weight:600;font-size:12px;margin:0 0 2px}
-.quad-cell.muted-cell{background:var(--surface-sunken);color:var(--text-secondary)}
-.quad-cell.muted-cell b{color:var(--text-secondary)}
-.quad-dot{position:absolute;width:16px;height:16px;border-radius:50%;
-  background:var(--action-primary);border:3px solid var(--white);
-  /* the example role: strong both ways -> upper-right */
-  left:74%;top:26%;transform:translate(-50%,-50%)}
-.quad-axis{font:700 10px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;
-  color:var(--text-secondary)}
-.quad-axis-x{text-align:center}
-.quad-axis-y{writing-mode:vertical-rl;transform:rotate(180deg)}
-.quad-frame{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
-.quad-frame .quad-col{display:flex;flex-direction:column;gap:8px}
+/* V4 two-way fit quadrant plot retired in Round 9 (PRO-23) — replaced by .fit-band. */
 
 /* ===== HIW-01 how-it-works market flow ===== */
 .section-lede{margin:0;color:var(--text-secondary);max-width:60ch}
@@ -1251,7 +1229,6 @@ a.plan-cta,.plan-cta .btn{align-self:start}
    sunken/quiet containers get a border and no shadow. Nothing gets both. */
 .card-grid > li,.card-grid > div,.panel,.prem-features li,.market-flow-step,.job{
   border:0;background:var(--surface-raised);box-shadow:var(--elev-1);border-radius:var(--r-card)}
-.card-grid > .quad-li{box-shadow:none}   /* the plot is not a card (PRO-18) */
 .strength,.emptybox,.rail-box,.honesty,.dropzone{
   box-shadow:none;border:1px solid var(--border-subtle);background:transparent}
 /* Dark mode nulls elevation (token block), so raised cards take a 1px border back —
@@ -1351,13 +1328,9 @@ body{overflow-x:clip}   /* contains the 100vw full-bleed band, no sideways scrol
   color:var(--corn-200);border-color:var(--corn-700);background:var(--navy-950)}
 @media (max-width:860px){.tailored-visual{justify-content:center;margin-top:8px}}
 
-/* PRO-18 · Differentiators: the plot fills its split half; the three claims are a
-   clean 3-up row below. A second container in a section keeps a rhythm gap. */
-.quadrant-plot{max-width:none;width:100%}
-.quad-cell{font-size:13px;line-height:1.4}
-.quad-cell b{font-size:13px}
+/* PRO-18/PRO-23 · Differentiators: a second container in a section keeps a rhythm gap
+   between the fit band and the three claims below. (The quad plot itself is retired.) */
 .section > .container + .container{margin-top:clamp(24px,3.2vw,44px)}
-.quad-frame{align-items:stretch}
 
 /* PRO-06 · Hero stack: a peer card offset behind, so it reads as "there are more". */
 .hero-visual{position:relative;isolation:isolate}
@@ -1418,9 +1391,9 @@ body.home [id]{scroll-margin-top:80px}   /* anchor jumps clear the sticky header
 .doc-index{top:80px}                     /* doc pages are body.home; clear the header */
 
 /* PRO-15 · Apricot marks judgement/reservation — the honesty edge and the Watch-out
-   quadrant cell (the against-rule and doc-index current are handled at their rules). */
+   verdict (the against-rule, the fit-band watch verdict and the doc-index current are
+   handled at their own rules). */
 .honesty{border-left:3px solid var(--accent-warm)}
-.quadrant-plot .quad-cell:first-child{box-shadow:inset 3px 0 0 var(--accent-warm)}
 
 @media (prefers-reduced-motion:reduce){
   .js [data-reveal]{opacity:1;transform:none;transition:none}
@@ -1457,3 +1430,43 @@ body.home [id]{scroll-margin-top:80px}   /* anchor jumps clear the sticky header
 .closing{padding-block:calc(var(--space-section) * 1.5)}
 .alpha-banner{border-bottom:3px solid var(--accent-warm)}
 body.home main{padding-bottom:0}              /* the last section's padding owns the closing space */
+
+/* ============================================================================
+   ROUND 9 · PROCESS ORDER & FIT BAND. Structural only — no copy, no new colours.
+   ============================================================================ */
+
+/* PRO-22 · One reading order in every process card: number, title, evidence, body.
+   Order is set in CSS as well as markup, so a card added out of sequence still lands
+   right. Card 01 keeps an empty evidence slot so all five bodies start on one line. */
+:root{--flow-evidence-h:56px}                  /* tallest evidence = the 3-score list */
+.market-flow-step > .flow-number{order:1}
+.market-flow-step > h3{order:2;margin:0}
+.market-flow-step > .flow-card__evidence{order:3;min-height:var(--flow-evidence-h);
+  display:flex;flex-wrap:wrap;gap:6px;align-content:start}
+.market-flow-step > p{order:4;margin:0}
+@media (max-width:860px){:root{--flow-evidence-h:auto}}
+
+/* PRO-23 · Fit band replaces the 320px quadrant plot: one low full-width band, centred,
+   with the hero sentence over the four verdicts. The concept is the section. */
+.section-head--center{align-items:center;text-align:center}
+.fit-band{grid-column:1 / -1;background:var(--surface-raised);
+  border:1px solid var(--border-subtle);border-radius:var(--r-panel);box-shadow:var(--elev-1);
+  padding:clamp(24px,3vw,40px) clamp(20px,3vw,48px);
+  display:flex;flex-direction:column;gap:clamp(20px,2.4vw,28px)}   /* naturally low (~240px), no hard cap that clips */
+.fit-band__line{max-width:46ch;margin-inline:auto;text-align:center;color:var(--text-primary);
+  font:700 clamp(20px,2.2vw,28px)/1.25 var(--font-display);letter-spacing:-.015em}
+.fit-band__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:clamp(16px,2vw,28px);border-top:1px solid var(--border-subtle);padding-top:20px}
+.fit-band__verdict{display:flex;flex-direction:column;gap:4px}
+.fit-band__verdict-label{font:700 12px/1.2 var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--action-primary)}
+.fit-band__verdict-desc{font-size:14px;color:var(--text-secondary)}
+.fit-band__verdict--watch .fit-band__verdict-label{color:var(--apr-800)}   /* apricot: the one verdict the competition can't produce */
+.fit-band__verdict--none .fit-band__verdict-label{color:var(--text-secondary)}
+[data-theme="dark"] .fit-band__verdict--watch .fit-band__verdict-label{color:var(--apr-300)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .fit-band__verdict--watch .fit-band__verdict-label{color:var(--apr-300)}
+}
+@media (max-width:860px){
+  .fit-band__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

@@ -205,3 +205,17 @@ only; no copy, no new colours, two new components (.doc-index, .hero-card-behind
   verified (fixed the tailored band's dark-mode flip).
 Suite: 574 passed, 1 skipped (pre-existing order-dependent reaper flake, unrelated). NOT pushed.
 Still open: exported-CV font (QA-17) — kept neutral pending a founder decision.
+
+## Round 9 — Process order & fit band (2026-09-15)
+Against `JBHNTR Round 9 - Process Order & Fit Band.pdf`. Structural only; no copy, no colours.
+- PRO-22: every process card now reads number -> title -> evidence -> body. The proof (source
+  chips / match bars / score list / CV-CL chips) is wrapped in a named .flow-card__evidence slot;
+  card 01 keeps an empty slot (min-height 56px) so all five titles and bodies align. Order set in
+  CSS (order:1-4) as well as markup. Verified: five titles at one y, bodies at one y.
+- PRO-23: retired the 320px quadrant plot (markup + all .quad* CSS removed) for a low full-width
+  .fit-band — centred head over one bordered band holding the hero sentence and the four verdicts
+  (Apply now / Worth a stretch / Watch out / Not shown). Sentence assembled from existing copy
+  (colon, not an em-dash). Apricot marks the "Watch out" verdict — the first ramp use in a
+  marketing section (apr-800 light / apr-300 dark, both AA). Dropped the spec's hard max-height:240
+  (it clipped the two-line verdicts); the band is naturally ~250-290px. 4-up desktop / 2-up mobile.
+Suite: 574 passed, 1 skipped (pre-existing reaper flake). Pushed to main.

@@ -111,37 +111,46 @@
         shortlist worth reviewing, plus tailored drafts when you decide to apply.</p>
     </div>
     <div class="market-flow" aria-label="How JBHNTR works" data-reveal>
+      {# PRO-22: one fixed slot order in every card: number, title, evidence, body.
+         The evidence slot (.flow-card__evidence) is the card's proof; card 01 keeps an
+         empty slot so all five bodies start on the same line. #}
       <ol class="market-flow-steps">
         <li class="market-flow-step flow-profile">
           <span class="flow-number">01</span>
           <h3>Search profile</h3>
+          <div class="flow-card__evidence" aria-hidden="true"></div>
           <p>Role, seniority, location, preferences and must-haves.</p>
         </li>
         <li class="market-flow-step flow-scan">
           <span class="flow-number">02</span>
-          <div class="flow-sources" aria-hidden="true">
-            <span>Job boards</span><span>Career pages</span><span>ATS platforms</span></div>
           <h3>Market scan</h3>
+          <div class="flow-card__evidence" aria-hidden="true">
+            <div class="flow-sources"><span>Job boards</span><span>Career pages</span><span>ATS platforms</span></div>
+          </div>
           <p>Relevant postings are collected across multiple sources and filtered.</p>
         </li>
         <li class="market-flow-step flow-fit">
           <span class="flow-number">03</span>
-          <div class="flow-fit-bars" aria-hidden="true">
-            <span><i style="width:88%"></i></span><span><i style="width:76%"></i></span></div>
           <h3>Two-way fit</h3>
+          <div class="flow-card__evidence" aria-hidden="true">
+            <div class="flow-fit-bars"><span><i style="width:88%"></i></span><span><i style="width:76%"></i></span></div>
+          </div>
           <p>How well you fit the role, and how well the role fits what you want.</p>
         </li>
         <li class="market-flow-step flow-shortlist">
           <span class="flow-number">04</span>
-          <div class="flow-mini-list" aria-hidden="true">
-            <span><b>91</b> Best match</span><span><b>84</b> Strong match</span><span><b>78</b> Worth a look</span></div>
           <h3>Ranked shortlist</h3>
+          <div class="flow-card__evidence" aria-hidden="true">
+            <div class="flow-mini-list"><span><b>91</b> Best match</span><span><b>84</b> Strong match</span><span><b>78</b> Worth a look</span></div>
+          </div>
           <p>Review the strongest opportunities, with clear reasons for and against.</p>
         </li>
         <li class="market-flow-step flow-apply">
           <span class="flow-number">05</span>
-          <div class="flow-docs" aria-hidden="true"><span>CV</span><span>CL</span></div>
           <h3>Tailored application</h3>
+          <div class="flow-card__evidence" aria-hidden="true">
+            <div class="flow-docs"><span>CV</span><span>CL</span></div>
+          </div>
           <p>Create an editable CV and cover letter tailored to the role.</p>
         </li>
       </ol>
@@ -151,26 +160,35 @@
 </section>
 
 {# ======================= DIFFERENTIATORS (HOME-006, L-06) ======================= #}
-{# PRO-18: the plot is not a card. Split row (head 1-5 + plot 6-13), then the three
-   claims as a clean 3-up card row. 1 diagram + 3 cards, a symmetrical page. #}
+{# PRO-23: the concept is one sentence, so it is the section, not a chart. Centred head
+   over one low full-width fit band (the hero sentence + four verdicts), then the three
+   claims. The 320px quadrant plot is retired. #}
 <section class="section" aria-labelledby="diff-title">
-  <div class="container layout-split">
-    <div class="section-head" data-reveal>
+  <div class="container layout-full">
+    <div class="section-head section-head--center" data-reveal>
       <p class="eyebrow">WHY IT IS DIFFERENT</p>
       <h2 id="diff-title">Judgement in two directions, not a longer feed.</h2>
     </div>
-    <div class="quad-frame">
-      <span class="quad-axis quad-axis-y">You fit the role &rarr;</span>
-      <div class="quad-col">
-        <div class="quadrant-plot" role="img"
-             aria-label="Two-way fit plot: the example role is strong on both axes, so it lands in Apply now">
-          <div class="quad-cell"><b>You fit, role does not fit you</b>Likely to get it, likely to regret it. This is why “Watch out” exists.</div>
-          <div class="quad-cell"><b>You fit, role fits you</b>Apply now.</div>
-          <div class="quad-cell muted-cell"><b>Neither</b>Dismissed before you see it.</div>
-          <div class="quad-cell"><b>You do not fit, role fits you</b>A stretch worth a tailored application.</div>
-          <span class="quad-dot" aria-hidden="true"></span>
+    <div class="fit-band" data-reveal>
+      <p class="fit-band__line">Two directions of fit: how well you fit the role, and how
+        well the role fits what you want.</p>
+      <div class="fit-band__grid">
+        <div class="fit-band__verdict">
+          <span class="fit-band__verdict-label">Apply now</span>
+          <span class="fit-band__verdict-desc">You fit, role fits you.</span>
         </div>
-        <span class="quad-axis quad-axis-x">Role fits you &rarr;</span>
+        <div class="fit-band__verdict fit-band__verdict--stretch">
+          <span class="fit-band__verdict-label">Worth a stretch</span>
+          <span class="fit-band__verdict-desc">Role fits you, you do not fit yet.</span>
+        </div>
+        <div class="fit-band__verdict fit-band__verdict--watch">
+          <span class="fit-band__verdict-label">Watch out</span>
+          <span class="fit-band__verdict-desc">You fit, the role does not fit you.</span>
+        </div>
+        <div class="fit-band__verdict fit-band__verdict--none">
+          <span class="fit-band__verdict-label">Not shown</span>
+          <span class="fit-band__verdict-desc">Neither direction fits.</span>
+        </div>
       </div>
     </div>
   </div>
