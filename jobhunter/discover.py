@@ -48,6 +48,7 @@ from .config import (
     load_seeds,
 )
 from .sources import ats as ats_mod
+from .sources import exa as exa_mod
 from .sources.ats import FETCHERS
 
 log = logging.getLogger("jobhunter.discover")
@@ -229,6 +230,57 @@ def extract_companies(notes: str, settings: Settings, exclude: list[str]) -> lis
     return found
 
 
+def _exa_profile_query(profile: Profile) -> str:
+    """A short natural-language company query from the profile, for an Exa search.
+    Empty when the profile has nothing specific to search on."""
+    bits: list[str] = []
+    verticals = ", ".join(profile.verticals[:4])
+    if verticals:
+        bits.append(verticals)
+    bits.append("companies")
+    if profile.company_type:
+        bits.append("(" + ", ".join(profile.company_type[:3]) + ")")
+    locations = ", ".join(profile.locations[:3])
+    if locations:
+        bits.append("in " + locations)
+    bits.append("that are hiring")
+    if profile.objective:
+        bits.append("for " + profile.objective[:80])
+    q = " ".join(bits).strip()
+    return q if q and q != "companies that are hiring" else ""
+
+
+def _exa_candidates(
+    profile: Profile, settings: Settings, n: int,
+    seed_domains: list[str], exclude_domains: list[str],
+) -> list[dict]:
+    """Lane C candidates from Exa: findSimilar over the seed domains (up to 8) plus
+    one profile-derived company search. Deduped by domain; already fail-soft."""
+    out: list[dict] = []
+    seen: set[str] = {(d or "").lower().replace("www.", "") for d in exclude_domains}
+    seen.discard("")
+
+    def _take(cands: list[dict]) -> None:
+        for c in cands:
+            dom = c.get("domain", "")
+            if dom and dom not in seen:
+                seen.add(dom)
+                out.append(c)
+
+    for url in seed_domains[:8]:
+        _take(exa_mod.find_similar(settings, url,
+                                   n=settings.exa_similar_per_seed,
+                                   exclude_domains=exclude_domains))
+    query = _exa_profile_query(profile)
+    if query:
+        _take(exa_mod.search_companies(settings, query,
+                                       n=min(max(n, 10), 50),
+                                       exclude_domains=exclude_domains))
+    log.info("Exa: %d candidate companies from %d seed(s) + %s profile search",
+             len(out), min(len(seed_domains), 8), "a" if query else "no")
+    return out
+
+
 def suggest(
     profile: Profile,
     settings: Settings,
@@ -237,24 +289,51 @@ def suggest(
     exclude: list[str],
     web_search: bool = True,
     criteria=None,
+    seed_domains: list[str] | None = None,
+    exclude_domains: list[str] | None = None,
 ) -> list[dict]:
     """Propose companies matching the profile. Unverified at this point.
 
-    Uses BOTH the live web (best for small, recent or country-specific companies)
-    AND the model's own knowledge, then unions the two — deduped by name. Web
-    research alone was fragile (a single empty extraction dropped the whole round
-    to nothing); model knowledge alone misses local/new firms. Combining is both
-    more robust and broader.
+    Order of preference:
+    1. **Exa** (`sources/exa.py`), when configured and we have seed domains — a
+       precise "more like these" over the seed companies plus a profile search.
+       When it yields enough fresh candidates the LLM round is skipped entirely
+       (that is the cost win); otherwise its results just add to the LLM round.
+    2. **Live web research + the model's own knowledge**, unioned and deduped by
+       name. Web research alone was fragile (a single empty extraction dropped the
+       whole round); model knowledge alone misses local/new firms.
+
+    Every candidate carries a `source_hint` of "exa" or "llm" so a run can be
+    measured (Exa's unique, verified contribution) later.
     """
     merged: list[dict] = []
     seen: set[str] = set()
 
-    def _add(companies: list[dict]) -> None:
+    def _add(companies: list[dict], source_hint: str = "llm") -> None:
         for c in companies or []:
             key = _slugify(c.get("name", ""))
             if key and key not in seen:
                 seen.add(key)
+                c.setdefault("source_hint", source_hint)
                 merged.append(c)
+
+    # ---- Lane C: Exa similar-company generator (fails soft to the LLM path). ----
+    if exa_mod.is_configured(settings) and seed_domains:
+        try:
+            _add(_exa_candidates(profile, settings, n, seed_domains,
+                                 exclude_domains or []), source_hint="exa")
+        except Exception as exc:
+            log.warning("Exa suggestion failed (%s); LLM round only.", exc)
+        # Fall through to the LLM round only when Exa was thin. `exclude` holds
+        # exemplar LABELS ("Name (domain) — blurb"); reduce each to the name.
+        excl_slugs = {
+            _slugify(e.split(" (")[0].split(" — ")[0]) for e in (exclude or [])
+        }
+        fresh = [c for c in merged if _slugify(c.get("name", "")) not in excl_slugs]
+        if len(fresh) >= max(1, n // 2):
+            log.info("Exa produced %d fresh candidates (>= n/2); skipping the LLM round.",
+                     len(fresh))
+            return merged
 
     if web_search:
         if not llm.get_client(settings).supports_web_search:
@@ -426,7 +505,17 @@ def discover(
     cache = _load_cache() if use_cache else {}
 
     tracked = load_companies()
-    seed_objs = seeds_mod.resolve(seeds if seeds is not None else load_seeds())
+    # When Exa is configured we also try to find a WEBSITE for each name-only seed,
+    # because findSimilar needs a URL, not a name. That costs a little scraping, so
+    # it's only done when Exa can actually use it.
+    seed_objs = seeds_mod.resolve(
+        seeds if seeds is not None else load_seeds(),
+        guess_domains=exa_mod.is_configured(settings),
+    )
+    seed_domains = [s.domain for s in seed_objs if s.domain]
+    # Exclude the seeds' own domains from Exa results. (The tracked registry stores
+    # names, not domains today — excluding those too is the Phase-1 open question.)
+    exclude_domains = list(dict.fromkeys(seed_domains))
     # Seeds (described from their websites where possible) plus already-tracked
     # companies steer the search; both are also excluded from results.
     exemplars = [s.label() for s in seed_objs]
@@ -469,6 +558,8 @@ def discover(
                 exclude=[e for e in exemplars][-MAX_EXCLUSIONS:],
                 web_search=web_search,
                 criteria=criteria,
+                seed_domains=seed_domains,
+                exclude_domains=exclude_domains,
             )
         except Exception as exc:
             log.error("Suggestion round failed: %s", exc)
@@ -502,6 +593,7 @@ def discover(
                     verified.append({
                         "name": c["name"], "ats": ats, "token": token,
                         "jobs": count, "why": c.get("why", ""),
+                        "source_hint": c.get("source_hint", "llm"),
                     })
                     exemplars.append(c["name"])  # successes steer later rounds
                     found_this_round += 1
@@ -509,13 +601,23 @@ def discover(
                     rejected.append({"name": c.get("name", ""),
                                      "domain": c.get("domain", ""),
                                      "slug": c.get("slug", ""),
-                                     "why": c.get("why", "")})
+                                     "why": c.get("why", ""),
+                                     "source_hint": c.get("source_hint", "llm")})
 
         log.info("  round %d added %d verified companies", round_no, found_this_round)
         dry_rounds = dry_rounds + 1 if found_this_round == 0 else 0
 
     if use_cache:
         _save_cache(cache)
+
+    # How much of the verified set each source produced — the number the Exa
+    # go/no-go decision is measured on.
+    if any(v.get("source_hint") == "exa" for v in verified):
+        split: dict[str, int] = {}
+        for v in verified:
+            src = v.get("source_hint", "llm")
+            split[src] = split.get(src, 0) + 1
+        log.info("Verified companies by source: %s", split)
 
     verified.sort(key=lambda v: -v["jobs"])
     return verified[:target], rejected

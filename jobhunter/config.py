@@ -284,6 +284,16 @@ class Settings:
     adzuna_country: str = "gb"
     adzuna_pages: int = 3        # result pages per (country, term) — 50 jobs each
 
+    # ---- Exa (exa.ai): similar-company candidate generator for discovery.
+    # Not a job feed. Given a seed company URL, findSimilar returns companies of
+    # the same character; a profile query broadens the net. Candidates are still
+    # verified against a real ATS board before anything is watched. Activates only
+    # when EXA_API_KEY is set; a monthly USD budget caps spend and then falls back
+    # to the LLM round. See jobhunter/sources/exa.py.
+    exa_api_key: str = ""
+    exa_similar_per_seed: int = 25        # findSimilar results requested per seed
+    exa_monthly_budget_usd: float = 10.0  # stop Exa calls once the month costs this much
+
     # ---- Optional aggregator APIs (each activates when its key is set) ----
     careerjet_affid: str = ""
     careerjet_locale: str = "en_GB"       # e.g. it_IT for Italy
@@ -349,6 +359,9 @@ class Settings:
                 "claude-sonnet-5" if anthropic_default else "",
             ),
             research_model=g("DISCOVERY_RESEARCH_MODEL", ""),
+            exa_api_key=g("EXA_API_KEY"),
+            exa_similar_per_seed=int(g("EXA_SIMILAR_PER_SEED", "25") or "25"),
+            exa_monthly_budget_usd=float(g("EXA_MONTHLY_BUDGET_USD", "10") or "10"),
             llm_provider=provider,
             llm_base_url=g("LLM_BASE_URL"),
             llm_api_key=g("LLM_API_KEY") or g("OPENROUTER_API_KEY"),
