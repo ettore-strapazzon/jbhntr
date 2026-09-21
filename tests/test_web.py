@@ -2527,6 +2527,43 @@ def test_generation_blocked_when_credits_exhausted(client):
     db.close()
 
 
+def test_generate_auto_saves_job_into_my_jobs(client, monkeypatch):
+    """Drafting a CV for a job auto-saves it, so the draft is reachable on My Jobs
+    instead of being written against a job that has no tracker card."""
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, JobState, Search, User
+    from web.app.services import cv_build, profile_service
+    signup(client, "autosave@example.com")
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="autosave@example.com").one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="as1",
+                       dedup_key="as-dk", tier=1, title="Chief of Staff", company="hlpy")
+        db.add(jr); db.commit(); rid = jr.id
+    finally:
+        db.close()
+
+    class FakeGen:
+        settings = object()
+    monkeypatch.setattr(profile_service, "build_generation_context",
+                        lambda db, u, r, c: (FakeGen(), object(), object(), object()))
+    monkeypatch.setattr(cv_build, "build_cv", lambda *a, **k: "Jane Doe\nChief of Staff")
+
+    assert "Chief of Staff" not in client.get("/applications").text   # not tracked yet
+    r = client.post(f"/generate/{rid}/cv", follow_redirects=False)
+    assert r.status_code == 303 and f"/document/{rid}/cv" in r.headers["location"]
+
+    db = SessionLocal()
+    try:
+        st = db.query(JobState).filter_by(user_id=u.id, dedup_key="as-dk").one()
+        assert st.saved is True
+    finally:
+        db.close()
+    page = client.get("/applications").text
+    assert "Chief of Staff" in page and "Open CV draft" in page
+
+
 def test_generation_context_builds_without_error(client):
     """Regression: the one-quality-level refactor once left an undefined `model`
     on settings.generation_model, so every real CV/CL generation raised NameError.

@@ -218,6 +218,12 @@ def generate(result_id: int, kind: str, request: Request,
     db.add(Document(user_id=user.id, job_result_id=result.id, kind=kind,
                     content=humanise(content), note=humanise(note)))
     db.commit()
+    # Drafting a CV/CL means you're pursuing this role — put it in My Jobs so the
+    # draft is reachable there. A first draft from Matches otherwise left no card
+    # to hang it on, so the document looked lost. Idempotent; leaves applied/status
+    # untouched (set_saved only flips saved on + un-dismisses).
+    from ..services import job_state
+    job_state.set_saved(db, user.id, result.dedup_key, True)
     from ..services.events import record
     record(db, "document_generated", user_id=user.id, kind=kind)
     # The document view (routes/documents.py) renders it, editable, with exports.
