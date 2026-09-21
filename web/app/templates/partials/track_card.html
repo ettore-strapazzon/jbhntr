@@ -1,6 +1,6 @@
-{# One tracked job. Expects: r, st, stage, docs (set of (id,kind)), events,
-   pipeline_stages, close_outcomes, event_kinds. #}
-{% set kinds = docs | map(attribute=1) | list %}
+{# One tracked job. Expects: r, st, stage, docs (set of drafted kinds, e.g.
+   {'cv','cl'}), events, pipeline_stages, close_outcomes, event_kinds. #}
+{% set kinds = docs %}
 <article id="trk-{{ r.id }}" class="trk s-{{ stage|lower }}">
   <div class="trk-head">
     <div class="trk-title">

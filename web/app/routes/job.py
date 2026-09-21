@@ -126,9 +126,7 @@ def _render_track_card(request: Request, db: DbSession, user: User,
     st = (db.query(JobState)
             .filter(JobState.user_id == user.id, JobState.dedup_key == r.dedup_key)
             .first())
-    docs = {(d.job_result_id, d.kind)
-            for d in db.query(Document).filter(Document.user_id == user.id,
-                                               Document.job_result_id == r.id)}
+    docs = doc_quota.kinds_by_key(db, user.id, [r.dedup_key]).get(r.dedup_key, set())
     return templates.TemplateResponse(request, "partials/track_card.html", {
         "request": request, "user": user, "config": config, "r": r, "st": st,
         "stage": job_state.stage_of(st) if st else "Saved",

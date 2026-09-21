@@ -12,7 +12,27 @@ from datetime import datetime
 from sqlalchemy.orm import Session as DbSession
 
 from ..config import config
-from ..models import Document, User, aware, utcnow
+from ..models import Document, JobResult, User, aware, utcnow
+
+
+def kinds_by_key(db: DbSession, user_id: int, dedup_keys=None) -> dict[str, set[str]]:
+    """Map each job's ``dedup_key`` -> the set of document kinds ('cv'/'cl') drafted
+    for it, resolved across *every* JobResult that shares the key.
+
+    Documents attach to a specific ``JobResult.id``, but the same job re-ingested on
+    a later run gets a fresh row (same dedup_key). Looking a draft up by the newest
+    row's id alone would orphan it — the card would offer "Draft" again as if none
+    existed. Joining on dedup_key keeps a draft attached to its job for good.
+    """
+    q = (db.query(JobResult.dedup_key, Document.kind)
+           .join(Document, Document.job_result_id == JobResult.id)
+           .filter(Document.user_id == user_id))
+    if dedup_keys is not None:
+        q = q.filter(JobResult.dedup_key.in_(list(dedup_keys)))
+    out: dict[str, set[str]] = {}
+    for dk, kind in q:
+        out.setdefault(dk, set()).add(kind)
+    return out
 
 
 def month_start(now: datetime | None = None) -> datetime:

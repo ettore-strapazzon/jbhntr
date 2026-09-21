@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session as DbSession
 from ..auth import require_user
 from ..config import config
 from ..db import get_session
-from ..models import Document, JobEvent, JobResult, JobState, User, aware, utcnow
+from ..models import JobEvent, JobResult, JobState, User, aware, utcnow
 from ..services import doc_quota, job_events, job_state
 from ..templating import templates
 
@@ -69,9 +69,9 @@ def applications_page(request: Request, error: str = "",
                    .order_by(JobEvent.occurred_on.desc(), JobEvent.id.desc())):
             events_by_key[ev.dedup_key].append(ev)
 
-    docs: dict[int, set[str]] = defaultdict(set)
-    for d in db.query(Document).filter(Document.user_id == user.id):
-        docs[d.job_result_id].add(d.kind)
+    # Drafts, resolved by dedup_key so a re-ingested job keeps its CV/CL (see
+    # doc_quota.kinds_by_key). A set of kinds per job — track_card reads it directly.
+    doc_kinds = doc_quota.kinds_by_key(db, user.id, keys)
 
     groups = {s: [] for s in job_state.STAGE_ORDER}
     counts = {s: 0 for s in job_state.STAGE_ORDER}
@@ -83,7 +83,7 @@ def applications_page(request: Request, error: str = "",
             continue
         stage = job_state.stage_of(st)
         groups[stage].append({"st": st, "r": r, "stage": stage,
-                              "docs": docs.get(r.id, set()),
+                              "docs": doc_kinds.get(st.dedup_key, set()),
                               "events": events_by_key.get(st.dedup_key, [])})
         counts[stage] += 1
         n = _nudge(st, r, stage, today)

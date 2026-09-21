@@ -337,6 +337,36 @@ def test_tracker_unsave_and_back_to_saved(client):
     assert job_state.stage_of(st) == "Saved"
 
 
+def test_saved_draft_is_reachable_from_my_jobs(client):
+    """A drafted CV must surface as an 'Open' link on its My Jobs card — the tracker
+    reads a set of kinds (not (id,kind) tuples), and the draft must stay reachable
+    after the job is re-ingested under a new JobResult row sharing the dedup_key."""
+    from web.app.db import SessionLocal
+    from web.app.models import Document, JobResult, User
+    signup(client, "draftlink@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="draftlink@example.com").first()
+    _seed_run(db, u.id, [("dl1", 1, 90, "Chief of Staff")])
+    rid = db.query(JobResult).filter_by(dedup_key="dl1").first().id
+    client.post(f"/job/{rid}/save", headers={"HX-Request": "true"})
+    db.add(Document(user_id=u.id, job_result_id=rid, kind="cv", content="Jane — CoS"))
+    db.commit()
+
+    page = client.get("/applications").text
+    assert "Open CV draft" in page                 # not the "Draft tailored CV" button
+    assert "Draft tailored CV" not in page
+
+    # Re-ingest the same job -> a fresh row (new id, same dedup_key). The card now
+    # anchors on the newest row; the draft (tied to the old row) must still open.
+    _seed_run(db, u.id, [("dl1", 1, 92, "Chief of Staff")])
+    rid2 = (db.query(JobResult).filter_by(dedup_key="dl1")
+              .order_by(JobResult.id.desc()).first().id)
+    assert rid2 != rid
+    assert "Open CV draft" in client.get("/applications").text
+    # and the link the card renders actually resolves to the editable draft.
+    assert "sheet" in client.get(f"/document/{rid2}/cv").text
+
+
 def test_search_url_redirects_to_matches(client):
     signup(client, "redir@example.com")
     r = client.get("/search", follow_redirects=False)

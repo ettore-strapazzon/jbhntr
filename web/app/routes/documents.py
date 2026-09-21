@@ -25,17 +25,26 @@ router = APIRouter()
 KIND_LABEL = {"cv": "CV", "cl": "cover letter"}
 
 
+def _doc_query(db: DbSession, user_id: int, dedup_key: str, kind: str):
+    """Documents for a job, resolved across every JobResult that shares its
+    dedup_key. A job re-ingested on a later run gets a fresh row, so a draft made
+    against an earlier row would otherwise be unreachable once the card links to
+    the newest one — joining on dedup_key keeps it found."""
+    return (db.query(Document)
+              .join(JobResult, Document.job_result_id == JobResult.id)
+              .filter(JobResult.dedup_key == dedup_key, Document.kind == kind,
+                      Document.user_id == user_id))
+
+
 def _doc(db: DbSession, user: User, result_id: int, kind: str):
     if kind not in ("cv", "cl"):
         return None, None
     r = db.get(JobResult, result_id)
     if not r or r.user_id != user.id:
         return None, None
-    doc = (db.query(Document)
-             .filter(Document.job_result_id == result_id, Document.kind == kind,
-                     Document.user_id == user.id)
-             .order_by(Document.created_at.desc())
-             .first())
+    doc = (_doc_query(db, user.id, r.dedup_key, kind)
+           .order_by(Document.created_at.desc())
+           .first())
     return r, doc
 
 
@@ -86,9 +95,7 @@ def view(result_id: int, kind: str, request: Request, saved: str = "",
     # Thin-input nudge: a cover letter with nothing of the user's to learn from.
     has_cl = db.query(Material).filter(Material.user_id == user.id,
                                        Material.kind == "cover_letter").count() > 0
-    revisions = (db.query(Document)
-                 .filter(Document.job_result_id == result_id, Document.kind == kind,
-                         Document.user_id == user.id)
+    revisions = (_doc_query(db, user.id, r.dedup_key, kind)
                  .order_by(Document.created_at.desc())
                  .all())
     return templates.TemplateResponse(request, "document.html", {
@@ -246,7 +253,9 @@ def restore(result_id: int, kind: str, doc_id: int,
     """Restore an older revision by appending a fresh copy (history stays append-only)."""
     r, _ = _doc(db, user, result_id, kind)
     src = db.get(Document, doc_id)
-    if r and src and src.user_id == user.id and src.job_result_id == result_id and src.kind == kind:
+    src_r = db.get(JobResult, src.job_result_id) if src else None
+    if (r and src and src.user_id == user.id and src.kind == kind
+            and src_r and src_r.dedup_key == r.dedup_key):
         db.add(Document(user_id=user.id, job_result_id=result_id, kind=kind,
                         content=src.content, note=src.note))
         db.commit()
