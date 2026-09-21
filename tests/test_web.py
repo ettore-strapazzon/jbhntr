@@ -367,6 +367,44 @@ def test_saved_draft_is_reachable_from_my_jobs(client):
     assert "sheet" in client.get(f"/document/{rid2}/cv").text
 
 
+def test_next_step_saves_note_and_confirms(client):
+    """Writing a 'what's next' note on a My Jobs card saves it, surfaces it on the
+    page, and returns the HX-Trigger that shows a 'saved' confirmation (the card
+    re-renders identically, so without the trigger a save looks like a no-op)."""
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, JobState, User
+    signup(client, "nextstep@example.com")
+    db = SessionLocal()
+    u = db.query(User).filter_by(email="nextstep@example.com").first()
+    _seed_run(db, u.id, [("ns1", 1, 90, "PM Role")])
+    rid = db.query(JobResult).filter_by(dedup_key="ns1").first().id
+    db.close()
+    client.post(f"/job/{rid}/save", headers={"HX-Request": "true"})
+
+    resp = client.post(f"/job/{rid}/next-step",
+                       data={"text": "Email the recruiter", "on": "2026-10-01"},
+                       headers={"HX-Request": "true"})
+    assert resp.status_code == 200
+    assert resp.headers.get("HX-Trigger-After-Settle") == "nextStepSaved"
+    assert "Email the recruiter" in resp.text                 # echoed in the swapped card
+
+    db = SessionLocal()
+    st = db.query(JobState).filter_by(user_id=u.id, dedup_key="ns1").first()
+    assert st.next_step == "Email the recruiter"
+    assert st.next_step_on and st.next_step_on.isoformat() == "2026-10-01"
+    db.close()
+    # And it survives a full page load (the user's "it didn't save" check).
+    assert 'value="Email the recruiter"' in client.get("/applications").text
+
+    # A note with no date is equally valid (date optional).
+    client.post(f"/job/{rid}/next-step", data={"text": "Follow up", "on": ""},
+                headers={"HX-Request": "true"})
+    db = SessionLocal()
+    st = db.query(JobState).filter_by(user_id=u.id, dedup_key="ns1").first()
+    assert st.next_step == "Follow up" and st.next_step_on is None
+    db.close()
+
+
 def test_search_url_redirects_to_matches(client):
     signup(client, "redir@example.com")
     r = client.get("/search", follow_redirects=False)

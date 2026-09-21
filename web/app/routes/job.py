@@ -211,8 +211,12 @@ def next_step(result_id: int, request: Request,
             d = date.fromisoformat(on)
         except ValueError:
             d = None
-    return _track_act(request, db, user, result_id,
+    resp = _track_act(request, db, user, result_id,
                       lambda r: job_state.set_next_step(db, user.id, r.dedup_key, text, d))
+    # The card re-renders to an identical-looking one, so confirm the save visibly.
+    if request.headers.get("HX-Request") == "true":
+        resp.headers["HX-Trigger-After-Settle"] = "nextStepSaved"
+    return resp
 
 
 @router.post("/{result_id}/event")

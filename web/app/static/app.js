@@ -235,8 +235,12 @@ document.addEventListener("input", function (e) {
     var el = slot.firstChild;
     el.querySelector('span').textContent = msg;
     var link = el.querySelector('a');
-    link.textContent = 'Open My Jobs \u2192';
-    link.setAttribute('href', href);
+    if (href) {
+      link.textContent = 'Open My Jobs \u2192';
+      link.setAttribute('href', href);
+    } else {
+      link.remove();                       // a plain confirmation, no call to action
+    }
     el.querySelector('.toast-x').addEventListener('click', function () { el.remove(); });
     setTimeout(function () { if (el) el.classList.add('out'); }, 5000);
     setTimeout(function () { if (el) el.remove(); }, 5600);
@@ -250,6 +254,11 @@ document.addEventListener("input", function (e) {
   document.body.addEventListener('jobSavedToMyJobs', function () {
     showToast('Job added to Your Jobs \u2014 Craft tailored CV and Cover Letter here to apply.', '/applications');
     pulseNav();
+  });
+  // A next-step save swaps the card for an identical-looking one, so confirm it
+  // visibly \u2014 otherwise clicking Save reads as doing nothing.
+  document.body.addEventListener('nextStepSaved', function () {
+    showToast('Next step saved.', '');
   });
 })();
 
