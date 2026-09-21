@@ -316,78 +316,193 @@ def to_pdf_styled(title: str, body: str, style) -> bytes:
     def close_header():
         nonlocal header_open
         if header_open:
-            hrule(gap_above=1.2, gap_below=2.4)
+            hrule(gap_above=0.8, gap_below=1.8)
             header_open = False
 
     for kind, text in parse_lines(body):
         text = _ascii(text)
         if kind == "name":
-            pdf.set_font(fam, "B", 19)
+            pdf.set_font(fam, "B", 18)
             pdf.set_text_color(*accent)
-            mc(9, text)          # keep the candidate's own casing; only sections go upper
+            mc(7.6, text)        # keep the candidate's own casing; only sections go upper
         elif kind == "subtitle":
-            pdf.set_font(fam, "", 11.5)
+            pdf.set_font(fam, "", 11)
             pdf.set_text_color(90, 90, 90)
-            mc(6, text)
+            mc(5.0, text)
         elif kind == "contact":
             pdf.set_font(fam, "", 9)
             pdf.set_text_color(*muted)
-            mc(5, text)
+            mc(4.4, text)
         elif kind == "blank":
             if not header_open:
-                pdf.ln(2.2)
+                pdf.ln(1.5)
         elif kind == "heading":
             close_header()
-            pdf.ln(1.6)
-            pdf.set_font(fam, hbold, 11.5)
+            pdf.ln(1.0)
+            pdf.set_font(fam, hbold, 11)
             pdf.set_text_color(*accent)
-            mc(6, text.upper() if upper else text)
-            hrule(gap_above=0.6, gap_below=2.0)
+            mc(5.0, text.upper() if upper else text)
+            hrule(gap_above=0.3, gap_below=1.6)
         elif kind == "org":
             close_header()
             comp, loc = _split_org(text)
-            pdf.ln(1.2)
+            pdf.ln(1.4)
             pdf.set_text_color(*ink)
-            pdf.set_font(fam, "B", 11.5)
-            pdf.write(5.6, comp)
+            pdf.set_font(fam, "B", 11)
+            pdf.write(5.0, comp)
             if loc:
-                pdf.set_font(fam, "", 11)
+                pdf.set_font(fam, "", 10)
                 pdf.set_text_color(*muted)
-                pdf.write(5.6, loc)
-            pdf.ln(6)
+                pdf.write(5.0, loc)
+            pdf.ln(5.2)
         elif kind == "orgdesc":
             close_header()
-            pdf.set_font(fam, "I", 10)
+            pdf.set_font(fam, "I", 9.5)
             pdf.set_text_color(90, 90, 90)
-            mc(5, text)
+            mc(4.4, text)
         elif kind == "role":
             close_header()
             role, dates = _split_role(text)
             pdf.set_text_color(*ink)
-            pdf.set_font(fam, "B", 11)
-            pdf.write(5.4, role + (" " if dates else ""))
+            pdf.set_font(fam, "B", 10.5)
+            pdf.write(4.8, role + (" " if dates else ""))
             if dates:
-                pdf.set_font(fam, "", 10)
+                pdf.set_font(fam, "", 9.5)
                 pdf.set_text_color(*muted)
-                pdf.write(5.4, dates)
-            pdf.ln(5.6)
+                pdf.write(4.8, dates)
+            pdf.ln(5.0)
         elif kind == "bullet":
             close_header()
-            pdf.set_font(fam, "", 10.5)
+            pdf.set_font(fam, "", 10)
             pdf.set_text_color(*ink)
-            bx, by = m + 1.4, pdf.get_y() + 2.0
+            bx, by = m + 1.4, pdf.get_y() + 1.9
             pdf.set_fill_color(*ink)
-            pdf.ellipse(bx, by, 1.1, 1.1, style="F")
+            pdf.ellipse(bx, by, 1.0, 1.0, style="F")
             pdf.set_left_margin(m + 5)
             pdf.set_x(m + 5)
-            mc(5.4, text)
+            mc(4.5, text)
             pdf.set_left_margin(m)
         else:  # body
             close_header()
-            pdf.set_font(fam, "", 10.5)
+            pdf.set_font(fam, "", 10)
             pdf.set_text_color(*ink)
-            mc(5.4, text)
+            mc(4.5, text)
     return bytes(pdf.output())
+
+
+_DOCX_FONT = {"sans": "Calibri", "serif": "Cambria", "mono": "Consolas"}
+
+
+def _docx_family(style) -> str:
+    fam = (getattr(style, "font_family", "") or "").strip()
+    return fam or _DOCX_FONT.get(getattr(style, "font_class", "sans"), "Calibri")
+
+
+def _docx_bottom_border(paragraph, hex_color: str = "cfcbc2", sz: int = 6, space: int = 4):
+    """A thin bottom rule under a paragraph (heading / contact line), so the DOCX
+    gets the same underlined sections as the PDF and HTML."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    pPr = paragraph._p.get_or_add_pPr()
+    pbdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), str(sz))          # eighths of a point (6 = 0.75pt)
+    bottom.set(qn("w:space"), str(space))
+    bottom.set(qn("w:color"), hex_color)
+    pbdr.append(bottom)
+    pPr.append(pbdr)
+
+
+def to_docx_cv(body: str, style) -> bytes:
+    """A styled CV .docx built from scratch — used when the uploaded CV is a PDF,
+    so there is no .docx template to clone. Mirrors the PDF/HTML layout: name,
+    subtitle, ruled section headings, bold company/role lines with muted
+    location/dates, italic one-line descriptions and real bullets, sized and
+    spaced like a dense professional CV rather than default Word paragraphs.
+
+    Uses the candidate's vision-extracted style (font class, accent colour,
+    uppercase headings) so it matches their original as closely as a from-scratch
+    document can."""
+    from docx import Document as Docx
+    from docx.shared import Pt, RGBColor
+
+    doc = Docx()
+    fam = _docx_family(style)
+    accent = getattr(style, "accent_rgb", None) or (31, 42, 36)
+    acc, ink = RGBColor(*accent), RGBColor(0x1A, 0x1A, 0x1A)
+    grey, muted = RGBColor(0x55, 0x55, 0x55), RGBColor(0x6E, 0x6E, 0x6E)
+    upper = bool(getattr(style, "heading_upper", False))
+
+    # Everything inherits Normal: the body font, 10pt, single-ish spacing. This is
+    # what pulls the whole document off Word's airy defaults.
+    normal = doc.styles["Normal"]
+    normal.font.name = fam
+    normal.font.size = Pt(10)
+    npf = normal.paragraph_format
+    npf.space_before, npf.space_after, npf.line_spacing = Pt(0), Pt(2), 1.12
+
+    def para(before=None, after=None):
+        p = doc.add_paragraph()
+        if before is not None:
+            p.paragraph_format.space_before = Pt(before)
+        if after is not None:
+            p.paragraph_format.space_after = Pt(after)
+        return p
+
+    def run(p, text, *, size=None, bold=False, italic=False, color=None):
+        r = p.add_run(text)
+        r.font.name = fam
+        if size is not None:
+            r.font.size = Pt(size)
+        if bold:                        # leave unset otherwise (no <w:b w:val="0"/> noise)
+            r.font.bold = True
+        if italic:
+            r.font.italic = True
+        if color is not None:
+            r.font.color.rgb = color
+        return r
+
+    for kind, text in parse_lines(body):
+        if kind == "name":
+            run(para(after=0), text, size=20, bold=True, color=acc)
+        elif kind == "subtitle":
+            run(para(after=0), text, size=11, color=grey)
+        elif kind == "contact":
+            p = para(after=6)
+            run(p, text, size=9, color=muted)
+            _docx_bottom_border(p)
+        elif kind == "heading":
+            p = para(before=8, after=3)
+            run(p, text.upper() if upper else text, size=11, bold=True, color=acc)
+            _docx_bottom_border(p)
+        elif kind == "org":
+            comp, loc = _split_org(text)
+            p = para(before=6, after=0)
+            run(p, comp, size=11, bold=True, color=ink)
+            if loc:
+                run(p, loc, size=10, color=muted)
+        elif kind == "orgdesc":
+            run(para(after=1), text, size=9.5, italic=True, color=grey)
+        elif kind == "role":
+            role, dates = _split_role(text)
+            p = para(after=2)
+            run(p, role + (" " if dates else ""), size=10.5, bold=True, color=ink)
+            if dates:
+                run(p, dates, size=9.5, color=muted)
+        elif kind == "bullet":
+            p = para(after=2)
+            pf = p.paragraph_format
+            pf.left_indent, pf.first_line_indent = Pt(12), Pt(-10)
+            run(p, "•  " + text, size=10)
+        elif kind == "blank":
+            continue                    # spacing comes from space_before/after
+        else:  # body
+            run(para(after=2), text, size=10)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
 
 
 def to_docx_templated(orig_docx: bytes, title: str, body: str) -> bytes:

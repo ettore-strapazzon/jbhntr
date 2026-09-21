@@ -4477,6 +4477,53 @@ def test_export_styled_renderers_smoke():
     assert export._line_kind("- a bullet") == "bullet"
 
 
+def test_to_docx_cv_carries_formatting():
+    """The from-scratch CV .docx (used when the upload was a PDF, so there is no
+    template to clone) must actually be styled — a bold sized name, a ruled section
+    heading and a bold company line — not the format-less fallback that shipped
+    plain paragraphs."""
+    import io
+    import xml.etree.ElementTree as ET
+    import zipfile
+
+    from web.app.services import cv_style, export
+
+    style = cv_style.StyleProfile(font_class="sans", heading_upper=True, source="pdf-vision")
+    body = ("Jane Operator\n"
+            "Strategic Operator | Ops & Analytics\n"
+            "(+1) 555 0100 | jane@example.com\n"
+            "\n"
+            "EXPERIENCE\n"
+            "ACME - Berlin\n"
+            "Head of Ops (Jan 2020 - Present)\n"
+            "- Cut cycle time 30%\n")
+    data = export.to_docx_cv(body, style)
+    assert data[:2] == b"PK" and len(data) > 400
+
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    root = ET.fromstring(zipfile.ZipFile(io.BytesIO(data)).read("word/document.xml"))
+
+    def rows():
+        for p in root.iter(W + "p"):
+            txt = "".join(t.text or "" for t in p.iter(W + "t"))
+            r = p.find(f".//{W}r")
+            sz = r.find(f"{W}rPr/{W}sz") if r is not None else None
+            b = r.find(f"{W}rPr/{W}b") if r is not None else None
+            bold = b is not None and b.get(W + "val") not in ("0", "false")
+            ruled = p.find(f".//{W}pBdr") is not None
+            yield txt, (int(sz.get(W + "val")) / 2 if sz is not None else None), bold, ruled
+
+    data_rows = list(rows())
+    name = next(r for r in data_rows if r[0] == "Jane Operator")
+    assert name[1] and name[1] >= 16 and name[2]                  # big + bold
+    heading = next(r for r in data_rows if r[0] == "EXPERIENCE")
+    assert heading[2] and heading[3]                             # bold + a bottom rule
+    org = next(r for r in data_rows if r[0].startswith("ACME"))
+    assert org[2]                                                # company line is bold
+    # No plain-text bullet leader survived unstyled; bullets are drawn with a glyph.
+    assert any(r[0].startswith("•") for r in data_rows)
+
+
 def test_parse_lines_structure_and_markdown():
     """The shared parser (mirrored by app.js) strips markdown and reads the CV
     into name / contact / heading / bullet / body — the fix for '**PROFILE**'

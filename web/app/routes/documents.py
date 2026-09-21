@@ -161,9 +161,13 @@ def export_doc(result_id: int, kind: str, fmt: str, content: str = Form(default=
         media = "application/pdf"
         name = _filename(r, kind, "pdf", cv_name)
     elif fmt == "docx":
-        tpl = cv_style.docx_template_bytes(db, user.id) if kind == "cv" else None
-        if tpl:
-            data = export.to_docx_templated(tpl, title, body)
+        if kind == "cv":
+            tpl = cv_style.docx_template_bytes(db, user.id)
+            # A DOCX upload is cloned so its exact theme carries; otherwise (e.g. a
+            # PDF upload) build a styled CV from scratch rather than the format-less
+            # fallback, so the Word file still reads like a CV.
+            data = (export.to_docx_templated(tpl, title, body) if tpl
+                    else export.to_docx_cv(body, style))
         else:
             data = export.to_docx(title, body)
         media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
