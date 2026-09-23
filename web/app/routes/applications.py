@@ -28,20 +28,20 @@ def _nudge(st: JobState, r: JobResult, stage: str, today: date) -> dict | None:
     # 1. An explicit next step due within a week (or overdue).
     if st.next_step_on and st.next_step_on <= today + timedelta(days=7):
         overdue = st.next_step_on < today
-        return {"company": r.company, "text": st.next_step or "Next step",
+        return {"id": r.id, "company": r.company, "text": st.next_step or "Next step",
                 "when": st.next_step_on, "overdue": overdue, "order": 0 if overdue else 2}
     # 2. Sat in "Applied" too long.
     if stage == "Applied":
         applied = aware(st.applied_at)
         if applied and (utcnow() - applied).days >= FOLLOW_UP_DAYS:
             days = (utcnow() - applied).days
-            return {"company": r.company, "text": f"Follow up — applied {days} days ago",
+            return {"id": r.id, "company": r.company, "text": f"Follow up — applied {days} days ago",
                     "when": None, "overdue": False, "order": 3}
     # 3. An offer awaiting a decision.
     if stage == "Offer":
         upd = aware(st.updated_at)
         if upd and (utcnow() - upd).days >= OFFER_DECIDE_DAYS:
-            return {"company": r.company, "text": "Decide on this offer",
+            return {"id": r.id, "company": r.company, "text": "Decide on this offer",
                     "when": None, "overdue": False, "order": 1}
     return None
 

@@ -30,8 +30,8 @@
       <ul>
         {% for n in needs %}
           <li class="{% if n.overdue %}overdue{% endif %}">
-            <b>{{ n.company }}</b> — {{ n.text }}{% if n.when %}
-            <span class="muted small">({{ n.when.strftime('%d %b') }})</span>{% endif %}
+            <a href="#trk-{{ n.id }}"><b>{{ n.company }}</b> — {{ n.text }}{% if n.when %}
+            <span class="muted small">({{ n.when.strftime('%d %b') }})</span>{% endif %}</a>
           </li>
         {% endfor %}
       </ul>

@@ -316,7 +316,9 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 .tone-note{border:1px solid var(--corn-200);background:var(--corn-100);color:var(--navy-800);
   border-radius:var(--r-card);padding:12px 16px;margin:0 0 14px;font-size:14px;max-width:46em}
 .docview{display:grid;grid-template-columns:1fr 240px;gap:20px;align-items:start;margin-top:12px}
-.doc-main{min-width:0}
+/* Main content stacks in col 1; the rail auto-places into col 2. Without pinning,
+   implicit placement zigzagged the verify box into the narrow rail column. */
+.doc-main,.verify-box,.refine-box,.revisions{grid-column:1;min-width:0}
 .sheet{width:100%;min-height:600px;background:var(--surface-raised);border:1px solid var(--border-subtle);border-radius:var(--r-card);
   padding:32px 36px;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   resize:vertical}
@@ -1186,6 +1188,9 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .needs h2{margin:0 0 6px}
 .needs ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .needs li.overdue b{color:var(--status-attention)}
+.needs a{color:inherit;text-decoration:none;display:inline-block}   /* jumps to the job card */
+.needs a:hover{text-decoration:underline}
+.trk{scroll-margin-top:20px}   /* anchor jump from "Needs you" clears the top edge */
 .trk-group{border-top:1px solid var(--border-subtle);margin:0}
 .trk-grouphead{cursor:pointer;font-size:1.05rem;font-weight:600;padding:12px 0;list-style:none}
 .trk-grouphead::-webkit-details-marker{display:none}
@@ -1233,9 +1238,16 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .verify-box > summary{cursor:pointer;list-style:none}
 .verify-box > summary::-webkit-details-marker{display:none}
 .verify-box > summary b{color:var(--status-attention)}
-.verify-list{list-style:none;margin:10px 0 2px;padding:0;display:grid;gap:6px}
-.verify-list li label{display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer}
+/* Multi-column so a draft with many figures stays compact, not a tall tower;
+   li -> flex kills the list-item line-box that padded each row to ~46px. */
+.verify-list{list-style:none;margin:10px 0 2px;padding:0;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;grid-auto-rows:30px}
+/* grid-auto-rows fixes each row height: without it, the grid measures the row at
+   min-content width where the checkbox + chip stack (~46px each). 30px fits the chip. */
+.verify-list li{display:flex;align-items:center;min-width:0}
+.verify-list li label{display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer;min-width:0}
 .verify-list input{flex:none}
+.verify-list li label .vf{white-space:nowrap}
 .verify-list .vf{font-family:var(--mono);font-weight:600;color:var(--text-primary);background:var(--surface-raised);
   border:1px solid var(--border-subtle);border-radius:6px;padding:2px 8px}
 .verify-list input:checked + .vf{text-decoration:line-through;color:var(--text-secondary);opacity:.65}
