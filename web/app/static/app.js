@@ -253,58 +253,6 @@ document.addEventListener("input", function (e) {
   }, true);
 })();
 
-// Verify-the-claims (AX-6): list every specific figure the draft states, so the
-// author confirms each before sending — the honesty promise, made operational.
-// Runs on the document page only; kept live as the draft is edited.
-(function () {
-  var editor = document.getElementById("doc-editor");
-  var list = document.getElementById("verify-list");
-  var countEl = document.getElementById("verify-count");
-  if (!editor || !list) return;
-  var RX = [
-    /(?:€|£|\$|EUR|USD|GBP)\s?\d[\d.,]*\s?[kKmMbB]?\+?/g,   // money
-    /\b\d[\d.,]*\s?(?:k|K|m|M|bn|billion|million|thousand)\b\+?/g,     // scaled numbers
-    /\d+(?:\.\d+)?\s?%|\b\d+(?:\.\d+)?\s?(?:pp|bps)\b/g,              // percentages / points
-    /\b\d+x\b|\bx\d+\b/g,                                             // multipliers
-    /\b\d+\+?\s?(?:years?|yrs?|months?|weeks?|clients?|customers?|users?|people|employees|reports?|markets?|countries|projects?|deals?|hires?|stores?|brands?|SKUs?)\b/gi,
-    /\b\d{1,4}\+(?!\d)/g,                                             // "50+", "8+"
-    /\b(?:19|20)\d{2}\b/g                                             // years
-  ];
-  function extract(text) {
-    var seen = {}, out = [], m, i;
-    for (i = 0; i < RX.length && out.length < 40; i++) {
-      RX[i].lastIndex = 0;
-      while ((m = RX[i].exec(text)) && out.length < 40) {
-        var s = m[0].replace(/\s+/g, " ").trim(), key = s.toLowerCase();
-        if (s && !seen[key]) { seen[key] = 1; out.push(s); }
-      }
-    }
-    // Drop any match that is contained in a longer one ("15M" inside "$15M").
-    return out.filter(function (s) {
-      return !out.some(function (o) { return o !== s && o.indexOf(s) !== -1; });
-    }).slice(0, 30);
-  }
-  function esc(s) {
-    return s.replace(/[&<>"]/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
-    });
-  }
-  function render() {
-    var items = extract(editor.value || "");
-    if (countEl) countEl.textContent = String(items.length);
-    if (!items.length) {
-      list.innerHTML = '<li class="muted small">No specific figures found — still read it through in your own voice before sending.</li>';
-      return;
-    }
-    list.innerHTML = items.map(function (s) {
-      return '<li><label><input type="checkbox"><span class="vf">' + esc(s) + "</span></label></li>";
-    }).join("");
-  }
-  var t;
-  editor.addEventListener("input", function () { clearTimeout(t); t = setTimeout(render, 300); });
-  render();
-})();
-
 // Refine chips: one click drops a suggested instruction into the refine box;
 // clicking several stacks them into one request. CSP forbids inline handlers.
 document.addEventListener("click", function (e) {
