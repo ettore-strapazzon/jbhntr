@@ -100,7 +100,7 @@ ul.tight{margin:0 0 16px;padding-left:20px}ul.tight li{margin:0 0 7px;max-width:
   <section class="page">
     <div class="eyebrow">v3.1 &#183; 01 &#183; Changelog</div>
     <h2>What v3.1 changes, and why.</h2>
-    <p>Five moves. Each raises restraint and precision &#8212; never saturation. The instant JBHNTR looks loud, the
+    <p>Six moves. Each raises restraint and precision &#8212; never saturation. The instant JBHNTR looks loud, the
       honest-broker position cracks. Premium here means <strong>considered</strong>, not decorated.</p>
     <hr class="hair">
     <div class="change"><span class="n">01</span><div><strong>Layered depth.</strong> Elevation is now three
@@ -111,7 +111,9 @@ ul.tight{margin:0 0 16px;padding-left:20px}ul.tight li{margin:0 0 7px;max-width:
       1px inner top-highlight and a hover lift; flat controls stay flat. Tactile, not plastic.</div></div>
     <div class="change"><span class="n">04</span><div><strong>The verdict.</strong> A new first-class brand object:
       the two-way judgement &#8212; <em>Apply now / Worth a stretch / Watch out</em> &#8212; now leads the match card.</div></div>
-    <div class="change"><span class="n">05</span><div><strong>Apricot earns its job.</strong> The warm accent maps
+    <div class="change"><span class="n">05</span><div><strong>Match strength.</strong> One 1&#8211;4 pip glyph +
+      one word (Excellent / Strong / Fair / Long shot), unified across card, headers, filters and emails.</div></div>
+    <div class="change"><span class="n">06</span><div><strong>Apricot earns its job.</strong> The warm accent maps
       to one idea only &#8212; judgement &#8212; and now owns the strongest verdict.</div></div>
   </section>
 
@@ -209,9 +211,48 @@ cand &#8805; T, role &lt; T &#8594; Watch out</div></div>
     </div>
   </section>
 
+  <!-- MATCH STRENGTH -->
+  <section class="page">
+    <div class="eyebrow">v3.1 &#183; 05 &#183; Match strength</div>
+    <h2>How strong, at a glance.</h2>
+    <p>The verdict says <em>what kind</em> of match. <strong>Strength</strong> says <em>how strong</em> &#8212; the
+      priority read from the score. It is one 1&#8211;4 pip glyph and one word, identical on the card, the group
+      headers, the filters, emails and here. Pips, not stars: stars read as a consumer review or a hire probability,
+      which the brand disclaims.</p>
+    <div class="verdicts">
+      <div class="vc" style="border-left-color:#17334B">
+        <div class="vl" style="color:#17334B"><span style="display:inline-flex;gap:3px;margin-right:4px"><i style="width:8px;height:8px;border-radius:50%;background:#17334B;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#17334B;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#17334B;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#17334B;display:inline-block"></i></span>Excellent</div>
+        <div class="vd">85&#8211;100 &#183; navy 800</div></div>
+      <div class="vc" style="border-left-color:#35599A">
+        <div class="vl" style="color:#35599A"><span style="display:inline-flex;gap:3px;margin-right:4px"><i style="width:8px;height:8px;border-radius:50%;background:#35599A;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#35599A;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#35599A;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#E4DED2;display:inline-block"></i></span>Strong</div>
+        <div class="vd">70&#8211;84 &#183; corn 800</div></div>
+      <div class="vc" style="border-left-color:#7599DB">
+        <div class="vl" style="color:#35599A"><span style="display:inline-flex;gap:3px;margin-right:4px"><i style="width:8px;height:8px;border-radius:50%;background:#7599DB;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#7599DB;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#E4DED2;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#E4DED2;display:inline-block"></i></span>Fair</div>
+        <div class="vd">55&#8211;69 &#183; corn 500</div></div>
+      <div class="vc" style="border-left-color:#97AEC1">
+        <div class="vl" style="color:#526273"><span style="display:inline-flex;gap:3px;margin-right:4px"><i style="width:8px;height:8px;border-radius:50%;background:#6B8CA5;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#E4DED2;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#E4DED2;display:inline-block"></i><i style="width:8px;height:8px;border-radius:50%;background:#E4DED2;display:inline-block"></i></span>Long shot</div>
+        <div class="vd">&lt;&nbsp;55 &#183; navy 300</div></div>
+    </div>
+    <hr class="hair">
+    <div class="grid2">
+      <div class="spec"><div class="k">Derivation</div>
+        <div class="code">pips = [4,3,2,1] by tier (tier 1 = 4 pips)
+word = tier_word(tier)   // at render time, so a
+                         // relabel needs no re-scan</div>
+        <p class="muted" style="font-size:12.5px;margin:10px 0 0">Pips carry the tier colour; the word stays a
+          readable ink (a coloured &ldquo;Fair&rdquo; would fail contrast).</p></div>
+      <div class="spec"><div class="k">One lexicon, everywhere</div>
+        <p style="margin:0;font-size:13px">Card &#183; group headers &#183; filters &#183; emails &#183; this book.
+          It replaces the old mix (Excellent / Strong / Possible / Weak, and Apply&nbsp;now / Strong / Possible),
+          which also collided with the verdict&#8217;s &ldquo;Apply now&rdquo;.</p></div>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin-top:12px">Strength and verdict answer different questions and sit
+      together on the card: pips + word beside the score, the verdict as the headline.</p>
+  </section>
+
   <!-- THE CARD v3.1 -->
   <section class="page">
-    <div class="eyebrow">v3.1 &#183; 05 &#183; The match card, updated</div>
+    <div class="eyebrow">v3.1 &#183; 06 &#183; The match card, updated</div>
     <h2>The core object, now it judges.</h2>
     <p>Anatomy is unchanged except at the top: the verdict leads, and the tier chip is suppressed when a verdict is
       present so the two never say the same thing twice. Order is still fixed; nothing else is added.</p>
@@ -234,7 +275,7 @@ cand &#8805; T, role &lt; T &#8594; Watch out</div></div>
 
   <!-- APRICOT -->
   <section class="page">
-    <div class="eyebrow">v3.1 &#183; 06 &#183; The accent</div>
+    <div class="eyebrow">v3.1 &#183; 07 &#183; The accent</div>
     <h2>Apricot earns its one job.</h2>
     <p>In v3.0 apricot marked "judgement" in a handful of places. v3.1 gives it a single, defensible owner: the
       moment of decision &#8212; the <strong>Apply now</strong> verdict and the primary act of applying. An accent that maps
