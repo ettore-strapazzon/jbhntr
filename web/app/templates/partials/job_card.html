@@ -23,10 +23,30 @@
   </article>
 {% else %}
   <article id="card-{{ r.id }}" class="job t{{ r.tier }}{% if applied %} is-applied{% endif %}">
+    {# 0. Two-way verdict (AX-1): the quadrant the landing page teaches, now on the
+       card. Derived from the two fit scores; shown only when both exist, so it
+       never contradicts the tier when a fit dimension is missing. #}
+    {% set ns = namespace(v=None, cls='') %}
+    {% set fr = r.fit_role or 0 %}{% set fc = r.fit_candidate or 0 %}
+    {% if fr and fc %}
+      {% if fr >= 65 and fc >= 65 %}{% set ns.v, ns.cls = 'Apply now', 'now' %}
+      {% elif fr >= 65 and fc < 65 %}{% set ns.v, ns.cls = 'Worth a stretch', 'stretch' %}
+      {% elif fc >= 65 and fr < 65 %}{% set ns.v, ns.cls = 'Watch out', 'watch' %}
+      {% endif %}
+    {% endif %}
+    {% if ns.v %}
+      <p class="verdict v-{{ ns.cls }}">
+        <span class="verdict-dot" aria-hidden="true"></span>
+        <span class="verdict-label">{{ ns.v }}</span>
+        <span class="verdict-rule" aria-hidden="true"></span>
+      </p>
+    {% endif %}
     {# 1. Head: title is the strongest line #}
     <div class="job-head">
       <span class="score"><span class="sr-only">Match score </span>{{ r.score }}<span class="muted small">/100</span></span>
-      <span class="tier tier-{{ r.tier }}">{{ r.tier_label }}</span>
+      {# The verdict above already carries the judgement; keep the tier chip only
+         when no verdict was derived, so the two never say the same thing twice. #}
+      {% if not ns.v %}<span class="tier tier-{{ r.tier }}">{{ r.tier_label }}</span>{% endif %}
       {% if is_new %}<span class="statebadge new">New</span>{% endif %}
       {% if applied %}<span class="statebadge applied">Applied{% if st.applied_at %} {{ st.applied_at.strftime("%d %b") }}{% endif %}</span>{% endif %}
       {% if saved %}<span class="statebadge saved">Saved</span>{% endif %}
