@@ -221,6 +221,20 @@ document.addEventListener("input", function (e) {
   }
 });
 
+// Refine chips: one click drops a suggested instruction into the refine box;
+// clicking several stacks them into one request. CSP forbids inline handlers.
+document.addEventListener("click", function (e) {
+  var chip = e.target.closest && e.target.closest("[data-refine-fill]");
+  if (!chip) return;
+  var box = chip.closest(".refine-box");
+  var ta = box && box.querySelector("textarea");
+  if (!ta) return;
+  var add = chip.getAttribute("data-refine-fill");
+  var cur = ta.value.trim();
+  ta.value = cur ? cur.replace(/[.\s]+$/, "") + ". " + add : add;
+  ta.focus();
+});
+
 // Toast + nav pulse when a job is saved to My Jobs.
 (function () {
   function showToast(msg, href) {

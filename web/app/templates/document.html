@@ -50,6 +50,14 @@
     <p class="small muted">Describe what to change and JBHNTR will redraft this {{ kind_label }}
       (e.g. "shorter, lead with the fintech role, warmer tone, drop the 2016 job"). Free —
       refining a draft you've already generated doesn't cost more credits.</p>
+    {# Suggested changes: one click drops the instruction into the box, so the agent
+       reads as steerable. Multiple chips stack into one request. #}
+    <div class="refine-chips" role="group" aria-label="Suggested changes">
+      {% set _chips = (["Make it shorter","More technical","Warmer tone","Lead with my most relevant role","Quantify the impact more"]
+                       if kind == 'cv' else
+                       ["Make it shorter","Warmer tone","More specific to this company","A stronger opening","Cut the generic lines"]) %}
+      {% for c in _chips %}<button type="button" class="refine-chip" data-refine-fill="{{ c }}">{{ c }}</button>{% endfor %}
+    </div>
     <textarea id="refine-{{ kind }}" name="feedback" rows="3" placeholder="What should change?"></textarea>
     <input type="hidden" name="content" value="{{ doc.content }}">
     <button type="submit">Redraft with these changes</button>

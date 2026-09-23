@@ -1200,6 +1200,10 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .trk-docs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .refine-box{margin:18px 0;padding:12px 14px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface-canvas)}
 .refine-box textarea{width:100%;margin:6px 0;padding:8px}
+.refine-chips{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 2px}
+.refine-chip{min-height:32px;padding:6px 12px;font:600 12.5px/1 var(--font-text);border-radius:var(--r-chip);
+  border:1px solid var(--border-subtle);background:var(--surface-raised);color:var(--text-secondary);box-shadow:none;cursor:pointer}
+.refine-chip:hover{border-color:var(--action-primary);color:var(--action-primary);background:var(--surface-raised)}
 .revisions ul{list-style:none;padding:0;margin:6px 0 0;display:flex;flex-direction:column;gap:4px}
 
 /* --- CV formatted preview (best-effort match to the uploaded CV) --- */
