@@ -1,29 +1,39 @@
 """Copy hygiene for model output (R2).
 
-The prompts already ask the model to avoid machine tells; this strips the one
-that survives most often, dashes, before anything is stored or shown.
+The prompts already ask the model to avoid machine tells; this is the guarantee
+that runs on every generated CV/cover letter (all paths funnel through it), so
+the stored text is plain ASCII with none of the typographic fingerprints that
+AI detectors and ATS parsers flag. Order matters: spaced dashes first.
 """
 
 from __future__ import annotations
 
 import re
 
-# Order matters: spaced dashes first, so " word — word " becomes "word, word".
-DASHES = {
-    " — ": ", ",   # spaced em dash
-    " – ": ", ",   # spaced en dash
-    "—": ", ",     # bare em dash
-    "–": "-",       # bare en dash -> hyphen
+_SUBS = {
+    " — ": ", ", " – ": ", ",                        # spaced em/en dash -> comma
+    "—": "-", "–": "-", "―": "-", "‒": "-", "−": "-",  # any remaining dash -> hyphen
+    "“": '"', "”": '"', "„": '"', "‟": '"',            # curly / low double quotes
+    "‘": "'", "’": "'", "‚": "'", "‛": "'",            # curly single quotes + apostrophe
+    "…": "...",                                         # ellipsis
+    "•": "-", "‣": "-", "◦": "-", "⁃": "-", "·": "-",   # bullet glyphs
+    " ": " ", " ": " ", " ": " ",       # nbsp / narrow-nbsp / thin space
+    " ": " ", " ": " ", " ": " ",        # figure / punctuation space, line sep
 }
+# Zero-width + invisible formatting chars — a common hidden watermark; strip them.
+_INVISIBLE = dict.fromkeys(
+    map(ord, "​‌‍⁠﻿᠎­"), None
+)
 
 
 def humanise(t: str) -> str:
     """Strip machine tells from any model output before it is stored."""
     if not t:
         return ""
-    for bad, good in DASHES.items():
+    t = t.translate(_INVISIBLE)
+    for bad, good in _SUBS.items():
         t = t.replace(bad, good)
-    return t.replace("  ", " ").strip()
+    return re.sub(r" {2,}", " ", t).strip()
 
 
 def as_bullets(text: str, limit: int) -> list[str]:

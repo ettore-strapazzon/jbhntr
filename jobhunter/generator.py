@@ -241,7 +241,9 @@ class Generator:
             "candidate. Apply their requested changes exactly. Keep everything "
             "truthful and in their own voice and structure; change only what the "
             "feedback asks plus what is needed for coherence. Never invent "
-            "experience. Return the FULL revised document, not a diff or a summary."
+            "experience. Write like a person: plain, direct language, no em/en "
+            "dashes and no stock AI phrasing. "
+            "Return the FULL revised document, not a diff or a summary."
         )
         user = (
             f"Current {label}:\n\n{previous}\n\n"
