@@ -221,6 +221,38 @@ document.addEventListener("input", function (e) {
   }
 });
 
+// Generation overlay (AX-5): staged progress while a tailored CV/CL drafts, so a
+// ~minute wait reads as drafting rather than a hang. Lives here because an inline
+// script would be CSP-blocked. The phases are the real ones; the pace is estimated
+// (generation is a single request, not a polled job), and the bar caps at 92% until
+// the finished draft loads.
+(function () {
+  document.addEventListener("submit", function (e) {
+    var f = e.target;
+    if (!f || !f.matches || !f.matches('form[action*="/generate/"]')) return;
+    var ov = document.getElementById("gen-overlay");
+    if (!ov) return;
+    var isCv = /\/cv$/.test(f.getAttribute("action") || "");
+    var msg = document.getElementById("gen-msg");
+    if (msg) msg.textContent = isCv ? "Creating your tailored CV…" : "Writing your cover letter…";
+    ov.style.display = "flex";
+    var b = f.querySelector('button[type="submit"], button:not([type])');
+    if (b) b.disabled = true;
+    var stages = [].slice.call(document.querySelectorAll("#gen-stages .stage"));
+    var fill = document.getElementById("gen-fill");
+    var pcts = [12, 40, 72, 92], i = 0;
+    (function step() {
+      stages.forEach(function (s, idx) {
+        s.classList.toggle("done", idx < i);
+        s.classList.toggle("on", idx === i);
+      });
+      if (fill) fill.style.width = pcts[Math.min(i, pcts.length - 1)] + "%";
+      i++;
+      if (i <= stages.length) setTimeout(step, i === 1 ? 450 : 4000 + Math.random() * 3200);
+    })();
+  }, true);
+})();
+
 // Verify-the-claims (AX-6): list every specific figure the draft states, so the
 // author confirms each before sending — the honesty promise, made operational.
 // Runs on the document page only; kept live as the draft is edited.

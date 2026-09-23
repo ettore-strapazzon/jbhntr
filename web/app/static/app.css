@@ -493,6 +493,14 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 .stage.on{color:var(--text-primary);font-weight:600} .stage.on i{background:var(--action-primary)}
 .stage-n{font:600 11px/1 var(--mono);color:var(--text-secondary);letter-spacing:.02em}
 .stage.done .stage-n,.stage.on .stage-n{color:var(--text-primary)}
+/* Generation overlay (AX-5): a raised panel with the staged rail, shown while a
+   tailored CV/CL drafts. Display toggled by app.js on generate-form submit. */
+#gen-overlay{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:24px;
+  background:color-mix(in srgb,var(--surface-canvas) 88%,transparent)}
+#gen-overlay .gen-panel{background:var(--surface-raised);border:1px solid var(--border-subtle);
+  border-radius:var(--r-panel);box-shadow:var(--elev-2);padding:26px 28px;max-width:440px;width:100%;text-align:left}
+#gen-overlay .gen-title{font:700 17px/1.2 var(--font-display);color:var(--text-primary);margin:0}
+#gen-overlay .gen-rail{flex-direction:column;gap:9px}
 /* pulse keyframe removed (P9: no continuous pulsing) */
 
 /* job results */
