@@ -112,6 +112,8 @@ def feedback(result_id: int, request: Request,
     record(db, "match_rated", user_id=user.id, rating=rating)
 
     # HTMX: swap just this card's rating control in place, no reload, no scroll loss.
+    # (The swapped control already says the rating "becomes context for future
+    # scans", so no extra toast here — see the dismiss route for the AX-8 case.)
     if is_htmx:
         return templates.TemplateResponse(request, "partials/vote.html",
             {"request": request, "r": result, "fb": fb, "config": config})

@@ -41,9 +41,13 @@
         <span class="verdict-rule" aria-hidden="true"></span>
       </p>
     {% endif %}
+    {# Confidence (AX-4): a short/absent job description means the score leans on
+       thin evidence — say so, quietly, instead of implying false precision. #}
+    {% set thin = (not r.description) or (r.description | length < 400) %}
     {# 1. Head: title is the strongest line #}
     <div class="job-head">
-      <span class="score"><span class="sr-only">Match score </span>{{ r.score }}<span class="muted small">/100</span></span>
+      <span class="score{% if thin %} score--approx{% endif %}"{% if thin %} title="Scored from limited job text: treat it as a rough guide"{% endif %}><span class="sr-only">Match score </span>{{ r.score }}<span class="muted small">/100</span></span>
+      {% if thin %}<span class="conf-note" title="Scored from limited job text: treat it as a rough guide">limited info</span>{% endif %}
       {# The verdict above already carries the judgement; keep the tier chip only
          when no verdict was derived, so the two never say the same thing twice. #}
       {% if not ns.v %}<span class="tier tier-{{ r.tier }}">{{ r.tier_label }}</span>{% endif %}
@@ -58,7 +62,7 @@
           {% if r.location %} · {{ r.location }}{% endif %}
         </div>
         {% if r.company_blurb %}<div class="muted small">{{ r.company_blurb }}</div>{% endif %}
-        {% if r.source %}<div class="muted small">Source: {{ r.source }}</div>{% endif %}
+        {% if r.source %}<div class="provenance"><svg class="pv-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Found via {{ source_phrase(r.source) }}</div>{% endif %}
       </div>
     </div>
     {% if r.tags %}<div class="tags">{% for t in r.tags[:5] %}<span class="tag">{{ t }}</span>{% endfor %}</div>{% endif %}

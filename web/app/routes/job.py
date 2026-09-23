@@ -83,9 +83,13 @@ def unsave(result_id: int, request: Request, user: User = Depends(require_user),
 @router.post("/{result_id}/dismiss")
 def dismiss(result_id: int, request: Request, reason: str = Form(default=""),
             user: User = Depends(require_user), db: DbSession = Depends(get_session)):
-    return _act(request, db, user, result_id,
+    resp = _act(request, db, user, result_id,
                 lambda r: job_state.set_dismissed(db, user.id, r.dedup_key, True, reason),
                 event="job_dismissed")
+    # Close the loop visibly: a dismiss/rating feeds the next scan (AX-8).
+    if request.headers.get("HX-Request") == "true":
+        resp.headers["HX-Trigger-After-Settle"] = "feedbackNoted"
+    return resp
 
 
 @router.post("/{result_id}/undismiss")

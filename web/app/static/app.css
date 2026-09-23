@@ -514,6 +514,15 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 [data-theme="dark"] .v-stretch .verdict-label{color:var(--corn-300)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .v-now .verdict-label{color:var(--apr-400)}
   :root:not([data-theme="light"]) .v-stretch .verdict-label{color:var(--corn-300)}}
+/* Provenance (AX-3): a quiet "why this is here / where it came from" line. */
+.provenance{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);margin-top:2px}
+.provenance .pv-ic{width:12px;height:12px;flex:none;fill:none;stroke:var(--corn-700);stroke-width:2;stroke-linecap:round}
+[data-theme="dark"] .provenance .pv-ic{stroke:var(--corn-300)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .provenance .pv-ic{stroke:var(--corn-300)}}
+/* Confidence (AX-4): a score built on thin evidence reads muted, with a marker. */
+.score--approx{color:var(--text-secondary)}
+.conf-note{font:600 9.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--status-attention);
+  background:var(--status-attention-bg);border:1px solid var(--apr-300);border-radius:99px;padding:4px 8px;align-self:center;cursor:help}
 .scorebar{height:6px;border-radius:3px;background:var(--border-subtle);overflow:hidden;margin:6px 0 4px}
 .scorebar>div{height:6px;background:var(--action-primary)}
 .fitbars{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0 4px}

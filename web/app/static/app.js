@@ -274,6 +274,11 @@ document.addEventListener("click", function (e) {
   document.body.addEventListener('nextStepSaved', function () {
     showToast('Next step saved.', '');
   });
+  // A rating or dismissal feeds the next scan; say so, so the agent reads as
+  // learning with you (AX-8).
+  document.body.addEventListener('feedbackNoted', function () {
+    showToast('Noted \u2014 this shapes your next scan.', '');
+  });
 })();
 
 // Live formatted preview of the CV draft (best-effort match to the uploaded CV's
