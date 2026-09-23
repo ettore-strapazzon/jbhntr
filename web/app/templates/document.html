@@ -44,6 +44,17 @@
     </div>
   </form>
 
+  {# Verify-the-claims (AX-6): the honesty promise with teeth. JBHNTR can't know
+     whether a generated figure is true, so it surfaces every specific — figures,
+     percentages, money, counts, years — as a checklist to confirm before sending.
+     Populated and kept live by app.js from the editor's current text. Sibling of
+     the edit form so its checkboxes never submit. #}
+  <details class="verify-box" open>
+    <summary><b>Verify before you send</b>
+      <span class="muted small">— <span id="verify-count">0</span> specifics in this draft. Confirm each is true; JBHNTR can't.</span></summary>
+    <ul id="verify-list" class="verify-list" aria-live="polite"></ul>
+  </details>
+
   {# Refine loop: sibling of the edit form (nested forms are invalid). #}
   <form method="post" action="/document/{{ r.id }}/{{ kind }}/refine" class="refine-box">
     <label for="refine-{{ kind }}"><b>Request changes</b></label>

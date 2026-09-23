@@ -1209,6 +1209,17 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .trk-docs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .refine-box{margin:18px 0;padding:12px 14px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface-canvas)}
 .refine-box textarea{width:100%;margin:6px 0;padding:8px}
+/* Verify-the-claims (AX-6): a warm checklist of the draft's specifics. */
+.verify-box{margin:16px 0;padding:12px 14px;border:1px solid var(--apr-300);border-radius:10px;background:var(--status-attention-bg)}
+.verify-box > summary{cursor:pointer;list-style:none}
+.verify-box > summary::-webkit-details-marker{display:none}
+.verify-box > summary b{color:var(--status-attention)}
+.verify-list{list-style:none;margin:10px 0 2px;padding:0;display:grid;gap:6px}
+.verify-list li label{display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer}
+.verify-list input{flex:none}
+.verify-list .vf{font-family:var(--mono);font-weight:600;color:var(--text-primary);background:var(--surface-raised);
+  border:1px solid var(--border-subtle);border-radius:6px;padding:2px 8px}
+.verify-list input:checked + .vf{text-decoration:line-through;color:var(--text-secondary);opacity:.65}
 .refine-chips{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 2px}
 .refine-chip{min-height:32px;padding:6px 12px;font:600 12.5px/1 var(--font-text);border-radius:var(--r-chip);
   border:1px solid var(--border-subtle);background:var(--surface-raised);color:var(--text-secondary);box-shadow:none;cursor:pointer}
