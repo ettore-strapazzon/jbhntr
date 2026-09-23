@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field, field_validator
 MatchTier = Literal[1, 2, 3, 4, 5]
 
 TIER_LABELS = {
-    1: "Excellent",   # apply now
-    2: "Strong",      # clearly worth applying
-    3: "Possible",    # decent but with real gaps
-    4: "Weak",        # long shot
-    5: "No",          # not a fit
+    1: "Excellent",   # 4 pips · 85-100
+    2: "Strong",      # 3 pips · 70-84
+    3: "Fair",        # 2 pips · 55-69
+    4: "Long shot",   # 1 pip  · <55
+    5: "No",          # never shown (filtered out)
 }
 
 

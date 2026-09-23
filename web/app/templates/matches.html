@@ -82,7 +82,7 @@
         hx-trigger="change" hx-push-url="true" hx-indicator="#results">
     <input type="hidden" name="run" value="{{ f_run }}">
     <div class="filter-facets">
-      {% for t, label in [(1,"Apply now"),(2,"Strong"),(3,"Possible"),(4,"Long shots")] %}
+      {% for t, label in [(1,"Excellent"),(2,"Strong"),(3,"Fair"),(4,"Long shots")] %}
         <label class="fchip"><input type="checkbox" name="tier" value="{{ t }}"
           {% if t in f_tier %}checked{% endif %}> {{ label }}</label>
       {% endfor %}

@@ -43,6 +43,21 @@ def source_phrase(source: str) -> str:
 
 
 templates.env.globals["source_phrase"] = source_phrase
+
+# Strength word from the tier at render time (AX-2), not the value stored on the
+# row when it was scored — so a relabel shows immediately on old and new results
+# alike, with no re-scan needed.
+from jobhunter.models import TIER_LABELS  # noqa: E402
+
+
+def tier_word(tier) -> str:
+    try:
+        return TIER_LABELS.get(int(tier), "")
+    except (TypeError, ValueError):
+        return ""
+
+
+templates.env.globals["tier_word"] = tier_word
 # Cache-buster for static assets. Changes every deploy (new commit SHA, or a
 # fresh process start), so a CSS/JS change is never masked by a stale cache.
 templates.env.globals["asset_v"] = (

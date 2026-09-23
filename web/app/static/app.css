@@ -526,6 +526,14 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 .score--approx{color:var(--text-secondary)}
 .conf-note{font:600 9.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--status-attention);
   background:var(--status-attention-bg);border:1px solid var(--apr-300);border-radius:99px;padding:4px 8px;align-self:center;cursor:help}
+/* Strength (AX-2): 1-4 pips + one word. Pips carry the tier colour; the word stays
+   readable (a coloured 'Fair'/'Long shot' word would fail contrast). */
+.strength{display:inline-flex;align-items:center;gap:8px;align-self:center;cursor:default}
+.pips{display:inline-flex;gap:3px}
+.pip{width:8px;height:8px;border-radius:50%;background:var(--border-subtle)}
+.strength .sw{font:700 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary)}
+.s-t1 .pip.on{background:var(--tier-1)} .s-t2 .pip.on{background:var(--tier-2)}
+.s-t3 .pip.on{background:var(--tier-3)} .s-t4 .pip.on{background:var(--tier-4)} .s-t5 .pip.on{background:var(--tier-5)}
 .scorebar{height:6px;border-radius:3px;background:var(--border-subtle);overflow:hidden;margin:6px 0 4px}
 .scorebar>div{height:6px;background:var(--action-primary)}
 .fitbars{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0 4px}

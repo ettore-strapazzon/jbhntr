@@ -19,7 +19,7 @@ from .job_state import state_map
 from .text import as_bullets
 
 # Tier -> group. 1/2/3 get their own group; 4 and 5 are long shots.
-TIER_GROUPS = [(1, "Apply now"), (2, "Strong"), (3, "Possible")]
+TIER_GROUPS = [(1, "Excellent"), (2, "Strong"), (3, "Fair")]   # one strength lexicon (AX-2)
 SORTS = {
     "best": lambda c: (-c.r.score, c.r.position),
     "newest": lambda c: (0 if c.is_new else 1, -c.r.id),
