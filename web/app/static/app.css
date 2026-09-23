@@ -204,6 +204,9 @@ main{max-width:var(--container);margin:0 auto;padding:28px 24px 64px}
 .bar nav a[aria-current=page]{color:var(--action-primary);font-weight:600;background:color-mix(in srgb,var(--action-primary) 10%,transparent);border-radius:6px;padding:3px 8px}
 .pill{background:var(--action-primary);color:var(--action-primary-ink)!important;padding:6px 12px;border-radius:99px;
   display:inline-flex;align-items:center;gap:6px}
+/* V-3: on a phone, a logged-out visitor's header wrapped to three rows. Drop the
+   secondary links (they live in the footer) so it's a clean JBHNTR · Log in · CTA. */
+@media (max-width:600px){ body:not(.authed) .bar nav .nav-sec{display:none} }
 .pill-dot{width:7px;height:7px;border-radius:99px;background:var(--surface-raised)}
 
 /* blocks */
