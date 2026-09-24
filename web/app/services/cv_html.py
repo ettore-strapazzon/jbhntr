@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import html as _html
 
-from .export import _split_org, _split_role, parse_lines
+from .export import _split_org, _split_role, inline_runs, parse_lines
 
 # Map the vision "font_class"/"font_family" onto a CSS stack. The first names are
 # metric-compatible open fonts we apt-install on Railway (Liberation = Arial/
@@ -59,6 +59,21 @@ def _esc(text: str) -> str:
     return _html.escape(text or "", quote=False)
 
 
+def _inline(text: str) -> str:
+    """Escape, then wrap inline [b]/[i]/[u] runs in strong/em/u (prose kinds)."""
+    parts = []
+    for seg, b, i, u in inline_runs(text):
+        e = _esc(seg)
+        if b:
+            e = f"<strong>{e}</strong>"
+        if i:
+            e = f"<em>{e}</em>"
+        if u:
+            e = f"<u>{e}</u>"
+        parts.append(e)
+    return "".join(parts)
+
+
 def _org_html(text: str) -> str:
     comp, rest = _split_org(text)
     if rest:
@@ -83,7 +98,7 @@ def _body_to_blocks(body: str, upper: bool) -> str:
 
     def flush():
         if bullets:
-            out.append("<ul>" + "".join(f"<li>{_esc(b)}</li>" for b in bullets) + "</ul>")
+            out.append("<ul>" + "".join(f"<li>{_inline(b)}</li>" for b in bullets) + "</ul>")
             bullets.clear()
 
     for kind, text in parse_lines(body):
@@ -103,13 +118,13 @@ def _body_to_blocks(body: str, upper: bool) -> str:
         elif kind == "org":
             out.append(_org_html(text))
         elif kind == "orgdesc":
-            out.append(f'<div class="orgdesc">{_esc(text)}</div>')
+            out.append(f'<div class="orgdesc">{_inline(text)}</div>')
         elif kind == "role":
             out.append(_role_html(text))
         elif kind == "blank":
             pass  # spacing handled by CSS margins
         else:
-            out.append(f'<p>{_esc(text)}</p>')
+            out.append(f'<p>{_inline(text)}</p>')
     flush()
     return "\n".join(out)
 

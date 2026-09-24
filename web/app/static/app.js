@@ -340,6 +340,32 @@ document.addEventListener("click", function (e) {
       .replace(/(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)/g, '$1');
   }
 
+  // Mirror of export.py::inline_runs / _strip_bbcode — user [b]/[i]/[u] emphasis.
+  var BBCODE = /\[(\/?)([biu])\]/g;
+  function stripBB(s) { return s.replace(BBCODE, ''); }
+  function inlineRuns(text) {
+    var depth = { b: 0, i: 0, u: 0 }, out = [], pos = 0, m;
+    BBCODE.lastIndex = 0;
+    while ((m = BBCODE.exec(text))) {
+      var seg = text.slice(pos, m.index);
+      if (seg) out.push([seg, depth.b > 0, depth.i > 0, depth.u > 0]);
+      if (m[1]) depth[m[2]] = Math.max(0, depth[m[2]] - 1); else depth[m[2]]++;
+      pos = m.index + m[0].length;
+    }
+    var t = text.slice(pos);
+    if (t) out.push([t, depth.b > 0, depth.i > 0, depth.u > 0]);
+    return out.length ? out : [[text, false, false, false]];
+  }
+  function applyInline(el, text) {
+    inlineRuns(text).forEach(function (r) {
+      var node = document.createTextNode(r[0]);
+      if (r[3]) { var u = document.createElement('u'); u.appendChild(node); node = u; }
+      if (r[2]) { var i = document.createElement('em'); i.appendChild(node); node = i; }
+      if (r[1]) { var b = document.createElement('strong'); b.appendChild(node); node = b; }
+      el.appendChild(node);
+    });
+  }
+
   // Mirror of export.py::_ROLE_TAIL \u2014 a title followed by a date in any format
   // (parentheses, pipe, or spaced dash).
   var ROLE_TAIL = /(?:[(|/]|\s[-\u2013\u2014])\s*((?:[A-Za-z]{3,10}\.?\s+)?(?:19|20)\d{2}|[Pp]resent)\b.*$/;
@@ -359,7 +385,7 @@ document.addEventListener("click", function (e) {
   // Mirror of export.py::parse_lines \u2014 returns [{kind, text}].
   function parseLines(text) {
     var lines = text.split('\n');
-    var stripped = lines.map(function (r) { return stripMd(r).trim(); });
+    var stripped = lines.map(function (r) { return stripBB(stripMd(r)).trim(); });
     function nextIsRole(i, depth) {
       var seen = 0;
       for (var j = i + 1; j < stripped.length; j++) {
@@ -373,12 +399,12 @@ document.addEventListener("click", function (e) {
     var out = [];
     var seenName = false, seenHeading = false, subtitleDone = false;
     lines.forEach(function (raw, i) {
-      var line = stripMd(raw);
-      var s = line.trim();
+      var line = stripMd(raw);              // [b]/[i]/[u] kept
+      var s = stripBB(line).trim();         // tag-free, for classification
       if (!s) { out.push({ kind: 'blank', text: '' }); return; }
       if (!seenName) { out.push({ kind: 'name', text: s }); seenName = true; return; }
       if (BULLETS.indexOf(s[0]) >= 0 && !(s.length > 1 && BULLETS.indexOf(s[1]) >= 0)) {
-        out.push({ kind: 'bullet', text: s.replace(/^[-\u2022*\u25aa\u25e6\u00b7\s]+/, '') });
+        out.push({ kind: 'bullet', text: line.trim().replace(/^[-\u2022*\u25aa\u25e6\u00b7\s]+/, '') });
         return;
       }
       if (!seenHeading) {
@@ -461,7 +487,7 @@ document.addEventListener("click", function (e) {
       } else if (k === 'orgdesc') {
         var od = document.createElement('div');
         od.className = 'pv-orgdesc';
-        od.textContent = row.text;
+        applyInline(od, row.text);
         pv.appendChild(od);
       } else if (k === 'contact') {
         var c = document.createElement('div');
@@ -478,12 +504,12 @@ document.addEventListener("click", function (e) {
       } else if (k === 'bullet') {
         if (!ul) { ul = document.createElement('ul'); ul.className = 'pv-ul'; pv.appendChild(ul); }
         var li = document.createElement('li');
-        li.textContent = row.text;
+        applyInline(li, row.text);
         ul.appendChild(li);
       } else {
         var p = document.createElement('div');
         p.className = 'pv-p';
-        p.textContent = row.text;
+        applyInline(p, row.text);
         pv.appendChild(p);
       }
     });
@@ -491,6 +517,31 @@ document.addEventListener("click", function (e) {
 
   ed.addEventListener('input', render);
   render();
+
+  // Font picker: swap the preview's font live (the CSS stack rides on each option).
+  var fontSel = document.getElementById('doc-font');
+  if (fontSel) {
+    fontSel.addEventListener('change', function () {
+      var opt = fontSel.options[fontSel.selectedIndex];
+      pv.style.fontFamily = (opt && opt.getAttribute('data-stack')) || font;
+    });
+  }
+
+  // Formatting toolbar: wrap the textarea selection in [b]/[i]/[u] (never typed by
+  // hand), keep it selected so B then I nests, and refresh the preview.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('.fmt-btn');
+    if (!btn) return;
+    var tag = btn.getAttribute('data-fmt');
+    var a = ed.selectionStart, b = ed.selectionEnd;
+    var sel = ed.value.slice(a, b);
+    var open = '[' + tag + ']', close = '[/' + tag + ']';
+    ed.value = ed.value.slice(0, a) + open + sel + close + ed.value.slice(b);
+    ed.focus();
+    ed.selectionStart = a + open.length;
+    ed.selectionEnd = a + open.length + sel.length;
+    ed.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 })();
 
 // Brand v3 P11: theme toggle. Cycle light<->dark, persist in localStorage; a

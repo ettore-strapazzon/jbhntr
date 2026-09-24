@@ -18,6 +18,20 @@
 
 <div class="docview">
   <form method="post" action="/document/{{ r.id }}/{{ kind }}/save" class="doc-main">
+    {% if kind == 'cv' %}
+      <div class="doc-toolbar">
+        <div class="fmt-group" role="group" aria-label="Text formatting">
+          <button type="button" class="fmt-btn" data-fmt="b" title="Bold — select text first"><b>B</b></button>
+          <button type="button" class="fmt-btn" data-fmt="i" title="Italic — select text first"><i>I</i></button>
+          <button type="button" class="fmt-btn" data-fmt="u" title="Underline — select text first"><u>U</u></button>
+        </div>
+        <label class="fmt-font">Font
+          <select name="font" id="doc-font">
+            {% for o in font_options %}<option value="{{ o.key }}" data-stack="{{ o.stack }}"{% if o.key == doc_font %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+    {% endif %}
     <textarea id="doc-editor" name="content" class="sheet" aria-label="Document text">{{ doc.content }}</textarea>
     {% if kind == 'cv' %}
       <details class="doc-previewbox" open>

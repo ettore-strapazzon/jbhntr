@@ -323,6 +323,16 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
   padding:32px 36px;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   resize:vertical}
 .doc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+/* Draft formatting toolbar: bold/italic/underline + a font picker (CV only). */
+.doc-toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 8px}
+.fmt-group{display:inline-flex;gap:4px}
+.fmt-btn{min-height:32px;min-width:34px;padding:0 8px;border-radius:8px;border:1px solid var(--border-subtle);
+  background:var(--surface-raised);color:var(--text-primary);cursor:pointer;font-size:15px;line-height:1;box-shadow:none}
+.fmt-btn:hover{border-color:var(--action-primary);color:var(--action-primary);background:var(--surface-raised)}
+.fmt-btn u{text-decoration:underline}
+.fmt-font{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary)}
+.fmt-font select{min-height:32px}
+.doc-preview u{text-decoration:underline}
 .doc-rail{display:flex;flex-direction:column;gap:14px}
 .rail-box{border:1px solid var(--border-subtle);border-radius:var(--r-card);padding:14px 16px}
 .thin-nudge{background:var(--status-attention-bg);border-color:var(--apr-300)}

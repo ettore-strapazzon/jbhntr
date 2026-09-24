@@ -454,6 +454,8 @@ class Document(Base):
     # Web link to a formatted Google Doc created from this draft (blank until the
     # user opens it in Google Docs). Cached so repeated opens reuse the same doc.
     gdoc_url: Mapped[str] = mapped_column(String(500), default="")
+    # Per-draft font choice (a key in cv_style.FONT_CHOICES); "" = match the CV.
+    font: Mapped[str] = mapped_column(String(16), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

@@ -32,6 +32,36 @@ def _strip_md(line: str) -> str:
     return s
 
 
+# User-applied inline emphasis. BBCode-style [b]/[i]/[u] (inserted by the editor
+# toolbar, never typed) — unambiguous and impossible to hit by accident in CV
+# prose, unlike markdown '*'. Carried through parse_lines on prose kinds and
+# turned into bold/italic/underline by every renderer.
+_BBCODE_TAG = re.compile(r"\[(/?)([biu])\]")
+
+
+def _strip_bbcode(s: str) -> str:
+    return _BBCODE_TAG.sub("", s)
+
+
+def inline_runs(text: str) -> list[tuple[str, bool, bool, bool]]:
+    """Split text into (segment, bold, italic, underline) runs by [b]/[i]/[u].
+    Tolerates nesting and unbalanced tags; a plain string is one unstyled run."""
+    depth = {"b": 0, "i": 0, "u": 0}
+    out: list[tuple[str, bool, bool, bool]] = []
+    pos = 0
+    for m in _BBCODE_TAG.finditer(text):
+        seg = text[pos:m.start()]
+        if seg:
+            out.append((seg, depth["b"] > 0, depth["i"] > 0, depth["u"] > 0))
+        closing, tag = m.group(1), m.group(2)
+        depth[tag] = max(0, depth[tag] - 1) if closing else depth[tag] + 1
+        pos = m.end()
+    seg = text[pos:]
+    if seg:
+        out.append((seg, depth["b"] > 0, depth["i"] > 0, depth["u"] > 0))
+    return out or [(text, False, False, False)]
+
+
 _BULLET_CHARS = "-•*▪◦·"
 # A role/dates line: a job title followed by a date (range), whatever separator
 # the model used — "Head of Strategy (Oct 2020 - Oct 2022)", "... | Nov 2022 -
@@ -79,7 +109,9 @@ def parse_lines(body: str) -> list[tuple[str, str]]:
     a role, and short ALL-CAPS/Title lines are section headings.
     """
     raw_lines = (body or "").split("\n")
-    stripped = [_strip_md(r).strip() for r in raw_lines]
+    # Classification is BBCode-blind (so "[b]EXPERIENCE[/b]" still reads as a
+    # heading); prose kinds keep the tags in their returned text (below).
+    stripped = [_strip_bbcode(_strip_md(r)).strip() for r in raw_lines]
 
     def next_is_role(i: int, depth: int) -> bool:
         """True if a role/dates line follows within the next `depth` non-blank
@@ -103,8 +135,8 @@ def parse_lines(body: str) -> list[tuple[str, str]]:
     seen_heading = False
     subtitle_done = False
     for i, raw in enumerate(raw_lines):
-        line = _strip_md(raw)
-        s = line.strip()
+        line = _strip_md(raw)                 # markdown folded, [b]/[i]/[u] kept
+        s = _strip_bbcode(line).strip()       # tag-free, for classification + non-prose text
         if not s:
             out.append(("blank", ""))
             continue
@@ -113,7 +145,8 @@ def parse_lines(body: str) -> list[tuple[str, str]]:
             seen_name = True
             continue
         if s[0] in _BULLET_CHARS and not (len(s) > 1 and s[1] in _BULLET_CHARS):
-            out.append(("bullet", s.lstrip(_BULLET_CHARS + " \t").strip()))
+            # bullet text keeps its tags (prose); strip only the leading marker
+            out.append(("bullet", line.strip().lstrip(_BULLET_CHARS + " \t")))
             continue
         if not seen_heading:
             # Header zone. Contact detail first; then a real section heading only
@@ -215,7 +248,7 @@ def to_pdf(title: str, body: str) -> bytes:
 
     pdf.set_font("Helvetica", "", 11)
     for line in body.split("\n"):
-        line = _ascii(_strip_md(line))
+        line = _ascii(_strip_bbcode(_strip_md(line)))
         if line.strip():
             mc(6, line)
         else:
@@ -230,7 +263,7 @@ def to_docx(title: str, body: str) -> bytes:
     if title:
         doc.add_heading(title, level=1)
     for line in body.split("\n"):
-        doc.add_paragraph(_strip_md(line))
+        doc.add_paragraph(_strip_bbcode(_strip_md(line)))
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
@@ -303,6 +336,17 @@ def to_pdf_styled(title: str, body: str, style) -> bytes:
     def mc(h, txt, align="L"):
         pdf.multi_cell(0, h, txt, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align=align)
 
+    def write_runs(h, txt, size, base="", color=ink):
+        """A wrapping paragraph honouring inline [b]/[i]/[u]. multi_cell can't
+        change style mid-line; write() can, and wraps at the current margins."""
+        bb, bi = "B" in base, "I" in base
+        for seg, b, i, u in inline_runs(txt):
+            pdf.set_font(fam, ("B" if b or bb else "") + ("I" if i or bi else "")
+                         + ("U" if u else ""), size)
+            pdf.set_text_color(*color)
+            pdf.write(h, seg)
+        pdf.ln(h)
+
     def hrule(gap_above=1.6, gap_below=2.0):
         pdf.ln(gap_above)
         y = pdf.get_y()
@@ -357,9 +401,7 @@ def to_pdf_styled(title: str, body: str, style) -> bytes:
             pdf.ln(5.2)
         elif kind == "orgdesc":
             close_header()
-            pdf.set_font(fam, "I", 9.5)
-            pdf.set_text_color(90, 90, 90)
-            mc(4.4, text)
+            write_runs(4.4, text, 9.5, base="I", color=(90, 90, 90))
         elif kind == "role":
             close_header()
             role, dates = _split_role(text)
@@ -380,13 +422,11 @@ def to_pdf_styled(title: str, body: str, style) -> bytes:
             pdf.ellipse(bx, by, 1.0, 1.0, style="F")
             pdf.set_left_margin(m + 5)
             pdf.set_x(m + 5)
-            mc(4.5, text)
+            write_runs(4.5, text, 10)
             pdf.set_left_margin(m)
         else:  # body
             close_header()
-            pdf.set_font(fam, "", 10)
-            pdf.set_text_color(*ink)
-            mc(4.5, text)
+            write_runs(4.5, text, 10)
     return bytes(pdf.output())
 
 
@@ -450,7 +490,7 @@ def to_docx_cv(body: str, style) -> bytes:
             p.paragraph_format.space_after = Pt(after)
         return p
 
-    def run(p, text, *, size=None, bold=False, italic=False, color=None):
+    def run(p, text, *, size=None, bold=False, italic=False, underline=False, color=None):
         r = p.add_run(text)
         r.font.name = fam
         if size is not None:
@@ -459,9 +499,17 @@ def to_docx_cv(body: str, style) -> bytes:
             r.font.bold = True
         if italic:
             r.font.italic = True
+        if underline:
+            r.font.underline = True
         if color is not None:
             r.font.color.rgb = color
         return r
+
+    def runs(p, text, *, size=None, base_bold=False, base_italic=False, color=None):
+        """One run per inline [b]/[i]/[u] segment, so user emphasis survives."""
+        for seg, b, i, u in inline_runs(text):
+            run(p, seg, size=size, bold=b or base_bold, italic=i or base_italic,
+                underline=u, color=color)
 
     for kind, text in parse_lines(body):
         if kind == "name":
@@ -483,7 +531,7 @@ def to_docx_cv(body: str, style) -> bytes:
             if loc:
                 run(p, loc, size=10, color=muted)
         elif kind == "orgdesc":
-            run(para(after=1), text, size=9.5, italic=True, color=grey)
+            runs(para(after=1), text, size=9.5, base_italic=True, color=grey)
         elif kind == "role":
             role, dates = _split_role(text)
             p = para(after=2)
@@ -494,11 +542,12 @@ def to_docx_cv(body: str, style) -> bytes:
             p = para(after=2)
             pf = p.paragraph_format
             pf.left_indent, pf.first_line_indent = Pt(12), Pt(-10)
-            run(p, "•  " + text, size=10)
+            run(p, "•  ", size=10)
+            runs(p, text, size=10)
         elif kind == "blank":
             continue                    # spacing comes from space_before/after
         else:  # body
-            run(para(after=2), text, size=10)
+            runs(para(after=2), text, size=10)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -522,6 +571,22 @@ def to_docx_templated(orig_docx: bytes, title: str, body: str) -> bytes:
             return doc.add_paragraph(text, style=style) if style else doc.add_paragraph(text)
         except KeyError:
             return doc.add_paragraph(text)  # style not in this template
+
+    def _add_runs(text: str, style: str | None, base_italic: bool = False):
+        """A styled paragraph with one run per inline [b]/[i]/[u] segment."""
+        try:
+            p = doc.add_paragraph(style=style) if style else doc.add_paragraph()
+        except KeyError:
+            p = doc.add_paragraph()
+        for seg, b, i, u in inline_runs(text):
+            r = p.add_run(seg)
+            if b:
+                r.bold = True
+            if i or base_italic:
+                r.italic = True
+            if u:
+                r.font.underline = True
+        return p
 
     def _two_run(bold_part: str, rest: str, size_pt: int | None = None):
         """A paragraph whose lead is bold and remainder muted (org / role lines)."""
@@ -552,16 +617,14 @@ def to_docx_templated(orig_docx: bytes, title: str, body: str) -> bytes:
             comp, loc = _split_org(text)
             _two_run(comp, loc)
         elif kind == "orgdesc":
-            p = doc.add_paragraph()
-            r = p.add_run(text)
-            r.italic = True
+            _add_runs(text, None, base_italic=True)
         elif kind == "role":
             role, dates = _split_role(text)
             _two_run(role + (" " if dates else ""), dates, size_pt=10)
         elif kind == "bullet":
-            _add(text, "List Bullet")
+            _add_runs(text, "List Bullet")
         else:
-            _add(text, None)
+            _add_runs(text, None)
 
     buf = io.BytesIO()
     doc.save(buf)

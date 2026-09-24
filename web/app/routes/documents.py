@@ -88,7 +88,8 @@ def _cv_pdf(body: str, style) -> bytes:
 @router.get("/document/{result_id}/{kind}", response_class=HTMLResponse)
 def view(result_id: int, kind: str, request: Request, saved: str = "",
          user: User = Depends(require_user), db: DbSession = Depends(get_session)):
-    from ..services import cv_style, gdocs
+    import dataclasses
+    from ..services import cv_html, cv_style, gdocs
     r, doc = _doc(db, user, result_id, kind)
     if not r or not doc:
         return RedirectResponse("/matches", status_code=303)
@@ -98,6 +99,13 @@ def view(result_id: int, kind: str, request: Request, saved: str = "",
     revisions = (_doc_query(db, user.id, r.dedup_key, kind)
                  .order_by(Document.created_at.desc())
                  .all())
+    # Font picker: the preview + each option's CSS stack, resolved off the user's
+    # base CV style with the chosen override applied.
+    base_sp = cv_style.profile_for(db, user.id)
+    sp = cv_style.apply_font(dataclasses.replace(base_sp), doc.font or "")
+    font_options = [{"key": k, "label": lbl,
+                     "stack": cv_html._font_stack(cv_style.apply_font(dataclasses.replace(base_sp), k))}
+                    for k, lbl in cv_style.FONT_LABELS]
     return templates.TemplateResponse(request, "document.html", {
         "request": request, "user": user, "r": r, "doc": doc, "kind": kind,
         "kind_label": KIND_LABEL[kind], "saved": saved,
@@ -106,7 +114,8 @@ def view(result_id: int, kind: str, request: Request, saved: str = "",
         "refined": (request.query_params.get("refined") == "1"),
         "error": request.query_params.get("error", ""),
         "gdoc_enabled": gdocs.enabled(),
-        "preview_style": cv_style.public_style(cv_style.profile_for(db, user.id)),
+        "preview_style": cv_style.public_style(sp),
+        "font_options": font_options, "doc_font": doc.font or "",
     })
 
 
@@ -120,38 +129,44 @@ def cv_view_html(result_id: int, request: Request,
     r, doc = _doc(db, user, result_id, "cv")
     if not r or not doc:
         return RedirectResponse("/applications", status_code=303)
-    style = cv_style.profile_for(db, user.id)
+    style = cv_style.apply_font(cv_style.profile_for(db, user.id), doc.font or "")
     return HTMLResponse(cv_html.render_cv_html(doc.content, style, standalone=True))
 
 
 @router.post("/document/{result_id}/{kind}/save")
 def save(result_id: int, kind: str, content: str = Form(default=""),
+         font: str = Form(default=""),
          user: User = Depends(require_user), db: DbSession = Depends(get_session)):
     r, doc = _doc(db, user, result_id, kind)
     if r and doc:
         doc.content = content
+        doc.font = (font or "")[:16]
         db.commit()
     return RedirectResponse(f"/document/{result_id}/{kind}?saved=1", status_code=303)
 
 
 @router.post("/document/{result_id}/{kind}/export/{fmt}")
 def export_doc(result_id: int, kind: str, fmt: str, content: str = Form(default=""),
+               font: str = Form(default=""),
                user: User = Depends(require_user), db: DbSession = Depends(get_session)):
     r, doc = _doc(db, user, result_id, kind)
     if not r or not doc:
         return RedirectResponse("/matches", status_code=303)
-    # Exporting also persists the current edits, so the file matches the page.
-    if content and content != doc.content:
-        doc.content = content
+    # Exporting also persists the current edits + font, so the file matches the page.
+    if (content and content != doc.content) or ((font or "")[:16] != (doc.font or "")):
+        if content:
+            doc.content = content
+        doc.font = (font or "")[:16]
         db.commit()
     body = doc.content
     title = f"{r.title} — {r.company}" if kind == "cv" else ""
     cv_name = _candidate_name(body) if kind == "cv" else ""
 
-    # Match the CV export to the candidate's uploaded CV style (cover letters stay
-    # plain prose). Falls back to the plain renderers when there's no CV on file.
+    # Match the CV export to the candidate's uploaded CV style + chosen font (cover
+    # letters stay plain prose). Falls back to plain renderers when there's no CV.
     from ..services import cv_style
-    style = cv_style.profile_for(db, user.id) if kind == "cv" else None
+    style = (cv_style.apply_font(cv_style.profile_for(db, user.id), doc.font or "")
+             if kind == "cv" else None)
 
     if fmt == "pdf":
         if kind == "cv":
@@ -172,8 +187,8 @@ def export_doc(result_id: int, kind: str, fmt: str, content: str = Form(default=
             data = export.to_docx(title, body)
         media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         name = _filename(r, kind, "docx", cv_name)
-    else:  # txt
-        data, media = body.encode("utf-8"), "text/plain; charset=utf-8"
+    else:  # txt — plain text can't carry emphasis, so drop the [b]/[i]/[u] tags
+        data, media = export._strip_bbcode(body).encode("utf-8"), "text/plain; charset=utf-8"
         name = _filename(r, kind, "txt", cv_name)
 
     return Response(content=data, media_type=media,
@@ -238,7 +253,7 @@ def open_gdoc(result_id: int, kind: str, content: str = Form(default=""),
 
     title = (f"CV — {r.title} at {r.company}" if kind == "cv"
              else f"Cover letter — {r.company}")
-    url = gdocs.create_doc(title, doc.content, user.email)
+    url = gdocs.create_doc(title, export._strip_bbcode(doc.content), user.email)
     if not url:
         return RedirectResponse(
             f"/document/{result_id}/{kind}?error=" + quote(

@@ -66,6 +66,31 @@ def _rgb_from_hex(s: str) -> tuple | None:
         return None
 
 
+# Font choices offered on the draft (a bit of freedom beyond "match my CV").
+# Each maps to (font_class, font_family); "" = keep the uploaded CV's font.
+# The generic classes render faithfully in every backend; the named families are
+# exact in DOCX + the HTML print view and approximated by class in the fpdf PDF.
+FONT_CHOICES = {
+    "": ("", ""),
+    "sans": ("sans", ""), "serif": ("serif", ""), "mono": ("mono", ""),
+    "calibri": ("sans", "Calibri"), "georgia": ("serif", "Georgia"),
+    "garamond": ("serif", "Garamond"),
+}
+FONT_LABELS = [("", "Match my CV"), ("sans", "Sans"), ("serif", "Serif"),
+               ("mono", "Mono"), ("calibri", "Calibri"), ("georgia", "Georgia"),
+               ("garamond", "Garamond")]
+
+
+def apply_font(sp: "StyleProfile", key: str) -> "StyleProfile":
+    """Override a profile's font from a picker key (mutates + returns sp)."""
+    if key and key in FONT_CHOICES:
+        fc, ff = FONT_CHOICES[key]
+        if fc:
+            sp.font_class = fc
+        sp.font_family = ff
+    return sp
+
+
 def public_style(sp: "StyleProfile") -> dict:
     """A small, JSON-safe view of the profile for the live preview (and to tell the
     user how much we could match)."""
