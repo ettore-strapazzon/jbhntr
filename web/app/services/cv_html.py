@@ -202,14 +202,17 @@ def render_cv_html(body: str, style, *, standalone: bool = True) -> str:
     """Return the CV as HTML. ``standalone`` wraps it in a full <html> document
     with inline CSS (for WeasyPrint / a print tab); otherwise returns just the
     styled <section> (to embed in the app's own page)."""
+    from .export import _first_line_name
     upper = bool(getattr(style, "heading_upper", False))
     blocks = _body_to_blocks(body, upper)
     css = _css(style)
     if not standalone:
         return f'<style>{css}</style>\n<section class="cv-doc">{blocks}</section>'
+    name = _first_line_name(body)
+    title = _esc(f"{name} - CV" if name else "CV")
     return (
         "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-        f"<title>CV</title><style>{css}</style></head>"
+        f"<title>{title}</title><style>{css}</style></head>"
         f"<body>{blocks}</body></html>"
     )

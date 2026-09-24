@@ -227,6 +227,35 @@ def _ascii(text: str) -> str:
     return text.encode("latin-1", "replace").decode("latin-1")
 
 
+def _first_line_name(body: str) -> str:
+    """The candidate's name — the CV/letter's first non-blank line — for file
+    metadata (ATS parsers and Explorer/Finder read Title/Author)."""
+    for kind, text in parse_lines(body):
+        if kind == "blank":
+            continue
+        return _strip_bbcode(text).strip()[:80]
+    return ""
+
+
+def _pdf_meta(pdf, body: str, subject: str) -> None:
+    name = _first_line_name(body)
+    pdf.set_title(f"{name} - {subject}" if name else subject)
+    if name:
+        pdf.set_author(name)
+    pdf.set_subject(subject)
+    pdf.set_creator("JBHNTR")
+    pdf.set_producer("JBHNTR")
+
+
+def _docx_meta(doc, body: str, subject: str) -> None:
+    name = _first_line_name(body)
+    cp = doc.core_properties
+    cp.title = f"{name} - {subject}" if name else subject
+    if name:
+        cp.author = name
+    cp.subject = subject
+
+
 def to_pdf(title: str, body: str) -> bytes:
     from fpdf import FPDF
     from fpdf.enums import XPos, YPos
@@ -253,6 +282,7 @@ def to_pdf(title: str, body: str) -> bytes:
             mc(6, line)
         else:
             pdf.ln(3)
+    _pdf_meta(pdf, body, "Cover letter")
     return bytes(pdf.output())
 
 
@@ -264,6 +294,7 @@ def to_docx(title: str, body: str) -> bytes:
         doc.add_heading(title, level=1)
     for line in body.split("\n"):
         doc.add_paragraph(_strip_bbcode(_strip_md(line)))
+    _docx_meta(doc, body, "Cover letter")
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
@@ -427,6 +458,7 @@ def to_pdf_styled(title: str, body: str, style) -> bytes:
         else:  # body
             close_header()
             write_runs(4.5, text, 10)
+    _pdf_meta(pdf, body, "CV")
     return bytes(pdf.output())
 
 
@@ -549,6 +581,7 @@ def to_docx_cv(body: str, style) -> bytes:
         else:  # body
             runs(para(after=2), text, size=10)
 
+    _docx_meta(doc, body, "CV")
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
@@ -626,6 +659,7 @@ def to_docx_templated(orig_docx: bytes, title: str, body: str) -> bytes:
         else:
             _add_runs(text, None)
 
+    _docx_meta(doc, body, "CV")
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
