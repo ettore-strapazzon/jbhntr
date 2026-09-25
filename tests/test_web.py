@@ -1458,8 +1458,9 @@ def test_ingest_cadence_gates_metered_sources(monkeypatch):
     try:
         db.query(Job).delete(); db.commit()
         res = ingest.run("daily")
-        # Daily cycle: Lane A (boards + aggregators) + daily keyed; NOT jooble/serpapi.
-        assert "jooble" not in called and "serpapi" not in called
+        # Daily cycle: Lane A (boards + aggregators) + daily keyed; NOT serpapi.
+        assert "serpapi" not in called
+        assert "jooble" not in called      # Jooble dropped entirely
         assert "boards" in called
         assert "careerjet" in called       # a daily keyed source
         assert "jsearch" in called         # now daily (Google-for-Jobs backbone)
@@ -1468,7 +1469,8 @@ def test_ingest_cadence_gates_metered_sources(monkeypatch):
         called.clear()
         ingest.run("weekly")
         # Weekly cycle: only the metered weekly sources, no Lane A.
-        assert "jooble" in called and "serpapi" in called
+        assert "serpapi" in called
+        assert "jooble" not in called      # Jooble dropped from every cadence
         assert "jsearch" not in called     # daily now, not weekly
         assert "boards" not in called
     finally:

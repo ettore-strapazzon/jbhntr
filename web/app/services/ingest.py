@@ -48,7 +48,6 @@ _LOCALIZED_AGGREGATORS = {"adzuna"}
 # (serpapi_max_terms × serpapi_max_locations).
 KEYED_SOURCES = {
     "careerjet": ("careerjet_affid", keyed._careerjet),
-    "jooble": ("jooble_key", keyed._jooble),
     "reed": ("reed_key", keyed._reed),
     "web3career": ("web3career_key", keyed._web3career),
     "usajobs": ("usajobs_key", keyed._usajobs),
@@ -65,7 +64,7 @@ KEYED_SOURCES = {
 
 # The metered ceilings run weekly; everything else daily (§11b).
 SOURCE_CADENCE = {
-    "careerjet": "daily", "jooble": "weekly", "reed": "daily",
+    "careerjet": "daily", "reed": "daily",
     "web3career": "daily", "usajobs": "daily",
     # JSearch (Google-for-Jobs) is the Italy backbone and now has budget headroom
     # (10k/mo) — run it daily for fresher continental coverage.

@@ -40,7 +40,6 @@ def test_no_keys_means_no_providers_and_no_calls():
     "attr, expected",
     [
         ("careerjet_affid", "careerjet"),
-        ("jooble_key", "jooble"),
         ("reed_key", "reed"),
         ("findwork_key", "findwork"),
         ("web3career_key", "web3career"),
@@ -52,9 +51,19 @@ def test_each_key_activates_its_provider(attr, expected):
     assert keyed.configured(Settings(**{attr: "k"})) == [expected]
 
 
+def test_jooble_is_dropped():
+    # Jooble was removed (option A): stale ~1-day tracking links, snippet-only JDs.
+    from web.app.services import ingest
+    assert "jooble" not in ingest.KEYED_SOURCES
+    assert "jooble" not in ingest.SOURCE_CADENCE
+    assert "jooble_key" not in [attr for attr, _ in keyed.PROVIDERS]
+    assert not hasattr(keyed, "_jooble")
+
+
 def test_multiple_keys_activate_in_order():
+    # jooble_key is set but Jooble was dropped as a source, so it activates nothing.
     s = Settings(jooble_key="a", serpapi_key="b", reed_key="c")
-    assert keyed.configured(s) == ["jooble", "reed", "serpapi"]
+    assert keyed.configured(s) == ["reed", "serpapi"]
 
 
 def test_a_failing_provider_does_not_break_the_run(monkeypatch):

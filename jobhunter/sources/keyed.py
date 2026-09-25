@@ -35,10 +35,8 @@ log = logging.getLogger("jobhunter.sources.keyed")
 
 MAX_TERMS = 5          # queries per API per run, to bound cost
 RESULTS_PER_QUERY = 50
-# Result pages per query. Careerjet is free + generous (our top source), so page
-# deep; Jooble is metered (~500 calls/month), so stay shallow.
+# Result pages per query. Careerjet is free + generous (our top source), so page deep.
 CAREERJET_PAGES = 3
-JOOBLE_PAGES = 2
 
 
 # "Remote-EU"/"Remote-Anywhere" name no country a jobs API can search.
@@ -107,36 +105,6 @@ def _careerjet(profile: Profile, s: Settings) -> list[JobPosting]:
                     ))
                 if len(page_jobs) < 50:
                     break                       # last page for this term
-    return out
-
-
-def _jooble(profile: Profile, s: Settings) -> list[JobPosting]:
-    out: list[JobPosting] = []
-    location = (_cities(profile) or [""])[0]
-    with http_client() as c:
-        for term in _terms(profile):
-            for page in range(1, JOOBLE_PAGES + 1):
-                r = c.post(
-                    f"https://jooble.org/api/{s.jooble_key}",
-                    json={"keywords": term, "location": location, "page": page},
-                    headers={"Content-Type": "application/json"},
-                )
-                if r.status_code != 200:
-                    log.warning("Jooble %s p%d: HTTP %s", term, page, r.status_code)
-                    break
-                page_jobs = r.json().get("jobs", []) or []
-                for j in page_jobs:
-                    out.append(JobPosting(
-                        source="api:jooble",
-                        title=j.get("title", ""),
-                        company=j.get("company", ""),
-                        location=j.get("location", ""),
-                        description=strip_html(j.get("snippet", "")),
-                        url=j.get("link", ""),
-                        salary_text=j.get("salary", "") or "",
-                    ))
-                if not page_jobs:
-                    break                       # no more results for this term
     return out
 
 
@@ -477,7 +445,6 @@ def _jobtech(profile: Profile, s: Settings) -> list[JobPosting]:
 # (setting attribute that enables it, fetcher)
 PROVIDERS: list[tuple[str, Callable[[Profile, Settings], list[JobPosting]]]] = [
     ("careerjet_affid", _careerjet),
-    ("jooble_key", _jooble),
     ("reed_key", _reed),
     ("findwork_key", _findwork),
     ("web3career_key", _web3career),

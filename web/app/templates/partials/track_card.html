@@ -6,6 +6,19 @@
     <div class="trk-title">
       <b>{{ r.title }}</b>
       <div class="muted small">{{ r.company }}{% if r.location %} · {{ r.location }}{% endif %}</div>
+      {# Keep the match score visible after a job leaves Matches (same pill as the
+         result card, so the number/word/pips read identically). #}
+      {% if r.tier %}
+        {% set pips = [4, 3, 2, 1, 1][r.tier - 1] if 1 <= r.tier <= 5 else 1 %}
+        {% set tword = tier_word(r.tier) or r.tier_label %}
+        <div class="trk-score">
+          <span class="score">{{ r.score }}<span class="muted small">/100</span></span>
+          <span class="strength s-t{{ r.tier }}" title="{{ tword }} match &middot; {{ r.score }}/100">
+            <span class="pips" aria-hidden="true">{% for i in range(4) %}<span class="pip{% if i < pips %} on{% endif %}"></span>{% endfor %}</span>
+            <span class="sw"><span class="sr-only">Match strength: </span>{{ tword }}</span>
+          </span>
+        </div>
+      {% endif %}
     </div>
     <span class="trk-badge s-{{ stage|lower }}">
       {% if stage == 'Closed' %}{{ st.application_status }}{% if st.closed_from_stage %} · after {{ st.closed_from_stage|lower }}{% endif %}

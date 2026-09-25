@@ -1216,6 +1216,9 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .trk{border:1px solid var(--border-subtle);border-radius:10px;padding:12px 14px;background:var(--surface-raised)}
 .trk-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .trk-title b{font-size:1rem}
+.trk-score{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.trk-score .score{font-size:17px}          /* denser than the full result card */
+.trk-score .strength{margin-bottom:0;padding:6px 10px}  /* undo the profile-block leak */
 .trk-badge{white-space:nowrap;font-size:.78rem;padding:2px 8px;border-radius:999px;background:var(--border-subtle);color:var(--text-primary)}
 .trk-badge.s-saved{background:var(--corn-100)}
 .trk-badge.s-applied{background:var(--corn-100);color:var(--navy-800)}
