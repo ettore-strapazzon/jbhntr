@@ -11,10 +11,19 @@ from sqlalchemy.orm import Session, sessionmaker
 from .config import ROOT, config
 from .models import Base
 
-url = config.database_url
-# Railway hands out postgres:// but SQLAlchemy 2 wants postgresql+psycopg2://
-if url.startswith("postgres://"):
-    url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+def _normalize_db_url(url: str) -> str:
+    """Pin psycopg2 for Postgres. Railway hands out both postgres:// and
+    postgresql://; for a bare postgresql:// URL SQLAlchemy 2 defaults to the
+    psycopg (v3) driver, which we don't install — so force psycopg2 for both bare
+    prefixes. A URL that already names a driver (postgresql+psycopg2://, +asyncpg)
+    is left untouched."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
+    return url
+
+
+url = _normalize_db_url(config.database_url)
 
 if url.startswith("sqlite"):
     (ROOT / "data").mkdir(parents=True, exist_ok=True)
