@@ -1190,6 +1190,11 @@ a.plan-cta,.plan-cta .btn{align-self:start}
   main{padding:20px 16px 96px}
   .bar{flex-wrap:wrap;row-gap:8px}
   .bar nav{gap:10px;width:100%;justify-content:flex-start;overflow-x:auto}
+  /* Logged-out mobile: lift the theme toggle onto the brand row (far right) so
+     the header is two rows, not three — the CTA row no longer trails an empty
+     third row just for the toggle. */
+  body:not(.authed) .bar .theme-toggle{order:1;margin-left:auto}
+  body:not(.authed) .bar nav{order:2}
   /* one job card, one column of full-width actions the thumb can hit */
   .actions{gap:8px}
   .actions .btn,.actions>button,.actions form{flex:1 1 46%}
