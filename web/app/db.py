@@ -167,7 +167,7 @@ def _add_missing_columns() -> None:
                       "gdoc_url": ("TEXT", "DEFAULT ''"),
                       "font": ("TEXT", "DEFAULT ''")},
         "materials": {"style_json": ("TEXT", "DEFAULT ''")},
-        "feedback": {"rating": ("INTEGER", "")},
+        "feedback": {"rating": ("INTEGER", ""), "user_score": ("INTEGER", "")},
         "page_views": {"visitor": ("TEXT", "")},
     }
     import logging

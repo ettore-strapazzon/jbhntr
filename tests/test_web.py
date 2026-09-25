@@ -72,36 +72,38 @@ def test_f09_feedback_htmx_returns_partial_else_redirects(client):
         u = db.query(User).filter_by(email="f09@example.com").one()
         s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
         jr = JobResult(search_id=s.id, user_id=u.id, position=1, short_id="z",
-                       tier=2, title="Role", company="Co")
+                       tier=2, score=80, title="Role", company="Co")
         db.add(jr); db.commit(); rid = jr.id
     finally:
         db.close()
 
-    # R9: feedback is now a 1-5 rating; vote is derived from it.
-    r = client.post(f"/feedback/{rid}", data={"rating": "5"},
+    # R9: feedback is now a self-score on our own 0-100 scale; the 1-5 rating and
+    # vote are derived from it.
+    r = client.post(f"/feedback/{rid}", data={"score": "95"},
                     headers={"HX-Request": "true"}, follow_redirects=False)
     assert r.status_code == 200
-    assert f"vote-{rid}" in r.text and 'name="rating" value="5"' in r.text
-    assert 'aria-pressed="true"' in r.text        # the rating is reflected
-    # COPY-010: 4-5 saves immediately with no reason prompt
+    assert f"vote-{rid}" in r.text and 'name="score"' in r.text and 'value="95"' in r.text
+    assert "Excellent" in r.text                   # live tier word for 95
+    assert "is-off" in r.text                       # 95 vs our 80 -> the "why" box shows
+    assert "what did we get wrong" in r.text
     assert "context for future scans" in r.text
-    assert "What made it" not in r.text            # no reason question on a high rating
 
     from web.app.db import SessionLocal
-    from web.app.models import Feedback
+    from web.app.models import Feedback, rating_for_score
+    assert [rating_for_score(x) for x in (95, 80, 60, 40, 10)] == [5, 4, 3, 2, 1]
     db2 = SessionLocal()
     try:
         fb = db2.query(Feedback).filter_by(job_result_id=rid).one()
-        assert fb.rating == 5 and fb.vote == "up"  # vote derived from rating
+        assert fb.user_score == 95 and fb.rating == 5 and fb.vote == "up"
     finally:
         db2.close()
 
-    # a low rating (1-3) asks for the reason
-    rlow = client.post(f"/feedback/{rid}", data={"rating": "2"},
-                       headers={"HX-Request": "true"}, follow_redirects=False)
-    assert "What made it irrelevant or misleading?" in rlow.text
+    # A self-score close to ours (82 vs 80) agrees -> no "why" box.
+    ragree = client.post(f"/feedback/{rid}", data={"score": "82"},
+                         headers={"HX-Request": "true"}, follow_redirects=False)
+    assert "is-off" not in ragree.text
 
-    r2 = client.post(f"/feedback/{rid}", data={"rating": "1"}, follow_redirects=False)
+    r2 = client.post(f"/feedback/{rid}", data={"score": "10"}, follow_redirects=False)
     assert r2.status_code == 303                  # non-HTMX keeps the redirect
 
 

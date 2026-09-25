@@ -271,18 +271,21 @@ select[multiple] option{padding:5px 8px;border-radius:5px}
 /* 1-5 match rating (R9.3) */
 .rate{margin-top:14px}
 .rate fieldset{border:0;padding:0;margin:0}
-.ratebtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-.ratebtn{min-width:64px;min-height:44px;display:grid;gap:1px;place-items:center;
-  padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface-raised);cursor:pointer}
-.ratebtn .n{font:700 14px/1 var(--mono)}
-.ratebtn .l{font-size:10.5px;color:var(--text-secondary);letter-spacing:.02em}
-.ratebtn:hover{border-color:var(--action-primary)}
-.ratebtn.on{background:var(--accent-selected);border:2px solid var(--action-primary);color:var(--action-primary)}
-.ratebtn.on .l{color:var(--text-secondary)}
+/* self-score slider (R9): drag your own 0-100; the tier word tracks it live */
+.selfscore{display:flex;align-items:center;gap:14px;margin-top:8px;flex-wrap:wrap}
+.scoreslider{flex:1;min-width:160px;min-height:44px;accent-color:var(--action-primary)}
+.selfscore-out{display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap}
+.ss-num{font:800 20px/1 var(--mono)}
+.ss-slash{font-size:12px}
+.ss-word{font:700 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--tier-4)}
+.ss-word.s-t1{color:var(--tier-1)} .ss-word.s-t2{color:var(--tier-2)}
+.ss-word.s-t3{color:var(--tier-3)} .ss-word.s-t4{color:var(--tier-4)}
+.selfrate-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .ratenote{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .ratenote input[type=text]{flex:1;min-width:200px;min-height:44px}
+.selfrate .ratenote{display:none}          /* only shown when the scores disagree */
+.selfrate.is-off .ratenote{display:flex}
 .rate .thanks{font-size:13px;color:var(--text-secondary)}
-@media (max-width:720px){.ratebtn{flex:1;min-width:0}.ratebtn .l{display:none}}
 .hint{display:block;font-size:12.5px;color:var(--text-secondary);font-weight:400;margin-top:4px}
 .checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .checks label{display:inline-flex;align-items:center;gap:6px;font-weight:400;margin:0;

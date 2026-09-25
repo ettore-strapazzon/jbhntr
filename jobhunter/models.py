@@ -22,6 +22,14 @@ TIER_LABELS = {
 }
 
 
+def tier_for_score(score: int) -> int:
+    """Map a 0-100 match score to its display tier (bands per TIER_LABELS).
+    ponytail: the same bands are duplicated in app.js for the live self-score
+    slider — keep them in sync if the thresholds ever move."""
+    s = score or 0
+    return 1 if s >= 85 else 2 if s >= 70 else 3 if s >= 55 else 4
+
+
 REMOTE_WORDS = ("remote", "anywhere", "worldwide", "distributed", "global")
 
 

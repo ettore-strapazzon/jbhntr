@@ -1,35 +1,40 @@
-{# 1-5 match rating with an optional reason (R9). Swapped in place by HTMX so a
-   rating never reloads the page. rating_labels is a template global. #}
-<div id="vote-{{ r.id }}" class="rate">
+{# Self-score feedback (R9): the user re-scores the match on our own 0-100 scale.
+   The live tier word mirrors the card; when their score diverges from ours the
+   "why" box appears (in-page via app.js, and server-rendered here on reload).
+   Swapped in place by HTMX so scoring never reloads the page. #}
+{% set app_score = r.score or 0 %}
+{% set us = fb.user_score if (fb and fb.user_score is not none) else app_score %}
+{% set off = fb and fb.user_score is not none and (fb.user_score - app_score) | abs >= 10 %}
+<div id="vote-{{ r.id }}" class="rate selfrate{% if off %} is-off{% endif %}"
+     data-app-score="{{ app_score }}">
   <form hx-post="/feedback/{{ r.id }}" hx-target="#vote-{{ r.id }}" hx-swap="outerHTML"
         method="post" action="/feedback/{{ r.id }}">
     <fieldset>
-      <legend class="small muted">Was this role worth showing?</legend>
-      <div class="ratebtns">
-        {% for n, label in rating_labels %}
-          <button type="submit" name="rating" value="{{ n }}"
-            class="ratebtn{% if fb and fb.rating == n %} on{% endif %}"
-            aria-pressed="{{ 'true' if fb and fb.rating == n else 'false' }}">
-            <span class="n">{{ n }}</span><span class="l">{{ label }}</span>
-          </button>
-        {% endfor %}
+      <legend class="small muted">How would you have scored this match?
+        <span class="muted">0–100 — tells us when our score is off</span></legend>
+      <div class="selfscore">
+        <input type="range" name="score" min="0" max="100" step="1" value="{{ us }}"
+               class="scoreslider" aria-label="Your match score, 0 to 100">
+        <output class="selfscore-out" aria-live="polite">
+          <b class="ss-num">{{ us }}</b><span class="ss-slash muted">/100</span>
+          <span class="ss-word s-t{{ score_tier(us) }}">{{ score_word(us) }}</span>
+        </output>
       </div>
     </fieldset>
-    {% if fb and fb.rating %}
-      {% if fb.rating <= 3 %}
-        <div class="ratenote">
-          <input type="hidden" name="rating" value="{{ fb.rating }}">
-          <label for="note-{{ r.id }}" class="small">What made it irrelevant or misleading?
-            <span class="muted">optional, one line</span></label>
-          <input id="note-{{ r.id }}" type="text" name="note" value="{{ fb.note or '' }}"
-            maxlength="{{ config.max_feedback_chars }}"
-            placeholder="too junior, wrong city, not really a product role">
-          <button type="submit" class="ghost">Save</button>
-          <span class="thanks" role="status">Saved. This feedback becomes context for future scans.</span>
-        </div>
-      {% else %}
-        <p class="thanks small" role="status">Saved. This feedback becomes context for future scans.</p>
+    {# Shown only when the two scores disagree (CSS keys off .is-off). #}
+    <div class="ratenote">
+      <label for="note-{{ r.id }}" class="small">We scored it
+        <b class="ss-appscore">{{ app_score }}</b> — what did we get wrong?
+        <span class="muted">optional, one line</span></label>
+      <input id="note-{{ r.id }}" type="text" name="note" value="{{ fb.note if fb else '' }}"
+        maxlength="{{ config.max_feedback_chars }}"
+        placeholder="strong ops fit you missed; or too senior for me / wrong city">
+    </div>
+    <div class="selfrate-actions">
+      <button type="submit" class="ghost">Save your score</button>
+      {% if fb and fb.user_score is not none %}
+        <span class="thanks small" role="status">Saved. This feedback becomes context for future scans.</span>
       {% endif %}
-    {% endif %}
+    </div>
   </form>
 </div>

@@ -328,7 +328,13 @@ def _system_prompt(
             why = ex.get("why", "")
             title = ex.get("title", "")
             company = ex.get("company", "")
-            parts.append(f"- [{verdict}] {title} @ {company}: {why}")
+            # Surface the candidate's own score vs ours, when they gave one — the
+            # gap is the calibration correction to learn from.
+            us, ours = ex.get("user_score"), ex.get("our_score")
+            tag = verdict
+            if us is not None:
+                tag += f", they scored {us}/100 vs our {ours}"
+            parts.append(f"- [{tag}] {title} @ {company}: {why}")
         parts.append(
             "Weight these strongly: adjust tiers to reflect what the candidate "
             "marked as good or bad matches and why."

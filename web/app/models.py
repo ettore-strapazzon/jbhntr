@@ -372,7 +372,8 @@ class Feedback(Base):
     job_result_id: Mapped[int] = mapped_column(ForeignKey("job_results.id", ondelete="CASCADE"),
                                                index=True)
     vote: Mapped[str] = mapped_column(String(8), default="")   # up | down, derived from rating
-    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)   # 1..5 (R9)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)   # 1..5 (R9), derived from user_score
+    user_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the user's own 0-100 for this match
     note: Mapped[str] = mapped_column(String(300), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -382,6 +383,13 @@ class Feedback(Base):
 RATING_LABELS = [(1, "Not close"), (2, "Weak"), (3, "Borderline"),
                  (4, "Good"), (5, "Exactly right")]
 RATING_TO_VOTE = {1: "down", 2: "down", 3: "", 4: "up", 5: "up"}
+
+
+def rating_for_score(score: int) -> int:
+    """A self-scored 0-100 -> the stored 1-5 rating (feeds verdict/weight).
+    High self-score = the user thinks it's a strong match, so it maps to 'ideal'."""
+    s = score or 0
+    return 5 if s >= 85 else 4 if s >= 70 else 3 if s >= 55 else 2 if s >= 35 else 1
 RATING_WEIGHT = {1: 1.0, 2: 0.6, 3: 0.0, 4: 0.6, 5: 1.0}
 RATING_VERDICT = {1: "wrong", 2: "weak", 3: "borderline", 4: "good", 5: "ideal"}
 

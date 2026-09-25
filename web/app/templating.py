@@ -15,9 +15,6 @@ templates.env.globals["config"] = config
 # Render reason prose as short bullets in the job card (R8.2).
 from .services.text import as_bullets  # noqa: E402
 templates.env.globals["as_bullets"] = as_bullets
-# 1-5 rating labels for the feedback control (R9).
-from .models import RATING_LABELS  # noqa: E402
-templates.env.globals["rating_labels"] = RATING_LABELS
 
 
 # Provenance (AX-3): turn a raw source token into a human phrase for the card, so
@@ -47,7 +44,7 @@ templates.env.globals["source_phrase"] = source_phrase
 # Strength word from the tier at render time (AX-2), not the value stored on the
 # row when it was scored — so a relabel shows immediately on old and new results
 # alike, with no re-scan needed.
-from jobhunter.models import TIER_LABELS  # noqa: E402
+from jobhunter.models import TIER_LABELS, tier_for_score  # noqa: E402
 
 
 def tier_word(tier) -> str:
@@ -58,6 +55,10 @@ def tier_word(tier) -> str:
 
 
 templates.env.globals["tier_word"] = tier_word
+# Self-score helpers: turn a 0-100 into its tier number / word (for the feedback
+# slider's initial server render; app.js keeps it live as the slider moves).
+templates.env.globals["score_tier"] = lambda s: tier_for_score(int(s or 0))
+templates.env.globals["score_word"] = lambda s: TIER_LABELS[tier_for_score(int(s or 0))]
 # Cache-buster for static assets. Changes every deploy (new commit SHA, or a
 # fresh process start), so a CSS/JS change is never masked by a stale cache.
 templates.env.globals["asset_v"] = (

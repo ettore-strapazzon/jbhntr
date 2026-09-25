@@ -733,7 +733,9 @@ def _feedback_examples(db: DbSession, user: User) -> list[dict]:
             "url": jr.apply_url,
             "verdict": RATING_VERDICT.get(fb.rating or 3, "borderline"),
             "weight": RATING_WEIGHT.get(fb.rating or 3, 0.0),
-            "reason": fb.note or "",
+            "why": fb.note or "",            # matcher reads "why" (was silently dropped)
+            "user_score": fb.user_score,     # the candidate's own 0-100, when given
+            "our_score": jr.score,           # what we scored it — the disagreement
         }
         for fb, jr in rows
     ]

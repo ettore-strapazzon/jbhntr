@@ -219,6 +219,22 @@ document.addEventListener("input", function (e) {
     var out = document.getElementById(e.target.getAttribute("data-counter"));
     if (out) out.textContent = (max - e.target.value.length) + " left";
   }
+  // Self-score slider (R9): keep the number + tier word live, and reveal the
+  // "why" box once the user's score diverges from ours by 10+.
+  // ponytail: bands mirror jobhunter/models.tier_for_score — keep in sync.
+  if (e.target && e.target.matches(".scoreslider")) {
+    var wrap = e.target.closest(".selfrate");
+    if (!wrap) return;
+    var v = parseInt(e.target.value, 10) || 0;
+    var app = parseInt(wrap.getAttribute("data-app-score"), 10) || 0;
+    var tier = v >= 85 ? 1 : v >= 70 ? 2 : v >= 55 ? 3 : 4;
+    var word = ["", "Excellent", "Strong", "Fair", "Long shot"][tier];
+    var num = wrap.querySelector(".ss-num");
+    var w = wrap.querySelector(".ss-word");
+    if (num) num.textContent = v;
+    if (w) { w.textContent = word; w.className = "ss-word s-t" + tier; }
+    wrap.classList.toggle("is-off", Math.abs(v - app) >= 10);
+  }
 });
 
 // Generation overlay (AX-5): staged progress while a tailored CV/CL drafts, so a
