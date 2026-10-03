@@ -30,6 +30,18 @@ log = logging.getLogger("jbhntr")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    # A scan runs in a daemon thread; this restart just killed any in-flight one,
+    # leaving its Search row stuck 'running'. Recover them (and refund) so the user
+    # isn't staring at a progress bar that will never finish.
+    try:
+        from .services.search_service import fail_stuck_searches
+        _db = SessionLocal()
+        try:
+            fail_stuck_searches(_db)
+        finally:
+            _db.close()
+    except Exception:
+        log.exception("stuck-search recovery at boot failed")
     problems = config.validate()
     for p in problems:
         log.warning("CONFIG: %s", p)

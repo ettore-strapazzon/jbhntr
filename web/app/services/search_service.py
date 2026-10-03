@@ -105,6 +105,45 @@ def start_search(db: DbSession, user: User, free: bool = False) -> Search:
 
 
 # --------------------------------------------------------------------------- #
+def fail_stuck_searches(db: DbSession, older_than_minutes: int | None = None) -> int:
+    """Recover scans left 'running'/'queued' by an interrupted worker.
+
+    A scan runs in a daemon thread inside the web process, so a deploy or restart
+    kills it mid-run with no exception — stranding the Search row forever and the
+    progress poller with it. At boot every such row is an orphan (threads don't
+    survive a restart), so this is called with no age filter in the app lifespan;
+    the status poller also calls it with a timeout to recover a thread that hung
+    without the process dying. Each row is marked failed and its charge undone
+    (refund a paid scan — idempotent — or free the first-scan slot)."""
+    from . import credits
+    from ..models import CreditLedger
+
+    q = db.query(Search).filter(Search.status.in_(("running", "queued")))
+    if older_than_minutes is not None:
+        q = q.filter(Search.started_at < utcnow() - timedelta(minutes=older_than_minutes))
+    stuck = q.all()
+    for s in stuck:
+        _set(db, s, status="failed", stage="",
+             error="Interrupted — please run the scan again.", finished_at=utcnow())
+        debit = (db.query(CreditLedger)
+                 .filter(CreditLedger.idempotency_key == f"search:{s.id}").first())
+        if debit is not None:
+            credits.refund(db, debit)        # idempotent; no-op if it wasn't a debit
+        else:
+            first = (db.query(CreditLedger)
+                     .filter(CreditLedger.reason == "first_scan_free",
+                             CreditLedger.ref_id == str(s.id)).first())
+            if first is not None:
+                u = db.get(User, s.user_id)
+                if u is not None and u.first_scan_used_at is not None:
+                    u.first_scan_used_at = None      # let them retry the free scan
+                    db.commit()
+    if stuck:
+        log.info("Recovered %d interrupted search(es)", len(stuck))
+    return len(stuck)
+
+
+# --------------------------------------------------------------------------- #
 def _set(db: DbSession, search: Search, **fields) -> None:
     for k, v in fields.items():
         setattr(search, k, v)

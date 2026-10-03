@@ -63,6 +63,38 @@ def test_f04_short_objective_is_rejected_not_saved_silently(client):
         db.close()
 
 
+def test_fail_stuck_searches_recovers_and_refunds(client):
+    # A scan runs in a daemon thread; a deploy kills it mid-run, leaving the row
+    # 'running' forever. Recovery marks it failed and refunds the paid credit.
+    signup(client, email="stuck@example.com")
+    from web.app.db import SessionLocal
+    from web.app.models import CreditLedger, Search, User
+    from web.app.services import credits
+    from web.app.services.search_service import fail_stuck_searches
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="stuck@example.com").one()
+        s = Search(user_id=u.id, status="running", stage="Scoring…"); db.add(s); db.flush()
+        debit = credits.debit(db, u, 2, "search", ref_type="search", ref_id=str(s.id),
+                              idempotency_key=f"search:{s.id}")
+        db.commit()
+
+        fail_stuck_searches(db)                 # boot-style: no age filter
+        db.refresh(s)
+        assert s.status == "failed"
+        # A refund row keyed to this debit exists (checked directly, so other tests'
+        # searches in the shared DB can't skew a global balance assertion).
+        rk = f"refund:{debit.id}"
+        refunds = db.query(CreditLedger).filter(CreditLedger.idempotency_key == rk).all()
+        assert len(refunds) == 1 and refunds[0].delta == 2
+
+        # Idempotent: a second pass neither re-fails nor re-refunds.
+        fail_stuck_searches(db)
+        assert db.query(CreditLedger).filter(CreditLedger.idempotency_key == rk).count() == 1
+    finally:
+        db.close()
+
+
 def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     signup(client, email="f09@example.com")
     from web.app.db import SessionLocal
