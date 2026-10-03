@@ -45,7 +45,7 @@
   {% for group in m.groups %}
     <h2 class="grouplabel">{{ group.label }}</h2>
     {% for card in group.cards %}
-      {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}
+      {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}{% set added = card.added %}
       {% include "partials/job_card.html" %}
     {% endfor %}
   {% endfor %}
@@ -54,7 +54,7 @@
     <details class="longshots">
       <summary><b>Long shots</b> ({{ m.long_shots | length }}). Weaker matches worth a glance.</summary>
       {% for card in m.long_shots %}
-        {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}
+        {% set r = card.r %}{% set st = card.st %}{% set fb = voted.get(card.r.id) %}{% set is_new = card.is_new %}{% set added = card.added %}
         {% include "partials/job_card.html" %}
       {% endfor %}
     </details>

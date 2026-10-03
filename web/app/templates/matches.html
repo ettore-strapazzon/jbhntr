@@ -98,7 +98,8 @@
     <div class="filter-sort">
       <select name="sort" aria-label="Sort">
         <option value="best" {% if f_sort=='best' %}selected{% endif %}>Best match</option>
-        <option value="newest" {% if f_sort=='newest' %}selected{% endif %}>Newest first</option>
+        <option value="newest" {% if f_sort=='newest' %}selected{% endif %}>New since last scan</option>
+        <option value="added" {% if f_sort=='added' %}selected{% endif %}>Date added</option>
         <option value="fit" {% if f_sort=='fit' %}selected{% endif %}>Highest requirement fit</option>
       </select>
       <noscript><button class="ghost" type="submit">Apply</button></noscript>

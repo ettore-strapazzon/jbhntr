@@ -20,9 +20,15 @@ from .text import as_bullets
 
 # Tier -> group. 1/2/3 get their own group; 4 and 5 are long shots.
 TIER_GROUPS = [(1, "Excellent"), (2, "Strong"), (3, "Fair")]   # one strength lexicon (AX-2)
+def _ts(dt) -> float:
+    a = aware(dt)
+    return a.timestamp() if a else 0.0
+
+
 SORTS = {
     "best": lambda c: (-c.r.score, c.r.position),
     "newest": lambda c: (0 if c.is_new else 1, -c.r.id),
+    "added": lambda c: -_ts(c.added),            # most recently added first
     "fit": lambda c: (-c.r.fit_candidate, -c.r.score),
 }
 
@@ -32,6 +38,7 @@ class Card:
     r: JobResult
     st: JobState | None
     is_new: bool
+    added: object = None        # when this posting first appeared for the user
 
     @property
     def good_bullets(self) -> list[str]:
@@ -99,7 +106,7 @@ def build(db: DbSession, user, *, run_id: int | None = None,
         if r.source:
             sources.add(r.source)
         is_new = bool(cutoff and aware(first_seen[key]) and aware(first_seen[key]) >= cutoff)
-        cards.append(Card(r=r, st=st, is_new=is_new))
+        cards.append(Card(r=r, st=st, is_new=is_new, added=first_seen[key]))
 
     total = len(cards)
 

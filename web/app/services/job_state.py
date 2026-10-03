@@ -76,10 +76,13 @@ def get_or_create(db: DbSession, user_id: int, dedup_key: str) -> JobState:
 
 
 def set_saved(db: DbSession, user_id: int, dedup_key: str, saved: bool) -> JobState:
+    from ..models import utcnow
     st = get_or_create(db, user_id, dedup_key)
     st.saved = saved
     if saved:
         st.dismissed = False        # saving un-dismisses; the two contradict
+        if st.saved_at is None:     # first time saved — the "date saved"
+            st.saved_at = utcnow()
     db.commit()
     return st
 
@@ -142,8 +145,11 @@ def set_stage(db: DbSession, user_id: int, dedup_key: str, stage: str) -> JobSta
 def to_saved(db: DbSession, user_id: int, dedup_key: str) -> JobState:
     """Move a job back to the Saved column — undo an 'I applied' (or a later
     stage), clearing the application but keeping it saved."""
+    from ..models import utcnow
     st = get_or_create(db, user_id, dedup_key)
     st.saved = True
+    if st.saved_at is None:
+        st.saved_at = utcnow()
     st.applied_at = None
     st.application_status = ""
     st.closed_from_stage = ""

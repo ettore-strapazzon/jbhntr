@@ -177,6 +177,7 @@ def _add_missing_columns() -> None:
                       "font": ("TEXT", "DEFAULT ''")},
         "materials": {"style_json": ("TEXT", "DEFAULT ''")},
         "feedback": {"rating": ("INTEGER", ""), "user_score": ("INTEGER", "")},
+        "job_states": {"saved_at": ("TIMESTAMP", "")},
         "page_views": {"visitor": ("TEXT", "")},
     }
     import logging

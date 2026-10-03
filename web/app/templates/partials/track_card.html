@@ -6,6 +6,10 @@
     <div class="trk-title">
       <b>{{ r.title }}</b>
       <div class="muted small">{{ r.company }}{% if r.location %} · {{ r.location }}{% endif %}</div>
+      <div class="muted small trk-dates">
+        {% if r.created_at %}Added {{ r.created_at.strftime('%d %b') }}{% endif %}
+        {% if st.saved_at or st.created_at %} · Saved {{ (st.saved_at or st.created_at).strftime('%d %b') }}{% endif %}
+      </div>
       {# Keep the match score visible after a job leaves Matches (same pill as the
          result card, so the number/word/pips read identically). #}
       {% if r.tier %}

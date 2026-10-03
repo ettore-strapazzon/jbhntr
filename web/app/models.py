@@ -412,6 +412,7 @@ class JobState(Base):
     saved: Mapped[bool] = mapped_column(Boolean, default=False)
     dismissed: Mapped[bool] = mapped_column(Boolean, default=False)
     dismiss_reason: Mapped[str] = mapped_column(String(40), default="")
+    saved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     # Applied | Interviewing | Offer | Accepted | Rejected | Withdrawn ("Saved" and
     # "Closed" are derived, never stored — see services/job_state.stage_of).

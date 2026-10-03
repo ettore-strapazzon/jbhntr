@@ -1227,6 +1227,9 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .trk-score{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
 .trk-score .score{font-size:17px}          /* denser than the full result card */
 .trk-score .strength{margin-bottom:0;padding:6px 10px}  /* undo the profile-block leak */
+.trk-dates{margin-top:4px}
+.trk-sort{display:flex;align-items:center;gap:8px;margin:4px 0 14px}
+.trk-sort select{width:auto;min-height:40px;padding:6px 10px}
 .trk-badge{white-space:nowrap;font-size:.78rem;padding:2px 8px;border-radius:999px;background:var(--border-subtle);color:var(--text-primary)}
 .trk-badge.s-saved{background:var(--corn-100)}
 .trk-badge.s-applied{background:var(--corn-100);color:var(--navy-800)}

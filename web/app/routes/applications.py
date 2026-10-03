@@ -90,13 +90,21 @@ def applications_page(request: Request, error: str = "",
         if n:
             needs.append(n)
 
+    # Sort within each stage: recent activity (default), date added, or date saved.
+    sort = request.query_params.get("sort", "activity")
+    sort_keys = {
+        "activity": lambda x: aware(x["st"].updated_at) or utcnow(),
+        "added": lambda x: aware(x["r"].created_at) or utcnow(),
+        "saved": lambda x: (aware(x["st"].saved_at) or aware(x["st"].created_at) or utcnow()),
+    }
+    key = sort_keys.get(sort, sort_keys["activity"])
     for s in groups:
-        groups[s].sort(key=lambda x: aware(x["st"].updated_at) or utcnow(), reverse=True)
+        groups[s].sort(key=key, reverse=True)
     needs.sort(key=lambda n: n["order"])
 
     return templates.TemplateResponse(request, "applications.html", {
         "request": request, "user": user, "config": config, "error": error,
-        "allow": doc_quota.allowance(db, user),
+        "allow": doc_quota.allowance(db, user), "sort": sort,
         "groups": groups, "counts": counts, "needs": needs,
         "stage_order": job_state.STAGE_ORDER,
         "pipeline_stages": job_state.PIPELINE_STAGES,

@@ -67,7 +67,7 @@
           {% if r.location %} · {{ r.location }}{% endif %}
         </div>
         {% if r.company_blurb %}<div class="muted small">{{ r.company_blurb }}</div>{% endif %}
-        {% if r.source %}<div class="provenance"><svg class="pv-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Found via {{ source_phrase(r.source) }}</div>{% endif %}
+        {% if r.source %}<div class="provenance"><svg class="pv-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Found via {{ source_phrase(r.source) }}{% if added is defined and added %} · added {{ added.strftime('%d %b') }}{% endif %}</div>{% endif %}
       </div>
     </div>
     {% if r.tags %}<div class="tags">{% for t in r.tags[:5] %}<span class="tag">{{ t }}</span>{% endfor %}</div>{% endif %}

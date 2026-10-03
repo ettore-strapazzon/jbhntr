@@ -92,6 +92,17 @@ def test_fail_stuck_searches_recovers_and_refunds(client):
         fail_stuck_searches(db)
         assert db.query(CreditLedger).filter(CreditLedger.idempotency_key == rk).count() == 1
     finally:
+        # Remove just the rows this test added (not the user — deleting it mid-suite
+        # cascades into shared state). Keeps the shared SQLite DB clean for the
+        # reaper tests, which sweep the whole corpus.
+        try:
+            db.query(CreditLedger).filter(
+                CreditLedger.idempotency_key.in_([f"search:{s.id}", rk])).delete(
+                synchronize_session=False)
+            db.query(Search).filter(Search.id == s.id).delete(synchronize_session=False)
+            db.commit()
+        except Exception:
+            db.rollback()
         db.close()
 
 

@@ -38,6 +38,18 @@
     </section>
   {% endif %}
 
+  {# Sort within each stage. data-nav-sort reloads the page with ?sort= via app.js
+     (the CSP forbids an inline onchange); the submit button is the no-JS fallback. #}
+  <form class="trk-sort" method="get" action="/applications">
+    <label for="trk-sort" class="small muted">Sort</label>
+    <select id="trk-sort" name="sort" aria-label="Sort tracked jobs" data-nav-sort>
+      <option value="activity" {% if sort=='activity' %}selected{% endif %}>Recent activity</option>
+      <option value="added" {% if sort=='added' %}selected{% endif %}>Date added</option>
+      <option value="saved" {% if sort=='saved' %}selected{% endif %}>Date saved</option>
+    </select>
+    <noscript><button class="ghost small" type="submit">Sort</button></noscript>
+  </form>
+
   {% for stage in stage_order %}
     {% set rows = groups[stage] %}
     {% if rows %}

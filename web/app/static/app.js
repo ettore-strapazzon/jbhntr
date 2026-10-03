@@ -213,6 +213,16 @@ document.addEventListener("click", function (e) {
 })();
 
 // Live counter for the 300-character feedback boxes.
+// Sort select that reloads the page with its value as a query param (the CSP
+// forbids an inline onchange). Used by My Jobs; the submit button is the no-JS path.
+document.addEventListener("change", function (e) {
+  if (e.target && e.target.matches("[data-nav-sort]")) {
+    var u = new URL(window.location.href);
+    u.searchParams.set(e.target.name, e.target.value);
+    window.location.assign(u.toString());
+  }
+});
+
 document.addEventListener("input", function (e) {
   if (e.target && e.target.matches("textarea[data-counter]")) {
     var max = parseInt(e.target.getAttribute("maxlength") || "300", 10);
