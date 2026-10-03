@@ -223,6 +223,84 @@ document.addEventListener("change", function (e) {
   }
 });
 
+// Bulk drafting (My Jobs): tick jobs, then draft the missing CV/CLs in sequence,
+// reusing the per-job /generate endpoint (which charges + refunds on failure).
+// Jobs that already have that draft are skipped so nobody pays twice.
+(function () {
+  function bar() { return document.getElementById("bulk-bar"); }
+
+  function refresh() {
+    var b = bar();
+    if (!b) return;
+    var n = document.querySelectorAll(".bulk-pick:checked").length;
+    b.hidden = n === 0;
+    var c = b.querySelector(".bulk-count b");
+    if (c) c.textContent = n;
+  }
+
+  function progress(msg) {
+    var b = bar(); if (!b) return;
+    var p = b.querySelector(".bulk-progress");
+    if (p) p.textContent = msg || "";
+  }
+
+  document.addEventListener("change", function (e) {
+    if (e.target && e.target.matches(".bulk-pick")) refresh();
+  });
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest("[data-bulk-gen]");
+    if (!btn) return;
+    e.preventDefault();
+    run(btn.getAttribute("data-bulk-gen"));
+  });
+
+  async function run(kind) {
+    var b = bar(); if (!b) return;
+    var isCv = kind === "cv";
+    var cost = parseInt(b.getAttribute(isCv ? "data-cost-cv" : "data-cost-cl"), 10) || 0;
+    var label = isCv ? "CV" : "cover letter";
+    var attr = isCv ? "has-cv" : "has-cl";
+    // Only jobs that are ticked AND missing this draft (skip-existing).
+    var picks = Array.prototype.filter.call(
+      document.querySelectorAll(".bulk-pick:checked"),
+      function (c) { return c.getAttribute("data-" + attr) === "0"; });
+    if (!picks.length) {
+      progress("All selected jobs already have a " + label + ".");
+      return;
+    }
+    var total = picks.length * cost;
+    var plural = picks.length > 1 ? "s" : "";
+    if (!window.confirm("Draft " + picks.length + " " + label + plural + " for "
+        + total + " credit" + (total === 1 ? "" : "s")
+        + "? Jobs that already have one are skipped.")) return;
+
+    var buttons = b.querySelectorAll("[data-bulk-gen]");
+    buttons.forEach(function (x) { x.disabled = true; });
+    var done = 0, failed = 0, stopped = false;
+    for (var i = 0; i < picks.length; i++) {
+      progress("Drafting " + (i + 1) + " of " + picks.length + " " + label + plural + "…");
+      try {
+        var r = await fetch("/generate/" + picks[i].getAttribute("data-rid") + "/" + kind,
+                            { method: "POST" });
+        if (r.url && r.url.indexOf("/credits") !== -1) {
+          stopped = true;
+          progress("Out of credits — drafted " + done + ". Top up to finish the rest.");
+          break;
+        }
+        if (r.url && r.url.indexOf("error=") !== -1) failed++; else done++;
+      } catch (err) { failed++; }
+    }
+    if (!stopped) {
+      progress("Done — drafted " + done + (failed ? (", " + failed + " failed") : "")
+               + ". Reloading…");
+    }
+    setTimeout(function () { window.location.reload(); }, 1300);
+  }
+
+  refresh();
+})();
+
 document.addEventListener("input", function (e) {
   if (e.target && e.target.matches("textarea[data-counter]")) {
     var max = parseInt(e.target.getAttribute("maxlength") || "300", 10);

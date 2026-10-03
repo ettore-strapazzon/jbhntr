@@ -1230,6 +1230,13 @@ a.plan-cta,.plan-cta .btn{align-self:start}
 .trk-dates{margin-top:4px}
 .trk-sort{display:flex;align-items:center;gap:8px;margin:4px 0 14px}
 .trk-sort select{width:auto;min-height:40px;padding:6px 10px}
+.trk-pick{display:flex;align-items:flex-start;padding-top:2px;margin:0;cursor:pointer}
+.trk-pick input{width:18px;height:18px;margin:0;cursor:pointer}
+.bulk-bar{position:sticky;top:8px;z-index:20;display:flex;align-items:center;gap:12px;
+  flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border:1px solid var(--action-primary);
+  border-radius:10px;background:var(--surface-raised);box-shadow:0 4px 14px rgba(23,51,75,.08)}
+.bulk-bar .bulk-count{font-size:.95rem}
+.bulk-bar .bulk-progress{margin-left:auto}
 .trk-badge{white-space:nowrap;font-size:.78rem;padding:2px 8px;border-radius:999px;background:var(--border-subtle);color:var(--text-primary)}
 .trk-badge.s-saved{background:var(--corn-100)}
 .trk-badge.s-applied{background:var(--corn-100);color:var(--navy-800)}

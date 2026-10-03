@@ -50,6 +50,17 @@
     <noscript><button class="ghost small" type="submit">Sort</button></noscript>
   </form>
 
+  {# Bulk drafting: tick jobs, then draft the missing CVs/CLs in one go. Reuses the
+     per-job generate endpoint (charge + refund-on-fail) — app.js runs them in
+     sequence with a cost confirm; jobs that already have that draft are skipped. #}
+  <div class="bulk-bar" id="bulk-bar" hidden
+       data-cost-cv="{{ config.cost_cv }}" data-cost-cl="{{ config.cost_cover_letter }}">
+    <span class="bulk-count"><b>0</b> selected</span>
+    <button type="button" class="ghost small" data-bulk-gen="cv">Draft CVs</button>
+    <button type="button" class="ghost small" data-bulk-gen="cl">Draft cover letters</button>
+    <span class="bulk-progress small muted" role="status"></span>
+  </div>
+
   {% for stage in stage_order %}
     {% set rows = groups[stage] %}
     {% if rows %}

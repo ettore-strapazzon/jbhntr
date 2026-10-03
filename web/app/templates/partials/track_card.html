@@ -3,6 +3,12 @@
 {% set kinds = docs %}
 <article id="trk-{{ r.id }}" class="trk s-{{ stage|lower }}">
   <div class="trk-head">
+    <label class="trk-pick" title="Select for bulk drafting">
+      <input type="checkbox" class="bulk-pick" data-rid="{{ r.id }}"
+             data-has-cv="{{ 1 if 'cv' in kinds else 0 }}"
+             data-has-cl="{{ 1 if 'cl' in kinds else 0 }}">
+      <span class="sr-only">Select {{ r.title }} for bulk drafting</span>
+    </label>
     <div class="trk-title">
       <b>{{ r.title }}</b>
       <div class="muted small">{{ r.company }}{% if r.location %} · {{ r.location }}{% endif %}</div>
