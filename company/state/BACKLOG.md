@@ -1,0 +1,20 @@
+# Backlog — JBHNTR Team
+
+Owner: CEO. Newest sprint on top; older sprints marked superseded. Status: `todo | doing | done (cN)` where cN = cycle number.
+Cycle 1 must reconcile each task against what already exists in the product before building (e.g. `/compare/linkedin-jobs`, referral/credits, `/admin` already exist).
+
+## Sprint R1 — Step 1: build the artefacts + measurement (GTM §4), start the repo split
+| id | owner | task | acceptance criteria | deps | status |
+|---|---|---|---|---|---|
+| R1-01 | CPO+CTO | Shareable **match card** | Public route `/m/{short_id}` renders a clean card (two fit scores, fits/watch-out, role, optional company, never the user's name unless chosen); PNG for OG + download; "Share" button on every job + tracker card (copy / download / LinkedIn / X); OG image renders in LinkedIn/Slack/WhatsApp; CTA "first scan free" with sharer's referral code embedded | R1-04 | todo |
+| R1-02 | CPO+CTO | **"My market read"** | `/r/{short_id}`: scan stage counts + bucketed rejection-reason histogram; "share anonymised" toggle removes salary/location; OG/PNG; referral embed. "1,840 roles, 14 worth it" sentence | R1-04 | todo |
+| R1-03 | CPO+CTO | **/invite page** | Code + link + pre-written per-channel messages + live counter ("N friends activated · +credits"); one non-nagging post-scan prompt | R1-04 | todo |
+| R1-04 | CTO | **Measurement plumbing** | Invite codes per cohort → a `source` field; UTM on every outbound link + `/go/{channel}` redirect; post-scan gate prompt ("vs how you search today: much better/better/same/worse" + optional text); day-14 Sean-Ellis email to active searchers; weekly internal metrics view by source | — | todo |
+| R1-05 | CTO | **BI dashboard (live)** | Read-only metrics view (extend `/admin`): activated users, funnel (visits→signup→activation), activation rate, gate answers by cohort, K-factor, outcome events/active user, credits spent vs revenue, compute cost/active user. Founder can open it anytime | R1-04 | todo |
+| R1-06 | CTO+GC | **Repo-split execution plan** | `company/docs/tech/REPO_SPLIT_EXECUTION_PLAN.md`: public `jbhntr/jbhntr` shell+demo engine (licence rec: BSL 1.1 vs Elastic 2.0), private `jbhntr/jbhntr-engine`; file inventory, interface boundary, build changes (prod installs engine with read-only token, refuses demo fallback), step order. Founder approves before any execution | — | todo |
+| R1-07 | CMO | **Brand-accounts setup pack** | Handles (@jbhntr X/Bluesky/Threads, LinkedIn Company Page, u/jbhntr, GitHub org, HN), bios using the "who are you" paragraph, exact creation steps filed as a Founder request (agents can't create accounts) | R1-11 | todo |
+| R1-08 | CMO | **Directories + comparison pages** | One 40-word description + match-card image for AlternativeTo, TAAFT, Futurepedia, SaaSHub, G2, Capterra, BetaList, Uneed, PH "coming soon"; draft `/compare/jobright`, `/simplify`, `/teal`, `/auto-apply-tools` (honest tables) | R1-11 | todo |
+| R1-09 | CMO+GC | **Daily draft digest** | Spec + first run: 6–10 Reddit/HN/X thread replies (default link-free, disclosure, rule-check line each), layoff watch + draft HR emails, 1 X post draft, comparison-page drafts — all **filed, not posted**; ≤10 drafts/day, no fabricated threads | R1-11 | todo |
+| R1-10 | CFO | **Budget + break-even model** | `company/docs/finance/BUDGET.md`: USD 1,000 allocation, compute cost/active user, credit unit economics, break-even user count, base/upside/downside scenarios; `QUOTAS.md` (free-tier cliffs) | — | todo |
+| R1-11 | GC | **Compliance + risk v1** | `COMPLIANCE_CARD.md` (lint-able), `RISK_REGISTER.md` v1, `THIRD_PARTY_TERMS.md` (sources, LinkedIn, Reddit, HN, X, Resend, directories — flag anything forbidding our use), privacy/terms controller + privacy@ paragraph draft | — | todo |
+| R1-12 | CEO | **Founder-facing core docs** | `docs/strategy/ONE_PAGER.md`, `TIMELINE.md` (mermaid Gantt), `KPI_TRACKER.md`, port `GTM.md` from the manual, `COMPETITOR_MAP.md`; all indexed in `docs/README.md` | R1-10,R1-11 | todo |

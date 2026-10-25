@@ -1,0 +1,3 @@
+date,agent,item,vendor,type,usd,approved_by,notes
+# CFO populates real rows in cycle 1. type = committed|actual|revenue. approved_by = "Founder (R-###)" | "pending-founder". Put FX/original-currency/caps in notes.
+# Known standing costs to confirm & enter: jbhntr.app domain; Railway hosting; Resend email; LLM/API spend per scan. Enter actuals only.
