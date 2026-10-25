@@ -1,0 +1,29 @@
+# Risk Register — JBHNTR
+
+Owner: GC · v1 (2026-10-25) · Live document, reviewed every Monday.
+
+Scoring (from `legal:legal-risk-assessment`): **Risk = Likelihood × Impact**, each 1–5. Bands: 1–4 GREEN (accept + monitor), 5–9 YELLOW (mitigate + active monitor), 10–15 ORANGE (escalate to Founder, mitigation plan), 16–25 RED (immediate Founder + outside-counsel).
+
+> Not legal advice. Scores are the team's working judgement to prioritise mitigation, not a legal opinion.
+
+| ID | Risk | Likelihood | Impact | Score / band | Owner | Mitigation | Status |
+|---|---|---|---|---|---|---|---|
+| R-001 | **Source/platform ToS breach** — a job source, ATS, LinkedIn, Reddit, HN, or X treats our ingestion/participation as a ToS violation (scraping, automation, rate). | 4 Likely | 3 Moderate | **12 ORANGE** | CTO + GC | Prefer official APIs/feeds; respect robots.txt + rate limits; manual posting where automation is banned (see THIRD_PARTY_TERMS.md); no scraping of login-walled data (esp. LinkedIn). Per-source compliant approach documented and obeyed. | Open — mitigating |
+| R-002 | **Open-core licence leak / wrong licence** — the private engine (sources, prompts, dedup, anti-abuse, corpus) ends up public, or the public licence fails to prevent a competitor re-hosting. | 2 Unlikely | 4 High | **8 YELLOW** | CTO + GC | Split per REPO_SPLIT_EXECUTION_PLAN (R1-06); engine in private repo, installed at build with a read-only token, prod refuses silent demo fallback; public shell under BSL 1.1 / Elastic 2.0 (see Licence recommendation). MIT-era code acknowledged as already released. Secrets only in env. | Open — mitigating |
+| R-003 | **Data breach** — user PII (profiles, CVs, emails) exposed via misconfig, leaked secret, or attack. | 3 Possible | 5 Critical | **15 ORANGE** | CTO (security is CTO standing duty) | Rate limits, auth, CSP, secrets hygiene, least-privilege tokens, referral anti-abuse; minimise PII stored; encrypt at rest/in transit. GDPR 72-hour breach-notification runbook ready before Phase-2 cohort. Incident response: notify controller → authority within 72h → affected users if high risk. | Open — mitigating |
+| R-004 | **GDPR complaint / regulator inquiry** — a user or DPA raises a complaint (no named controller, unanswered DSAR, unclear lawful basis, non-EU transfer). | 3 Possible | 4 High | **12 ORANGE** | GC | Named data controller + privacy@ mailbox + honest privacy/terms live before any cohort beyond friends (GTM §12.2 / PRIVACY_TERMS_NOTES.md). Document lawful basis per processing activity; DSAR handling within 30 days; vendor DPAs (Resend, Railway, job-source providers) on file. Incorporate before Phase 2. | Open — partially mitigated |
+| R-005 | **Referral abuse** — fake signups / self-referral farm the credit economy, distorting KPIs and costing compute. | 4 Likely | 3 Moderate | **12 ORANGE** | CTO (heuristics) + CFO (economics) | Delayed payout (48–72h + first triage action), duplicate check (CV-embedding/device/IP/disposable-email → hold), soft ceiling 25/mo with human unlock, non-transferable (GTM §5). Monitor abuse rate in KPIS. No hard caps (product decision), so heuristics must carry it. | Open — mitigating |
+| R-006 | **Misleading-claim exposure** — a stat, comparison, or "auto-apply"-adjacent claim is unsubstantiated or false → competitor demand letter, platform takedown, or ASA/AGCM/FTC-style scrutiny. | 3 Possible | 3 Moderate | **9 YELLOW** | GC + CMO | COMPLIANCE_CARD rules C4/C6/C7; GC clears every external claim, comparison table, partner email, press pitch before filing; numbers sourced to KPIS; comparison tables dated + verifiable; never imply auto-apply. | Open — controlled by card |
+| R-007 | **Key-person / incorporation gap** — no legal entity before public spikes means personal liability sits on Ettore; also bus-factor/continuity risk (sole builder). | 4 Likely | 4 High | **16 RED** | Founder (GC advises) | Incorporate (Italian SRL or equivalent) **before Phase 2 / before the data drop + Show HN spikes** — this moves product + data-controller liability off the individual. Until then: minimise personal exposure (brand-led posture, no personal PR, honest privacy/terms), keep cohort to friends. REQUEST filed. | Open — **action required before spikes** |
+| R-008 | **Dependency on a single job source** — the product/ingestion leans on one provider that changes terms, pricing, or cuts access, degrading the core value overnight. | 3 Possible | 4 High | **12 ORANGE** | CTO | Multi-source ingestion (ATS resolution + budgeted JSearch + dedup-upgrade — per product memory); no single source is load-bearing; monitor each provider's ToS/quota (THIRD_PARTY_TERMS.md) and free-tier cliffs (QUOTAS.md, R1-10). Fallback source(s) identified. | Open — monitoring |
+| R-009 | **Name / trademark conflict** — "JBHNTR" collides with an existing mark, forcing a costly rebrand after traction. | 2 Unlikely | 3 Moderate | **6 YELLOW** | GC + Founder | TMview + USPTO + EUIPO clearance before public launch; WHOIS privacy on the domain; don't invest in brand assets a conflict would strand. Lawyer confirms clearance. REQUEST filed. | Open — clearance pending |
+
+## Escalation summary
+- **RED (R-007):** incorporation gap — brief the Founder now; must resolve before the spikes / Phase 2. Only the Founder (with a lawyer/accountant) can do it. See REQUEST.
+- **ORANGE (R-001, R-003, R-004, R-005, R-008):** active mitigation owned as above; GC reviews weekly; escalate to Founder if a trigger fires (e.g. a platform cease-and-desist, a DSAR we can't answer, an abuse spike).
+- **YELLOW (R-002, R-006, R-009):** mitigate and monitor; promote to ORANGE on trigger.
+
+## Review
+GC updates likelihood/impact/status every Monday and whenever a trigger event occurs. New risks appended with the next `R-###`.
+
+Skills used: legal:legal-risk-assessment, legal:compliance-check.
