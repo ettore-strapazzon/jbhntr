@@ -57,6 +57,33 @@ def home(request: Request):
         db.close()
 
 
+@router.get("/go/{channel}")
+def go(channel: str, request: Request):
+    """Attribution redirect: /go/{channel}?to=/path records a channel_click and
+    302s on, forwarding any utm_* params. Internal targets only — never an open
+    redirect. The click is logged anonymously (no user_id)."""
+    from urllib.parse import urlencode
+
+    from ..db import SessionLocal
+    from ..services.events import record
+
+    db = SessionLocal()
+    try:
+        record(db, "channel_click", channel=channel[:64])
+    finally:
+        db.close()
+
+    # Only relative, same-site targets. "//host" and "/\" are protocol-relative
+    # open-redirect vectors, so anything not a lone-slash path falls back to "/".
+    to = request.query_params.get("to", "/")
+    if not to.startswith("/") or to.startswith(("//", "/\\")):
+        to = "/"
+    utm = {k: v for k, v in request.query_params.items() if k.startswith("utm_")}
+    if utm:
+        to += ("&" if "?" in to else "?") + urlencode(utm)
+    return RedirectResponse(to, status_code=302)
+
+
 def _public_page(request: Request, template: str, *, title: str,
                  description: str, path: str, og_title: str):
     from ..auth import current_user

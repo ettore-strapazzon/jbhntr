@@ -11,6 +11,10 @@ Owner: CEO. Append-only; superseded rows kept and annotated inline.
 | 2026-10-25 | Company layer lives **inside the job-hunter repo** under `company/` | Founder | Founder |
 | 2026-10-25 | Run mechanism = **same as copytrade-co** (orchestration-by-convention; cycle prompt in `company/RUNBOOK.md`, fired by the Founder's scheduler or manually) | Founder | Founder |
 | 2026-10-25 | **CTO + GC draft `REPO_SPLIT_EXECUTION_PLAN.md` early** (first Step-1 deliverable, R1-06) rather than assuming an existing plan; Founder approves before execution | Founder | Founder |
+| 2026-10-26 | **R-001:** runner = same as copytrade-co; **auto-push: YES** (CEO may push product changes that are tested green). CEO still reviews every diff + runs the suite before pushing | Founder | Founder |
+| 2026-10-26 | **R-002:** public licence = **BSL 1.1 → Apache-2.0 (+3yr)**. Confirmed on the basis that BSL does not restrict our own monetisation (credit purchases / premium / paid service) — it only blocks a competing hosted service; engine stays private | Founder | Founder |
+| 2026-10-26 | **R-005:** no incorporation until revenue is needed (≈ before Phase-2 paid credits). Founder accepts the residual controller-liability + footer exposure during the public-beta spikes (GC to downgrade R-007 status to "accepted until revenue" in the risk register and keep /privacy, /terms, data-drop/Show-HN gated on a named controller) | Founder | Founder |
+| 2026-10-26 | **R-008:** execute repo-split **steps 1–3** (in-repo façade + demo engine + boot guard + private-package carve) — CTO's call, following the GTM/plan. Steps 4–7 (public cut-over) return for a separate go; GitHub org creation (R-007) happens then | Founder | Founder |
 
 ## Open decisions (tracked as Founder requests in REQUESTS.md)
 - Public licence: **BSL 1.1** (default) vs **Elastic 2.0** — decide before repo-split step 6 (→ R-002).

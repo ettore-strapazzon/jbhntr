@@ -68,6 +68,8 @@ def attach_and_reward_friend(db, friend: User, code: str) -> User | None:
     credits.grant(db, friend, config.referral_friend_credits, "referral_bonus",
                   idempotency_key=f"referral_bonus:{friend.id}")
     db.commit()
+    from . import events
+    events.record(db, "referred_signup", user_id=friend.id, source="referral")
     return inviter
 
 
@@ -78,6 +80,11 @@ def reward_inviter_if_activated(db, friend: User) -> None:
     inviter_id = friend.referred_by_user_id
     if not inviter_id:
         return
+    # Mirror the activation into ProductEvent so the funnel/K-factor dashboard
+    # reads one table. record_once keeps it to a single event per friend even
+    # though this runs after every completed scan.
+    from . import events
+    events.record_once(db, "referral_activated", friend.id)
     try:
         inviter = db.get(User, inviter_id)
         if inviter is None:

@@ -74,6 +74,9 @@ def start_search(db: DbSession, user: User, free: bool = False) -> Search:
     from . import credits
     state = completeness(db, user)
     if not state.can_search:
+        from . import events
+        events.record(db, "scan_blocked_incomplete", user_id=user.id,
+                      count=len(state.missing_required))
         raise QuotaError("Finalise your profile first: " + ", ".join(state.missing_required))
 
     phash = _profile_hash(user)

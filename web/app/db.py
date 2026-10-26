@@ -165,11 +165,13 @@ def _add_missing_columns() -> None:
         "searches": {"notify_email": ("BOOLEAN", "DEFAULT false"),
                      "located_count": ("INTEGER", "DEFAULT 0"),
                      "ranked_count": ("INTEGER", "DEFAULT 0"),
-                     "profile_hash": ("TEXT", "DEFAULT ''")},
+                     "profile_hash": ("TEXT", "DEFAULT ''"),
+                     "share_token": ("TEXT", "")},
         "job_results": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0"),
                         "dedup_key": ("TEXT", "DEFAULT ''"),
-                        "link_status": ("TEXT", "DEFAULT ''")},
+                        "link_status": ("TEXT", "DEFAULT ''"),
+                        "share_token": ("TEXT", "")},
         "score_cache": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0")},
         "documents": {"note": ("TEXT", "DEFAULT ''"),
@@ -202,6 +204,23 @@ def _add_missing_columns() -> None:
                     ))
             except Exception:
                 log.exception("skipping migration: ADD COLUMN %s.%s", table, name)
+
+    # Unique indexes for additively-added token columns. create_all() covers a
+    # fresh DB; an existing table needs the index added by hand. The name matches
+    # SQLAlchemy's default (ix_<table>_<column>) so the two paths never diverge.
+    # A unique index over a nullable column allows many NULLs (unshared rows) in
+    # both SQLite and Postgres, so it never blocks un-minted tokens.
+    for table, col in (("searches", "share_token"), ("job_results", "share_token")):
+        if table not in tables:
+            continue
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    f"CREATE UNIQUE INDEX IF NOT EXISTS ix_{table}_{col} "
+                    f"ON {table} ({col})"
+                ))
+        except Exception:
+            log.exception("skipping index: ix_%s_%s", table, col)
 
 
 def get_session() -> Iterator[Session]:

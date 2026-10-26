@@ -1,7 +1,7 @@
 # BUDGET & Unit Economics — JBHNTR
 
-Owner: CFO · v1 (2026-10-25) · Currency: USD · Budget: **1,000 lifetime, hard cap**
-Status: model built from the product's real credit config (`web/app/config.py`) + measured LLM rates. Dollar figures marked **[CONFIRM]** are estimates pending a real bill from Founder/CTO — see §6. No `LEDGER.csv`/`KPIS.md` rows are written with estimates; §7 describes the rows to add once confirmed.
+Owner: CFO · v1.1 (2026-10-26: +§6 Phase-2 monetisation model) · Currency: USD · Budget: **1,000 lifetime, hard cap**
+Status: model built from the product's real credit config (`web/app/config.py`) + measured LLM rates. Dollar figures marked **[CONFIRM]** are estimates pending a real bill from Founder/CTO — see §7 (confirmed via **R-006**). No `LEDGER.csv`/`KPIS.md` rows are written with estimates; §8 describes the rows to add once confirmed. §6 models **Phase-2 monetisation** (credit packs + premium tier) on the same cost basis.
 
 ---
 
@@ -116,7 +116,78 @@ So the free-tier burn is the real cost to watch (see `QUOTAS.md`), and **every p
 
 ---
 
-## 6. Unknown costs to confirm (REQUEST: to Founder/CTO)
+## 6. Phase-2 monetisation model — credit packs + premium tier
+
+Phase 2 is unlocked only when the PMF gate holds (≥60% "better/much better") **and** K ≥ 0.3. The BSL licence was confirmed specifically to allow this monetisation (credit purchases + a premium pay tier). This section models **both**, grounded in the **~$0.07/credit** blended compute cost from §3 (range $0.04 warm … $0.11 cold). It supersedes the single-price sketch in §5 (the $12/60-cr line was a first anchor; the fuller model is here).
+
+**Pricing stance (pricing skill):** value-based, prosumer **"~$10" bucket**, priced between our ~$0.07/cr cost (the floor) and Teal/Jobright (~$20–30/mo, the ceiling). **Avoid the $9 trap** — ultra-low prices manufacture false traction and are far harder to raise 5–10× later than to start a notch higher. Every number below is a **bet to learn from**, not a final price: ship it, watch conversion for a cohort or two, then move within the bucket.
+
+**Payment fees** assumed at **3.5% + $0.35/transaction** (conservative; covers non-US cards). **Redemption** is the swing variable: granted/bought credits that are never spent are **pure margin**, so realised margin runs above the figures below, which assume the stated redemption.
+
+### 6a. Credit top-up packs (pay-as-you-go)
+
+Pricing metric = credits (usage/credit model). Volume discount rewards power users; $/credit stays well above the $0.07 cost at every size.
+
+| Pack | Credits | Price | $/credit | Compute @100% redeem | Fee | Net rev | Gross margin* |
+|---|---|---|---|---|---|---|---|
+| **Starter** | 50 | **$12** | $0.240 | $3.50 | $0.77 | $11.23 | **69%** |
+| **Value** ◄ anchor | 150 | **$30** | $0.200 | $10.50 | $1.40 | $28.60 | **63%** |
+| **Pro** | 400 | **$60** | $0.150 | $28.00 | $2.45 | $57.55 | **51%** |
+
+*Gross margin = (net revenue − compute at 100% redemption) ÷ net revenue. At the base **~70% redemption** assumption, contribution per pack is higher: Starter **$8.8**, Value **$21.3**, Pro **$38.0** (net rev − 0.70×full compute).
+
+**Reference points:** 50 cr ≈ 25 scans or ~10 CV+CL+scan bundles; 150 cr ≈ a full active search month for a heavy seeker. Entry pack at **$12 (not $9)** keeps us out of the trap while staying in the prosumer bucket.
+
+**Assumptions (packs):**
+- **Conversion:** packs ask for less commitment than a subscription → assume **2–3%** of activated users buy ≥1 pack (vs 1–1.5% who subscribe). Mix skews to the Value pack.
+- **ARPPU:** an active pack-buyer purchases ~1 Value-equivalent pack every ~2 months → amortised **~$15/mo gross, ~$10.6/mo contribution** per active buyer (lumpy, not recurring).
+
+### 6b. Premium subscription — "JBHNTR Plus"
+
+In the credit economy, a subscription = **a monthly credit allotment + perks**, priced on the same $0.07/cr basis (no separate doc-allowance — that would double-count the legacy `premium_*` fields, which predate Guide v3.0's credits-for-everyone model).
+
+**Includes:** **100 credits/month** (auto-granted, use on anything — scans, CV/CL panel drafts, bundles) · **priority** queue on scans and the multi-model CV/CL panel · **unlimited job tracking** · **1 automatic "watch my market" search/day** (`premium_auto_searches_per_day`) · similar-company discovery kept warm. Credits above the monthly allotment are bought as packs (§6a).
+
+**Price: $15/month** (or **$150/year** — 2 months free). Charm-priced, above the $9 trap, below competitors — a deliberate learn-from launch price with headroom to $19–24 once conversion proves out.
+
+**Contribution per subscriber / month:**
+
+| Scenario | Allotment redeemed | Blended $/cr | Compute | Fee | Net rev | **Contribution** |
+|---|---|---|---|---|---|---|
+| **Upside** | 40% (40 cr) | $0.07 | $2.80 | $0.88 | $14.13 | **$11.3** |
+| **Base** | 60% (60 cr) | $0.07 | $4.20 | $0.88 | $14.13 | **$9.9** |
+| **Downside** | 100% (100 cr), panel-heavy, cold cache | $0.09 | $9.00 | $0.88 | $14.13 | **$5.1** |
+
+**Break-even subscribers** = monthly opex ÷ contribution (opex from §5: **~$115/mo base**, ~$200/mo downside):
+- **Base:** $115 ÷ $9.9 ≈ **12 subscribers/mo** (≈ **1.2%** of 1,000 activated).
+- **Downside:** $200 ÷ $5.1 ≈ **39 subscribers/mo**.
+- **Upside:** $115 ÷ $11.3 ≈ **11 subscribers/mo**.
+
+### 6c. How each option moves the §5 "~15 paying users/month" break-even
+
+§5's headline (~15) assumed a **$12** ARPU / **$8.4** contribution. Re-pricing changes the contribution, hence the count:
+
+| Option | Contribution/user/mo | Break-even users/mo (@$115 opex) | vs §5's ~15 |
+|---|---|---|---|
+| §5 baseline ($12 sub, 40 cr) | $8.4 | ~15 | — |
+| **Plus @ $15/mo (base)** | $9.9 | **~12** | **−3** (−20%) |
+| Value pack buyers (amortised) | $10.6 | ~11 | −4 |
+| Plus raised to **$19/mo** later | ~$13.8 | ~8 | −7 |
+| Plus raised to **$24/mo** later | ~$18.6 | ~6 | −9 |
+
+Free-tier compute burn (~$88 of the $115) — **not** infra — remains the variable that decides whether break-even is ~12 or ~39; the §1 kill rules fire on cost-per-user to protect it.
+
+### 6d. Recommended launch pricing
+
+> **Launch JBHNTR Plus at $15/mo (or $150/yr) — 100 credits/mo + priority + unlimited tracking + 1 auto-search/day — alongside one-time credit packs at $12 / $30 / $60 for 50 / 150 / 400 credits (anchor the $30 Value pack); break-even ≈ 12 subscribers/mo (~1.2% of 1,000 activated), with a planned raise to $19–24 once conversion holds.**
+
+Launch low-but-not-$9 to maximise conversion signal, then raise on new signups first (grandfather existing as a transition, not forever — pricing skill rollout rules). **Operational flags for CTO/CPO:** `payments_enabled` is `false` and the legacy `plans` tuple in `web/app/config.py` still shows **$30/$50/$60 for 1/2/3 months** — reconcile that display to the chosen launch pricing before the gate opens, and wire packs + the $15 sub as credit grants (not the deprecated monthly doc-allowance).
+
+**Confidence / caveat:** opex (esp. Railway + real LLM $/scan and $/panel-doc) and the blended $0.07/cr are estimates until **R-006** (7 real costs) lands. The **shape** of the model (contribution, break-even band, which lever dominates) is stable; the **exact** break-even count (~12 vs ~15 vs ~39) firms up when R-006 confirms opex and per-action compute. No `LEDGER.csv`/`KPIS.md` rows are written from these estimates.
+
+---
+
+## 7. Unknown costs to confirm (REQUEST: to Founder/CTO)
 
 Do **not** guess these — each becomes a `pending-founder` ledger row once confirmed:
 1. **Railway** — current monthly bill (app compute + Postgres plan). The single biggest unknown in the opex model.
@@ -129,9 +200,9 @@ Do **not** guess these — each becomes a `pending-founder` ledger row once conf
 
 ---
 
-## 7. Proposed LEDGER rows (describe only — not written; values pending confirmation)
+## 8. Proposed LEDGER rows (describe only — not written; values pending confirmation)
 
-Once each cost in §6 is confirmed, add to `LEDGER.csv` (one `R-###` per spend). Proposed rows, all `approved_by = pending-founder` until the Founder issues an `R-###`:
+Once each cost in §7 is confirmed, add to `LEDGER.csv` (one `R-###` per spend). Proposed rows, all `approved_by = pending-founder` until the Founder issues an `R-###`:
 
 ```
 <date>,CTO,Railway hosting (app+Postgres),Railway,committed,<TBD>,pending-founder,monthly recurring; confirm current bill
@@ -146,5 +217,5 @@ Once each cost in §6 is confirmed, add to `LEDGER.csv` (one `R-###` per spend).
 
 ---
 
-Skills used: pricing (value-based price point, $10-bucket / avoid-$9-trap, credit-model pricing), cost-guardian:cost-estimate (real Haiku-4.5 / Sonnet / gpt-4o token rates to ground per-scan & panel compute).
+Skills used: pricing (value-based packaging + price points, prosumer $10-bucket / avoid-$9-trap, credit + subscription model, good-better-best pack tiering, learn-from launch price + raise-on-new-customers rollout — §6), cost-guardian:cost-estimate (real Haiku-4.5 / Sonnet / gpt-4o token rates to ground per-scan & panel compute, carried into pack/sub contribution).
 Skills considered but not used: finance:financial-statements & finance:variance-analysis (no actuals/GL yet — LEDGER is empty; applies once real rows land), statistical-analysis & data:statistical-analysis (scenarios are deterministic sensitivity, not inference over a dataset — no data to analyze yet), cost-guardian:cost-report (no tracked historical spend to report on yet).

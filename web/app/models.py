@@ -198,6 +198,10 @@ class Search(Base):
     # Hash of the profile fields the engine reads, so an unchanged re-run within
     # 24h is free (PRICE-04) rather than teaching users not to refine.
     profile_hash: Mapped[str] = mapped_column(String(64), default="")
+    # Random public handle for the shareable "my market read" (/r/{token}).
+    # Minted lazily on first share; NULL means the scan has no public surface.
+    share_token: Mapped[str | None] = mapped_column(
+        String(32), unique=True, index=True, default=None)
 
     results: Mapped[list["JobResult"]] = relationship(cascade="all, delete-orphan")
 
@@ -236,6 +240,10 @@ class JobResult(Base):
     # "unverified" when the apply link couldn't be verified (captcha/bot-wall) and
     # no live alternative was found — the card warns it may no longer be available.
     link_status: Mapped[str] = mapped_column(String(16), default="")
+    # Random public handle for the shareable match card (/m/{token}).
+    # Minted lazily on first share; NULL means the match has no public surface.
+    share_token: Mapped[str | None] = mapped_column(
+        String(32), unique=True, index=True, default=None)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

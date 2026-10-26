@@ -2,30 +2,30 @@
 
 Owner: CEO. Newest sprint on top; older sprints marked superseded. Status: `todo | doing | done (cN)`.
 
-## Sprint R2 — Step 1 build + measurement (next cycle)
+## Sprint R3 — Step 1 visible artefacts + activation + repo split (next cycle)
 | id | owner | task | acceptance criteria | deps | status |
 |---|---|---|---|---|---|
-| R2-01 | CTO | **Measurement plumbing** (was R1-04) | Add the 9 missing ProductEvents (CPO list) + `step_name`/`channel` to `ALLOWED_PROPS`; set `source` on `signup_completed`; UTM + `/go/{channel}` redirect; post-scan gate prompt | — | todo |
-| R2-02 | CTO+CPO | **Match card** build | Per `ARTEFACTS_SPEC.md`: new random `JobResult.share_token`; `/m/{token}`; OG PNG via Playwright screenshot (cached); Share button on job + tracker cards; referral embed | R2-01 | todo |
-| R2-03 | CTO+CPO | **Market read** build | New `Search.share_token`; `/r/{token}` v1 = existing stage funnel ("1,840 roles, 14 worth it"); anonymise toggle; OG/PNG; referral embed. (Reason histogram = v2 engine work) | R2-01 | todo |
-| R2-04 | CTO+CPO | **/invite page** build | Code + link + per-channel messages + live counter (referral loop already wired) | R2-01 | todo |
-| R2-05 | CPO | **Activation gate fix** (first test) | Live profile-completeness meter + "Run my free scan — unlocks at 70%" CTA in onboarding; KPI = first-scan rate; A/B where traffic allows | R2-01 | todo |
-| R2-06 | CTO | **BI dashboard** (was R1-05) | Read-only metrics view extending `/admin`: activated users, funnel, activation rate, gate by cohort, K-factor, outcome events/user, spend vs revenue, compute cost/user | R2-01 | todo |
-| R2-07 | CTO | **Repo-split steps 1–3** | In-repo `jbhntr_engine` façade (funnel the 78 import sites) + demo engine + boot guard + private-package carve; tests green; steps 4–7 (public cut-over) return for separate go | R-007,R-008 | blocked (Founder) |
-| R2-08 | CMO+CTO | **Comparison pages** build | Wire `/compare/jobright`, `/simplify`, `/teal`, `/auto-apply-tools` to the `compare_linkedin_jobs` template from CMO outlines (after GC clears VERIFY cells) | R2-02 | todo |
-| R2-09 | CMO+GC | **Daily draft digest** (was R1-09) | Spec + first run: 6–10 thread replies + layoff watch + 1 X post + compare drafts, all filed not posted; GC clears claims | — | todo |
-| R2-10 | GC | **/terms draft** | Full terms (liability, AUP, no-auto-apply clause) + finalise /privacy controller paragraph | R-010 | todo |
+| R3-01 | CTO+CPO | **Match card** build | Per ARTEFACTS_SPEC §8: lazy-mint `JobResult.share_token` on `POST /job/{id}/share`; `/m/{token}`; OG PNG (Playwright); Share button on job+tracker cards; emits `match_card_shared` + `shared_artifact_viewed`; referral embed | done R2-01 | todo |
+| R3-02 | CTO+CPO | **Market read** build | `Search.share_token`; `/r/{token}` v1 stage funnel; anonymise toggle; OG/PNG; emits `market_read_shared`+`shared_artifact_viewed` | R3-01 | todo |
+| R3-03 | CTO+CPO | **/invite page** build | Code+link+per-channel messages+live counter; emits `invite_page_viewed`+`invite_link_copied` | R3-01 | todo |
+| R3-04 | CPO+CTO | **Activation meter** (first A/B) | Completeness strip + "unlocks at 70%" CTA; **enable-state keyed to `can_search`, NOT `score≥70`** (ARTEFACTS_SPEC §8.4 + the fixture test); KPI = first-scan rate | done R2-01 | todo |
+| R3-05 | CTO | **Repo-split steps 1–3** (R-008 approved) | In-repo `jbhntr_engine` façade (78 import sites) + demo engine + boot guard + private-package carve; tests green; steps 4–7 return for separate go | — | todo |
+| R3-06 | CTO | **BI dashboard** | Read-only metrics on `/admin`: activated, funnel, activation rate, gate, K-factor, outcome/user, spend/revenue — now that R2-01 events exist | done R2-01 | todo |
+| R3-07 | GC | **Clear COMPARE_COPY `[VERIFY]` cells** | Verify each competitor claim + ToS fact against live sources, date them; then R3-08 can wire the pages | — | todo |
+| R3-08 | CMO+CTO | **Comparison pages** build | Wire `/compare/jobright|simplify|teal|auto-apply-tools` to `compare_linkedin_jobs.html` from COMPARE_COPY after R3-07 | R3-07 | todo |
+| R3-09 | CTO | **Config cleanup** (CFO flag) | Reconcile legacy `plans`/`premium_*` display in `config.py` to the chosen Phase-2 pricing; wire packs/sub as credit grants (not doc-allowance). Low priority, pre-Phase-2 | — | backlog |
 
-## Sprint R1 — Step 1 foundations (CLOSED, cycle 1, 2026-10-25)
+**Phase-2 backlog:** EU/UK 14-day right-of-withdrawal acknowledgement in the paid-credit purchase flow (GC/TERMS_DRAFT §5). Migration: swap `db.py` additive migrator → Alembic before more schema churn (CTO flag, ×2 cycles now).
+
+## Sprint R2 — measurement foundation + strategy docs (CLOSED, cycle 2, 2026-10-26)
 | id | owner | task | status |
 |---|---|---|---|
-| R1-01/02/03 | CPO | Artefact specs (match card / market read / invite) | spec done (c1) → build R2-02/03/04 |
-| R1-04 | CTO | Measurement plumbing | scoped (c1) → R2-01 |
-| R1-05 | CTO | BI dashboard | scoped (c1) → R2-06 |
-| R1-06 | CTO+GC | Repo-split execution plan + licence rec (BSL 1.1) | **plan done (c1)**; exec = R2-07 pending R-007/008 |
-| R1-07 | CMO | Brand-accounts setup pack | **done (c1)**; creation = R-009 |
-| R1-08 | CMO | Directories + comparison outlines | **drafts done (c1)**; build R2-08 |
-| R1-09 | CMO+GC | Daily draft digest | → R2-09 |
-| R1-10 | CFO | Budget + break-even (≈15 paying users/mo) | **done (c1)** |
-| R1-11 | GC | Compliance card + risk register + ToS + privacy | **done (c1)** |
-| R1-12 | CEO | ONE_PAGER, TIMELINE, KPI_TRACKER, GTM, COMPETITOR_MAP | **done (c1)** |
+| R2-01 | CTO | Measurement plumbing + share_token columns + /go redirect | **done (c2)** — 597 passed; pushed |
+| R2-10 | GC | /terms draft + /privacy controller (R-005) + risk update | **done (c2)** |
+| — | CFO | Phase-2 monetisation model (Plus $15/mo; packs $12/30/60; BE ≈12 subs) | **done (c2)** |
+| R2-08 | CMO | Comparison-page copy (claims [VERIFY]) | **copy done (c2)** → build R3-08 |
+| R2-09 | CMO | First daily draft digest (filed) | **done (c2)**; ongoing daily |
+| R2-02/03/04/05 | CPO | Artefact + meter build plan (ARTEFACTS_SPEC §8) | **plan done (c2)** → build R3-01..04 |
+
+## Sprint R1 — Step 1 foundations (CLOSED, cycle 1, 2026-10-25)
+All 12 tasks closed — see cycle-1 CYCLE_LOG. Docs in `company/docs/`.

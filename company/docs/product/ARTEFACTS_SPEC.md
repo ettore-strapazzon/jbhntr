@@ -323,15 +323,182 @@ All additive, nullable — no backfill, no migration risk:
 - `events.EVENT_NAMES` += the 9 events; `events.ALLOWED_PROPS` += `step_name`, `channel` — §5.1
 
 ---
-Skills used: referrals (loop design, aha-moment trigger, one-click + pre-written messages,
-double-sided reward framing), cro (single value-CTA, message-match on the share→signup
-handoff, the visible-gate first test), analytics (object-action event naming, the missing-
-event audit and allowlist gap, source attribution), task-observer (session-start).
-Skills considered but not used: onboarding / signup (the §5 fix touches onboarding, but the
-build is next cycle — applied their "make the gate visible / reduce required fields"
-principle at spec level rather than loading the full build checklists); frontend-ui-
-engineering / web-design-guidelines / apple-design (exact card markup/CSS is the CTO's
-build step — this spec reuses the existing `job_card.html` visual language instead of
-re-specifying pixels); ab-testing (named the single KPI + A/B-where-traffic-allows, full
-test design belongs with the experiment when it's set up); paywalls / churn-prevention
-(not relevant to Step-1 share artefacts).
+
+## 8. Build plan — cycle 3
+
+Added 2026-10-26 (CPO). Builds on **R2-01** (CTO measurement + `share_token` foundation,
+this cycle). No code this cycle — this section is the implementation brief for the CTO to
+build next cycle: backlog **R2-02 → R2-03 → R2-04** (the three artefacts) and **R2-05** (the
+activation fix). Each item below names *only* the R2-01 events it emits, where the
+`share_token` is minted, and a self-verify checklist.
+
+### 8.0 Dependency on R2-01 — confirm before building
+
+These build items assume R2-01 shipped the following. **CTO: confirm, or the props drop
+silently in `events._clean()`:**
+- `events.EVENT_NAMES` contains all five loop events used here — `match_card_shared`,
+  `market_read_shared`, `shared_artifact_viewed`, `invite_page_viewed`,
+  `invite_link_copied` — and the three activation events — `onboarding_step_completed`,
+  `profile_threshold_reached`, `scan_blocked_incomplete`.
+- `events.ALLOWED_PROPS` contains **`step_name`** (for `onboarding_step_completed`) and
+  **`channel`** (for `invite_link_copied`). `source` and `kind` are already allowed.
+- `ProductEvent` accepts `user_id=None` for the one anon event (`shared_artifact_viewed`,
+  fired by a logged-out visitor).
+
+If any are missing, that is a one-line R2-01 follow-up, not a reason to block the build —
+emit the event anyway; it no-ops until the name is allowlisted.
+
+### 8.1 Build order (match card → market read → invite)
+
+Order is deliberate, not arbitrary:
+1. **Match card (R2-02) first.** It is the atomic artefact (one scored match), reuses the
+   most existing markup (`job_card.html`), and is where the whole shared-artefact machine
+   gets built once: the lazy `share_token` mint, the public `/m/{token}` route, and the
+   **OG-PNG renderer (§4)**. Everything downstream reuses these.
+2. **Market read (R2-03) second.** Reuses the exact `share_token` pattern (on `Search`
+   instead of `JobResult`) and the §4 PNG renderer the card just established — so this is
+   mostly a second render target + the stage-funnel layout, not new infrastructure.
+3. **`/invite` (R2-04) third.** Depends on no new artefact infra; it is the *destination*
+   the first two drive traffic to, so it is only worth shipping once there are shared
+   artefacts carrying referral codes into the wild. Referral reward wiring already exists
+   (§3).
+
+`R2-05` (the meter) is independent of the share machine — it blocks only on R2-01's three
+activation events — so it can be built in parallel with any of the above.
+
+### 8.2 Events + `share_token` per artefact
+
+| Build item | Emits (R2-01 event → when, props) | `share_token` minted |
+|---|---|---|
+| **R2-02 Match card** | `match_card_shared` → owner clicks **Share** on a match/tracker card (`POST /job/{id}/share`); prop `source` = `matches` \| `applications`. · `shared_artifact_viewed` → logged-out visitor opens `/m/{token}` (anon, `user_id=None`); prop `kind` = `card`. | **On the first Share click** for that card, inside `POST /job/{id}/share`: if `JobResult.share_token` is null, mint `secrets.token_urlsafe(9)` and persist, then return the share sheet. Idempotent — a second Share reuses it. |
+| **R2-03 Market read** | `market_read_shared` → owner clicks **Share this read** on a completed scan; prop `source` = where the button sat (`matches` \| `read`). · `shared_artifact_viewed` → logged-out visitor opens `/r/{token}`; prop `kind` = `read`. | **On the first "Share this read" click**, same lazy pattern on `Search.share_token`. Unshared scans stay private. |
+| **R2-04 /invite** | `invite_page_viewed` → `GET /invite` renders for the signed-in user (one per load). · `invite_link_copied` → user copies the link or a per-channel message; prop `channel` = `link` \| `linkedin` \| `x` \| `whatsapp` \| `email` \| `reddit` \| `imessage` \| `bluesky`. | None — `/invite` uses the user's existing referral code (`referral.ensure_code`), not a `share_token`. |
+
+Rule for the two `_shared` events: **fire on the Share *action*, in the same handler that
+mints/looks-up the token** — one event per click, including re-shares (we want raw share
+volume, the K-factor numerator). `shared_artifact_viewed` fires on the **public GET**, not
+on the share, so the two together give a share→view ratio.
+
+### 8.3 Acceptance checklist — R2-02 / R2-03 / R2-04
+
+**R2-02 Match card**
+- [ ] First Share on a card with null `share_token` mints one; second Share returns the
+      same token (assert idempotent in a test).
+- [ ] `match_card_shared` lands in `ProductEvent` with `source` ∈ {matches, applications}.
+- [ ] Opening `/m/{token}` while logged out writes one `shared_artifact_viewed`
+      (`user_id=None`, `kind=card`); a reload writes another (view count, not unique).
+- [ ] Spec §1.4 acceptance (token→card, no name/JD/email leak, 404 on bad token, CTA ref,
+      OG PNG) all still hold.
+
+**R2-03 Market read**
+- [ ] First "Share this read" mints `Search.share_token`; idempotent on re-share.
+- [ ] `market_read_shared` lands with a `source` prop; `/r/{token}` view writes
+      `shared_artifact_viewed` with `kind=read`.
+- [ ] Spec §2.6 acceptance (four real stage counts, anonymised-on default, 404/not-ready,
+      CTA ref, OG PNG) all still hold.
+
+**R2-04 /invite**
+- [ ] `GET /invite` writes exactly one `invite_page_viewed` per load.
+- [ ] Each copy control writes `invite_link_copied` with the right `channel` value.
+- [ ] Spec §3.4 acceptance (real code/link, live counter matches DB, per-channel links,
+      `?ref=` attribution) all still hold.
+
+### 8.4 R2-05 — Profile-completeness meter (the first activation test)
+
+Ready to implement. Grounded in `services/profile_service.py` as it stands today.
+
+**What the gate actually is (read this first — it is not `score >= 70`).**
+`completeness(db,user)` returns `score` (0–100) and `can_search` (`== not missing_required`).
+The 8 **required** fields carry 70% of the score, the 5 optional fields the other 30%
+(`score = req_hit*70 + opt_hit*30`). So the score hits 70 **exactly** when all required
+fields are in — which is the same instant `can_search` flips true, *if the user filled
+requireds first*. But a user who front-loads optional fields can read **~79–91% and still
+be locked** (one required field missing → `can_search` False). **Therefore the CTA's
+enabled/disabled state and the `profile_threshold_reached` event MUST key off
+`can_search`, never off `score >= 70`.** The % is the friendly progress number; the unlock
+is the required-field set.
+
+**What counts toward the %** (from `FIELDS`, do not re-list by hand — read it from the dict):
+- **Required (70% of the bar, all 8 needed to unlock):** At least one CV · About you ·
+  What you're looking for · Seniority · Company type · Sectors · Locations · Job type.
+- **Optional (remaining 30%, improve match quality, never gate search):** A cover letter ·
+  LinkedIn export · Companies you'd work for · Job titles to search · Salary floor.
+- Render the "70" in the copy from the required-field weight constant, **not** a hard-coded
+  string — if `FIELDS` weighting changes, the copy must track it.
+
+**Where it sits.** A persistent, sticky strip at the top of the onboarding profile form
+(`routes/onboarding.py` / the profile template), visible on every sub-step — not a separate
+screen and not buried at the bottom. It is the one element that is always on screen while
+the user fills the profile, turning the invisible gate (§5) into a closable goal.
+
+**Copy (reuse the existing `BAND_COPY["thin"]` voice, do not invent a second register).**
+- Locked: **"Profile 55% — Run my free scan unlocks at 70%"** with a sub-line listing the
+  exact remaining required fields from `completeness.missing_required` (e.g. "Still needed:
+  Locations, Job type"). This is the existing "thin" band's promise ("Add what's still
+  missing and your first search unlocks") made literal and per-field.
+- Unlocked (the moment `can_search` is true): **"Profile 70% — Run my free scan"**, CTA
+  live. If `score < quality_threshold` after unlock, keep the existing `should_improve`
+  nudge *below* the now-active CTA (honest matching) — never gate the free scan on it.
+
+**CTA behaviour.**
+- One primary button, value copy, message-match to the scan it triggers (cro).
+- **Disabled while `can_search` is False** — shown, not hidden, with the missing-required
+  checklist as its "to unlock" affordance. It is *not clickable* while locked, which is the
+  fix: today the gate is discovered only by a failed scan attempt (silent `QuotaError`
+  bounce). If a locked scan attempt still reaches `start_search` (deep link, stale page),
+  that path emits `scan_blocked_incomplete` instead of bouncing silently.
+- The instant `can_search` flips true (last required field saved), the button goes live
+  in place — no reload, no new screen — and triggers the free first scan.
+
+**Instrumentation (single KPI = first-scan rate = `scan_started` / `signup_completed`).**
+- `onboarding_step_completed` — prop `step_name` = which profile sub-step was completed;
+  localises *where* in the profile users stall (the §5 open question).
+- `profile_threshold_reached` — fired once, when `can_search` first flips true for a user.
+- `scan_blocked_incomplete` — fired where `start_search` would raise `QuotaError`; measures
+  how often the old silent-bounce path is still hit after the meter ships (should trend to
+  ~0 if the visible meter works).
+
+**A/B (ab-testing; run where traffic allows, else ship as best-practice default and watch
+the KPI).**
+- **Variant (meter+CTA):** the sticky meter + persistent "Run my free scan — unlocks at
+  70%" CTA described above.
+- **Control:** today's onboarding — no meter, gate discovered only on a scan attempt.
+- **Single success metric:** first-scan rate (`scan_started`/`signup_completed`) per
+  assigned cohort. Guardrail (do-no-harm) metric: profile *quality* band at first scan
+  (don't let the meter push people to scan at a barely-thin profile and get bad matches).
+
+**R2-05 acceptance checklist**
+- [ ] Meter is visible on every onboarding profile sub-step and updates live as fields are
+      saved.
+- [ ] The % shown equals `completeness(db,user).score`; the number in the copy is derived
+      from the required-field weight, not hard-coded.
+- [ ] CTA enabled state is driven by `can_search`, **not** `score >= 70` — verify with a
+      fixture user at ~85% score but one required field missing: CTA must stay disabled.
+- [ ] Locked sub-line lists exactly `completeness.missing_required` labels.
+- [ ] `onboarding_step_completed` (with `step_name`), `profile_threshold_reached` (once, on
+      first unlock), and `scan_blocked_incomplete` (on a locked scan attempt) all land in
+      `ProductEvent`.
+- [ ] Clicking the live CTA starts the free first scan with no intermediate screen.
+- [ ] A/B assignment is recorded so first-scan rate can be read per cohort; control path is
+      unchanged from today.
+
+### 8.5 Request carried forward
+
+The §6 **REQUEST** stands: GC clears the external-claim copy in the share/invite messages
+(§3.3) and the public CTA copy before these go live. The new meter copy in §8.4 is
+in-product (not an external claim) and does not need GC clearance, but keep the "70%"
+number honest per guardrail 8 — it is a structural fact of the field weighting, not a stat.
+
+---
+Skills used: cro (single primary value-CTA, message-match on the scan trigger, turning the
+invisible gate into a visible closable goal), onboarding (meter placement in the profile
+flow, per-step completion events, reusing the existing band voice instead of a second
+register), ab-testing (named the single KPI + do-no-harm guardrail, variant/control
+definition, cohort-readable assignment), analytics (event-per-action mapping, the anon
+public-view event, the R2-01 allowlist confirm-gate), task-observer (session-start).
+Skills considered but not used: signup (the fix is inside the profile step, not the
+signup form — nothing to change at sign-up this cycle); paywalls / churn-prevention (not
+relevant to Step-1 activation); frontend-ui-engineering / web-design-guidelines /
+apple-design (exact meter/CTA markup + CSS is the CTO's build step — this brief reuses the
+existing profile template and `BAND_COPY` voice rather than re-specifying pixels).
+(Cycle-1 skills for §1–7 above: referrals, cro, analytics, task-observer.)

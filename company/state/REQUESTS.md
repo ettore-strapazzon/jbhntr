@@ -16,7 +16,7 @@ Owner: CEO. Each request is self-contained (every step inline). `open | answered
 
 **Note:** spend, account creation, OAuth, posting, and payment methods will each come as their own `R-###` with exact steps when a task needs them — the agents never do these themselves.
 
-Answer:
+Answer: **(2026-10-26) ANSWERED.** Runner = same as copytrade-co. **auto-push: YES** (CEO pushes tested-green product changes; still reviews the diff + runs the suite first). Notification channel: default (email mt.helikon@gmail.com). Offered: CEO to wire a local Windows scheduled task for the 30-min + 08:00 cadence — Founder to confirm local vs manual-for-now.
 
 ---
 ### R-002 · Public open-core licence · open
@@ -24,7 +24,7 @@ Answer:
 **Recommendation (cycle 1 — GC and CTO concur): BSL 1.1 → Apache-2.0 at a +3yr Change Date.** Both licences block a competitor re-hosting us and the engine stays private regardless, so this only governs the shell; BSL wins on open-core goodwill (precise "no competing hosted service" carve-out), a credible "not fake open source" signal (auto-conversion, which Elastic 2.0 lacks), and strong precedent (MariaDB/Sentry/HashiCorp). Everything already public under MIT stays MIT. Licensor must be the incorporated entity (ties to R-010). Detail: `company/docs/legal/LICENCE_RECOMMENDATION.md`.
 **Reply:** `licence: BSL` to confirm, or `licence: Elastic` to override.
 
-Answer:
+Answer: **(2026-10-26) ANSWERED — BSL 1.1.** Confirmed on the basis that BSL does not restrict our own monetisation (credit buys / premium / paid service); it only blocks a competing hosted service.
 
 ---
 ### R-003 · Partner economics (Step 4) · open
@@ -45,7 +45,7 @@ Answer:
 **What:** GDPR needs a named controller (your name is fine during private beta). Incorporation is a liability + payments decision, recommended before Phase 2 (paid credits) and ideally before the data-drop/Show-HN spikes (weeks 7–8). GC recommends a one-hour session with an Italian lawyer before public launch (see the GTM §12 / the legal setup doc).
 **Reply:** when to calendar it + whether you want GC to prepare a vehicle-options memo first.
 
-Answer:
+Answer: **(2026-10-26) ANSWERED.** No incorporation until revenue is needed (≈ before Phase-2 paid credits). Founder accepts the residual controller-liability/footer exposure during the public-beta spikes. GC: reflect "accepted until revenue" in the risk register; keep /privacy, /terms, data-drop and Show-HN gated on a named controller.
 
 ---
 ### R-006 · Confirm 7 real costs (so the budget snaps to actuals) · open
@@ -53,7 +53,7 @@ Answer:
 **Note as you go** (one line each): 1) **Railway** current monthly bill (app + Postgres plan); 2) **jbhntr.app** domain annual renewal + registrar; 3) **actual LLM spend** last 30d (OpenRouter/Anthropic dashboard) ÷ scan & doc counts — to validate ~$0.13/scan & ~$0.20/doc; 4) **embeddings** provider + rate (or "on-device/free"); 5) **Resend** plan + monthly email volume (free cap 3,000/mo, 100/day); 6) **JSearch/RapidAPI** (or other job source) quota + cost; 7) any **trademark/incorporation** quote you have.
 **Reply:** paste the 7 values (or "don't know" for any) — CFO enters real LEDGER rows.
 
-Answer:
+Answer: **(2026-10-26) Founder will confirm later.** Budget figures stay estimates meanwhile; CFO models with estimates, snaps to actuals when provided. Still open.
 
 ---
 ### R-007 · GitHub org + read-only engine token (for the repo-split cut-over) · open
@@ -61,14 +61,14 @@ Answer:
 **Steps:** 1) create GitHub org `jbhntr`; 2) create public `jbhntr/jbhntr`, private `jbhntr/jbhntr-engine`, private `jbhntr/jbhntr-legacy`; 3) create a **fine-grained PAT scoped to `jbhntr/jbhntr-engine`, contents:read only**; 4) add it as `ENGINE_READ_TOKEN` to the Railway `web` + `cron` services **via the Railway dashboard** (never in a file or chat). 5) confirm the org name.
 **Reply:** "org done" + the org name, once set.
 
-Answer:
+Answer: **(2026-10-26) Deferred to the public cut-over.** Not needed for repo-split steps 1–3 (in-repo). CEO will re-surface this when steps 4–7 (public snapshot) are ready. Still open.
 
 ---
 ### R-008 · Approve repo-split steps 1–3 (next cycle) · open
 **What:** let the CTO execute the **in-repo, reversible** part next cycle: build the `jbhntr_engine` façade (funnel the 78 import sites), add the demo engine + boot guard, carve the private package. Tests stay green; nothing goes public. Steps 4–7 (public snapshot + cut-over) come back for a **separate** go.
 **Reply:** `repo-split 1-3: go` or hold.
 
-Answer:
+Answer: **(2026-10-26) ANSWERED — go.** Founder trusts the CTO to execute steps 1–3 following the GTM/plan. Steps 4–7 (public cut-over) return for a separate go.
 
 ---
 ### R-009 · Create the JBHNTR brand accounts (one sitting) · open

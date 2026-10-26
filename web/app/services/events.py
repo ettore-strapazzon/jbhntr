@@ -24,10 +24,22 @@ EVENT_NAMES = frozenset({
     "scan_started", "scan_completed", "first_shortlist_viewed",
     "job_saved", "job_dismissed", "job_marked_applied", "match_rated",
     "document_generated", "premium_waitlist_joined",
+    # R2-01 — activation localisation
+    "onboarding_step_completed", "profile_threshold_reached",
+    "scan_blocked_incomplete",
+    # R2-01 — share / referral loop (K-factor). The share/view events are
+    # defined now and emitted by the share artefacts next cycle.
+    "match_card_shared", "market_read_shared", "shared_artifact_viewed",
+    "invite_page_viewed", "invite_link_copied", "referred_signup",
+    "referral_activated",
+    # R2-01 — channel attribution (/go/{channel} redirect click)
+    "channel_click",
 })
 
 # Property keys that may be stored, all non-identifying and low-cardinality.
-ALLOWED_PROPS = frozenset({"kind", "tier", "rating", "source", "count", "n"})
+ALLOWED_PROPS = frozenset({
+    "kind", "tier", "rating", "source", "count", "n", "step_name", "channel",
+})
 
 
 def _clean(props: dict) -> dict:

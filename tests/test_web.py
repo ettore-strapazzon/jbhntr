@@ -5026,3 +5026,164 @@ def test_admin_clear_board(client, monkeypatch):
         db.close()
     assert client.post("/admin/clear-board", data={"email": "x"}).status_code == 401
     assert client.post("/admin/deep-clean").status_code == 401       # both gated
+
+
+# ============================ R2-01 measurement ============================ #
+# Measurement foundation: new event vocabulary, share_token columns, the
+# /go/{channel} attribution redirect, and the referral/scan-gate emitters.
+
+def _events(name, user_id=None):
+    from web.app.db import SessionLocal
+    from web.app.models import ProductEvent
+    db = SessionLocal()
+    try:
+        q = db.query(ProductEvent).filter(ProductEvent.name == name)
+        if user_id is not None:
+            q = q.filter(ProductEvent.user_id == user_id)
+        return q.all()
+    finally:
+        db.close()
+
+
+def test_r2_event_vocabulary_and_props():
+    from web.app.services import events
+    for name in ("onboarding_step_completed", "profile_threshold_reached",
+                 "scan_blocked_incomplete", "match_card_shared",
+                 "market_read_shared", "shared_artifact_viewed",
+                 "invite_page_viewed", "invite_link_copied", "referred_signup",
+                 "referral_activated", "channel_click"):
+        assert name in events.EVENT_NAMES, name
+    assert "step_name" in events.ALLOWED_PROPS
+    assert "channel" in events.ALLOWED_PROPS
+
+
+def test_r2_props_are_filtered_by_allowlist():
+    # step_name/channel now survive _clean; an unlisted key is still dropped.
+    from web.app.services.events import _clean
+    out = _clean({"step_name": "cv", "channel": "linkedin", "secret": "x"})
+    assert out == {"step_name": "cv", "channel": "linkedin"}
+
+
+def test_r2_share_token_columns_exist_nullable_and_unique():
+    from sqlalchemy import inspect
+    from web.app.db import SessionLocal, engine
+    from web.app.models import JobResult, Search, User
+    insp = inspect(engine)
+    for table in ("searches", "job_results"):
+        cols = {c["name"]: c for c in insp.get_columns(table)}
+        assert "share_token" in cols, table
+        assert cols["share_token"]["nullable"] is True, table
+    # Two un-minted (NULL) tokens coexist; a duplicate non-null token is rejected.
+    signup_db = SessionLocal()
+    try:
+        signup_db.add(User(email="tok-owner@example.com", password_hash="x"))
+        signup_db.commit()
+        uid = signup_db.query(User).filter_by(email="tok-owner@example.com").one().id
+        s1 = Search(user_id=uid, status="done")        # both NULL tokens
+        s2 = Search(user_id=uid, status="done")
+        signup_db.add_all([s1, s2]); signup_db.commit()
+        s1.share_token = "dupe-token-123"; signup_db.commit()
+        s2.share_token = "dupe-token-123"
+        import pytest as _pytest
+        from sqlalchemy.exc import IntegrityError
+        with _pytest.raises(IntegrityError):
+            signup_db.commit()
+        signup_db.rollback()
+    finally:
+        signup_db.close()
+
+
+def test_r2_scan_blocked_incomplete_emitted_on_quota_error(client):
+    signup(client, email="blocked@example.com")      # fresh profile -> cannot search
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services.search_service import QuotaError, start_search
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="blocked@example.com").one()
+        uid = u.id
+        import pytest as _pytest
+        with _pytest.raises(QuotaError):
+            start_search(db, u)
+    finally:
+        db.close()
+    assert len(_events("scan_blocked_incomplete", uid)) == 1
+
+
+def test_r2_signup_with_ref_sets_source_and_emits_referred_signup(client):
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services import referral
+    db = SessionLocal()
+    try:
+        signup(client, email="inviter@example.com")
+        inviter = db.query(User).filter_by(email="inviter@example.com").one()
+        code = referral.ensure_code(db, inviter); db.commit()
+    finally:
+        db.close()
+
+    client.cookies.set("jb_ref", code)
+    signup(client, email="friend@example.com")
+    client.cookies.delete("jb_ref")
+
+    db = SessionLocal()
+    try:
+        friend = db.query(User).filter_by(email="friend@example.com").one()
+        fid = friend.id
+        assert friend.referred_by_user_id is not None
+    finally:
+        db.close()
+    su = _events("signup_completed", fid)
+    assert su and su[0].properties.get("source") == "referral"
+    assert len(_events("referred_signup", fid)) == 1
+
+
+def test_r2_signup_without_ref_is_organic(client):
+    signup(client, email="organic@example.com")
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    db = SessionLocal()
+    try:
+        uid = db.query(User).filter_by(email="organic@example.com").one().id
+    finally:
+        db.close()
+    su = _events("signup_completed", uid)
+    assert su and su[0].properties.get("source") == "organic"
+
+
+def test_r2_referral_activated_mirrored_once(client):
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    from web.app.services import referral
+    db = SessionLocal()
+    try:
+        db.add_all([User(email="inv2@example.com", password_hash="x"),
+                    User(email="frd2@example.com", password_hash="x")])
+        db.commit()
+        inv = db.query(User).filter_by(email="inv2@example.com").one()
+        frd = db.query(User).filter_by(email="frd2@example.com").one()
+        frd.referred_by_user_id = inv.id; db.commit()
+        fid = frd.id
+        referral.reward_inviter_if_activated(db, frd)   # called after every scan
+        referral.reward_inviter_if_activated(db, frd)   # -> still one event
+    finally:
+        db.close()
+    assert len(_events("referral_activated", fid)) == 1
+
+
+def test_r2_go_redirect_records_click_and_passes_utm(client):
+    r = client.get("/go/linkedin?to=/credits&utm_source=li&foo=bar",
+                   follow_redirects=False)
+    assert r.status_code == 302
+    loc = r.headers["location"]
+    assert loc.startswith("/credits")
+    assert "utm_source=li" in loc and "foo=bar" not in loc   # only utm_* forwarded
+    clicks = _events("channel_click")
+    assert any(c.properties.get("channel") == "linkedin" for c in clicks)
+
+
+def test_r2_go_redirect_blocks_open_redirect(client):
+    for bad in ("//evil.com", r"/\evil.com", "https://evil.com"):
+        r = client.get("/go/x", params={"to": bad}, follow_redirects=False)
+        assert r.status_code == 302
+        assert r.headers["location"] == "/", bad

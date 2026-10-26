@@ -69,13 +69,15 @@ def signup(
     user.marketing_opt_in = bool(marketing)
     db.commit()
 
+    ref_code = request.cookies.get("jb_ref", "")
     from ..services.events import record
-    record(db, "signup_completed", user_id=user.id)
+    record(db, "signup_completed", user_id=user.id,
+           source="referral" if ref_code else "organic")
 
     # Redeem an invite code (REFERRAL-02): credit the friend now; the inviter is paid
-    # when this account completes its first scan.
+    # when this account completes its first scan. Emits referred_signup on a hit.
     from ..services import referral
-    referral.attach_and_reward_friend(db, user, request.cookies.get("jb_ref", ""))
+    referral.attach_and_reward_friend(db, user, ref_code)
 
     from ..services.email import send_welcome
     send_welcome(user.email, user.referral_code or "")   # no-op until SMTP is configured
