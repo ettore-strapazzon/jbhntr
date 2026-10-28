@@ -4,6 +4,7 @@
 fastapi>=0.110
 uvicorn[standard]>=0.29
 jinja2>=3.1
+markdown>=3.5                # renders company/ state Markdown on the /boardroom page
 python-multipart>=0.0.9      # form + file uploads
 itsdangerous>=2.1            # signed session middleware (OAuth state)
 

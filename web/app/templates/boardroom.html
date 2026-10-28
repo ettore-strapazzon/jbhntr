@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Boardroom · JBHNTR Team{% endblock %}
+{% block content %}
+{# Minimal scoped styling so the Markdown tables and request blocks stay readable.
+   CSP allows inline styles (style-src 'unsafe-inline'); no inline script is used. #}
+<style>
+  .board { max-width: 920px; }
+  .board .card { margin: 0 0 20px; }
+  .board table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0; }
+  .board th, .board td { padding: 6px 10px; border-bottom: 1px solid var(--line, #D8DFE5);
+                         text-align: left; vertical-align: top; }
+  .board th { color: var(--text-secondary, #526273); }
+  .board details > summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+  .board .req { border-top: 1px solid var(--line, #D8DFE5); padding-top: 4px; }
+  .board .req:first-child { border-top: 0; }
+</style>
+
+<div class="board">
+<h1>JBHNTR Team — Boardroom</h1>
+<p class="small muted">What the agent company is doing, in plain language. Read-only;
+  reflects the latest state the autonomous cycles have pushed.</p>
+
+<div class="card">
+  <h2>Goal &amp; budget</h2>
+  {{ goal_html | safe }}
+  {{ budget_html | safe }}
+  {% if sprint_name %}<p><b>Current sprint:</b> {{ sprint_name }}</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Now / recent</h2>
+  {{ now_html | safe }}
+</div>
+
+<div class="card">
+  <h2>Pending &amp; future tasks</h2>
+  {% if tasks_html %}{{ tasks_html | safe }}
+  {% else %}<p class="muted">No open tasks in the current sprint.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Waiting on you</h2>
+  {% if requests_html %}
+    {% for r in requests_html %}<div class="req">{{ r | safe }}</div>{% endfor %}
+  {% else %}<p class="muted">Nothing is waiting on you right now.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Latest morning update</h2>
+  {% if update_html %}{{ update_html | safe }}
+  {% else %}<p class="muted">No morning update filed yet.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Numbers (KPIs)</h2>
+  {{ kpis_html | safe }}
+</div>
+
+<div class="card">
+  <details>
+    <summary>Full history — every cycle</summary>
+    {{ history_html | safe }}
+  </details>
+</div>
+</div>
+{% endblock %}

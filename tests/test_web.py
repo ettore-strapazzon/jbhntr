@@ -1794,6 +1794,21 @@ def test_admin_requires_basic_auth(client, monkeypatch):
     assert r.status_code == 200 and "Operator dashboard" in r.text
 
 
+def test_boardroom_gated_and_renders(client, monkeypatch):
+    """/boardroom reuses the admin gate: 404 when the token is unset, auth-gated
+    when set, and renders the company state (a known CYCLE_LOG string shows)."""
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "")
+    assert client.get("/boardroom").status_code == 404          # feature off
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    assert client.get("/boardroom").status_code == 401           # no creds
+    assert client.get("/boardroom", auth=("op", "wrong")).status_code == 401
+    r = client.get("/boardroom", auth=("op", "s3cret"))
+    assert r.status_code == 200
+    assert "JBHNTR Team — Boardroom" in r.text
+    assert "company founding" in r.text                          # from CYCLE_LOG cycle 1
+
+
 def test_admin_shows_waitlist_and_csv(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal
