@@ -26,6 +26,10 @@ python-docx>=1.1             # ...and -> DOCX
 # High-fidelity CV -> PDF: renders the HTML/CSS CV with real fonts, colours and
 # columns. Needs system libs (see nixpacks.toml); falls back to fpdf2 if absent.
 weasyprint>=61
+# Rasterises the shareable match-card SVG -> a 1200x630 OG PNG (routes/share.py).
+# Reuses the cairo/pango system libs weasyprint already pulls in, so no new system
+# dependency; the share route falls back to the static OG image if it is absent.
+cairosvg>=2.7
 
 # Embeddings — on-device, free, no key/quota (jobhunter/embeddings.py "local").
 # ONNX-based (no PyTorch); downloads a ~150MB model on first use.

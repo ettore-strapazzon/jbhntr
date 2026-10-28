@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{# Public, no-auth match card (/m/{token}). Reuses the product's card language,
+   stripped for a public view: verdict, two fit bars, fits / watch-out, role,
+   employer iff the sharer left it on. Never the apply link, job description,
+   company blurb, name (unless chosen), email or any CV text. #}
+{% block content %}
+<section class="wrap shared-card">
+  <article class="job public-match">
+    {% if verdict %}
+      <p class="verdict v-{{ vcls }}">
+        <span class="verdict-dot" aria-hidden="true"></span>
+        <span class="verdict-label">{{ verdict }}</span>
+      </p>
+    {% endif %}
+
+    <div class="job-head">
+      <span class="score"><span class="sr-only">Match score </span>{{ r.score }}<span class="muted small">/100</span></span>
+      <div class="job-title">
+        <div class="jt">{{ r.title }}</div>
+        <div class="muted small">
+          {% if owner_name %}{{ owner_name }}’s match{% else %}A JBHNTR match{% endif %}
+          {% if company %} · {{ company }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if r.fit_role or r.fit_candidate %}
+      <div class="fitbars">
+        <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
+          <div class="scorebar" aria-hidden="true"><div style="width:{{ r.fit_role }}%"></div></div></div>
+        <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
+          <div class="scorebar" aria-hidden="true"><div style="width:{{ r.fit_candidate }}%"></div></div></div>
+      </div>
+    {% endif %}
+
+    <div class="why">
+      <div class="why-col good">
+        <p class="why-h">Fits</p>
+        <ul>
+          {% for b in good %}<li>{{ b }}</li>{% endfor %}
+          {% if not good %}<li class="muted">{{ r.why_good or "No notes." }}</li>{% endif %}
+        </ul>
+      </div>
+      {% if bad %}
+      <div class="why-col bad">
+        <p class="why-h">Watch out</p>
+        <ul>{% for b in bad %}<li>{{ b }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="shared-cta">
+      <a class="btn" href="{{ cta_url }}">Scan your first job match free</a>
+      <p class="small muted">See fit both ways — what you want and what they need. No card.</p>
+    </div>
+  </article>
+</section>
+{% endblock %}

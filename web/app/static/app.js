@@ -223,6 +223,20 @@ document.addEventListener("change", function (e) {
   }
 });
 
+// Custom validity message for [data-invalid-msg] fields (CSP forbids the inline
+// oninvalid/oninput that used to do this). `invalid` doesn't bubble, so capture it;
+// `input` clears the message so the field can re-validate.
+document.addEventListener("invalid", function (e) {
+  var el = e.target;
+  if (el && el.matches && el.matches("[data-invalid-msg]")) {
+    el.setCustomValidity(el.getAttribute("data-invalid-msg"));
+  }
+}, true);
+document.addEventListener("input", function (e) {
+  var el = e.target;
+  if (el && el.matches && el.matches("[data-invalid-msg]")) el.setCustomValidity("");
+});
+
 // Bulk drafting (My Jobs): tick jobs, then draft the missing CV/CLs in sequence,
 // reusing the per-job /generate endpoint (which charges + refunds on failure).
 // Jobs that already have that draft are skipped so nobody pays twice.

@@ -1,7 +1,9 @@
 # Step-1 Share Artefacts — Build Spec
 
-Owner: CPO · v1 (2026-10-25) · For the CTO to implement next cycle (BACKLOG R1-01/02/03).
-Spec only — no code shipped this cycle. Stack: FastAPI + Jinja + HTMX, Postgres, Railway.
+Owner: CPO · v1 (2026-10-25), build plan R3-01..04 (2026-10-26), live-code re-verify
+(2026-10-28). Builds: **R3-01 match card this cycle (CTO+CPO); R3-02 market read /
+R3-03 /invite / R3-04 meter next cycle.** The measurement foundation (R2-01) is shipped.
+Spec only — no product code in this doc. Stack: FastAPI + Jinja + HTMX, Postgres, Railway.
 
 This spec is grounded in the live product, not hypothetical. Where it names a column,
 helper or route, that thing exists today unless marked **NEW**.
@@ -169,8 +171,10 @@ Query by `User.referred_by_user_id == me.id`:
 - **Activated** = those with a `scan_completed` event (or, cheaper, a `referral_activated`
   credit-ledger row keyed `referral:{friend_id}`) — this is what pays out.
 - **Credits earned from referrals** = SUM of `CreditLedger.delta WHERE reason='referral_activated'`.
-Show "N signed up · M activated · {credits} credits earned". "Live" = recomputed on each
-page load (no socket needed — ponytail: a DB count per load is fine at this scale).
+Show **"M friends activated · +{credits} credits"** as the headline number — lead with
+*activated* because that is what pays out and what the loop optimises — with "N signed up"
+as a quieter secondary line. "Live" = recomputed on each page load (no socket needed —
+ponytail: a DB count per load is fine at this scale).
 
 ### 3.3 Pre-written messages (one per channel, link pre-embedded)
 Plain-text templates with `{invite_url}` filled server-side, each with a copy button and,
@@ -324,64 +328,99 @@ All additive, nullable — no backfill, no migration risk:
 
 ---
 
-## 8. Build plan — cycle 3
+## 8. Build plan — R3-01..04
 
-Added 2026-10-26 (CPO). Builds on **R2-01** (CTO measurement + `share_token` foundation,
-this cycle). No code this cycle — this section is the implementation brief for the CTO to
-build next cycle: backlog **R2-02 → R2-03 → R2-04** (the three artefacts) and **R2-05** (the
-activation fix). Each item below names *only* the R2-01 events it emits, where the
-`share_token` is minted, and a self-verify checklist.
+Added 2026-10-26 (CPO); backlog IDs synced + live-code re-verified 2026-10-28 (CPO).
+Foundation **R2-01** (measurement + `share_token` columns) is **shipped — done (c2), 597
+green, pushed**, so everything below rests on live code, not a pending dependency.
 
-### 8.0 Dependency on R2-01 — confirm before building
+**Who builds what, when:**
+- **This cycle:** the **Match card — R3-01** (CTO+CPO). It is where the whole shared-artefact
+  machine gets built once (see §8.1).
+- **Next cycle:** **Market read — R3-02**, **/invite — R3-03**, **Activation meter — R3-04**.
+  R3-02/03 reuse the R3-01 machine (do not rebuild it); R3-04 is independent of it.
 
-These build items assume R2-01 shipped the following. **CTO: confirm, or the props drop
-silently in `events._clean()`:**
-- `events.EVENT_NAMES` contains all five loop events used here — `match_card_shared`,
+(Historical note: §8 first drafted these as R2-02..05 before the backlog renumbered the
+*builds* to R3-01..04. R2-01 remains the shipped measurement foundation they emit into.)
+
+Each item below names *only* the events it emits, where the `share_token` is minted, and a
+self-verify checklist.
+
+### 8.0 Foundation (R2-01) — VERIFIED live 2026-10-28, not a pending gate
+
+Re-checked against `web/app/services/events.py` and `web/app/models.py` — all present, so
+the "props drop silently in `_clean()`" risk is **closed**:
+- `events.EVENT_NAMES` contains all five loop events (`match_card_shared`,
   `market_read_shared`, `shared_artifact_viewed`, `invite_page_viewed`,
-  `invite_link_copied` — and the three activation events — `onboarding_step_completed`,
-  `profile_threshold_reached`, `scan_blocked_incomplete`.
-- `events.ALLOWED_PROPS` contains **`step_name`** (for `onboarding_step_completed`) and
-  **`channel`** (for `invite_link_copied`). `source` and `kind` are already allowed.
-- `ProductEvent` accepts `user_id=None` for the one anon event (`shared_artifact_viewed`,
-  fired by a logged-out visitor).
+  `invite_link_copied`) and the three activation events (`onboarding_step_completed`,
+  `profile_threshold_reached`, `scan_blocked_incomplete`). ✓
+- `events.ALLOWED_PROPS` = `{kind, tier, rating, source, count, n, step_name, channel}` —
+  `step_name` and `channel` are in. ✓
+- `record(db, name, user_id=None, **props)` accepts `user_id=None` → the anon
+  `shared_artifact_viewed` from a logged-out visitor is supported. ✓
+- `Search.share_token` and `JobResult.share_token` both exist: `TEXT`, nullable, unique
+  index (migration shipped; test `test_r2_share_token_columns_exist_nullable_and_unique`
+  asserts it). ✓
 
-If any are missing, that is a one-line R2-01 follow-up, not a reason to block the build —
-emit the event anyway; it no-ops until the name is allowlisted.
+**No confirm step remains for R3-02/03/04 on R2-01.** The one thing to confirm is the
+R3-01 *build* (next section), because R3-02/03 reuse it.
+
+### 8.0a Dependency to confirm with the CTO's R3-01 build (the live one)
+
+R3-02 and R3-03 do **not** depend on R2-01 only — they depend on the **reusable machine
+R3-01 builds this cycle**. Confirm these three R3-01 outputs are factored for reuse before
+starting R3-02/03, so the next cycle is layout-only, not infrastructure-again:
+1. **The lazy-mint + public-route pattern** — `POST /job/{id}/share` mints
+   `secrets.token_urlsafe(9)` into `share_token` iff null, idempotent on re-share; `/m/{token}`
+   resolves one row, 404 on unknown. R3-02 copies this verbatim onto `Search` /
+   `/r/{token}`. *Confirm: the mint + resolve is a small shared helper, not inlined in the
+   match-card handler.*
+2. **The OG-PNG renderer (§4)** — the Playwright-local-Chromium screenshot of a minimal
+   `/m/{token}/card` target at 1200×630, rendered-once-then-cached, wired through
+   `public_seo(og_image=...)`. R3-02 adds only a second render target
+   (`/r/{token}/card`); it must not re-solve rendering/caching. *Confirm: the
+   screenshot+cache is parameterised by (route, token), reusable for the read card.*
+3. **The `shared_artifact_viewed` anon-view wiring** — fired on the public GET with
+   `user_id=None` and a `kind` prop. R3-02 passes `kind=read` instead of `kind=card`.
+   *Confirm: the public-GET event emit is reusable, keyed by `kind`.*
+
+If R3-01 inlines any of the three into the match-card path, that is the one-line follow-up
+to raise on R3-01 review — flag it there, not next cycle when R3-02 starts.
 
 ### 8.1 Build order (match card → market read → invite)
 
 Order is deliberate, not arbitrary:
-1. **Match card (R2-02) first.** It is the atomic artefact (one scored match), reuses the
+1. **Match card (R3-01) first.** It is the atomic artefact (one scored match), reuses the
    most existing markup (`job_card.html`), and is where the whole shared-artefact machine
    gets built once: the lazy `share_token` mint, the public `/m/{token}` route, and the
    **OG-PNG renderer (§4)**. Everything downstream reuses these.
-2. **Market read (R2-03) second.** Reuses the exact `share_token` pattern (on `Search`
+2. **Market read (R3-02) second.** Reuses the exact `share_token` pattern (on `Search`
    instead of `JobResult`) and the §4 PNG renderer the card just established — so this is
    mostly a second render target + the stage-funnel layout, not new infrastructure.
-3. **`/invite` (R2-04) third.** Depends on no new artefact infra; it is the *destination*
+3. **`/invite` (R3-03) third.** Depends on no new artefact infra; it is the *destination*
    the first two drive traffic to, so it is only worth shipping once there are shared
    artefacts carrying referral codes into the wild. Referral reward wiring already exists
    (§3).
 
-`R2-05` (the meter) is independent of the share machine — it blocks only on R2-01's three
-activation events — so it can be built in parallel with any of the above.
+`R3-04` (the meter) is independent of the share machine — it blocks only on R2-01's three
+activation events (shipped) — so it can be built in parallel with any of the above.
 
 ### 8.2 Events + `share_token` per artefact
 
 | Build item | Emits (R2-01 event → when, props) | `share_token` minted |
 |---|---|---|
-| **R2-02 Match card** | `match_card_shared` → owner clicks **Share** on a match/tracker card (`POST /job/{id}/share`); prop `source` = `matches` \| `applications`. · `shared_artifact_viewed` → logged-out visitor opens `/m/{token}` (anon, `user_id=None`); prop `kind` = `card`. | **On the first Share click** for that card, inside `POST /job/{id}/share`: if `JobResult.share_token` is null, mint `secrets.token_urlsafe(9)` and persist, then return the share sheet. Idempotent — a second Share reuses it. |
-| **R2-03 Market read** | `market_read_shared` → owner clicks **Share this read** on a completed scan; prop `source` = where the button sat (`matches` \| `read`). · `shared_artifact_viewed` → logged-out visitor opens `/r/{token}`; prop `kind` = `read`. | **On the first "Share this read" click**, same lazy pattern on `Search.share_token`. Unshared scans stay private. |
-| **R2-04 /invite** | `invite_page_viewed` → `GET /invite` renders for the signed-in user (one per load). · `invite_link_copied` → user copies the link or a per-channel message; prop `channel` = `link` \| `linkedin` \| `x` \| `whatsapp` \| `email` \| `reddit` \| `imessage` \| `bluesky`. | None — `/invite` uses the user's existing referral code (`referral.ensure_code`), not a `share_token`. |
+| **R3-01 Match card** | `match_card_shared` → owner clicks **Share** on a match/tracker card (`POST /job/{id}/share`); prop `source` = `matches` \| `applications`. · `shared_artifact_viewed` → logged-out visitor opens `/m/{token}` (anon, `user_id=None`); prop `kind` = `card`. | **On the first Share click** for that card, inside `POST /job/{id}/share`: if `JobResult.share_token` is null, mint `secrets.token_urlsafe(9)` and persist, then return the share sheet. Idempotent — a second Share reuses it. |
+| **R3-02 Market read** | `market_read_shared` → owner clicks **Share this read** on a completed scan; prop `source` = where the button sat (`matches` \| `read`). · `shared_artifact_viewed` → logged-out visitor opens `/r/{token}`; prop `kind` = `read`. | **On the first "Share this read" click**, same lazy pattern on `Search.share_token` (reuse the R3-01 mint helper — §8.0a.1). Unshared scans stay private. |
+| **R3-03 /invite** | `invite_page_viewed` → `GET /invite` renders for the signed-in user (one per load). · `invite_link_copied` → user copies the link or a per-channel message; prop `channel` = `link` \| `linkedin` \| `x` \| `whatsapp` \| `email` \| `reddit` \| `imessage` \| `bluesky`. | None — `/invite` uses the user's existing referral code (`referral.ensure_code`), not a `share_token`. |
 
 Rule for the two `_shared` events: **fire on the Share *action*, in the same handler that
 mints/looks-up the token** — one event per click, including re-shares (we want raw share
 volume, the K-factor numerator). `shared_artifact_viewed` fires on the **public GET**, not
 on the share, so the two together give a share→view ratio.
 
-### 8.3 Acceptance checklist — R2-02 / R2-03 / R2-04
+### 8.3 Acceptance checklist — R3-01 / R3-02 / R3-03
 
-**R2-02 Match card**
+**R3-01 Match card** (this cycle)
 - [ ] First Share on a card with null `share_token` mints one; second Share returns the
       same token (assert idempotent in a test).
 - [ ] `match_card_shared` lands in `ProductEvent` with `source` ∈ {matches, applications}.
@@ -389,34 +428,65 @@ on the share, so the two together give a share→view ratio.
       (`user_id=None`, `kind=card`); a reload writes another (view count, not unique).
 - [ ] Spec §1.4 acceptance (token→card, no name/JD/email leak, 404 on bad token, CTA ref,
       OG PNG) all still hold.
+- [ ] The mint/resolve, the PNG renderer, and the anon-view emit are factored for reuse
+      (§8.0a) — not inlined in the match-card handler.
 
-**R2-03 Market read**
-- [ ] First "Share this read" mints `Search.share_token`; idempotent on re-share.
+**R3-02 Market read** (next cycle — reuses R3-01 machine)
+- [ ] `/r/{token}` renders the **four real stage counts** read straight off `Search`
+      (`raw_count → located_count → ranked_count → scored_count`) as a four-step funnel with
+      the headline "{raw_count} roles scanned → {scored_count} worth your time." **No engine
+      change; no reason buckets** (reason histogram is v2, §2.3 — do not fake buckets).
+- [ ] First "Share this read" mints `Search.share_token` via the R3-01 helper; idempotent
+      on re-share; unshared scans have no public surface.
+- [ ] Anonymise toggle defaults **ON** (§2.4): with it on, no first name and no employer
+      names appear — only aggregate counts + the target role/function label; CV text and
+      specific-employer list never appear regardless of the toggle.
 - [ ] `market_read_shared` lands with a `source` prop; `/r/{token}` view writes
-      `shared_artifact_viewed` with `kind=read`.
-- [ ] Spec §2.6 acceptance (four real stage counts, anonymised-on default, 404/not-ready,
-      CTA ref, OG PNG) all still hold.
+      `shared_artifact_viewed` with `kind=read` (anon, `user_id=None`).
+- [ ] A scan still running or failed → friendly "not ready", not the funnel; unknown
+      token → 404.
+- [ ] CTA carries the sharer's ref code (`/signup?ref={code}`); OG image is the read PNG
+      (second render target, §8.0a.2); page is `noindex,nofollow`.
 
-**R2-04 /invite**
-- [ ] `GET /invite` writes exactly one `invite_page_viewed` per load.
-- [ ] Each copy control writes `invite_link_copied` with the right `channel` value.
-- [ ] Spec §3.4 acceptance (real code/link, live counter matches DB, per-channel links,
-      `?ref=` attribution) all still hold.
+**R3-03 /invite** (next cycle — no share_token, no PNG)
+- [ ] `GET /invite` shows the user's real code + link (`referral.ensure_code` /
+      `referral.invite_url`); copy buttons work; reward numbers come from config
+      (`REFERRAL_FRIEND_CREDITS` / `REFERRAL_CREDITS`), never hard-coded.
+- [ ] Live counter reads the DB on each load and shows **"N friends activated · +{credits}
+      credits"** leading with *activated* (the thing that pays out), signed-up count
+      secondary; numbers match `User.referred_by_user_id == me.id` + the
+      `referral_activated` ledger rows (§3.2).
+- [ ] Per-channel pre-written messages (LinkedIn / X / Bluesky, WhatsApp / iMessage, email,
+      Reddit) each embed the correct `invite_url`; share-intent links open the right
+      composer; mobile uses `navigator.share` where available. **Copy is GC-cleared before
+      launch** (§6 / §8.5).
+- [ ] `GET /invite` writes exactly one `invite_page_viewed` per load; each copy control
+      writes `invite_link_copied` with the right `channel` value.
+- [ ] `/signup?ref={code}` attribution + first-scan reward already wired
+      (`attach_and_reward_friend`, `reward_inviter_if_activated`) — no new reward code.
 
-### 8.4 R2-05 — Profile-completeness meter (the first activation test)
+### 8.4 R3-04 — Profile-completeness meter (the first activation test)
 
-Ready to implement. Grounded in `services/profile_service.py` as it stands today.
+Ready to implement. Grounded in `services/profile_service.py` **re-verified 2026-10-28**.
 
 **What the gate actually is (read this first — it is not `score >= 70`).**
-`completeness(db,user)` returns `score` (0–100) and `can_search` (`== not missing_required`).
-The 8 **required** fields carry 70% of the score, the 5 optional fields the other 30%
-(`score = req_hit*70 + opt_hit*30`). So the score hits 70 **exactly** when all required
-fields are in — which is the same instant `can_search` flips true, *if the user filled
-requireds first*. But a user who front-loads optional fields can read **~79–91% and still
-be locked** (one required field missing → `can_search` False). **Therefore the CTA's
-enabled/disabled state and the `profile_threshold_reached` event MUST key off
-`can_search`, never off `score >= 70`.** The % is the friendly progress number; the unlock
-is the required-field set.
+`completeness(db,user)` returns a `Completeness` with `score` (0–100) and
+`can_search` (`@property` → `not self.missing_required`, line ~61). Confirmed live:
+`score = round(req_hit*70 + opt_hit*30)` — the 8 **required** fields carry 70% of the score,
+the 5 optional fields the other 30%. So the score hits 70 **exactly** when all required
+fields are in — the same instant `can_search` flips true, *if the user filled requireds
+first*. But a user who front-loads optional fields can read **~79–91% and still be locked**
+(one required field missing → `can_search` False). **Therefore the CTA's enabled/disabled
+state and the `profile_threshold_reached` event MUST key off `can_search`, never off
+`score >= 70`.** The % is the friendly progress number; the unlock is the required-field set.
+
+**⚠ Gotcha — there are TWO `can_search` in `profile_service.py`; use the right one.**
+`Completeness.can_search` (≈ line 61, `not missing_required`) is the gate — it is what
+`start_search` actually enforces before raising `QuotaError`, so it is what the meter's CTA
+must mirror. There is a **second, unrelated** `can_search` further down (≈ line 189,
+`band != "thin"`, on the match-readiness/band class). Do **not** wire the CTA to the band
+one — bind strictly to `completeness(db, user).can_search`. The fixture test below also
+pins this (an ~85% optional-heavy user is `Completeness.can_search == False`).
 
 **What counts toward the %** (from `FIELDS`, do not re-list by hand — read it from the dict):
 - **Required (70% of the bar, all 8 needed to unlock):** At least one CV · About you ·
@@ -467,13 +537,16 @@ the KPI).**
   assigned cohort. Guardrail (do-no-harm) metric: profile *quality* band at first scan
   (don't let the meter push people to scan at a barely-thin profile and get bad matches).
 
-**R2-05 acceptance checklist**
+**R3-04 acceptance checklist**
 - [ ] Meter is visible on every onboarding profile sub-step and updates live as fields are
       saved.
 - [ ] The % shown equals `completeness(db,user).score`; the number in the copy is derived
       from the required-field weight, not hard-coded.
-- [ ] CTA enabled state is driven by `can_search`, **not** `score >= 70` — verify with a
-      fixture user at ~85% score but one required field missing: CTA must stay disabled.
+- [ ] CTA enabled state is driven by `Completeness.can_search` (the `not missing_required`
+      one, **not** the band `can_search` and **not** `score >= 70`) — **fixture test
+      required:** a user with all 5 optional fields + enough requireds to read ~85% score
+      but **one required field still missing** → `can_search == False` and the CTA stays
+      disabled. This single test is the guard against the whole-feature correctness bug.
 - [ ] Locked sub-line lists exactly `completeness.missing_required` labels.
 - [ ] `onboarding_step_completed` (with `step_name`), `profile_threshold_reached` (once, on
       first unlock), and `scan_blocked_incomplete` (on a locked scan attempt) all land in

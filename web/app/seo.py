@@ -92,9 +92,14 @@ def absolute_url(path: str = "/") -> str:
 def public_seo(*, title: str, description: str, path: str,
                og_title: str | None = None,
                og_description: str | None = None,
+               og_image: str | None = None,
                schema: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Template context that marks a page public + indexable and gives it its
-    own title, description, canonical and Open Graph fields."""
+    own title, description, canonical and Open Graph fields.
+
+    og_image is an absolute URL to a per-page social image; when absent the
+    template falls back to config.og_image_path (today's single static PNG), so
+    every existing page is unchanged."""
     return {
         "meta_title": title,
         "meta_description": description,
@@ -102,6 +107,7 @@ def public_seo(*, title: str, description: str, path: str,
         "meta_robots": PUBLIC_ROBOTS,
         "og_title": og_title or title,
         "og_description": og_description or description,
+        "og_image": og_image,
         "og_url": absolute_url(path),
         "structured_data": schema or [],
     }

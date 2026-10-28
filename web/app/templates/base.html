@@ -17,13 +17,14 @@
 <meta property="og:title" content="{{ og_title or meta_title or 'JBHNTR' }}">
 <meta property="og:description" content="{{ og_description or meta_description or '' }}">
 {% if og_url or canonical_url %}<meta property="og:url" content="{{ og_url or canonical_url }}">{% endif %}
-<meta property="og:image" content="{{ config.base_url.rstrip('/') }}{{ config.og_image_path }}">
+{% set og_img = og_image or (config.base_url.rstrip('/') ~ config.og_image_path) %}
+<meta property="og:image" content="{{ og_img }}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ og_title or meta_title or 'JBHNTR' }}">
 <meta name="twitter:description" content="{{ og_description or meta_description or '' }}">
-<meta name="twitter:image" content="{{ config.base_url.rstrip('/') }}{{ config.og_image_path }}">
+<meta name="twitter:image" content="{{ og_img }}">
 
 <link rel="icon" href="/static/icon-16.svg?v={{ asset_v }}" sizes="16x16" type="image/svg+xml">
 <link rel="icon" href="/static/icon.svg?v={{ asset_v }}" type="image/svg+xml">

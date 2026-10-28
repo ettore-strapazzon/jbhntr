@@ -65,11 +65,12 @@
         <button class="ghost" type="submit">Reopen</button>
       </form>
     {% else %}
+      {# hx-trigger="change" auto-submits when the select changes — an inline
+         onchange is CSP-blocked (no 'unsafe-inline'/'unsafe-hashes'). #}
       <form method="post" action="/job/{{ r.id }}/stage" class="trk-stageform"
-            hx-post="/job/{{ r.id }}/stage" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
+            hx-post="/job/{{ r.id }}/stage" hx-trigger="change" hx-target="#trk-{{ r.id }}" hx-swap="outerHTML">
         <label class="sr-only" for="stage-{{ r.id }}">Stage</label>
-        <select id="stage-{{ r.id }}" name="stage"
-                onchange="if(this.form.requestSubmit){this.form.requestSubmit()}else{this.form.submit()}">
+        <select id="stage-{{ r.id }}" name="stage">
           {% for s in pipeline_stages %}
             <option value="{{ s }}" {% if s == st.application_status %}selected{% endif %}>{{ s }}</option>
           {% endfor %}
@@ -89,7 +90,11 @@
       </form>
     {% endif %}
     {% if r.apply_url %}<a class="small" href="{{ r.apply_url }}" target="_blank" rel="noopener noreferrer">Open posting</a>{% endif %}
+    <button type="button" class="linklike small" hx-post="/job/{{ r.id }}/share"
+            hx-vals='{"source": "applications"}' hx-target="#share-{{ r.id }}"
+            hx-swap="innerHTML">Share</button>
   </div>
+  <div class="share-slot" id="share-{{ r.id }}"></div>
 
   {# Application docs: craft/open the tailored CV + cover letter (heavy editing on the workbench). #}
   {# Priced in credits (PRICE-05): the button states the cost before the click; the

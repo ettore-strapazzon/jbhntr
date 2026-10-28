@@ -37,8 +37,7 @@
         style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 14px">
     <input type="url" name="url" required placeholder="Paste a job link to score it…"
            style="flex:1; min-width:220px; padding:8px 10px"
-           oninvalid="this.setCustomValidity('Paste a full http(s) job URL')"
-           oninput="this.setCustomValidity('')">
+           data-invalid-msg="Paste a full http(s) job URL">
     <button type="submit" class="ghost">Score this job · {{ config.cost_external_import }}</button>
     <span class="small muted">Scores one posting into a card on your board.</span>
   </form>

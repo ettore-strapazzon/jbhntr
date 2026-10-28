@@ -32,3 +32,17 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** none. R3 builds the visible artefacts + activation meter + repo-split 1–3 on this foundation.
 - **Spend:** none.
 - **Observations:** 0005 (CPO — threshold-gated CTAs bind to the gate predicate, not the displayed %).
+
+## 2026-10-28 · cycle 3 (flagship match card + growth prep)
+- **Recovery:** none. Scheduler decision: hourly cloud routine created (paused during this cycle to avoid collision; re-enabled after push).
+- **Dispatched (foreground, parallel):** CTO (R3-01 match card) · GC (R3-07 clear COMPARE_COPY claims) · CPO (R3-02/03/04 build specs) · CMO (daily digest). CFO idle (no unblocked finance task).
+- **Results (all accepted):**
+  - CTO → **R3-01 shipped**: `web/app/routes/share.py` (`POST /job/{id}/share` owner-only → lazy-mint `share_token`; public `GET /m/{token}` no-auth card, no PII leak, noindex; `GET /m/{token}/card.png` OG via **cairosvg** reusing weasyprint's cairo libs + static fallback), `m_card.html`, `share_sheet.html`; Share button on job + tracker cards; `JobResult.share_show_company/name` cols + migration; referral embed. **Card is anonymous** (no name field exists). **Independent gate: 606 passed, 1 skipped.**
+  - GC → cleared COMPARE_COPY: **20 cleared / 4 revised / 2 held** (dropped unsourced Indeed status, removed Teal $ figure). Pages gated on a hands-on source-review date (→ R-012).
+  - CPO → ARTEFACTS_SPEC §8 de-staled + build-ready R3-02/03/04; caught the two-`can_search` ambiguity (bind CTA to `Completeness.can_search`).
+  - CMO → `digest/2026-10-28.md` (9 drafts, filed); BetaList + PH-coming-soon first directories once accounts exist.
+- **Review notes:** CEO re-ran the full suite (606 green) before push. Bundled the long-standing **CSP-dropdown fix** (track_card stage select + matches.html import field + app.js handler) into this commit — complete, tested, was entangled with the match-card edit to track_card.html.
+- **Requests opened:** R-012 (hands-on source-review pass before any /compare page publishes). GC to review the share-card caption/CTA copy next cycle (honest/low-risk, shipped meanwhile).
+- **Blockers:** none. R3-02/03/04 (market read, invite, activation meter) build next on the share machine.
+- **Spend:** none. Added prod dep `cairosvg` (fallback-safe).
+- **Scheduler:** hourly cloud routine `trig_01SFpcUqEqDrtvmsSUwYm2qw` — re-enabled + first run validated after this push.

@@ -92,3 +92,11 @@ Answer:
 
 Answer:
 
+---
+### R-012 · Hands-on source-review before any /compare page publishes · open
+**What:** GC cleared the comparison-page *wording* (20 cleared / 4 revised / 2 held) but — per the compliance card — **no `/compare/*` page ships until a one-time hands-on source check** confirms each competitor claim against the competitor's live site and fills the "Last reviewed against official sources on <date>" line. This is a brief human/Founder pass (a competitor trial = account creation, which agents don't do).
+**To unblock the held items:** (a) confirm/drop Indeed's current "Apply-for-Me" status with a dated source; (b) confirm Teal+'s current pricing structure; (c) CFO/CTO owe a dated query on our own match corpus to substantiate the "most value is in the first handful of applications" claim.
+**Reply:** when you want to do the source pass (or "GC drafts the checklist first"). Not blocking — the pages aren't built yet (R3-08).
+
+Answer:
+

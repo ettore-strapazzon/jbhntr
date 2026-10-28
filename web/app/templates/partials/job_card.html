@@ -145,8 +145,12 @@
         {% endif %}
         <form method="post" action="/job/{{ r.id }}/dismiss" hx-post="/job/{{ r.id }}/dismiss"
               hx-target="#card-{{ r.id }}" hx-swap="outerHTML"><button class="dismiss" type="submit">Not for me</button></form>
+        <button type="button" class="ghost" hx-post="/job/{{ r.id }}/share"
+                hx-vals='{"source": "matches"}' hx-target="#share-{{ r.id }}"
+                hx-swap="innerHTML">Share</button>
       </div>
     </div>
+    <div class="share-slot" id="share-{{ r.id }}"></div>
 
     {# 6. Rating #}
     {% include "partials/vote.html" %}

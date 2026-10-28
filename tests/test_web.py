@@ -5187,3 +5187,160 @@ def test_r2_go_redirect_blocks_open_redirect(client):
         r = client.get("/go/x", params={"to": bad}, follow_redirects=False)
         assert r.status_code == 302
         assert r.headers["location"] == "/", bad
+
+
+# --------------------------- R3-01 shareable match card -------------------- #
+def _share_result(email, **over):
+    """Create an owned, scored JobResult for the signed-up `email`. Returns
+    (result_id, user_id). Secrets default to leak-canaries for the no-leak test."""
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult, Search, User
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email=email).one()
+        s = Search(user_id=u.id, status="done"); db.add(s); db.flush()
+        fields = dict(position=1, short_id="sh", tier=1, score=82,
+                      fit_role=80, fit_candidate=72, title="Head of Ops",
+                      company="Acme Corp", why_good="Strong remote. Good pay.",
+                      why_bad="Travel heavy.",
+                      apply_url="https://secret-apply.example/x",
+                      description="SECRETJDTEXT", company_blurb="SECRETBLURB",
+                      dedup_key="dk-share")
+        fields.update(over)
+        jr = JobResult(search_id=s.id, user_id=u.id, **fields)
+        db.add(jr); db.commit()
+        return jr.id, u.id
+    finally:
+        db.close()
+
+
+def _token_of(rid):
+    from web.app.db import SessionLocal
+    from web.app.models import JobResult
+    db = SessionLocal()
+    try:
+        return db.get(JobResult, rid).share_token
+    finally:
+        db.close()
+
+
+def test_r3_share_mints_token_idempotent_and_unique(client):
+    signup(client, "share1@example.com")
+    rid, uid = _share_result("share1@example.com")
+    rid2, _ = _share_result("share1@example.com", short_id="sh2", dedup_key="dk-s2")
+
+    r = client.post(f"/job/{rid}/share", data={"source": "matches"})
+    assert r.status_code == 200
+    tok = _token_of(rid)
+    assert tok and f"/m/{tok}" in r.text            # URL returned in the sheet
+
+    # Idempotent: a second Share reuses the same token.
+    client.post(f"/job/{rid}/share", data={"source": "matches"})
+    assert _token_of(rid) == tok
+
+    # A different result mints a different token.
+    client.post(f"/job/{rid2}/share", data={"source": "matches"})
+    assert _token_of(rid2) and _token_of(rid2) != tok
+
+    # Not the owner -> 404, no token minted.
+    signup(client, "share1b@example.com")
+    assert client.post(f"/job/{rid}/share").status_code == 404
+
+
+def test_r3_share_emits_match_card_shared_with_source(client):
+    signup(client, "share2@example.com")
+    rid, uid = _share_result("share2@example.com")
+    client.post(f"/job/{rid}/share", data={"source": "applications"})
+    ev = _events("match_card_shared", uid)
+    assert ev and ev[0].properties.get("source") == "applications"
+
+
+def test_r3_public_card_renders_without_auth_and_no_leak(client):
+    signup(client, "share3@example.com")
+    rid, uid = _share_result("share3@example.com")
+    client.post(f"/job/{rid}/share", data={"source": "matches"})
+    tok = _token_of(rid)
+
+    anon = TestClient(app)                           # no session cookie
+    r = anon.get(f"/m/{tok}")
+    assert r.status_code == 200
+    body = r.text
+    # The card shows the match substance...
+    assert "Head of Ops" in body and "Apply now" in body
+    assert "Fits what you want" in body and "You fit their requirements" in body
+    # ...and never the private surfaces.
+    assert "secret-apply.example" not in body
+    assert "SECRETJDTEXT" not in body and "SECRETBLURB" not in body
+    assert "share3@example.com" not in body          # no email / name leak
+    assert "A JBHNTR match" in body                  # anonymous attribution
+    assert "noindex" in body                         # per-user, thin
+
+
+def test_r3_public_card_404_on_bad_token():
+    anon = TestClient(app)
+    assert anon.get("/m/does-not-exist").status_code == 404
+    assert anon.get("/m/does-not-exist/card.png").status_code == 404
+
+
+def test_r3_public_card_cta_carries_referral_code(client):
+    signup(client, "share4@example.com")
+    rid, uid = _share_result("share4@example.com")
+    client.post(f"/job/{rid}/share", data={"source": "matches"})
+    tok = _token_of(rid)
+    from web.app.db import SessionLocal
+    from web.app.models import User
+    db = SessionLocal()
+    try:
+        code = db.get(User, uid).referral_code
+    finally:
+        db.close()
+    assert code
+    body = TestClient(app).get(f"/m/{tok}").text
+    assert f"/signup?ref={code}" in body
+
+
+def test_r3_shared_artifact_viewed_emitted_anon(client):
+    signup(client, "share5@example.com")
+    rid, uid = _share_result("share5@example.com")
+    client.post(f"/job/{rid}/share", data={"source": "matches"})
+    tok = _token_of(rid)
+    anon = TestClient(app)
+    anon.get(f"/m/{tok}")
+    anon.get(f"/m/{tok}")                             # a reload counts again
+    views = [e for e in _events("shared_artifact_viewed")
+             if e.properties.get("kind") == "card" and e.user_id is None]
+    assert len(views) >= 2
+
+
+def test_r3_employer_toggle_hides_company(client):
+    signup(client, "share6@example.com")
+    rid, uid = _share_result("share6@example.com")
+    client.post(f"/job/{rid}/share", data={"source": "matches"})
+    tok = _token_of(rid)
+    # Default on: employer shows.
+    assert "Acme Corp" in TestClient(app).get(f"/m/{tok}").text
+    # Re-submit the toggle form with prefs set and the box unchecked -> hidden.
+    client.post(f"/job/{rid}/share", data={"source": "matches", "prefs": "1"})
+    assert "Acme Corp" not in TestClient(app).get(f"/m/{tok}").text
+
+
+def test_r3_og_png_renders_or_falls_back(client):
+    signup(client, "share7@example.com")
+    rid, uid = _share_result("share7@example.com")
+    client.post(f"/job/{rid}/share", data={"source": "matches"})
+    tok = _token_of(rid)
+    r = TestClient(app).get(f"/m/{tok}/card.png")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("image/")
+
+
+def test_r3_share_button_on_match_and_tracker_cards(client):
+    signup(client, "share8@example.com")
+    rid, uid = _share_result("share8@example.com")
+    # The match card (returned by a save) carries a Share control.
+    card = client.post(f"/job/{rid}/save", headers={"HX-Request": "true"}).text
+    assert f"/job/{rid}/share" in card and ">Share<" in card
+    # The tracker card does too.
+    trk = client.post(f"/job/{rid}/next-step", data={"text": ""},
+                      headers={"HX-Request": "true"}).text
+    assert f"/job/{rid}/share" in trk and ">Share<" in trk

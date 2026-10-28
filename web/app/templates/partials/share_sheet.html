@@ -1,0 +1,39 @@
+{# Share sheet returned by POST /job/{id}/share. Expects: r, source, share_url,
+   og_url, caption. No inline JS (CSP): copy uses the delegated [data-copy]
+   handler already in app.js; channel buttons are plain links. #}
+<div class="share-sheet" id="share-sheet-{{ r.id }}">
+  <p class="small muted" style="margin:0 0 6px">Your shareable match card is ready. It shows the scores and reasons, never your CV, email or the apply link.</p>
+
+  <div class="share-link">
+    <input type="text" value="{{ share_url }}" readonly data-select-on-click
+           aria-label="Public card link" class="share-url">
+    <button type="button" class="btn ghost small" data-copy="{{ share_url }}">Copy link</button>
+  </div>
+
+  <div class="share-channels">
+    <a class="btn ghost small" target="_blank" rel="noopener"
+       href="https://www.linkedin.com/sharing/share-offsite/?url={{ share_url | urlencode }}">LinkedIn</a>
+    <a class="btn ghost small" target="_blank" rel="noopener"
+       href="https://twitter.com/intent/tweet?text={{ caption | urlencode }}">X</a>
+    <a class="btn ghost small" target="_blank" rel="noopener"
+       href="https://wa.me/?text={{ caption | urlencode }}">WhatsApp</a>
+    <a class="btn ghost small" href="{{ og_url }}" download="jbhntr-match.png">Download image</a>
+  </div>
+
+  <button type="button" class="linklike small" data-copy="{{ caption }}">Copy caption</button>
+
+  {# Employer visibility toggle. Re-submits the same endpoint (idempotent token),
+     prefs=1 marks it a settings save; an unchecked box sends nothing. #}
+  <form class="share-opts" method="post" action="/job/{{ r.id }}/share"
+        hx-post="/job/{{ r.id }}/share" hx-trigger="change"
+        hx-target="#share-sheet-{{ r.id }}" hx-swap="outerHTML">
+    <input type="hidden" name="source" value="{{ source }}">
+    <input type="hidden" name="prefs" value="1">
+    <label class="small">
+      <input type="checkbox" name="show_company" value="1"
+             {% if r.share_show_company %}checked{% endif %}>
+      Show the employer’s name on the card
+    </label>
+    <noscript><button type="submit" class="ghost small">Update</button></noscript>
+  </form>
+</div>

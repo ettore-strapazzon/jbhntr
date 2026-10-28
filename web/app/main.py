@@ -17,7 +17,7 @@ from .db import SessionLocal, init_db
 from .models import PageView
 from .routes import (
     account, admin, alpha, applications, auth_routes, documents, fields, job,
-    legal, marketing, matches, onboarding, profile, search,
+    legal, marketing, matches, onboarding, profile, search, share,
 )
 from .templating import templates
 
@@ -143,6 +143,7 @@ app.include_router(applications.router)
 app.include_router(documents.router)
 app.include_router(search.router)
 app.include_router(job.router)
+app.include_router(share.router)   # POST /job/{id}/share, public /m/{token}
 app.include_router(account.router)
 app.include_router(legal.router)
 app.include_router(alpha.router)

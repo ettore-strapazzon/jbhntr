@@ -5,7 +5,7 @@ Owner: CEO. Newest sprint on top; older sprints marked superseded. Status: `todo
 ## Sprint R3 — Step 1 visible artefacts + activation + repo split (next cycle)
 | id | owner | task | acceptance criteria | deps | status |
 |---|---|---|---|---|---|
-| R3-01 | CTO+CPO | **Match card** build | Per ARTEFACTS_SPEC §8: lazy-mint `JobResult.share_token` on `POST /job/{id}/share`; `/m/{token}`; OG PNG (Playwright); Share button on job+tracker cards; emits `match_card_shared` + `shared_artifact_viewed`; referral embed | done R2-01 | todo |
+| R3-01 | CTO+CPO | **Match card** build | Per ARTEFACTS_SPEC §8: lazy-mint `JobResult.share_token` on `POST /job/{id}/share`; `/m/{token}`; OG PNG (Playwright); Share button on job+tracker cards; emits `match_card_shared` + `shared_artifact_viewed`; referral embed | done R2-01 | **done (c3)** 606 green |
 | R3-02 | CTO+CPO | **Market read** build | `Search.share_token`; `/r/{token}` v1 stage funnel; anonymise toggle; OG/PNG; emits `market_read_shared`+`shared_artifact_viewed` | R3-01 | todo |
 | R3-03 | CTO+CPO | **/invite page** build | Code+link+per-channel messages+live counter; emits `invite_page_viewed`+`invite_link_copied` | R3-01 | todo |
 | R3-04 | CPO+CTO | **Activation meter** (first A/B) | Completeness strip + "unlocks at 70%" CTA; **enable-state keyed to `can_search`, NOT `score≥70`** (ARTEFACTS_SPEC §8.4 + the fixture test); KPI = first-scan rate | done R2-01 | todo |

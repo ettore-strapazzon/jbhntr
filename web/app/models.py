@@ -244,6 +244,11 @@ class JobResult(Base):
     # Minted lazily on first share; NULL means the match has no public surface.
     share_token: Mapped[str | None] = mapped_column(
         String(32), unique=True, index=True, default=None)
+    # Owner opt-ins for what the public card shows (ARTEFACTS_SPEC §1.2):
+    # employer defaults on (hide for a stealth search); first name defaults off
+    # and is never shown unless the owner turns it on.
+    share_show_company: Mapped[bool] = mapped_column(Boolean, default=True)
+    share_show_name: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
