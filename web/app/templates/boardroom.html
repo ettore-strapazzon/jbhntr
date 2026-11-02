@@ -13,12 +13,43 @@
   .board details > summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
   .board .req { border-top: 1px solid var(--line, #D8DFE5); padding-top: 4px; }
   .board .req:first-child { border-top: 0; }
+  .board .thread { margin: 0 0 14px; }
+  .board .msg { padding: 8px 0; border-top: 1px solid var(--line, #D8DFE5); }
+  .board .msg:first-child { border-top: 0; }
+  .board .msg-meta { font-size: 13px; margin-bottom: 2px; }
+  .board .msg-body { white-space: pre-wrap; }
+  .board .msg-ceo .msg-meta b { color: var(--text-secondary, #526273); }
+  .board form.chat { display: flex; flex-direction: column; gap: 8px; }
+  .board form.chat textarea { width: 100%; box-sizing: border-box; font: inherit;
+                              padding: 8px; border: 1px solid var(--line, #D8DFE5);
+                              border-radius: 6px; resize: vertical; }
+  .board form.chat button { align-self: flex-start; }
 </style>
 
 <div class="board">
 <h1>JBHNTR Team — Boardroom</h1>
 <p class="small muted">What the agent company is doing, in plain language. Read-only;
   reflects the latest state the autonomous cycles have pushed.</p>
+
+<div class="card">
+  <h2>Conversation</h2>
+  {% if messages %}
+    <div class="thread">
+      {% for m in messages %}
+      <div class="msg msg-{{ m.role }}">
+        <div class="msg-meta"><b>{{ m.role_label }}</b> <span class="muted">· {{ m.ts }}</span></div>
+        <div class="msg-body">{{ m.body }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No messages yet — send the first one below.</p>
+  {% endif %}
+  <form class="chat" method="post" action="/boardroom/send">
+    <textarea name="body" rows="3" placeholder="Message the company…" required></textarea>
+    <button type="submit">Send</button>
+  </form>
+</div>
 
 <div class="card">
   <h2>Goal &amp; budget</h2>

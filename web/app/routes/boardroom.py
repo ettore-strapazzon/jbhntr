@@ -18,10 +18,13 @@ import re
 from pathlib import Path
 
 import markdown as md
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from sqlalchemy.orm import Session as DbSession
 
 from ..config import ROOT
+from ..db import get_session
+from ..models import BoardroomMessage, aware
 from ..templating import templates
 from .admin import require_admin  # reuse the existing admin gate verbatim
 
@@ -29,6 +32,11 @@ router = APIRouter()
 
 STATE = ROOT / "company" / "state"
 UPDATES = ROOT / "company" / "updates"
+
+
+def _ts(m: BoardroomMessage) -> str:
+    dt = aware(m.created_at)
+    return dt.strftime("%Y-%m-%d %H:%M UTC") if dt else ""
 
 
 def _read(p: Path) -> str:
@@ -107,12 +115,21 @@ def _latest_update() -> str:
 
 
 @router.get("/boardroom", response_class=HTMLResponse)
-def boardroom(request: Request, _: bool = Depends(require_admin)):
+def boardroom(request: Request, _: bool = Depends(require_admin),
+              db: DbSession = Depends(get_session)):
     cycle_log = _read(STATE / "CYCLE_LOG.md")
     goal, budget = _charter_bits(_read(ROOT / "company" / "CHARTER.md"))
     sprint_name, sprint_table = _current_sprint(_read(STATE / "BACKLOG.md"))
+    # Conversation thread, oldest -> newest. Bodies render through Jinja's auto-
+    # escaping (not | safe), so the chat is plain text and injects nothing.
+    msgs = db.query(BoardroomMessage).order_by(BoardroomMessage.id.asc()).all()
+    messages = [{"role": m.role,
+                 "role_label": "Founder" if m.role == "founder" else "CEO",
+                 "body": m.body,
+                 "ts": _ts(m)} for m in msgs]
     return templates.TemplateResponse(request, "boardroom.html", {
         "request": request,
+        "messages": messages,
         "goal_html": _html(goal),
         "budget_html": _html(budget),
         "sprint_name": sprint_name,
@@ -123,3 +140,52 @@ def boardroom(request: Request, _: bool = Depends(require_admin)):
         "kpis_html": _html(_read(STATE / "KPIS.md")),
         "history_html": _html(cycle_log),
     })
+
+
+@router.post("/boardroom/send")
+def boardroom_send(_: bool = Depends(require_admin), body: str = Form(""),
+                   db: DbSession = Depends(get_session)):
+    """Founder posts a message from the browser form. Blank input is a no-op."""
+    body = (body or "").strip()
+    if body:
+        db.add(BoardroomMessage(role="founder", body=body, handled=False))
+        db.commit()
+    return RedirectResponse("/boardroom", status_code=303)
+
+
+@router.get("/boardroom/pull")
+def boardroom_pull(_: bool = Depends(require_admin),
+                   db: DbSession = Depends(get_session)):
+    """The VM cycle fetches new founder instructions, each delivered once: return
+    all unhandled founder messages and mark them handled in the same call."""
+    rows = (db.query(BoardroomMessage)
+            .filter(BoardroomMessage.role == "founder",
+                    BoardroomMessage.handled.is_(False))
+            .order_by(BoardroomMessage.id.asc()).all())
+    out = [{"id": m.id, "body": m.body,
+            "created_at": aware(m.created_at).isoformat() if aware(m.created_at) else None}
+           for m in rows]
+    for m in rows:
+        m.handled = True
+    db.commit()
+    return JSONResponse(out)
+
+
+@router.post("/boardroom/reply")
+async def boardroom_reply(request: Request, _: bool = Depends(require_admin),
+                          db: DbSession = Depends(get_session)):
+    """The VM cycle posts a CEO reply (form or JSON `body`)."""
+    ctype = request.headers.get("content-type", "")
+    if "application/json" in ctype:
+        data = await request.json()
+        body = (data.get("body") if isinstance(data, dict) else "") or ""
+    else:
+        form = await request.form()
+        body = form.get("body") or ""
+    body = body.strip()
+    if not body:
+        return JSONResponse({"ok": False, "error": "empty body"}, status_code=400)
+    m = BoardroomMessage(role="ceo", body=body, handled=True)
+    db.add(m)
+    db.commit()
+    return JSONResponse({"ok": True, "id": m.id}, status_code=200)

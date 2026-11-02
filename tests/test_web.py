@@ -1809,6 +1809,54 @@ def test_boardroom_gated_and_renders(client, monkeypatch):
     assert "company founding" in r.text                          # from CYCLE_LOG cycle 1
 
 
+def test_boardroom_chat_endpoints(client, monkeypatch):
+    """The four chat endpoints are admin-gated; send->pull delivers a founder
+    message once (second pull is empty); reply shows on the page."""
+    from web.app.config import config
+
+    # All four are off (404) while the admin token is unset.
+    monkeypatch.setattr(config, "admin_token", "")
+    assert client.get("/boardroom/pull").status_code == 404
+    assert client.post("/boardroom/send", data={"body": "x"}).status_code == 404
+    assert client.post("/boardroom/reply", data={"body": "x"}).status_code == 404
+
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    auth = ("op", "s3cret")
+    # Gated without creds.
+    assert client.get("/boardroom/pull").status_code == 401
+    assert client.post("/boardroom/send", data={"body": "x"}).status_code == 401
+    assert client.post("/boardroom/reply", data={"body": "x"}).status_code == 401
+
+    # Founder sends a message -> 303 back to /boardroom.
+    r = client.post("/boardroom/send", data={"body": "ship the invite page"},
+                    auth=auth, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/boardroom"
+
+    # The cycle pulls it (once), which marks it handled.
+    r = client.get("/boardroom/pull", auth=auth)
+    assert r.status_code == 200
+    rows = r.json()
+    assert [m["body"] for m in rows] == ["ship the invite page"]
+    assert rows[0]["id"] and rows[0]["created_at"]
+
+    # A second pull returns nothing (delivered exactly once).
+    assert client.get("/boardroom/pull", auth=auth).json() == []
+
+    # The cycle replies; the CEO message shows on the page and is never pulled.
+    r = client.post("/boardroom/reply", data={"body": "on it — invite page queued"},
+                    auth=auth)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    page = client.get("/boardroom", auth=auth).text
+    assert "on it — invite page queued" in page
+    assert "ship the invite page" in page        # founder message still rendered
+    assert client.get("/boardroom/pull", auth=auth).json() == []  # reply not pullable
+
+    # Blank sends are a no-op; reply with no body is a 400.
+    client.post("/boardroom/send", data={"body": "   "}, auth=auth, follow_redirects=False)
+    assert client.get("/boardroom/pull", auth=auth).json() == []
+    assert client.post("/boardroom/reply", data={"body": ""}, auth=auth).status_code == 400
+
+
 def test_admin_shows_waitlist_and_csv(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal

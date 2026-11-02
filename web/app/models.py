@@ -636,6 +636,26 @@ CREDIT_REASONS = {
 }
 
 
+class BoardroomMessage(Base):
+    """Founder <-> company chat, in the shared DB so the off-app cycle runner (on a
+    VM) and the deployed Boardroom page exchange messages across machines.
+
+    role is "founder" (posted from /boardroom/send in the browser) or "ceo" (posted
+    by the cycle via /boardroom/reply). `handled` flips True once the cycle has
+    pulled a founder message via /boardroom/pull, so each instruction reaches the
+    cycle exactly once; ceo messages are never pulled.
+    """
+
+    __tablename__ = "boardroom_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    role: Mapped[str] = mapped_column(String(8))            # founder | ceo
+    body: Mapped[str] = mapped_column(Text)
+    handled: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True)
+
+
 class CreditLedger(Base):
     """Immutable credit transactions. The balance is a projection of this table.
 
