@@ -1857,6 +1857,31 @@ def test_boardroom_chat_endpoints(client, monkeypatch):
     assert client.post("/boardroom/reply", data={"body": ""}, auth=auth).status_code == 400
 
 
+def test_boardroom_peek_counts_without_consuming(client, monkeypatch):
+    """peek is admin-gated, counts unhandled founder messages, and does NOT mark
+    them handled (so the real pull still delivers them)."""
+    from web.app.config import config
+
+    monkeypatch.setattr(config, "admin_token", "")
+    assert client.get("/boardroom/peek").status_code == 404      # feature off
+
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    auth = ("op", "s3cret")
+    assert client.get("/boardroom/peek").status_code == 401      # no creds
+
+    assert client.get("/boardroom/peek", auth=auth).json() == {"count": 0}
+    client.post("/boardroom/send", data={"body": "status?"}, auth=auth,
+                follow_redirects=False)
+    client.post("/boardroom/send", data={"body": "approve R-003"}, auth=auth,
+                follow_redirects=False)
+    # Two waiting, counted without consuming — peek is idempotent.
+    assert client.get("/boardroom/peek", auth=auth).json() == {"count": 2}
+    assert client.get("/boardroom/peek", auth=auth).json() == {"count": 2}
+    # The real pull still delivers both, then peek reads zero.
+    assert len(client.get("/boardroom/pull", auth=auth).json()) == 2
+    assert client.get("/boardroom/peek", auth=auth).json() == {"count": 0}
+
+
 def test_admin_shows_waitlist_and_csv(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal

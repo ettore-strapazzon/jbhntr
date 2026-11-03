@@ -153,6 +153,18 @@ def boardroom_send(_: bool = Depends(require_admin), body: str = Form(""),
     return RedirectResponse("/boardroom", status_code=303)
 
 
+@router.get("/boardroom/peek")
+def boardroom_peek(_: bool = Depends(require_admin),
+                   db: DbSession = Depends(get_session)):
+    """Cheap, side-effect-free count of unhandled founder messages, so the VM's
+    1-minute chat responder can skip spinning up Claude when there is nothing waiting."""
+    n = (db.query(BoardroomMessage)
+         .filter(BoardroomMessage.role == "founder",
+                 BoardroomMessage.handled.is_(False))
+         .count())
+    return JSONResponse({"count": n})
+
+
 @router.get("/boardroom/pull")
 def boardroom_pull(_: bool = Depends(require_admin),
                    db: DbSession = Depends(get_session)):
