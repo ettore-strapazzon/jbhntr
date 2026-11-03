@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · Boardroom{% endblock %}
+{% block content %}
+<style>
+  .doc { max-width: 920px; }
+  .doc table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0; }
+  .doc th, .doc td { padding: 6px 10px; border-bottom: 1px solid var(--line, #D8DFE5);
+                     text-align: left; vertical-align: top; }
+  .doc th { color: var(--text-secondary, #526273); }
+  .doc pre { overflow-x: auto; }
+</style>
+<div class="doc">
+  <p><a href="/boardroom">← Back to Boardroom</a></p>
+  <h1>{{ title }}</h1>
+  {{ body_html | safe }}
+</div>
+{% endblock %}

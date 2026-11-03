@@ -14,12 +14,14 @@ admin_token => 404 (feature off), exactly like the operator dashboard.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 import markdown as md
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
+                               RedirectResponse)
 from sqlalchemy.orm import Session as DbSession
 
 from ..config import ROOT
@@ -32,6 +34,7 @@ router = APIRouter()
 
 STATE = ROOT / "company" / "state"
 UPDATES = ROOT / "company" / "updates"
+DOCS = ROOT / "company" / "docs"
 
 
 def _ts(m: BoardroomMessage) -> str:
@@ -108,10 +111,60 @@ def _open_requests(requests_md: str) -> list[str]:
     return out
 
 
+def _update_files() -> list[Path]:
+    return sorted((p for p in UPDATES.glob("20*.md")
+                   if re.fullmatch(r"\d{4}-\d{2}-\d{2}\.md", p.name)), reverse=True)
+
+
 def _latest_update() -> str:
-    files = sorted(p for p in UPDATES.glob("20*.md")
-                   if re.fullmatch(r"\d{4}-\d{2}-\d{2}\.md", p.name))
-    return _read(files[-1]) if files else ""
+    files = _update_files()
+    return _read(files[0]) if files else ""
+
+
+def _all_updates() -> list[dict]:
+    """Every morning update, newest first, rendered — for the Updates tab."""
+    return [{"date": p.stem, "html": _html(_read(p))} for p in _update_files()]
+
+
+def _doc_index() -> list[dict]:
+    """Linkable index of company/docs, grouped by top folder — for the Pending tab."""
+    out = []
+    for p in sorted(DOCS.rglob("*")):
+        if not p.is_file() or p.suffix.lower() not in (".md", ".pdf", ".csv"):
+            continue
+        rel = p.relative_to(DOCS)
+        parts = rel.parts
+        out.append({"rel": rel.as_posix(), "name": p.name,
+                    "section": parts[0] if len(parts) > 1 else "general",
+                    "kind": p.suffix.lower().lstrip(".")})
+    return out
+
+
+def _team_log(limit: int = 200) -> tuple[list[dict], list[str]]:
+    """Per-agent activity entries (newest first) + the sorted set of agents seen,
+    parsed from company/state/TEAM_LOG.jsonl (one JSON object per line, appended by
+    each cycle). Unparseable lines are skipped so a bad line never breaks the page."""
+    entries: list[dict] = []
+    agents: set[str] = set()
+    for line in reversed(_read(STATE / "TEAM_LOG.jsonl").splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(e, dict):
+            continue
+        agent = str(e.get("agent", "")).strip() or "—"
+        agents.add(agent)
+        entries.append({"ts": str(e.get("ts", "")), "cycle": str(e.get("cycle", "")),
+                        "agent": agent, "task": str(e.get("task", "")),
+                        "status": str(e.get("status", "")),
+                        "summary": str(e.get("summary", ""))})
+        if len(entries) >= limit:
+            break
+    return entries, sorted(agents)
 
 
 @router.get("/boardroom", response_class=HTMLResponse)
@@ -127,6 +180,7 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
                  "role_label": "Founder" if m.role == "founder" else "CEO",
                  "body": m.body,
                  "ts": _ts(m)} for m in msgs]
+    team_entries, team_agents = _team_log()
     return templates.TemplateResponse(request, "boardroom.html", {
         "request": request,
         "messages": messages,
@@ -137,10 +191,30 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
         "now_html": _html(_last_cycle(cycle_log)),
         "tasks_html": _html(sprint_table),
         "requests_html": [_html(b) for b in _open_requests(_read(STATE / "REQUESTS.md"))],
-        "update_html": _html(_latest_update()),
+        "docs": _doc_index(),
+        "updates": _all_updates(),
+        "team_entries": team_entries,
+        "team_agents": team_agents,
         "kpis_html": _html(_read(STATE / "KPIS.md")),
+        "roadmap_html": _html(_read(STATE / "BACKLOG.md")),
         "history_html": _html(cycle_log),
     })
+
+
+@router.get("/boardroom/doc", response_class=HTMLResponse)
+def boardroom_doc(path: str, request: Request, _: bool = Depends(require_admin)):
+    """Read a single company/docs file in the Boardroom. Path is confined to DOCS
+    (traversal rejected): Markdown renders inline, other types download."""
+    base = DOCS.resolve()
+    target = (base / path).resolve()
+    if base not in target.parents or not target.is_file():
+        return HTMLResponse("Not found", status_code=404)
+    if target.suffix.lower() == ".md":
+        return templates.TemplateResponse(request, "boardroom_doc.html", {
+            "request": request, "title": target.name,
+            "body_html": _html(_read(target)),
+        })
+    return FileResponse(str(target), filename=target.name)
 
 
 @router.post("/boardroom/send")

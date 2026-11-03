@@ -1,8 +1,52 @@
-// Boardroom live chat: poll for new messages every 2s and append them, so the
-// Founder sees the CEO's reply without refreshing. Progressive enhancement — if
-// this fails, the plain POST form still works. CSP-safe (served from 'self', no
-// inline handlers; message bodies rendered via textContent, never innerHTML).
+// Boardroom: tab switching, per-agent team filter, and live chat (poll every 2s
+// and append new messages so the Founder sees the CEO reply without refreshing).
+// Progressive enhancement — if this fails, the plain POST form still works.
+// CSP-safe: served from 'self', no inline handlers; bodies rendered via textContent.
 (function () {
+  // ---- Tabs ----
+  var tabsNav = document.getElementById("tabs");
+  var panels = document.querySelectorAll(".panel");
+  function activate(name) {
+    var found = false;
+    document.querySelectorAll(".tab").forEach(function (t) {
+      var on = t.getAttribute("data-tab") === name;
+      t.classList.toggle("active", on);
+      if (on) found = true;
+    });
+    panels.forEach(function (p) {
+      p.classList.toggle("active", p.getAttribute("data-panel") === name);
+    });
+    if (found) { try { localStorage.setItem("jbhntr:board-tab", name); } catch (e) {} }
+    return found;
+  }
+  if (tabsNav) {
+    tabsNav.addEventListener("click", function (e) {
+      var btn = e.target.closest(".tab");
+      if (btn) activate(btn.getAttribute("data-tab"));
+    });
+    var start = "main";
+    try { start = localStorage.getItem("jbhntr:board-tab") || "main"; } catch (e) {}
+    if (!activate(start)) activate("main");
+  }
+
+  // ---- Team filter ----
+  var filters = document.getElementById("team-filters");
+  var teamLog = document.getElementById("team-log");
+  if (filters && teamLog) {
+    filters.addEventListener("click", function (e) {
+      var btn = e.target.closest("button");
+      if (!btn) return;
+      var agent = btn.getAttribute("data-agent") || "";
+      filters.querySelectorAll("button").forEach(function (b) {
+        b.classList.toggle("active", b === btn);
+      });
+      teamLog.querySelectorAll(".tl").forEach(function (row) {
+        row.hidden = agent !== "" && row.getAttribute("data-agent") !== agent;
+      });
+    });
+  }
+
+  // ---- Live chat ----
   var thread = document.getElementById("thread");
   if (!thread) return;
   var last = parseInt(thread.getAttribute("data-last") || "0", 10) || 0;

@@ -1910,6 +1910,29 @@ def test_boardroom_messages_json_feed(client, monkeypatch):
     assert [m["body"] for m in tail] == ["feed-second"]
 
 
+def test_boardroom_doc_viewer_gated_and_path_safe(client, monkeypatch):
+    """The doc viewer is admin-gated, renders a real company doc, and refuses any
+    path that escapes company/docs (traversal) or does not exist."""
+    from web.app.config import config
+
+    monkeypatch.setattr(config, "admin_token", "")
+    assert client.get("/boardroom/doc?path=README.md").status_code == 404  # feature off
+
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    auth = ("op", "s3cret")
+    assert client.get("/boardroom/doc?path=README.md").status_code == 401  # no creds
+
+    # A real doc renders inline.
+    r = client.get("/boardroom/doc?path=README.md", auth=auth)
+    assert r.status_code == 200 and "Back to Boardroom" in r.text
+
+    # Traversal and unknown paths are rejected.
+    assert client.get("/boardroom/doc?path=../CHARTER.md", auth=auth).status_code == 404
+    assert client.get("/boardroom/doc?path=../../web/app/main.py",
+                      auth=auth).status_code == 404
+    assert client.get("/boardroom/doc?path=nope.md", auth=auth).status_code == 404
+
+
 def test_admin_shows_waitlist_and_csv(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal

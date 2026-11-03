@@ -1,96 +1,177 @@
 {% extends "base.html" %}
 {% block title %}Boardroom · JBHNTR Team{% endblock %}
 {% block content %}
-{# Minimal scoped styling so the Markdown tables and request blocks stay readable.
-   CSP allows inline styles (style-src 'unsafe-inline'); no inline script is used. #}
+{# CSP allows inline styles (style-src 'unsafe-inline'); all behaviour is in the
+   'self'-served boardroom.js (no inline script). #}
 <style>
-  .board { max-width: 920px; }
+  .board { max-width: 960px; }
   .board .card { margin: 0 0 20px; }
   .board table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0; }
   .board th, .board td { padding: 6px 10px; border-bottom: 1px solid var(--line, #D8DFE5);
                          text-align: left; vertical-align: top; }
   .board th { color: var(--text-secondary, #526273); }
   .board details > summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
-  .board .req { border-top: 1px solid var(--line, #D8DFE5); padding-top: 4px; }
-  .board .req:first-child { border-top: 0; }
+  .board .req { border-top: 1px solid var(--line, #D8DFE5); padding-top: 4px; margin-top: 8px; }
+  .board .req:first-child { border-top: 0; margin-top: 0; }
   .board .thread { margin: 0 0 14px; }
   .board .msg { padding: 8px 0; border-top: 1px solid var(--line, #D8DFE5); }
   .board .msg:first-child { border-top: 0; }
   .board .msg-meta { font-size: 13px; margin-bottom: 2px; }
   .board .msg-body { white-space: pre-wrap; }
-  .board .msg-ceo .msg-meta b { color: var(--text-secondary, #526273); }
   .board form.chat { display: flex; flex-direction: column; gap: 8px; }
   .board form.chat textarea { width: 100%; box-sizing: border-box; font: inherit;
                               padding: 8px; border: 1px solid var(--line, #D8DFE5);
                               border-radius: 6px; resize: vertical; }
   .board form.chat button { align-self: flex-start; }
+  .board .tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--line, #D8DFE5);
+                 margin: 10px 0 18px; }
+  .board .tab { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent;
+                padding: 8px 12px; cursor: pointer; color: var(--text-secondary, #526273); }
+  .board .tab.active { color: var(--text, #1b2733); border-bottom-color: var(--accent, #2f6df6);
+                       font-weight: 600; }
+  .board .panel { display: none; }
+  .board .panel.active { display: block; }
+  .board .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .board .filters button { font: inherit; font-size: 13px; padding: 4px 10px; cursor: pointer;
+                           border: 1px solid var(--line, #D8DFE5); border-radius: 999px;
+                           background: none; color: var(--text-secondary, #526273); }
+  .board .filters button.active { background: var(--accent, #2f6df6); color: #fff;
+                                  border-color: var(--accent, #2f6df6); }
+  .board .tl { border-top: 1px solid var(--line, #D8DFE5); padding: 8px 0; }
+  .board .tl:first-child { border-top: 0; }
+  .board .tl-meta { font-size: 13px; color: var(--text-secondary, #526273); margin-bottom: 2px; }
+  .board .tl-agent { font-weight: 600; color: var(--text, #1b2733); }
+  .board .doclist { list-style: none; padding: 0; margin: 4px 0 16px; }
+  .board .doclist li { padding: 3px 0; }
 </style>
 
 <div class="board">
 <h1>JBHNTR Team — Boardroom</h1>
-<p class="small muted">What the agent company is doing, in plain language. Read-only;
-  reflects the latest state the autonomous cycles have pushed.</p>
 
-<div class="card">
-  <h2>Conversation</h2>
-  <div class="thread" id="thread" data-last="{{ last_id }}">
-    {% for m in messages %}
-    <div class="msg msg-{{ m.role }}">
-      <div class="msg-meta"><b>{{ m.role_label }}</b> <span class="muted">· {{ m.ts }}</span></div>
-      <div class="msg-body">{{ m.body }}</div>
+<nav class="tabs" id="tabs">
+  <button type="button" class="tab" data-tab="main">Main</button>
+  <button type="button" class="tab" data-tab="pending">Pending from me{% if requests_html %} ({{ requests_html|length }}){% endif %}</button>
+  <button type="button" class="tab" data-tab="updates">Morning updates</button>
+  <button type="button" class="tab" data-tab="team">Live team</button>
+  <button type="button" class="tab" data-tab="kpis">KPIs</button>
+  <button type="button" class="tab" data-tab="roadmap">Roadmap</button>
+</nav>
+
+<section class="panel" data-panel="main">
+  <div class="card">
+    <h2>Conversation</h2>
+    <p class="small muted">Chat with the team in real time — replies land in a few seconds, no refresh needed.</p>
+    <div class="thread" id="thread" data-last="{{ last_id }}">
+      {% for m in messages %}
+      <div class="msg msg-{{ m.role }}">
+        <div class="msg-meta"><b>{{ m.role_label }}</b> <span class="muted">· {{ m.ts }}</span></div>
+        <div class="msg-body">{{ m.body }}</div>
+      </div>
+      {% endfor %}
     </div>
+    <p class="muted" id="thread-empty"{% if messages %} hidden{% endif %}>No messages yet — send the first one below.</p>
+    <p class="muted" id="ceo-typing" hidden>CEO is replying…</p>
+    <form class="chat" method="post" action="/boardroom/send" id="chat-form">
+      <textarea name="body" rows="3" placeholder="Message the company…" required></textarea>
+      <button type="submit">Send</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Now / recent</h2>
+    {{ now_html | safe }}
+  </div>
+</section>
+
+<section class="panel" data-panel="pending">
+  <div class="card">
+    <h2>Waiting on you</h2>
+    {% if requests_html %}
+      {% for r in requests_html %}<div class="req">{{ r | safe }}</div>{% endfor %}
+    {% else %}<p class="muted">Nothing is waiting on you right now.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Documents</h2>
+    <p class="small muted">Open any company document here.</p>
+    {% for section, items in docs | groupby('section') %}
+      <h3>{{ section }}</h3>
+      <ul class="doclist">
+        {% for d in items %}
+        <li><a href="/boardroom/doc?path={{ d.rel | urlencode }}">{{ d.name }}</a>
+          {% if d.kind != 'md' %}<span class="muted">· {{ d.kind }}</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
     {% endfor %}
   </div>
-  <p class="muted" id="thread-empty"{% if messages %} hidden{% endif %}>No messages yet — send the first one below.</p>
-  <p class="muted" id="ceo-typing" hidden>CEO is replying…</p>
-  <form class="chat" method="post" action="/boardroom/send" id="chat-form">
-    <textarea name="body" rows="3" placeholder="Message the company…" required></textarea>
-    <button type="submit">Send</button>
-  </form>
-</div>
+</section>
 
-<div class="card">
-  <h2>Goal &amp; budget</h2>
-  {{ goal_html | safe }}
-  {{ budget_html | safe }}
-  {% if sprint_name %}<p><b>Current sprint:</b> {{ sprint_name }}</p>{% endif %}
-</div>
+<section class="panel" data-panel="updates">
+  {% if updates %}
+    {% for u in updates %}
+    <div class="card">
+      <details {% if loop.first %}open{% endif %}>
+        <summary>{{ u.date }}</summary>
+        {{ u.html | safe }}
+      </details>
+    </div>
+    {% endfor %}
+  {% else %}<div class="card"><p class="muted">No morning update filed yet.</p></div>{% endif %}
+</section>
 
-<div class="card">
-  <h2>Now / recent</h2>
-  {{ now_html | safe }}
-</div>
+<section class="panel" data-panel="team">
+  <div class="card">
+    <h2>Live team</h2>
+    <p class="small muted">Per-agent activity, newest first. Updated every cycle.</p>
+    {% if team_entries %}
+      <div class="filters" id="team-filters">
+        <button type="button" data-agent="" class="active">All</button>
+        {% for a in team_agents %}<button type="button" data-agent="{{ a }}">{{ a }}</button>{% endfor %}
+      </div>
+      <div id="team-log">
+        {% for e in team_entries %}
+        <div class="tl" data-agent="{{ e.agent }}">
+          <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · {{ e.ts }}{% endif %}</div>
+          {% if e.task %}<div><b>{{ e.task }}</b></div>{% endif %}
+          {% if e.summary %}<div class="msg-body">{{ e.summary }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">No team activity logged yet — this fills in after the next cycle.</p>
+    {% endif %}
+  </div>
+</section>
 
-<div class="card">
-  <h2>Pending &amp; future tasks</h2>
-  {% if tasks_html %}{{ tasks_html | safe }}
-  {% else %}<p class="muted">No open tasks in the current sprint.</p>{% endif %}
-</div>
+<section class="panel" data-panel="kpis">
+  <div class="card">
+    <h2>Goal &amp; budget</h2>
+    {{ goal_html | safe }}
+    {{ budget_html | safe }}
+    {% if sprint_name %}<p><b>Current sprint:</b> {{ sprint_name }}</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Numbers (KPIs)</h2>
+    {{ kpis_html | safe }}
+    <p class="small muted">Live operator metrics: <a href="/admin">/admin</a> dashboard.</p>
+  </div>
+</section>
 
-<div class="card">
-  <h2>Waiting on you</h2>
-  {% if requests_html %}
-    {% for r in requests_html %}<div class="req">{{ r | safe }}</div>{% endfor %}
-  {% else %}<p class="muted">Nothing is waiting on you right now.</p>{% endif %}
-</div>
-
-<div class="card">
-  <h2>Latest morning update</h2>
-  {% if update_html %}{{ update_html | safe }}
-  {% else %}<p class="muted">No morning update filed yet.</p>{% endif %}
-</div>
-
-<div class="card">
-  <h2>Numbers (KPIs)</h2>
-  {{ kpis_html | safe }}
-</div>
-
-<div class="card">
-  <details>
-    <summary>Full history — every cycle</summary>
-    {{ history_html | safe }}
-  </details>
-</div>
+<section class="panel" data-panel="roadmap">
+  <div class="card">
+    <h2>Pending &amp; future tasks (current sprint)</h2>
+    {% if tasks_html %}{{ tasks_html | safe }}
+    {% else %}<p class="muted">No open tasks in the current sprint.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Full roadmap</h2>
+    {{ roadmap_html | safe }}
+  </div>
+  <div class="card">
+    <details>
+      <summary>Full history — every cycle</summary>
+      {{ history_html | safe }}
+    </details>
+  </div>
+</section>
 </div>
 <script src="/static/boardroom.js?v={{ asset_v }}" defer></script>
 {% endblock %}
