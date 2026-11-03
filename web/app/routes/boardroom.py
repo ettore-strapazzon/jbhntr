@@ -130,6 +130,7 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
     return templates.TemplateResponse(request, "boardroom.html", {
         "request": request,
         "messages": messages,
+        "last_id": msgs[-1].id if msgs else 0,
         "goal_html": _html(goal),
         "budget_html": _html(budget),
         "sprint_name": sprint_name,
@@ -151,6 +152,19 @@ def boardroom_send(_: bool = Depends(require_admin), body: str = Form(""),
         db.add(BoardroomMessage(role="founder", body=body, handled=False))
         db.commit()
     return RedirectResponse("/boardroom", status_code=303)
+
+
+@router.get("/boardroom/messages.json")
+def boardroom_messages(after: int = 0, _: bool = Depends(require_admin),
+                       db: DbSession = Depends(get_session)):
+    """Messages with id > `after`, for the page's live auto-update poll. Read-only;
+    bodies go out as plain text and are rendered via textContent (no injection)."""
+    rows = (db.query(BoardroomMessage)
+            .filter(BoardroomMessage.id > after)
+            .order_by(BoardroomMessage.id.asc()).all())
+    return JSONResponse([{"id": m.id, "role": m.role,
+                          "role_label": "Founder" if m.role == "founder" else "CEO",
+                          "body": m.body, "ts": _ts(m)} for m in rows])
 
 
 @router.get("/boardroom/peek")

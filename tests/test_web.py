@@ -1882,6 +1882,34 @@ def test_boardroom_peek_counts_without_consuming(client, monkeypatch):
     assert client.get("/boardroom/peek", auth=auth).json() == {"count": 0}
 
 
+def test_boardroom_messages_json_feed(client, monkeypatch):
+    """The live-update feed is admin-gated and returns only messages after `after`,
+    so the page can append new ones without a reload (and without re-fetching old)."""
+    from web.app.config import config
+
+    monkeypatch.setattr(config, "admin_token", "")
+    assert client.get("/boardroom/messages.json").status_code == 404
+
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    auth = ("op", "s3cret")
+    assert client.get("/boardroom/messages.json").status_code == 401
+
+    # Baseline past any messages other tests left in the shared DB.
+    base = client.get("/boardroom/messages.json", auth=auth).json()
+    base_id = base[-1]["id"] if base else 0
+
+    client.post("/boardroom/send", data={"body": "feed-first"}, auth=auth,
+                follow_redirects=False)
+    client.post("/boardroom/reply", data={"body": "feed-second"}, auth=auth)
+    rows = client.get(f"/boardroom/messages.json?after={base_id}", auth=auth).json()
+    assert [m["body"] for m in rows] == ["feed-first", "feed-second"]
+    assert [m["role"] for m in rows] == ["founder", "ceo"]
+    # `after` returns only newer rows — the incremental poll the page runs.
+    first_id = rows[0]["id"]
+    tail = client.get(f"/boardroom/messages.json?after={first_id}", auth=auth).json()
+    assert [m["body"] for m in tail] == ["feed-second"]
+
+
 def test_admin_shows_waitlist_and_csv(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal
