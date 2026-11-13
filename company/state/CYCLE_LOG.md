@@ -76,3 +76,18 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth still on R-009 (brand accounts, open 19 days) / R-011. /invite go-live on R3-13.
 - **Spend:** none.
 - **Observations:** `task-observer` absent from the skill list at session start, appeared mid-cycle → invoked late; logged obs 0001 in the new host workspace `~/.claude/skill-observations/`. GC flagged a reusable gap: a "competitor public-page source pass" workflow with search-result fallback for bot-blocked sites.
+
+## 2026-11-13 · cycle 6 (BI dashboard + comparison pages + /invite cleared)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 3/10.
+- **Dispatched (foreground, parallel):** CTO (R3-06 BI dashboard) · CMO (R3-08 compare pages ×3) · GC (R3-13 /invite re-check). R3-05 repo-split **held for a solo cycle** (78 import sites would collide with parallel web/ edits). CPO idle (no unblocked CPO task until R3-14 was opened) · CFO idle (R-006 open).
+- **Results (all accepted):**
+  - CTO → **R3-06**: `web/app/services/metrics.py` (`compute(db)`: activated, signups, funnel, activation rate, gate, K, outcomes/active/wk, meter A/B, referral rewards, LEDGER spend/revenue; every "—" carries a reason), `/admin` tiles + `/admin/metrics.json` (admin gate, no-store, no PII). Activation reuses `profile_service` via new pure `present_from`/`completeness_from` (one rule, tested against `completeness()` on 7 shapes); flat query count tested. K = referred activated ÷ all activated (standard viral coefficient; per-inviter ratio shown beside it) — accepted. Gate = — because the gate prompt was never built → R3-14.
+  - CMO → **R3-08**: `/compare/jobright`, `/compare/simplify`, `/compare/auto-apply-tools` from one `compare.html` + `compare_pages.py` data; GC-cleared copy verbatim; "Last reviewed 13 November 2026", vendor disclosure, sources, JSON-LD `lastReviewed`, sitemap + footer/how-it-works cross-links; `/compare/teal` 404, no Indeed/Sonara. Note: auto-apply sources list names LazyApply/LoopCV/AIApply (GC-checked ✓ 13 Nov) — GC to confirm at next pass.
+  - GC → **R3-13 GO** (COMPLIANCE_CARD v1.3 §E): IN1–IN6 all hold vs code + TERMS §6 v1.1; one comma fixed in invite.html. Findings: E-1 payout stage ran last in nightly (OOM risk) · E-2 no held-queue UI · E-3 pending count from events · E-4 live /terms lacks referral section (named-operator track) · E-5 FIRST_SCAN_FREE copy edge.
+- **CEO review fixes:** E-1 fixed — `referral_released` now the FIRST stage of `cron.nightly()`.
+- **Test gate (CEO, once, after all agents):** **720 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-14 (gate prompt), R3-15 (held-referral admin queue + E-3).
+- **Requests:** **R-013** filed (flip `INVITE_PAGE=true`, with pre-flip nightly-log check + rollback).
+- **Blockers:** outward growth still on R-009 (brand accounts) / R-011; /compare/teal on R-012.
+- **Spend:** none.
+- **Observations:** GC proposed a reusable "flag-flip launch re-check" workflow (copy vs code vs terms + pre-flip ops check); sub-agents skipped task-observer at task start.

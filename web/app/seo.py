@@ -27,6 +27,7 @@ PRIVATE_ROBOTS = "noindex,nofollow,noarchive"
 # Add "/job-sources" and "/about" in the second pass.
 PUBLIC_PATHS: tuple[str, ...] = (
     "/", "/how-it-works", "/security", "/pricing", "/compare/linkedin-jobs",
+    "/compare/jobright", "/compare/simplify", "/compare/auto-apply-tools",
     "/privacy", "/terms", "/cookies",
 )
 

@@ -1,6 +1,6 @@
 # Compliance Card — JBHNTR
 
-Owner: GC · v1.2 (2026-11-13, later: + §D `/invite` copy clearance for R3-03, IN1/IN2/IN4 updated to the R3-11 payout design, cookie-notice re-check) · v1.1 (2026-11-13: + C11, match-card review, market-read/invite rules) · **The company lints every outbound surface against this card.** Each rule is checkable: a human (or a lint pass) can look at an artefact and answer yes/no. A "no" blocks the surface until fixed. GC clears the exceptions.
+Owner: GC · v1.3 (2026-11-13, R3-13: §E built-`/invite` re-check against IN1–IN6 + R3-11 code → **GO**, flag flip drafted for the Founder) · v1.2 (2026-11-13, later: + §D `/invite` copy clearance for R3-03, IN1/IN2/IN4 updated to the R3-11 payout design, cookie-notice re-check) · v1.1 (2026-11-13: + C11, match-card review, market-read/invite rules) · **The company lints every outbound surface against this card.** Each rule is checkable: a human (or a lint pass) can look at an artefact and answer yes/no. A "no" blocks the surface until fixed. GC clears the exceptions.
 
 > Not legal advice. These are the company's self-imposed honesty rules, tightened to the GTM posture (CHARTER Guardrail 5, GTM §2, §5.1, §7). A one-hour session with an Italian lawyer before public launch is still worth it.
 
@@ -133,5 +133,35 @@ Read: ARTEFACTS_SPEC §3.1–3.5 (CMO copy, 2026-11-13); `services/referral.py` 
 | K7 | `base.html` L172 HTML comment "Only a strictly-necessary session cookie is used…" | **REVISE (LOW)** | Not user-visible, but the source is public. → `<!-- Only strictly-necessary cookies (session + jb_ref invite code) are used, so this is an informational notice rather than a consent gate. See /cookies. -->` |
 
 **Risk (legal-risk-assessment):** shipping `/invite` with the pre-v1.2 copy against R3-11 code = Moderate (3) × Likely (4) = **12 ORANGE** (misleading reward terms to every referrer; complaint/claw-back disputes). With the §3.5 edits **and** the R3-11 gate: 3 × 1 = **3 GREEN**. Banner mismatch K6: Low (2) × Almost certain (5) = 10 → GREEN once fixed. Folded into RISK_REGISTER R-005 at the next Monday review.
+
+## E. Review 2026-11-13 (v1.3, R3-13): the BUILT `/invite` vs IN1–IN6 and the R3-11 code
+
+Read: `routes/invite.py`, `templates/invite.html`, `static/invite.js`, `services/referral.py` (`ReferralReward`, `release_due`, `has_triaged`, ceiling, `unlock`/`hold`), `services/cron.py`, `services/search_service.py` (activation call), `models.py` (`ReferralReward`), `routes/account.py` (deletion), `routes/admin.py` (referral routes), `config.py`, `base.html` (nav, cookie notice), `credits.html`, `email/welcome.{txt,html}`, `m_card.html`/`r_read.html` referral lines, `legal/cookies.html`, `legal/privacy.html`, `legal/terms.html`, TERMS_DRAFT §5–6 v1.1, ARTEFACTS_SPEC §3.2/§3.4/§3.5. Tests: `tests/test_invite.py`, `tests/test_referral_payout.py`, `tests/test_web.py -k "invite or referral"` all pass after the edit below. Not legal advice.
+
+**Verdict: GO** — the Founder may set `INVITE_PAGE=true` (request drafted for the CEO to file). Conditions E-1 to E-5 below are **not** launch-blocking; E-1 has a pre-flip check built into the request.
+
+| Rule | Result | Evidence |
+|---|---|---|
+| IN1 reward wording + config numbers | **PASS** | Reward line, steps, fine print, counter = §3.5 verbatim (one comma restored, below). 5/15 from `config.referral_friend_credits`/`referral_credits`; nothing hard-coded. "First scan is free" sentences render only when `config.first_scan_free` (page + all messages, `_render` `[[…]]`). |
+| IN2 conditions = code = TERMS §6 | **PASS** | Delay: `release_due` pays only `activated_at <= now - 48h` (`REFERRAL_PAYOUT_DELAY_HOURS`=48) **and** `has_triaged` (= `TRIAGE_EVENTS` saved/dismissed/rated/marked-applied, or any JobState) → nightly cron (03:00 UTC) ⇒ "two to three days". Ceiling: 26th+ reward created in a UTC calendar month → `held` (`REFERRAL_MONTHLY_CEILING`=25); only `unlock()` → `pending`; **no code path refuses or deletes a reward** (never auto-refused). Self-referral blocked in `attach_and_reward_friend`; duplicates → manual `hold()`. Legacy-paid friends can't be paid twice (shared ledger key). TERMS_DRAFT §6 v1.1 states the same. |
+| IN3 messages | **PASS** | All six = §3.5.6 verbatim; each keeps its disclosure when `FIRST_SCAN_FREE` is off (only the free-scan sentence drops); native share uses the WhatsApp text incl. disclosure. No Reddit template. No "every"/stats. |
+| IN4 counter | **PASS** | Counts only (signed up / credited / pending / earned); no friend id, name or email reaches the template; no leaderboard; "credited"/"waiting for checks", never "activated". Beacon sends only an allowlisted `channel`. |
+| IN5 no incentive for endorsement / no send-for-you | **PASS** | No review/post rewards; all sends are from the user's own client/account (`wa.me`, `mailto:`, intents, copy). |
+| IN6 auth + noindex + default off | **PASS** | `require_user` (logged out → `/login`); meta `noindex,nofollow` + `X-Robots-Tag: noindex, nofollow`; `INVITE_PAGE` defaults `false`, both routes 404 while off; nav + `/credits` link render only when on. |
+| Adjacent copy | **PASS** | `credits.html` and welcome email ("…two to three days after their first scan, once they've used their results") match the code. `/cookies` + `/privacy` `jb_ref` rows and the `base.html` notice (K6/K7) now correct. |
+
+**Copy fixed by GC (text only):**
+1. `invite.html` step 3: "…marked a role as applied and our usual checks are clear." → "…marked a role as applied, and our usual checks are clear." (restores §3.5.3 verbatim).
+
+**Conditions (logic → CTO; none blocks the flip):**
+- **E-1 (MEDIUM, CTO) — payout depends on a nightly that can OOM before it.** `referral_released` runs after ingest/enrich/reaper; DEPLOYMENT.md documents exit-137 OOM kills in that run. An OOM skips the release and makes "two to three days" false (the only backstop is the friend's *next* scan). Fix: run `_release_referrals` first in `nightly()` (cheap, own session). Until then the Founder request checks the last nightly log before flipping.
+- **E-2 (MEDIUM, CTO) — "we review the extra ones by hand" needs a usable review path.** `/admin/referral-rewards` is JSON and `referral-unlock`/`-hold` are POST-only with no form in any template. Add a small held-queue table with Unlock/Hold buttons to `/admin` (CTO is in `/admin` now). Owner of the review: Founder (sole admin), weekly, at the Monday report. Non-blocking: no inviter is near 25/month.
+- **E-3 (LOW, CTO) — counter "pending" is derived from events, not `ReferralReward` (spec §3.2).** If the reward insert ever fails, the page shows "waiting for checks" for a reward that doesn't exist (until the friend's next scan recreates it). Read `ReferralReward.status in ('pending','held')` instead.
+- **E-4 (MEDIUM, GC/CTO, separate track) — live `/terms` has no credits/referral section** (still the older "free plan" template); the fine print's `[Terms]` link lands on a page silent on referrals. The `/invite` fine print is self-contained (delay, review, self-invites, held/removed, no cash value), so the offer is fully disclosed at point of offer; publishing TERMS_DRAFT §5–6 into `/terms` stays on the R-005/R-007 named-operator gate. Re-check both together then.
+- **E-5 (LOW, CTO) — `FIRST_SCAN_FREE=false` also drops the friend-bonus clause from step 2** (the conditional wraps the whole sentence). Spec-literal, and the reward line still states the bonus; when that flag is ever flipped, render "Your link adds {friend_credits} bonus credits to their account." in the else branch.
+
+**Risk (legal-risk-assessment scale):** launch with copy as built = Moderate (3) × Remote (1) = **3 GREEN**. E-1 payout stall until reordered = Moderate (3) × Unlikely (2) = **6 YELLOW** → GREEN once `referral_released` runs first. Fold into RISK_REGISTER R-005 at the Monday review.
+
+Skills used (v1.3 §E): product-legal:launch-review, product-legal:marketing-claims-review, legal:compliance-check.
 
 Skills used: legal:compliance-check, product-legal:marketing-claims-review (v1); 2026-11-13 review: product-legal:marketing-claims-review, legal:compliance-check, product-legal:feature-risk-assessment, legal:legal-risk-assessment. · v1.2 §D (2026-11-13): product-legal:marketing-claims-review, legal:compliance-check, legal:legal-risk-assessment.

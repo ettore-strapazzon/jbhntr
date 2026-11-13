@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/_compare_table.html" import compare_table %}
+{% from "partials/_compare_links.html" import compare_links %}
 {% block body_class %}home{% endblock %}
 {% block content %}
 <div class="container">
@@ -46,6 +47,11 @@
         <a class="btn" href="/signup">Start a free scan</a>
         <a class="btn ghost" href="/how-it-works">How matching works</a>
       </p>
+    </section>
+
+    <section aria-labelledby="s-more">
+      <h2 id="s-more">More comparisons</h2>
+      {{ compare_links("/compare/linkedin-jobs") }}
     </section>
   </article>
 </div>

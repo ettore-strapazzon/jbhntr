@@ -12,8 +12,13 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from .. import seo
+from ..compare_pages import (COMPARE_LINKS, COMPARE_PAGES, CTA, DISCLOSURE,
+                             REVIEWED_ISO, REVIEWED_ON)
 from ..config import config
 from ..templating import templates
+
+# Cross-links block on every comparison page (partials/_compare_links.html).
+templates.env.globals["compare_link_list"] = COMPARE_LINKS
 
 router = APIRouter()
 
@@ -174,6 +179,53 @@ def compare_linkedin_jobs(request: Request):
                      "fit both ways."),
         path="/compare/linkedin-jobs",
         og_title="LinkedIn Jobs and JBHNTR, compared honestly")
+
+
+def _compare_schema(path: str, page: dict) -> list[dict]:
+    """WebPage JSON-LD built only from the visible page data; lastReviewed is the
+    same GC-set date the page prints (schema must match visible content)."""
+    return [{
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": page["h1"],
+        "url": seo.absolute_url(path),
+        "description": page["description"],
+        "lastReviewed": REVIEWED_ISO,
+        "isPartOf": {"@type": "WebSite", "name": config.site_name,
+                     "url": seo.absolute_url("/")},
+    }]
+
+
+# R3-08: /compare/jobright, /compare/simplify, /compare/auto-apply-tools — one
+# shared template, data in compare_pages.py. Registered per slug (not a catch-all
+# /compare/{slug}) so an unlisted slug such as /compare/teal stays a plain 404.
+def _make_compare_route(slug: str, page: dict):
+    path = f"/compare/{slug}"
+
+    def compare_page(request: Request):
+        from ..auth import current_user
+        from ..db import SessionLocal
+
+        db = SessionLocal()
+        try:
+            ctx = {"request": request, "user": current_user(request, db),
+                   "page": page, "path": path, "cta": CTA,
+                   "disclosure": DISCLOSURE, "reviewed_on": REVIEWED_ON,
+                   **seo.public_seo(title=page["title"],
+                                    description=page["description"], path=path,
+                                    og_title=page["h1"],
+                                    schema=_compare_schema(path, page))}
+            return templates.TemplateResponse(request, "marketing/compare.html", ctx)
+        finally:
+            db.close()
+
+    compare_page.__name__ = "compare_" + slug.replace("-", "_")
+    router.add_api_route(path, compare_page, methods=["GET"],
+                         response_class=HTMLResponse)
+
+
+for _slug, _page in COMPARE_PAGES.items():
+    _make_compare_route(_slug, _page)
 
 
 @router.get("/robots.txt")

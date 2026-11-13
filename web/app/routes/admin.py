@@ -360,9 +360,21 @@ def _gather(db: DbSession) -> dict:
 @router.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, _: bool = Depends(require_admin),
                     db: DbSession = Depends(get_session), reset_msg: str = ""):
+    from ..services import metrics
     ctx = _gather(db)
     return templates.TemplateResponse(request, "admin.html",
-        {"request": request, "reset_msg": reset_msg, **ctx})
+        {"request": request, "reset_msg": reset_msg, "bi": metrics.compute(db), **ctx})
+
+
+@router.get("/admin/metrics.json")
+def admin_metrics_json(_: bool = Depends(require_admin),
+                       db: DbSession = Depends(get_session)):
+    """R3-06: the BI metrics as JSON (counts/ratios only, no PII) — the feed the
+    CEO refreshes company/state/KPIS.md from. Same admin gate as /admin."""
+    from fastapi.responses import JSONResponse
+
+    from ..services import metrics
+    return JSONResponse(metrics.compute(db), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/admin/corpus", response_class=HTMLResponse)

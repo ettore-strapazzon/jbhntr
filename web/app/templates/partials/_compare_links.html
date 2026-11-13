@@ -1,0 +1,8 @@
+{# R3-08: cross-links between every live comparison page. The list comes from
+   compare_pages.COMPARE_LINKS (registered as the `compare_link_list` template global in
+   routes/marketing.py), so adding a page there adds it everywhere. #}
+{% macro compare_links(current="") %}
+<nav class="small" aria-label="Comparisons">
+  {% for href, label in compare_link_list if href != current %}<a href="{{ href }}">{{ label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+</nav>
+{% endmacro %}

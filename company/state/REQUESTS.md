@@ -113,3 +113,28 @@ Answer:
 
 Answer:
 
+
+---
+### R-013 · Turn on the /invite page (~10 min, no spend) · open
+**What:** the invite page (your referral link, a live counter and six ready-to-send messages with the incentive disclosed) is built and tested. GC cleared it on 2026-11-13 (COMPLIANCE_CARD v1.3 §E). It stays hidden until you set one Railway variable. **Do this after cycle 6's push has deployed.**
+
+**Before you flip:** in the Railway dashboard, open the **cron** service → Deployments → latest nightly run → Logs. Check that the run ends with a `nightly done …` line containing `'referral_released': <a number>`, not an error and not an exit-137 crash. If it crashed, stop here and reply "nightly crashed". Inviter credits depend on that job.
+
+**Steps:**
+1. Railway dashboard → project → **web** service → **Variables** → **New Variable**: name `INVITE_PAGE`, value `true` → Add.
+2. Click **Deploy** (or apply the staged change) and wait until the deploy shows Active. Don't put the value in any file or chat.
+
+**Verify:**
+- a) Signed in, open https://jbhntr.app/invite. You should see "Know someone applying to everything?", your link `https://jbhntr.app/signup?ref=<CODE>`, "Your invites" and six messages.
+- b) An **Invite** link appears in the top nav and on /credits.
+- c) The page source contains `<meta name="robots" content="noindex,nofollow">`.
+- d) In a private window, /invite sends you to /login.
+- e) "Copy link" changes to "Copied".
+
+**Roll back (any time, nothing is lost):** web service → Variables → set `INVITE_PAGE` to `false` (or delete it) → Deploy. /invite returns 404 and the links disappear. Codes, bonuses and pending payouts are unaffected.
+
+**After launch:** once R3-15 ships, check the held-referral queue in /admin each Monday and unlock clean rewards. The page promises held rewards are reviewed by hand, never refused automatically.
+
+**Reply:** `invite live <time>` or `nightly crashed`.
+
+Answer:

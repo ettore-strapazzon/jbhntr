@@ -80,6 +80,11 @@ def nightly(today: datetime.date | None = None) -> dict:
     is_weekly = day.weekday() == WEEKLY_DAY
     out: dict = {"weekly": is_weekly}
 
+    # R3-11 / GC E-1: pay due referral rewards FIRST — it is cheap and its own
+    # session, so an OOM/crash in the heavy ingest/enrich/reaper stages below can
+    # never skip a night's payouts (the "two to three days" promise on /invite).
+    _stage(out, "referral_released", _release_referrals)
+
     if is_weekly:
         _stage(out, "discover", lambda: ingest_run("discover"))
         _stage(out, "ingest_weekly", lambda: ingest_run("weekly"))
@@ -107,8 +112,6 @@ def nightly(today: datetime.date | None = None) -> dict:
         _stage(out, "pageview_pruned", lambda: _prune_pageviews(db))
         # Drop thin careerjet snippets that duplicate a full scraped job.
         _stage(out, "dedup_merged", lambda: merge_thin_duplicates(db))
-        # R3-11: pay referral rewards past the 48h delay whose friend has triaged.
-        _stage(out, "referral_released", _release_referrals)
     finally:
         db.close()
 

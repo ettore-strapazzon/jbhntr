@@ -6,6 +6,66 @@
   aggregate figures. No IP addresses are stored anywhere.
   {% if deployed_sha %}· deployed commit <code>{{ deployed_sha }}</code>{% endif %}</p>
 
+{# ===== R3-06 business metrics (services/metrics.py; JSON at /admin/metrics.json) ===== #}
+{% set m = bi.metrics %}
+<div class="card">
+  <h2>Business metrics <span class="muted small">(counts only · <a href="/admin/metrics.json">JSON</a>)</span></h2>
+  <div class="admin-stats">
+    {% for key in ["activated", "signups", "activation_rate", "k_factor",
+                   "outcome_events_per_active_user_week", "gate_better",
+                   "spend_usd", "revenue_usd"] %}
+      {% set x = m[key] %}
+      <div class="stat" title="{{ x.formula }}"><b>{{ x.display }}</b><span>{{ x.label }}</span>
+        {% if x.value is none %}<span class="small muted">— {{ x.reason }}</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  <p class="small muted">Signups last 7 days: {{ m.signups.last_7d }}.
+    K-factor = {{ m.k_factor.formula }} ({{ m.k_factor.referred_activated }} / {{ m.k_factor.activated }});
+    per activated inviter: {{ m.k_factor.per_activated_inviter if m.k_factor.per_activated_inviter is not none else "—" }}
+    ({{ m.k_factor.activated_inviters }} activated inviter{{ '' if m.k_factor.activated_inviters == 1 else 's' }}).
+    Outcome events: {{ m.outcome_events_per_active_user_week.outcome_events }} across
+    {{ m.outcome_events_per_active_user_week.active_users }} active users (7d).
+    {% if m.spend_usd.value is not none %}Committed ${{ "%.2f"|format(m.spend_usd.committed) }} ·
+    remaining of $1,000 cap ${{ "%.2f"|format(m.spend_usd.remaining_of_cap) }} ·
+    {{ m.spend_usd.rows }} ledger row{{ '' if m.spend_usd.rows == 1 else 's' }}.{% endif %}</p>
+
+  <h3>Funnel <span class="muted small">(nested user sets, all time)</span></h3>
+  <table class="apptable">
+    <thead><tr><th>Step</th><th>Users</th><th>% of previous</th><th>% of signups</th></tr></thead>
+    <tbody>
+    {% for s in m.funnel.steps %}
+      <tr><td>{{ s.label }}</td><td class="num">{{ s.count }}</td>
+        <td class="num">{{ "%.1f%%"|format(s.pct_of_prev * 100) if s.pct_of_prev is not none else "—" }}</td>
+        <td class="num">{{ "%.1f%%"|format(s.pct_of_signups * 100) if s.pct_of_signups is not none else "—" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>First-scan rate by activation-meter variant <span class="muted small">(R3-04 A/B)</span></h3>
+  <table class="apptable">
+    <thead><tr><th>Arm</th><th>Signups</th><th>Started a scan</th><th>Rate</th></tr></thead>
+    <tbody>
+    {% for arm, a in m.first_scan_rate_by_variant.arms.items() %}
+      <tr><td>{{ arm }}</td><td class="num">{{ a.signups }}</td><td class="num">{{ a.scanned }}</td>
+        <td class="num">{{ "%.1f%%"|format(a.rate * 100) if a.rate is not none else "—" }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>Referral rewards</h3>
+  <table class="apptable">
+    <thead><tr><th>Status</th><th>Rewards</th><th>Credits</th></tr></thead>
+    <tbody>
+    {% for status, r in m.referral_rewards.by_status.items() %}
+      <tr><td>{{ status }}</td><td class="num">{{ r.count }}</td><td class="num">{{ r.credits }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="small muted">Activated = {{ m.activated.formula }}. Hover a tile for its formula.
+    "—" means not computable yet (reason shown), never zero.</p>
+</div>
+
 {# ===== overview ===== #}
 <div class="admin-stats">
   <div class="stat"><b>{{ total_users }}</b><span>users</span></div>

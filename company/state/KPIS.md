@@ -1,7 +1,7 @@
 # KPIs — JBHNTR Team
 
 Owner: CTO (data) / CFO (spend & revenue). **Real numbers only.** `—` = not measured yet, never a guess.
-CTO populates `current` from the prod DB + ProductEvent table in cycle 1 and refreshes every cycle; the live view is the BI dashboard (R1-05).
+Live view: **`/admin` Business metrics + `/admin/metrics.json`** (R3-06, cycle 6; admin gate). CEO refreshes `current` from that feed each cycle once deployed. Gate row stays — until the gate prompt (R3-14) exists. K-factor = referred activated ÷ all activated.
 
 | metric | target | current | as of | source |
 |---|---|---|---|---|

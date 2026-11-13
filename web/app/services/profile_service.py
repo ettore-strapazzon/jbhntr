@@ -75,10 +75,14 @@ class Completeness:
 
 
 def _present(db: Session, user: User) -> dict[str, bool]:
-    profile = user.profile
     kinds = {m.kind for m in db.query(Material).filter(Material.user_id == user.id)}
     seed_count = db.query(SeedCompany).filter(SeedCompany.user_id == user.id).count()
+    return present_from(user.profile, kinds, seed_count)
 
+
+def present_from(profile: Profile | None, kinds: set[str], seed_count: int) -> dict[str, bool]:
+    """Pure: which FIELDS are filled, from already-loaded rows. Shared by the
+    per-user path above and the bulk BI metrics (R3-06), so both apply one rule."""
     def filled(attr: str) -> bool:
         val = getattr(profile, attr, None) if profile else None
         if isinstance(val, str):
@@ -103,7 +107,11 @@ def _present(db: Session, user: User) -> dict[str, bool]:
 
 
 def completeness(db: Session, user: User) -> Completeness:
-    present = _present(db, user)
+    return completeness_from(_present(db, user))
+
+
+def completeness_from(present: dict[str, bool]) -> Completeness:
+    """Pure: score a `present` map (see present_from)."""
     missing_req = [FIELDS[k][0] for k, (_, req) in FIELDS.items()
                    if req and not present.get(k)]
     missing_opt = [FIELDS[k][0] for k, (_, req) in FIELDS.items()

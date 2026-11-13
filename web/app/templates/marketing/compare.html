@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{# R3-08: shared comparison page. One template, per-page data from
+   web/app/compare_pages.py (copy verbatim from COMPARE_COPY.md, GC-cleared).
+   Same structure as compare_linkedin_jobs.html. No inline scripts (CSP). #}
+{% from "partials/_compare_table.html" import compare_table %}
+{% from "partials/_compare_links.html" import compare_links %}
+{% block body_class %}home{% endblock %}
+{% block content %}
+<div class="container">
+  <article class="doc">
+    <p class="eyebrow">COMPARISON</p>
+    <h1>{{ page.h1 }}</h1>
+    <p class="lede">{{ page.lede }}</p>
+    <p class="small muted">Last reviewed against official sources on {{ reviewed_on }}.</p>
+    <p class="small muted">{{ disclosure }}</p>
+
+    <section aria-labelledby="s-table">
+      <h2 id="s-table">Where they differ</h2>
+      {{ compare_table(["Dimension", page.competitor, "JBHNTR"], page.rows) }}
+    </section>
+
+    {% for heading, paras in page.sections %}
+    <section aria-labelledby="s-{{ loop.index }}">
+      <h2 id="s-{{ loop.index }}">{{ heading }}</h2>
+      {% for p in paras %}<p>{{ p }}</p>{% endfor %}
+      {% if loop.last %}
+      <p class="cta">
+        {% for label, href, cls in cta %}<a class="{{ cls }}" href="{{ href }}">{{ label }}</a>
+        {% endfor %}
+      </p>
+      {% endif %}
+    </section>
+    {% endfor %}
+
+    <section aria-labelledby="s-sources">
+      <h2 id="s-sources">Sources</h2>
+      <p class="small">Competitor facts on this page were checked against these public
+        pages on {{ reviewed_on }}. Products change; check the source before you rely on a detail.</p>
+      <ul class="small">
+        {% for label, url in page.sources %}<li><a href="{{ url }}" rel="nofollow noopener">{{ label }}</a></li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section aria-labelledby="s-more">
+      <h2 id="s-more">More comparisons</h2>
+      {{ compare_links(path) }}
+    </section>
+  </article>
+</div>
+{% endblock %}
