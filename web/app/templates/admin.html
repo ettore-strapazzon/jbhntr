@@ -144,6 +144,7 @@
     remove). Recorded as an operator adjustment in the ledger.</p>
   {% if reset_msg %}<p class="notice ok" role="status">{{ reset_msg }}</p>{% endif %}
   <form method="post" action="/admin/grant-credits" class="row" style="margin-top:8px">
+    <input type="hidden" name="csrf" value="{{ admin_csrf }}">
     <input type="email" name="email" placeholder="user@example.com" required
            style="max-width:280px">
     <input type="number" name="amount" value="10" step="1" required
@@ -154,6 +155,7 @@
   <p class="small muted">Re-enables the free first scan and clears the tester's
     generated documents so they can regenerate. The credit balance is not changed.</p>
   <form method="post" action="/admin/reset-usage" class="row" style="margin-top:8px">
+    <input type="hidden" name="csrf" value="{{ admin_csrf }}">
     <input type="email" name="email" placeholder="user@example.com" required
            style="max-width:280px">
     <button type="submit">Reset free scan</button>
@@ -162,6 +164,7 @@
   <p class="small muted">Credits gate the product now; plan only decides who the
     legacy daily/weekly email digest goes to.</p>
   <form method="post" action="/admin/set-plan" class="row" style="margin-top:8px">
+    <input type="hidden" name="csrf" value="{{ admin_csrf }}">
     <input type="email" name="email" placeholder="user@example.com" required
            style="max-width:280px">
     <select name="plan" aria-label="Plan"><option value="premium">premium</option>
@@ -172,6 +175,7 @@
   <p class="small muted">Wipes stored search results so the next search shows only
     fresh, verified matches. Saved/applied jobs are kept.</p>
   <form method="post" action="/admin/clear-board" class="row" style="margin-top:8px">
+    <input type="hidden" name="csrf" value="{{ admin_csrf }}">
     <input type="email" name="email" placeholder="user@example.com" required
            style="max-width:280px">
     <button type="submit">Clear board</button>
@@ -332,38 +336,45 @@
         </form>
       </div>
       <form method="post" action="/admin/run-maintenance" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Run maintenance now</button>
         <span class="small muted">Reaper (full due-set) + a corpus snapshot.</span>
       </form>
       <form method="post" action="/admin/run-enrichment" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Enrich thin descriptions now</button>
         <span class="small muted">Fetch full JDs for snippet-only jobs (one capped
           batch of {{ config.enrich_nightly_limit }}), then re-embed. Watch the fill
           rate in the log before relying on the nightly.</span>
       </form>
       <form method="post" action="/admin/run-ingest" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button type="submit">Run full ingest now</button>
         <span class="small muted">Pull every source across all cadences
           (discover + weekly + daily) immediately instead of waiting for the cron.
           Several minutes — watch the log.</span>
       </form>
       <form method="post" action="/admin/run-resolve" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Resolve corpus companies now</button>
         <span class="small muted">Probe the top {{ config.corpus_resolve_limit }} corpus
           companies for an ATS board (Greenhouse/Lever/Ashby/Personio/Workable…), then
           poll them for full-JD openings that upgrade the thin snippets.</span>
       </form>
       <form method="post" action="/admin/deep-clean" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Deep clean (check every link)</button>
         <span class="small muted">One-time full sweep of the whole corpus — slow,
           runs in the background.</span>
       </form>
       <form method="post" action="/admin/calibrate-aggregators" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Calibrate careerjet/jooble age (report only)</button>
         <span class="small muted">Samples links per age-cohort via Bright Data and
           logs the dead-rate curve + a proposed cutoff. Deletes nothing.</span>
       </form>
       <form method="post" action="/admin/purge-aggregators" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <input type="number" name="cutoff" min="1" placeholder="days" required
                style="max-width:90px">
         <button class="ghost" type="submit">Purge careerjet/jooble older than N days</button>
@@ -372,21 +383,25 @@
           automatically at {{ config.aggregator_stale_days }} days.</span>
       </form>
       <form method="post" action="/admin/embed-now" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Embed backlog now</button>
         <span class="small muted">Vectorise unembedded jobs so they become
           searchable ({{ embedded_n }}/{{ corpus_total }} embedded now).</span>
       </form>
       <form method="post" action="/admin/retag" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Re-tag work modes &amp; countries now</button>
         <span class="small muted">Reclassify the {{ "{:,}".format(untagged_country) }} untagged
           countries and stale <code>unknown</code> work modes without waiting for tonight.</span>
       </form>
       <form method="post" action="/admin/run-discovery" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Run similar-company discovery now</button>
         <span class="small muted">Finds &amp; scrapes similar companies for premium
           users with seed companies (weekly by default). Needs an LLM key.</span>
       </form>
       <form method="post" action="/admin/discovery-selftest" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Discovery self-test</button>
         <span class="small muted">Runs each discovery sub-step once and logs the
           exact error/result below — use when discovery returns 0.</span>

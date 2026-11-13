@@ -118,3 +118,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Spend:** none.
 - **Observations:** CTO found a class of bug worth a reusable check: Basic-auth admin panels are CSRF-exposed on every POST form.
 
+
+## 2026-11-13 · cycle 9 (admin CSRF finished)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 6/10.
+- **Dispatched (foreground):** CTO (R3-17). CPO idle (R3-18 is optional backlog) · CMO idle (digest filed) · CFO idle (R-006 open) · GC idle (no open GC task).
+- **Result (accepted):** CTO → **R3-17**: `require_admin_csrf` added to the 15 unguarded `/admin` POST routes (17/17 now, same helper, Basic auth still checked first → 401 before 403); hidden `csrf` field on all 17 forms in `admin.html`; new `tests/test_admin_csrf.py` (written first, seen red) — enumerates routes incl. included routers (FastAPI 0.162 hides them from `app.routes`; floor of ≥17 routes so it can't pass vacuously), scans templates for admin forms missing the field, 5 forgery cases per route (no/wrong token, foreign Origin, `Origin: null`, `Sec-Fetch-Site: cross-site`), grant-credits balance unchanged on forgery; background jobs stubbed. `test_web.py` admin tests send the token.
+- **CEO review:** diff checked (17 POST forms ↔ 17 tokens). No fixes needed.
+- **Test gate (CEO, once):** **908 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-19 (boardroom send/log/reply CSRF), R3-20 (`GET /admin/run-agencies` starts a job → POST + token).
+- **Requests:** none new. R-009 (brand accounts), R-013 (/invite flip), R-014 (cron DEBUG check) still open.
+- **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014.
+- **Spend:** none.
+- **Observations:** CTO lesson worth reusing: a route-enumeration guard test must count what it checked, because framework changes can make it silently iterate zero routes.

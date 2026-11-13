@@ -2698,6 +2698,13 @@ def test_reset_usage_reenables_free_scan(client):
     assert "No user found" in reset("nobody@example.com")
 
 
+def _admin_csrf() -> str:
+    """R3-17: every /admin POST needs the admin CSRF token (Basic auth alone is
+    replayed by browsers on cross-site POSTs)."""
+    from web.app.routes.admin import admin_csrf_token
+    return admin_csrf_token()
+
+
 def test_admin_reset_usage_endpoint(client, monkeypatch):
     from web.app.config import config
     from web.app.db import SessionLocal
@@ -2709,7 +2716,7 @@ def test_admin_reset_usage_endpoint(client, monkeypatch):
     u = db.query(User).filter_by(email="areset@example.com").one()
     u.first_scan_used_at = utcnow(); db.commit(); db.close()
 
-    r = client.post("/admin/reset-usage", data={"email": "areset@example.com"},
+    r = client.post("/admin/reset-usage", data={"email": "areset@example.com", "csrf": _admin_csrf()},
                     auth=("op", "s3cret"), follow_redirects=False)
     assert r.status_code == 303 and "reset_msg=" in r.headers["location"]
     db = SessionLocal()
@@ -2915,7 +2922,7 @@ def test_admin_grant_credits(client, monkeypatch):
     before = credits.balance(db, u); db.close()
 
     r = client.post("/admin/grant-credits", auth=("op", "s3cret"),
-                    data={"email": "tester@example.com", "amount": "7"},
+                    data={"email": "tester@example.com", "amount": "7", "csrf": _admin_csrf()},
                     follow_redirects=False)
     assert r.status_code == 303
     db = SessionLocal(); u = db.query(User).filter_by(email="tester@example.com").one()
@@ -3327,7 +3334,8 @@ def test_admin_set_plan(client, monkeypatch):
     from web.app.models import User
     monkeypatch.setattr(config, "admin_token", "s3cret")
     signup(client, email="prem@example.com")
-    r = client.post("/admin/set-plan", data={"email": "prem@example.com", "plan": "premium"},
+    r = client.post("/admin/set-plan", data={"email": "prem@example.com", "plan": "premium",
+                                       "csrf": _admin_csrf()},
                     auth=("op", "s3cret"), follow_redirects=False)
     assert r.status_code == 303
     db = SessionLocal()
@@ -3853,7 +3861,8 @@ def test_admin_run_maintenance(client, monkeypatch):
     monkeypatch.setattr(corpus_service, "merge_thin_duplicates",
                         lambda *a, **k: {"removed": 0})
     monkeypatch.setattr(cron, "_record_corpus_stat", lambda *a, **k: None)
-    r = client.post("/admin/run-maintenance", auth=("op", "s3cret"), follow_redirects=False)
+    r = client.post("/admin/run-maintenance", auth=("op", "s3cret"), data={"csrf": _admin_csrf()},
+                    follow_redirects=False)
     assert r.status_code == 303 and "Maintenance" in r.headers["location"]   # url-encoded msg
     assert client.post("/admin/run-maintenance").status_code == 401     # gated
 
@@ -3861,7 +3870,8 @@ def test_admin_run_maintenance(client, monkeypatch):
 def test_admin_run_discovery(client, monkeypatch):
     from web.app.config import config
     monkeypatch.setattr(config, "admin_token", "s3cret")
-    r = client.post("/admin/run-discovery", auth=("op", "s3cret"), follow_redirects=False)
+    r = client.post("/admin/run-discovery", auth=("op", "s3cret"), data={"csrf": _admin_csrf()},
+                    follow_redirects=False)
     assert r.status_code == 303 and "Discovery" in r.headers["location"]
     assert client.post("/admin/run-discovery").status_code == 401       # gated
 
@@ -3869,7 +3879,8 @@ def test_admin_run_discovery(client, monkeypatch):
 def test_admin_discovery_selftest(client, monkeypatch):
     from web.app.config import config
     monkeypatch.setattr(config, "admin_token", "s3cret")
-    r = client.post("/admin/discovery-selftest", auth=("op", "s3cret"), follow_redirects=False)
+    r = client.post("/admin/discovery-selftest", auth=("op", "s3cret"), data={"csrf": _admin_csrf()},
+                    follow_redirects=False)
     assert r.status_code == 303 and "self-test" in r.headers["location"]
     assert client.post("/admin/discovery-selftest").status_code == 401     # gated
 
@@ -3877,7 +3888,8 @@ def test_admin_discovery_selftest(client, monkeypatch):
 def test_admin_embed_now(client, monkeypatch):
     from web.app.config import config
     monkeypatch.setattr(config, "admin_token", "s3cret")
-    r = client.post("/admin/embed-now", auth=("op", "s3cret"), follow_redirects=False)
+    r = client.post("/admin/embed-now", auth=("op", "s3cret"), data={"csrf": _admin_csrf()},
+                    follow_redirects=False)
     assert r.status_code == 303 and "Embedding" in r.headers["location"]
     assert client.post("/admin/embed-now").status_code == 401           # gated
 
@@ -3885,7 +3897,8 @@ def test_admin_embed_now(client, monkeypatch):
 def test_admin_retag(client, monkeypatch):
     from web.app.config import config
     monkeypatch.setattr(config, "admin_token", "s3cret")
-    r = client.post("/admin/retag", auth=("op", "s3cret"), follow_redirects=False)
+    r = client.post("/admin/retag", auth=("op", "s3cret"), data={"csrf": _admin_csrf()},
+                    follow_redirects=False)
     assert r.status_code == 303 and "tagging" in r.headers["location"].lower()
     assert client.post("/admin/retag").status_code == 401               # gated
 
@@ -5204,7 +5217,7 @@ def test_admin_clear_board(client, monkeypatch):
         db.commit(); uid = u.id
     finally:
         db.close()
-    r = client.post("/admin/clear-board", data={"email": "board@example.com"},
+    r = client.post("/admin/clear-board", data={"email": "board@example.com", "csrf": _admin_csrf()},
                     auth=("op", "s3cret"), follow_redirects=False)
     assert r.status_code == 303
     db = SessionLocal()

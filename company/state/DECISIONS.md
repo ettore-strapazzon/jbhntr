@@ -34,3 +34,4 @@ Owner: CEO. Append-only; superseded rows kept and annotated inline.
 | 2026-11-13 | **Admin POSTs need a CSRF token** because Basic auth is resent cross-site: referral unlock/hold hardened now (HMAC token + origin check), remaining admin forms → R3-17 | CTO | CEO |
 | 2026-11-13 | **Private carve complete** (R3-16): CV prompt, ingest plan tables, domain guessing, extraction, reaper markers and aggregator calibration live in `jbhntr_engine_real`; shell keeps DB-owning code. Split step 4 still needs a Founder go + R-014 | CTO | CEO |
 
+| 2026-11-13 | **Every state-changing /admin route is POST + CSRF token** (R3-17); a test enumerates admin POST routes and admin forms so new ones cannot skip it. Boardroom endpoints + the GET job trigger follow (R3-19/R3-20) | CTO | CEO |

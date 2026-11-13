@@ -522,7 +522,8 @@ def admin_user(user_id: int, request: Request, _: bool = Depends(require_admin),
 
 
 @router.post("/admin/reset-usage")
-def admin_reset_usage(_: bool = Depends(require_admin), email: str = Form(...)):
+def admin_reset_usage(_: bool = Depends(require_admin),
+                      _csrf: None = Depends(require_admin_csrf), email: str = Form(...)):
     """Operator action: reset a user's free searches + CV/CL allowance."""
     from ..services.reset_usage import reset
     from urllib.parse import quote
@@ -531,7 +532,8 @@ def admin_reset_usage(_: bool = Depends(require_admin), email: str = Form(...)):
 
 
 @router.post("/admin/grant-credits")
-def admin_grant_credits(_: bool = Depends(require_admin), email: str = Form(...),
+def admin_grant_credits(_: bool = Depends(require_admin),
+                        _csrf: None = Depends(require_admin_csrf), email: str = Form(...),
                         amount: int = Form(...), db: DbSession = Depends(get_session)):
     """Operator action: add credits to a tester's balance (credit economy). Logged
     as an operator adjustment in the immutable ledger."""
@@ -558,7 +560,8 @@ def admin_grant_credits(_: bool = Depends(require_admin), email: str = Form(...)
 
 
 @router.post("/admin/set-plan")
-def admin_set_plan(_: bool = Depends(require_admin), email: str = Form(...),
+def admin_set_plan(_: bool = Depends(require_admin),
+                   _csrf: None = Depends(require_admin_csrf), email: str = Form(...),
                    plan: str = Form(...), db: DbSession = Depends(get_session)):
     """Operator action: put an account on Premium (or back on Free) — used while
     payments are disabled to grant testers access."""
@@ -576,7 +579,8 @@ def admin_set_plan(_: bool = Depends(require_admin), email: str = Form(...),
 
 
 @router.post("/admin/embed-now")
-def admin_embed_now(_: bool = Depends(require_admin)):
+def admin_embed_now(_: bool = Depends(require_admin),
+                    _csrf: None = Depends(require_admin_csrf)):
     """Operator: embed the corpus backlog right now instead of waiting for the
     nightly ingest. Only embedded jobs are searchable, so a large unembedded
     backlog means most of the corpus is invisible to search. Local fastembed is
@@ -607,7 +611,8 @@ def admin_embed_now(_: bool = Depends(require_admin)):
 
 
 @router.post("/admin/retag")
-def admin_retag(_: bool = Depends(require_admin)):
+def admin_retag(_: bool = Depends(require_admin),
+                _csrf: None = Depends(require_admin_csrf)):
     """Operator: re-tag stale corpus tags now instead of waiting for the nightly
     ingest. Recomputes 'unknown' work modes (free, deterministic) and settles
     still-untagged countries (geo maps first, LLM for the unresolvable). Both fix
@@ -646,7 +651,8 @@ def admin_retag(_: bool = Depends(require_admin)):
 
 
 @router.post("/admin/run-enrichment")
-def admin_run_enrichment(_: bool = Depends(require_admin)):
+def admin_run_enrichment(_: bool = Depends(require_admin),
+                         _csrf: None = Depends(require_admin_csrf)):
     """Operator: fetch full JDs for thin/snippet jobs now (one batch, capped by
     ENRICH_NIGHTLY_LIMIT), then re-embed the ones that got a real body. Watch the
     success rate here before relying on the nightly — if a host starts blocking
@@ -1107,7 +1113,8 @@ def admin_run_agencies(country: str = "it", n: int = 25,
 
 
 @router.post("/admin/run-ingest")
-def admin_run_ingest(_: bool = Depends(require_admin)):
+def admin_run_ingest(_: bool = Depends(require_admin),
+                     _csrf: None = Depends(require_admin_csrf)):
     """Operator: run a FULL pull now instead of waiting for the cron — every source
     across all cadences (discover -> weekly -> daily), in the background. Heavy and
     long (minutes); watch the Background job log for the per-cadence result."""
@@ -1160,7 +1167,8 @@ def admin_run_ingest(_: bool = Depends(require_admin)):
 
 
 @router.post("/admin/run-resolve")
-def admin_run_resolve(_: bool = Depends(require_admin)):
+def admin_run_resolve(_: bool = Depends(require_admin),
+                      _csrf: None = Depends(require_admin_csrf)):
     """Operator: probe the most common corpus companies for an ATS board now, so
     daily Lane C ingests their full-JD openings (which upgrade thin snippets). Runs
     in the background; watch the fill in the log + the Discovery counts."""
@@ -1196,7 +1204,8 @@ def admin_run_resolve(_: bool = Depends(require_admin)):
 
 
 @router.post("/admin/run-maintenance")
-def admin_run_maintenance(_: bool = Depends(require_admin)):
+def admin_run_maintenance(_: bool = Depends(require_admin),
+                          _csrf: None = Depends(require_admin_csrf)):
     """Operator: run the reaper now and record a corpus snapshot in the background,
     so the churn/growth charts get a data point without waiting for the nightly
     cron. Bounded (the reaper caps its own work)."""
@@ -1228,7 +1237,8 @@ def admin_run_maintenance(_: bool = Depends(require_admin)):
 
 
 @router.post("/admin/deep-clean")
-def admin_deep_clean(_: bool = Depends(require_admin)):
+def admin_deep_clean(_: bool = Depends(require_admin),
+                     _csrf: None = Depends(require_admin_csrf)):
     """Operator: FORCE-recheck every stored link now, ignoring the recheck window,
     and record a snapshot. Use after a checker change (e.g. new captcha detection)
     to re-examine jobs the nightly run already stamped with the old logic. Slow —
@@ -1326,7 +1336,8 @@ def admin_source_freshness(_: bool = Depends(require_admin), source: str = "api:
 
 
 @router.post("/admin/calibrate-aggregators")
-def admin_calibrate_aggregators(_: bool = Depends(require_admin)):
+def admin_calibrate_aggregators(_: bool = Depends(require_admin),
+                                _csrf: None = Depends(require_admin_csrf)):
     """Operator: sample careerjet/jooble links per age-cohort through the Bright Data
     Scraping Browser and report the dead-rate curve + proposed cutoff. REPORT ONLY —
     deletes nothing. Read the result in the job log, then run the purge with a cutoff.
@@ -1355,7 +1366,8 @@ def admin_calibrate_aggregators(_: bool = Depends(require_admin)):
 
 
 @router.post("/admin/purge-aggregators")
-def admin_purge_aggregators(_: bool = Depends(require_admin), cutoff: int = Form(...)):
+def admin_purge_aggregators(_: bool = Depends(require_admin),
+                            _csrf: None = Depends(require_admin_csrf), cutoff: int = Form(...)):
     """Operator: delete careerjet/jooble jobs whose last_seen is older than `cutoff`
     days (the value from a prior calibrate run). Tombstones + purges boards."""
     from urllib.parse import quote
@@ -1385,7 +1397,8 @@ def admin_purge_aggregators(_: bool = Depends(require_admin), cutoff: int = Form
 
 
 @router.post("/admin/run-discovery")
-def admin_run_discovery(_: bool = Depends(require_admin)):
+def admin_run_discovery(_: bool = Depends(require_admin),
+                        _csrf: None = Depends(require_admin_csrf)):
     """Operator: run similar-company discovery + custom careers-page scraping now,
     instead of waiting for the weekly cron. Premium users with seed companies get
     processed; the companies found feed everyone's corpus. Needs an LLM key on this
@@ -1433,7 +1446,8 @@ def admin_run_discovery(_: bool = Depends(require_admin)):
 
 
 @router.post("/admin/discovery-selftest")
-def admin_discovery_selftest(_: bool = Depends(require_admin)):
+def admin_discovery_selftest(_: bool = Depends(require_admin),
+                             _csrf: None = Depends(require_admin_csrf)):
     """Operator diagnostic: run each discovery sub-step in isolation for the first
     premium user with seeds, capturing the EXACT error of each. discover() swallows
     suggestion errors as a dry round ("suggested 0"), so this is the only way to
@@ -1502,7 +1516,8 @@ def admin_discovery_selftest(_: bool = Depends(require_admin)):
 
 
 @router.post("/admin/clear-board")
-def admin_clear_board(_: bool = Depends(require_admin), email: str = Form(...),
+def admin_clear_board(_: bool = Depends(require_admin),
+                      _csrf: None = Depends(require_admin_csrf), email: str = Form(...),
                       db: DbSession = Depends(get_session)):
     """Operator: wipe a user's stored search results so their board starts empty
     and the next search shows only fresh, verified matches. Saved/applied state
