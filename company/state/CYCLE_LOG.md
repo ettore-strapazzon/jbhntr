@@ -182,3 +182,4 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - 2026-11-13 · idle, skipped: the daily cap of 10/10 full cycles is reached. No "doing" tasks to recover and no new Founder orders. Next eligible: R3-24 / R3-09 on 2026-11-14.
 - 2026-11-13 · idle, skipped (re-check): daily cap 10/10 still reached; no "doing" tasks, no new Founder orders. Next eligible: R3-24 / R3-09 on 2026-11-14.
 - 2026-11-13 · idle, skipped (re-check): daily cap 10/10 still reached; no "doing" tasks, no new Founder orders. Next eligible: R3-24 / R3-09 on 2026-11-14.
+- 2026-11-13 · idle, skipped (re-check): daily cap 10/10 still reached; no "doing" tasks, no new Founder orders. Next eligible: R3-24 / R3-09 on 2026-11-14.
