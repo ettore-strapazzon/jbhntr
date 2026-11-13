@@ -14,7 +14,6 @@ admin_token => 404 (feature off), exactly like the operator dashboard.
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
@@ -26,7 +25,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from ..config import ROOT
 from ..db import get_session
-from ..models import BoardroomMessage, aware
+from ..models import BoardroomMessage, TeamLogEntry, aware
 from ..templating import templates
 from .admin import require_admin  # reuse the existing admin gate verbatim
 
@@ -140,31 +139,20 @@ def _doc_index() -> list[dict]:
     return out
 
 
-def _team_log(limit: int = 200) -> tuple[list[dict], list[str]]:
-    """Per-agent activity entries (newest first) + the sorted set of agents seen,
-    parsed from company/state/TEAM_LOG.jsonl (one JSON object per line, appended by
-    each cycle). Unparseable lines are skipped so a bad line never breaks the page."""
-    entries: list[dict] = []
-    agents: set[str] = set()
-    for line in reversed(_read(STATE / "TEAM_LOG.jsonl").splitlines()):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            e = json.loads(line)
-        except ValueError:
-            continue
-        if not isinstance(e, dict):
-            continue
-        agent = str(e.get("agent", "")).strip() or "—"
-        agents.add(agent)
-        entries.append({"ts": str(e.get("ts", "")), "cycle": str(e.get("cycle", "")),
-                        "agent": agent, "task": str(e.get("task", "")),
-                        "status": str(e.get("status", "")),
-                        "summary": str(e.get("summary", ""))})
-        if len(entries) >= limit:
-            break
-    return entries, sorted(agents)
+def _entry_dict(e: TeamLogEntry) -> dict:
+    return {"id": e.id, "agent": e.agent, "task": e.task, "status": e.status,
+            "summary": e.summary, "cycle": e.cycle, "ts": _ts(e)}
+
+
+def _team_feed(db: DbSession, limit: int = 100) -> tuple[list[dict], list[str], int]:
+    """The most recent team-log entries (newest first) for the initial render, the
+    set of agents seen, and the max id so the page can poll only newer ones."""
+    rows = (db.query(TeamLogEntry)
+            .order_by(TeamLogEntry.id.desc()).limit(limit).all())
+    entries = [_entry_dict(e) for e in rows]
+    agents = sorted({e["agent"] for e in entries if e["agent"]})
+    last_id = rows[0].id if rows else 0
+    return entries, agents, last_id
 
 
 @router.get("/boardroom", response_class=HTMLResponse)
@@ -180,7 +168,7 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
                  "role_label": "Founder" if m.role == "founder" else "CEO",
                  "body": m.body,
                  "ts": _ts(m)} for m in msgs]
-    team_entries, team_agents = _team_log()
+    team_entries, team_agents, team_last_id = _team_feed(db)
     return templates.TemplateResponse(request, "boardroom.html", {
         "request": request,
         "messages": messages,
@@ -195,10 +183,41 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
         "updates": _all_updates(),
         "team_entries": team_entries,
         "team_agents": team_agents,
+        "team_last_id": team_last_id,
         "kpis_html": _html(_read(STATE / "KPIS.md")),
         "roadmap_html": _html(_read(STATE / "BACKLOG.md")),
         "history_html": _html(cycle_log),
     })
+
+
+@router.post("/boardroom/log")
+async def boardroom_log(request: Request, _: bool = Depends(require_admin),
+                        db: DbSession = Depends(get_session)):
+    """The VM cycle posts one per-agent activity entry AS it works (form or JSON:
+    agent, task, status, summary, cycle). Powers the live 'Live team' feed."""
+    ctype = request.headers.get("content-type", "")
+    data = await request.json() if "application/json" in ctype else await request.form()
+    agent = (str(data.get("agent", "")).strip())[:16]
+    if not agent:
+        return JSONResponse({"ok": False, "error": "agent required"}, status_code=400)
+    e = TeamLogEntry(agent=agent,
+                     task=(str(data.get("task", "")).strip())[:200],
+                     status=(str(data.get("status", "")).strip())[:24],
+                     summary=str(data.get("summary", "")).strip(),
+                     cycle=(str(data.get("cycle", "")).strip())[:32])
+    db.add(e)
+    db.commit()
+    return JSONResponse({"ok": True, "id": e.id})
+
+
+@router.get("/boardroom/team.json")
+def boardroom_team(after: int = 0, _: bool = Depends(require_admin),
+                   db: DbSession = Depends(get_session)):
+    """Team-log entries with id > `after` (ascending), for the live poll."""
+    rows = (db.query(TeamLogEntry)
+            .filter(TeamLogEntry.id > after)
+            .order_by(TeamLogEntry.id.asc()).all())
+    return JSONResponse([_entry_dict(e) for e in rows])
 
 
 @router.get("/boardroom/doc", response_class=HTMLResponse)

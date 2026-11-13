@@ -120,24 +120,21 @@
 <section class="panel" data-panel="team">
   <div class="card">
     <h2>Live team</h2>
-    <p class="small muted">Per-agent activity, newest first. Updated every cycle.</p>
-    {% if team_entries %}
-      <div class="filters" id="team-filters">
-        <button type="button" data-agent="" class="active">All</button>
-        {% for a in team_agents %}<button type="button" data-agent="{{ a }}">{{ a }}</button>{% endfor %}
+    <p class="small muted">Per-agent activity, newest first — updates live as the agents work.</p>
+    <div class="filters" id="team-filters">
+      <button type="button" data-agent="" class="active">All</button>
+      {% for a in team_agents %}<button type="button" data-agent="{{ a }}">{{ a }}</button>{% endfor %}
+    </div>
+    <p class="muted" id="team-empty"{% if team_entries %} hidden{% endif %}>No team activity yet — this lights up the moment the next cycle dispatches an agent.</p>
+    <div id="team-log" data-last="{{ team_last_id }}">
+      {% for e in team_entries %}
+      <div class="tl" data-agent="{{ e.agent }}">
+        <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · {{ e.ts }}{% endif %}</div>
+        {% if e.task %}<div><b>{{ e.task }}</b></div>{% endif %}
+        {% if e.summary %}<div class="msg-body">{{ e.summary }}</div>{% endif %}
       </div>
-      <div id="team-log">
-        {% for e in team_entries %}
-        <div class="tl" data-agent="{{ e.agent }}">
-          <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · {{ e.ts }}{% endif %}</div>
-          {% if e.task %}<div><b>{{ e.task }}</b></div>{% endif %}
-          {% if e.summary %}<div class="msg-body">{{ e.summary }}</div>{% endif %}
-        </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="muted">No team activity logged yet — this fills in after the next cycle.</p>
-    {% endif %}
+      {% endfor %}
+    </div>
   </div>
 </section>
 

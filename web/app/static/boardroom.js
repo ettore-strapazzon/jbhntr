@@ -29,21 +29,95 @@
     if (!activate(start)) activate("main");
   }
 
-  // ---- Team filter ----
+  // ---- Live team feed (poll + prepend newest on top) ----
   var filters = document.getElementById("team-filters");
   var teamLog = document.getElementById("team-log");
-  if (filters && teamLog) {
-    filters.addEventListener("click", function (e) {
-      var btn = e.target.closest("button");
-      if (!btn) return;
-      var agent = btn.getAttribute("data-agent") || "";
+  var teamEmpty = document.getElementById("team-empty");
+  var teamFilter = "";
+
+  function applyTeamFilter(agent) {
+    teamFilter = agent;
+    if (filters) {
       filters.querySelectorAll("button").forEach(function (b) {
-        b.classList.toggle("active", b === btn);
+        b.classList.toggle("active", (b.getAttribute("data-agent") || "") === agent);
       });
+    }
+    if (teamLog) {
       teamLog.querySelectorAll(".tl").forEach(function (row) {
         row.hidden = agent !== "" && row.getAttribute("data-agent") !== agent;
       });
+    }
+  }
+  if (filters) {
+    filters.addEventListener("click", function (e) {
+      var btn = e.target.closest("button");
+      if (btn) applyTeamFilter(btn.getAttribute("data-agent") || "");
     });
+  }
+
+  function ensureFilterBtn(agent) {
+    if (!filters || !agent) return;
+    if (filters.querySelector('button[data-agent="' + agent.replace(/"/g, "") + '"]')) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("data-agent", agent);
+    b.textContent = agent;
+    filters.appendChild(b);
+  }
+
+  function addTeam(e) {
+    var row = document.createElement("div");
+    row.className = "tl";
+    row.setAttribute("data-agent", e.agent || "");
+    var meta = document.createElement("div");
+    meta.className = "tl-meta";
+    var ag = document.createElement("span");
+    ag.className = "tl-agent";
+    ag.textContent = e.agent || "—";
+    meta.appendChild(ag);
+    var bits = [];
+    if (e.status) bits.push(e.status);
+    if (e.cycle) bits.push("cycle " + e.cycle);
+    if (e.ts) bits.push(e.ts);
+    if (bits.length) {
+      var rest = document.createElement("span");
+      rest.textContent = " · " + bits.join(" · ");
+      meta.appendChild(rest);
+    }
+    row.appendChild(meta);
+    if (e.task) {
+      var t = document.createElement("div");
+      var b = document.createElement("b");
+      b.textContent = e.task;
+      t.appendChild(b);
+      row.appendChild(t);
+    }
+    if (e.summary) {
+      var s = document.createElement("div");
+      s.className = "msg-body";
+      s.textContent = e.summary;
+      row.appendChild(s);
+    }
+    if (teamFilter && (e.agent || "") !== teamFilter) row.hidden = true;
+    teamLog.insertBefore(row, teamLog.firstChild);
+    ensureFilterBtn(e.agent);
+    if (teamEmpty) teamEmpty.hidden = true;
+  }
+
+  if (teamLog) {
+    var teamLast = parseInt(teamLog.getAttribute("data-last") || "0", 10) || 0;
+    var pollTeam = function () {
+      fetch("/boardroom/team.json?after=" + teamLast, { headers: { Accept: "application/json" } })
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (rows) {
+          rows.forEach(function (e) {
+            if (e.id > teamLast) teamLast = e.id;
+            addTeam(e);
+          });
+        })
+        .catch(function () {});
+    };
+    setInterval(pollTeam, 3000);
   }
 
   // ---- Live chat ----

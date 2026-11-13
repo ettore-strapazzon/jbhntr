@@ -1910,6 +1910,41 @@ def test_boardroom_messages_json_feed(client, monkeypatch):
     assert [m["body"] for m in tail] == ["feed-second"]
 
 
+def test_boardroom_team_log_live_feed(client, monkeypatch):
+    """The VM posts per-agent activity to /boardroom/log; the feed returns entries
+    after `after`. Both admin-gated; a post with no agent is a 400."""
+    from web.app.config import config
+
+    monkeypatch.setattr(config, "admin_token", "")
+    assert client.post("/boardroom/log", data={"agent": "CTO"}).status_code == 404
+    assert client.get("/boardroom/team.json").status_code == 404
+
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    auth = ("op", "s3cret")
+    assert client.post("/boardroom/log", data={"agent": "CTO"}).status_code == 401
+    assert client.get("/boardroom/team.json").status_code == 401
+
+    # Baseline past entries other tests may have left.
+    base = client.get("/boardroom/team.json", auth=auth).json()
+    base_id = base[-1]["id"] if base else 0
+
+    assert client.post("/boardroom/log", data={"agent": ""}, auth=auth).status_code == 400
+    r = client.post("/boardroom/log", auth=auth, data={
+        "agent": "CTO", "task": "R3-02 market read", "status": "started", "cycle": "5"})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    client.post("/boardroom/log", auth=auth, data={
+        "agent": "CTO", "task": "R3-02 market read", "status": "shipped",
+        "summary": "Built the funnel."})
+
+    rows = client.get(f"/boardroom/team.json?after={base_id}", auth=auth).json()
+    assert [e["agent"] for e in rows] == ["CTO", "CTO"]
+    assert [e["status"] for e in rows] == ["started", "shipped"]
+    assert rows[1]["summary"] == "Built the funnel."
+    # Incremental: after the first id, only the second entry comes back.
+    tail = client.get(f"/boardroom/team.json?after={rows[0]['id']}", auth=auth).json()
+    assert [e["status"] for e in tail] == ["shipped"]
+
+
 def test_boardroom_doc_viewer_gated_and_path_safe(client, monkeypatch):
     """The doc viewer is admin-gated, renders a real company doc, and refuses any
     path that escapes company/docs (traversal) or does not exist."""

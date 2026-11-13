@@ -656,6 +656,23 @@ class BoardroomMessage(Base):
         DateTime(timezone=True), default=utcnow, index=True)
 
 
+class TeamLogEntry(Base):
+    """Live per-agent activity feed, in the shared DB so the VM cycle posts each
+    agent's start/finish AS it works and the Boardroom 'Live team' tab streams it in
+    (same cross-machine pattern as BoardroomMessage). Also the durable history."""
+
+    __tablename__ = "team_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agent: Mapped[str] = mapped_column(String(16))               # CEO|CTO|CMO|CPO|CFO|GC
+    task: Mapped[str] = mapped_column(String(200), default="")
+    status: Mapped[str] = mapped_column(String(24), default="")  # started|shipped|blocked|…
+    summary: Mapped[str] = mapped_column(Text, default="")
+    cycle: Mapped[str] = mapped_column(String(32), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True)
+
+
 class CreditLedger(Base):
     """Immutable credit transactions. The balance is a projection of this table.
 
