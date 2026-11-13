@@ -142,3 +142,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014.
 - **Spend:** none.
 - **Observations:** CTO logged obs 0004 — adding a CSRF field to a form misses JS that posts the same endpoint with its own body; check JS submitters too. Skill-observation review never run (4 open) — offer stands.
+
+## 2026-11-13 · cycle 11 (last state-changing admin GETs closed)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 8/10.
+- **Dispatched (foreground):** CTO (R3-21). CPO idle (R3-18 optional backlog) · CMO idle (digest filed) · CFO idle (R-006 open) · GC idle (no open GC task).
+- **Result (accepted):** CTO → **R3-21**: `/admin/reprobe-unresolved` (deletes Company rows) and the four `/admin/test-*` routes that spend paid quota (`test-source` metered API, `test-careers` + `test-careers-sample` LLM fallback, `test-browser` Bright Data) are now POST + admin CSRF token via new Diagnostics forms on /admin; GET → 405. `test-enrich`/`test-domain` stay GET (free, no DB writes; reason in code comment). `/boardroom/pull` gets `require_same_origin`; the VM's `run_cycle.sh` curl shape is pinned by a test. Admin POST floor 18→23; the "no admin GET starts a thread" test now also catches DB writes + paid calls and is checked against known POST handlers so it can't pass vacuously. Bonus fix: `test-careers` referenced an undeclared `country` (NameError).
+- **CEO review:** diff read (routes, template, tests); docstring-only change in `jobhunter/sources/agency_hints.py`. No fixes needed.
+- **Test gate (CEO, once):** **1005 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-22 (public GET side-effects: `GET /logout`, cross-site embeds inflating share/invite view events → KPI integrity, `/unsubscribe` RFC 8058 POST).
+- **Requests:** none new. R-009 (brand accounts), R-013 (/invite flip), R-014 (cron DEBUG check) still open.
+- **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014.
+- **Spend:** none.
+- **Observations:** CTO extended obs 0003/0004 (no new ones). Old `/admin/test-*?name=` bookmarks now 405, so use the /admin Diagnostics forms. Skill-observation review never run (4 open), and the offer stands.

@@ -46,7 +46,21 @@ FORM = {
     "/admin/purge-aggregators": {"cutoff": "0"},     # < 1 => early redirect, no work
     "/admin/referral-unlock": {"reward_id": "999999999"},
     "/admin/referral-hold": {"reward_id": "999999999", "reason": "review"},
+    # R3-21 diagnostics: bodies that return early (unknown source / no target);
+    # the admin fixture also stubs their outbound calls in case one gets further.
+    "/admin/test-source": {"name": "r321-no-such-source"},
+    "/admin/test-careers": {},
+    "/admin/test-browser": {"name": "", "domain": ""},
+    "/admin/test-careers-sample": {"n": "1"},
 }
+
+# R3-21: converted from state-changing / money-spending GETs. Diagnostics answer
+# with the plain-text report (200); everything else redirects back to /admin (303).
+CONVERTED_FROM_GET = ["/admin/reprobe-unresolved", "/admin/test-source",
+                      "/admin/test-careers", "/admin/test-browser",
+                      "/admin/test-careers-sample"]
+DIAGNOSTICS = {"/admin/test-source", "/admin/test-careers", "/admin/test-browser",
+               "/admin/test-careers-sample"}
 
 
 def _api_routes(routes, prefix=""):
@@ -92,14 +106,29 @@ def admin(monkeypatch):
     monkeypatch.setattr(admin_mod, "threading",
                         SimpleNamespace(Thread=lambda *a, **k: SimpleNamespace(
                             start=lambda: None)))
+    _stub_outbound(monkeypatch)
     return TestClient(app)
+
+
+def _stub_outbound(monkeypatch):
+    """The diagnostic routes make real (paid) outbound calls: LLM careers scrape,
+    Bright Data browser, Clearbit domain lookups. Never in tests."""
+    import jbhntr_engine
+
+    from web.app.services import companies_service
+    monkeypatch.setattr(jbhntr_engine, "scrape_careers", lambda *a, **k: [])
+    monkeypatch.setattr(jbhntr_engine, "browser_fetch_portal", lambda *a, **k: [])
+    monkeypatch.setattr(jbhntr_engine, "browser_debug_portal", lambda *a, **k: {})
+    monkeypatch.setattr(jbhntr_engine, "browser_configured", lambda *a, **k: False)
+    monkeypatch.setattr(companies_service, "_resolve_domain", lambda *a, **k: "")
 
 
 # ---- regression guards: nothing new can ship unguarded ----
 
 def test_there_are_admin_post_routes_to_check():
-    assert len(ROUTES) >= 18, ROUTES
+    assert len(ROUTES) >= 23, ROUTES
     assert "/admin/run-agencies" in ROUTES      # R3-20: was a job-starting GET
+    assert set(CONVERTED_FROM_GET) <= set(ROUTES), set(CONVERTED_FROM_GET) - set(ROUTES)
 
 
 def test_every_admin_post_route_enforces_require_admin_csrf():
@@ -121,12 +150,14 @@ def test_every_admin_post_form_in_templates_carries_csrf_field():
             tag = m.group(0)
             if re.search(r'method="post"', tag, re.I) and re.search(r'action="/admin', tag):
                 forms.append((path.name, tag))
-    assert len(forms) >= 18
+    assert len(forms) >= 23
     bad = [re.search(r'action="([^"]+)"', t).group(1) for _, t in forms
            if '<input type="hidden" name="csrf" value="{{ admin_csrf }}">' not in t]
     assert not bad, f"admin POST forms without the hidden csrf field: {bad}"
     actions = {re.search(r'action="([^"]+)"', t).group(1) for _, t in forms}
     assert actions <= set(ROUTES), actions - set(ROUTES)
+    # R3-21: each converted route is reachable from the UI as a CSRF-carrying form.
+    assert set(CONVERTED_FROM_GET) <= actions, set(CONVERTED_FROM_GET) - actions
 
 
 def test_rendered_admin_page_puts_the_real_token_in_every_post_form(admin):
@@ -162,7 +193,8 @@ def test_same_origin_admin_post_with_token_still_works(admin, path):
     data = dict(FORM.get(path, {}), csrf=admin_mod.admin_csrf_token())
     r = admin.post(path, data=data, auth=ADMIN, follow_redirects=False,
                    headers={"Origin": "http://testserver", "Sec-Fetch-Site": "same-origin"})
-    assert r.status_code == 303, (path, r.status_code, r.text[:200])
+    expected = 200 if path in DIAGNOSTICS else 303
+    assert r.status_code == expected, (path, r.status_code, r.text[:200])
 
 
 @pytest.mark.parametrize("path", ROUTES)
@@ -210,13 +242,105 @@ def _admin_get_routes() -> list[APIRoute]:
             if path.startswith("/admin") and "GET" in r.methods]
 
 
-def test_no_admin_get_route_starts_a_background_thread():
-    """Static guard: no GET /admin handler spawns a thread (jobs are POST + CSRF)."""
+# Source markers for "this handler changes state / spends money". A GET handler
+# must contain none of them (R3-20 threads; R3-21 deletes/commits and paid calls).
+GET_FORBIDDEN = {
+    "starts a thread": ("threading.Thread", "Thread("),
+    "writes the DB": (".commit(", ".delete(", ".add(", ".add_all(", ".merge("),
+    "spends money/quota": ("scrape_careers", "browser_fetch_portal",
+                           "browser_debug_portal", "KEYED_SOURCES"),
+}
+
+
+def _forbidden_hits(fn) -> list[str]:
     import inspect
+    src = inspect.getsource(fn)
+    assert len(src) > 80, fn       # a source we could not read must not pass as clean
+    return [kind for kind, marks in GET_FORBIDDEN.items() if any(m in src for m in marks)]
+
+
+def test_get_guard_detector_is_not_vacuous():
+    """Positive controls: the detector must flag known POST handlers that do each
+    forbidden thing, or the GET guard below could pass by detecting nothing."""
+    assert "starts a thread" in _forbidden_hits(admin_mod.admin_run_agencies)
+    assert "writes the DB" in _forbidden_hits(admin_mod.admin_reprobe_unresolved)
+    assert "spends money/quota" in _forbidden_hits(admin_mod.admin_test_careers_sample)
+    assert "spends money/quota" in _forbidden_hits(admin_mod.admin_test_browser)
+    assert "spends money/quota" in _forbidden_hits(admin_mod.admin_test_source)
+
+
+def test_no_admin_get_route_starts_a_thread_writes_or_spends():
+    """Static guard: no GET /admin handler spawns a thread, writes the DB, or makes
+    a paid/quota outbound call (those are POST + CSRF)."""
     gets = _admin_get_routes()
-    assert len(gets) >= 15, [r.path for r in gets]
-    offenders = [r.path for r in gets if "threading.Thread" in inspect.getsource(r.endpoint)]
-    assert not offenders, f"GET admin routes that start a background job: {offenders}"
+    assert len(gets) >= 12, [r.path for r in gets]
+    offenders = {r.path: hits for r in gets if (hits := _forbidden_hits(r.endpoint))}
+    assert not offenders, f"GET admin routes that change state or spend: {offenders}"
+
+
+@pytest.mark.parametrize("path", CONVERTED_FROM_GET)
+def test_converted_route_get_is_405(admin, path):
+    r = admin.get(path, auth=ADMIN, follow_redirects=False)
+    assert r.status_code == 405, (path, r.status_code)
+
+
+def _seed_unresolved_company(name: str) -> int:
+    from web.app.db import SessionLocal
+    from web.app.models import Company
+    db = SessionLocal()
+    try:
+        c = Company(name=name, ats="none", ats_token=name.lower().replace(" ", "-"))
+        db.add(c)
+        db.commit()
+        return c.id
+    finally:
+        db.close()
+
+
+def _company_exists(cid: int) -> bool:
+    from web.app.db import SessionLocal
+    from web.app.models import Company
+    db = SessionLocal()
+    try:
+        return db.get(Company, cid) is not None
+    finally:
+        db.close()
+
+
+def test_get_reprobe_unresolved_is_405_and_deletes_nothing(admin):
+    cid = _seed_unresolved_company("R321 Get Co")
+    r = admin.get("/admin/reprobe-unresolved", auth=ADMIN, follow_redirects=False)
+    assert r.status_code == 405
+    assert _company_exists(cid)
+    admin.post("/admin/reprobe-unresolved", auth=ADMIN, follow_redirects=False,
+               data={"csrf": admin_mod.admin_csrf_token()})       # clean up
+
+
+@pytest.mark.parametrize("case", ["missing", "forged", "foreign-origin"])
+def test_forged_reprobe_post_deletes_nothing(admin, case):
+    cid = _seed_unresolved_company(f"R321 Forged {case}")
+    data, headers = {}, {}
+    if case == "forged":
+        data["csrf"] = "forged"
+    elif case == "foreign-origin":
+        data["csrf"] = admin_mod.admin_csrf_token()
+        headers = {"Origin": "https://evil.example"}
+    r = admin.post("/admin/reprobe-unresolved", data=data, headers=headers, auth=ADMIN,
+                   follow_redirects=False)
+    assert r.status_code == 403
+    assert _company_exists(cid)
+    admin.post("/admin/reprobe-unresolved", auth=ADMIN, follow_redirects=False,
+               data={"csrf": admin_mod.admin_csrf_token()})       # clean up
+
+
+def test_reprobe_post_with_token_clears_markers_and_redirects(admin):
+    cid = _seed_unresolved_company("R321 Real Co")
+    r = admin.post("/admin/reprobe-unresolved", auth=ADMIN, follow_redirects=False,
+                   data={"csrf": admin_mod.admin_csrf_token()},
+                   headers={"Origin": "http://testserver", "Sec-Fetch-Site": "same-origin"})
+    assert r.status_code == 303
+    assert r.headers["location"].startswith("/admin?reset_msg=")
+    assert not _company_exists(cid)
 
 
 def test_get_run_agencies_is_405_and_starts_no_job(monkeypatch):

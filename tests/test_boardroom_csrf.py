@@ -195,3 +195,78 @@ def test_boardroom_js_sends_the_csrf_field():
     js = (Path(__file__).resolve().parents[1] / "web" / "app" / "static"
           / "boardroom.js").read_text()
     assert 'body.append("csrf"' in js
+
+
+# ---- R3-21: GET /boardroom/pull consumes messages -> same-origin check ----
+# The VM cycle calls it as:  curl -s -u "admin:$JBHNTR_ADMIN_TOKEN" "$APP/boardroom/pull"
+# (/home/ubuntu/run_cycle.sh) -- a GET with Basic auth and no Origin / Sec-Fetch-*
+# headers. That shape must keep working; a browser cross-site GET must not consume.
+
+def _queue_founder_message(client, body: str) -> int:
+    r = client.post("/boardroom/send", data={"body": body, "csrf": admin_mod.admin_csrf_token()},
+                    auth=AUTH, follow_redirects=False)
+    assert r.status_code == 303
+    return client.get("/boardroom/peek", auth=AUTH).json()["count"]
+
+
+def test_pull_route_enforces_same_origin_after_basic_auth():
+    route = next(r for r in boardroom_mod.router.routes if r.path == "/boardroom/pull")
+    calls = [d.call for d in route.dependant.dependencies]
+    assert admin_mod.require_same_origin in calls
+    assert calls.index(admin_mod.require_admin) < calls.index(admin_mod.require_same_origin)
+
+
+def test_vm_script_curl_pull_shape_succeeds_and_consumes(monkeypatch):
+    """Exactly the VM's call: GET, Basic auth, curl UA/Accept, Host jbhntr.app, no
+    Origin / Sec-Fetch-* / Referer."""
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", TOKEN)
+    client = TestClient(app)
+    client.get("/boardroom/pull", auth=AUTH)                    # start from an empty queue
+    _queue_founder_message(client, "r321 pull me")
+    curl = TestClient(app, base_url="https://jbhntr.app")
+    r = curl.get("/boardroom/pull", auth=AUTH,
+                 headers={"User-Agent": "curl/8.5.0", "Accept": "*/*"})
+    assert r.status_code == 200, r.text
+    assert [m["body"] for m in r.json()] == ["r321 pull me"]
+    assert client.get("/boardroom/peek", auth=AUTH).json()["count"] == 0
+
+
+@pytest.mark.parametrize("fetch_site", ["same-origin", "none"])
+def test_same_origin_or_typed_url_pull_still_allowed(client, fetch_site):
+    headers = {"Sec-Fetch-Site": fetch_site}
+    if fetch_site == "same-origin":
+        headers["Origin"] = "http://testserver"
+    r = client.get("/boardroom/pull", auth=AUTH, headers=headers)
+    assert r.status_code == 200, (fetch_site, r.status_code)
+
+
+@pytest.mark.parametrize("case", sorted(FORGED))
+def test_forged_browser_pull_is_403_and_consumes_nothing(client, case):
+    client.get("/boardroom/pull", auth=AUTH)                    # start from an empty queue
+    before = _queue_founder_message(client, f"r321 keep me {case}")
+    assert before == 1
+    r = client.get("/boardroom/pull", auth=AUTH, headers=FORGED[case])
+    assert r.status_code == 403, (case, r.status_code)
+    assert client.get("/boardroom/peek", auth=AUTH).json()["count"] == before
+    client.get("/boardroom/pull", auth=AUTH)                    # consume, leave clean
+
+
+def test_unauthenticated_cross_site_pull_is_401_before_403(client):
+    r = client.get("/boardroom/pull", headers={"Origin": "https://evil.example"})
+    assert r.status_code == 401
+
+
+def test_no_boardroom_or_admin_get_commits_without_a_same_origin_check():
+    """Sweep guard: any /admin or /boardroom GET whose handler commits must carry
+    require_same_origin. Positive control: /boardroom/pull is found by the sweep."""
+    import inspect
+
+    from tests.test_admin_csrf import _api_routes, _dep_calls
+    committing = []
+    for path, r in _api_routes(app.routes):
+        if "GET" in r.methods and path.startswith(("/admin", "/boardroom")):
+            if ".commit(" in inspect.getsource(r.endpoint):
+                committing.append(path)
+                assert admin_mod.require_same_origin in _dep_calls(r.dependant), path
+    assert "/boardroom/pull" in committing

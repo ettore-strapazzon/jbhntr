@@ -12,7 +12,8 @@ Each hint (keyed by country code -> normalized company name):
                 lowercases. e.g. Adecco's summarized list has jobId + brandName, and
                 the full JD is at /job-description-details/{jobId}/{brand}/it/it-IT/job.
 
-To add an agency: run /admin/test-browser?name=X&debug=1, read `rendered`,
+To add an agency: run the "Browser render" diagnostic on /admin (POST /admin/test-browser,
+name=X, debug on), read `rendered`,
 `json_response_urls` and `sample_job`, and encode the listing + detail template here.
 """
 

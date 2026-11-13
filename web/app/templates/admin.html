@@ -362,6 +362,13 @@
           companies for an ATS board (Greenhouse/Lever/Ashby/Personio/Workable…), then
           poll them for full-JD openings that upgrade the thin snippets.</span>
       </form>
+      <form method="post" action="/admin/reprobe-unresolved" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
+        <button class="ghost" type="submit">Clear resolver dead-ends</button>
+        <span class="small muted">Deletes cached <code>ats='none'</code> markers and
+          tracker-host <code>custom</code> companies (no jobs attached) so the next
+          resolve retries them. Then run “Resolve corpus companies now”.</span>
+      </form>
       <form method="post" action="/admin/deep-clean" style="margin-top:6px">
         <input type="hidden" name="csrf" value="{{ admin_csrf }}">
         <button class="ghost" type="submit">Deep clean (check every link)</button>
@@ -406,6 +413,34 @@
         <button class="ghost" type="submit">Discovery self-test</button>
         <span class="small muted">Runs each discovery sub-step once and logs the
           exact error/result below — use when discovery returns 0.</span>
+      </form>
+
+      <h3 style="margin-top:14px">Diagnostics <span class="muted small">(live outbound calls — may spend API quota, LLM or Bright Data; report opens in a new tab)</span></h3>
+      <form method="post" action="/admin/test-source" target="_blank" class="row" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
+        <input name="name" placeholder="jsearch" required style="max-width:140px">
+        <button class="ghost small" type="submit">Test keyed source</button>
+      </form>
+      <form method="post" action="/admin/test-careers" target="_blank" class="row" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
+        <input name="name" placeholder="company (Satispay)" style="max-width:160px">
+        <input name="domain" placeholder="or domain" style="max-width:140px">
+        <input name="country" placeholder="it" maxlength="2" style="max-width:44px">
+        <button class="ghost small" type="submit">Test careers scrape</button>
+      </form>
+      <form method="post" action="/admin/test-careers-sample" target="_blank" class="row" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
+        <input type="number" name="n" value="10" min="1" max="25" style="max-width:70px">
+        <input name="country" placeholder="it" maxlength="2" style="max-width:44px">
+        <button class="ghost small" type="submit">Sample careers yield (top-N thin)</button>
+      </form>
+      <form method="post" action="/admin/test-browser" target="_blank" class="row" style="margin-top:6px">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
+        <input name="name" placeholder="agency (Adecco)" style="max-width:150px">
+        <input name="domain" placeholder="or domain" style="max-width:140px">
+        <input name="country" value="it" maxlength="2" style="max-width:44px">
+        <label class="small"><input type="checkbox" name="debug" value="1"> debug</label>
+        <button class="ghost small" type="submit">Browser render (Bright Data)</button>
       </form>
 
       <h3 style="margin-top:14px">Background job log <span class="muted small">(what the buttons actually did)</span></h3>

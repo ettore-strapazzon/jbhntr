@@ -278,9 +278,12 @@ def boardroom_peek(_: bool = Depends(require_admin),
 
 @router.get("/boardroom/pull")
 def boardroom_pull(_: bool = Depends(require_admin),
+                   _xs: None = Depends(require_same_origin),
                    db: DbSession = Depends(get_session)):
     """The VM cycle fetches new founder instructions, each delivered once: return
-    all unhandled founder messages and mark them handled in the same call."""
+    all unhandled founder messages and mark them handled in the same call.
+    Consumes messages, so a browser cross-site GET is refused (R3-21); the VM's
+    header-less `curl -u admin:… $APP/boardroom/pull` passes unchanged."""
     rows = (db.query(BoardroomMessage)
             .filter(BoardroomMessage.role == "founder",
                     BoardroomMessage.handled.is_(False))

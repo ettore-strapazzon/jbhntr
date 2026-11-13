@@ -691,13 +691,15 @@ def admin_run_enrichment(_: bool = Depends(require_admin),
     return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
-@router.get("/admin/test-source", response_class=PlainTextResponse)
-def admin_test_source(name: str = "", _: bool = Depends(require_admin),
-                      db: DbSession = Depends(get_session)):
+@router.post("/admin/test-source", response_class=PlainTextResponse)
+def admin_test_source(_: bool = Depends(require_admin),
+                      _csrf: None = Depends(require_admin_csrf),
+                      name: str = Form(""), db: DbSession = Depends(get_session)):
     """Diagnose ONE keyed source live: run it with a representative profile and
     return the posting count plus the source's own log output (HTTP status /
-    error), so a source that ingests 0 tells us exactly why. Visit
-    /admin/test-source?name=jsearch (or francetravail / bundesagentur / jobtech)."""
+    error), so a source that ingests 0 tells us exactly why. Use the Diagnostics
+    form on /admin (name=jsearch / francetravail / bundesagentur / jobtech).
+    POST + CSRF (R3-21): a live call spends the keyed API's metered quota."""
     import io
     import logging as _logging
 
@@ -745,6 +747,9 @@ def admin_test_source(name: str = "", _: bool = Depends(require_admin),
             + (buf.getvalue() or "(no log output — likely returned 0 quietly)"))
 
 
+# Stays GET (R3-21 review): read-only SELECT + plain unauthenticated HTTP GETs of
+# job URLs already in the corpus (probe_source makes no DB writes, uses no paid
+# proxy / LLM / API key); n is capped at 120. Worst case under CSRF: 120 free fetches.
 @router.get("/admin/test-enrich", response_class=PlainTextResponse)
 def admin_test_enrich(source: str = "", n: int = 40,
                       _: bool = Depends(require_admin),
@@ -780,6 +785,8 @@ def admin_test_enrich(source: str = "", n: int = 40,
         f"fail examples:\n  " + "\n  ".join(r["examples_fail"] or ["(none)"]))
 
 
+# Stays GET (R3-21 review): one keyless Clearbit autocomplete lookup + public ATS
+# board probes for a single name; no DB writes, no paid service, no API quota.
 @router.get("/admin/test-domain", response_class=PlainTextResponse)
 def admin_test_domain(name: str = "Satispay", code: str = "it",
                       _: bool = Depends(require_admin)):
@@ -808,22 +815,25 @@ def admin_test_domain(name: str = "Satispay", code: str = "it",
             f"verify() board  : {board}\n")
 
 
-@router.get("/admin/test-careers", response_class=PlainTextResponse)
-def admin_test_careers(name: str = "", domain: str = "",
-                       _: bool = Depends(require_admin),
+@router.post("/admin/test-careers", response_class=PlainTextResponse)
+def admin_test_careers(_: bool = Depends(require_admin),
+                       _csrf: None = Depends(require_admin_csrf),
+                       name: str = Form(""), domain: str = Form(""),
+                       country: str = Form(""),   # was referenced but never declared (NameError)
                        db: DbSession = Depends(get_session)):
     """Diagnose the careers-page scraper on ONE company: resolve its domain (if not
     given), fetch its careers page, and show how many openings we get and how many
     carry a full JD — plus whether it came free (JSON-LD) or needed the LLM. Proves
     the JS-page scraping actually works before running the bulk custom scrape.
-    e.g. /admin/test-careers?name=Satispay  or  ?domain=satispay.com"""
+    Diagnostics form on /admin (name=Satispay or domain=satispay.com). POST + CSRF
+    (R3-21): a page with no JSON-LD falls through to the paid LLM extractor."""
     from jbhntr_engine import scrape_careers
 
     from ..services import companies_service as cs
     from ..services.profile_service import engine_settings
 
     if not name and not domain:
-        return "pass ?name=<company> or ?domain=<site>"
+        return "pass name=<company> or domain=<site>"
     if not domain:
         domain = cs._resolve_domain(name, country)   # country biases to the local portal (.it)
     if not domain:
@@ -843,14 +853,16 @@ def admin_test_careers(name: str = "", domain: str = "",
     return "\n".join(lines)
 
 
-@router.get("/admin/test-browser", response_class=PlainTextResponse)
-def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
-                       debug: int = 0,
-                       _: bool = Depends(require_admin),
+@router.post("/admin/test-browser", response_class=PlainTextResponse)
+def admin_test_browser(_: bool = Depends(require_admin),
+                       _csrf: None = Depends(require_admin_csrf),
+                       name: str = Form(""), domain: str = Form(""),
+                       country: str = Form("it"), debug: int = Form(0),
                        db: DbSession = Depends(get_session)):
     """Diagnose Rung 1 (Bright Data browser) on ONE JS-only agency portal: render it
     and report openings + full-JD count. Proves the paid browser path works before
-    the bulk run. Needs BROWSER_AUTH set. e.g. /admin/test-browser?name=Adecco"""
+    the bulk run. Needs BROWSER_AUTH set. Diagnostics form on /admin (name=Adecco).
+    POST + CSRF (R3-21): every render is billed by Bright Data."""
     from jbhntr_engine import browser_configured, browser_debug_portal, browser_fetch_portal
 
     from ..services import companies_service as cs
@@ -980,7 +992,8 @@ def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
 <h2>Top posters in: {sel_tabs}</h2>
 <p style="color:#526273">Full = description ≥300c. A staffing agency should be mostly
 <b>full</b> (green) once scraped; <b>THIN</b> (red) means we're not getting its JDs yet —
-add a hint via <code>/admin/test-browser?name=NAME&country={code}&debug=1</code>.</p>
+add a hint via the <b>Browser render</b> diagnostic on <a href="/admin">/admin</a>
+(name=NAME, country={code}, debug on).</p>
 <table><tr><th>Company</th><th>Jobs</th><th>Full</th><th>Thin</th><th>Full %</th>
 <th>Status</th><th>Registry</th></tr>
 {drows}</table>
@@ -1015,15 +1028,17 @@ def admin_thin_companies(n: int = 30, country: str = "",
     return "\n".join(lines)
 
 
-@router.get("/admin/test-careers-sample", response_class=PlainTextResponse)
-def admin_test_careers_sample(n: int = 10, country: str = "",
-                              _: bool = Depends(require_admin),
+@router.post("/admin/test-careers-sample", response_class=PlainTextResponse)
+def admin_test_careers_sample(_: bool = Depends(require_admin),
+                              _csrf: None = Depends(require_admin_csrf),
+                              n: int = Form(10), country: str = Form(""),
                               db: DbSession = Depends(get_session)):
     """Measure careers-scraper YIELD on the REAL tail: take the top-N companies with
     thin jobs that aren't already a registered board, resolve each one's domain,
     scrape its careers page, and report openings + full-JD counts. One call tells us
-    what fraction of the aggregator tail is reachable for free. e.g.
-    /admin/test-careers-sample?n=10  (optional ?country=it biases the domain TLD)."""
+    what fraction of the aggregator tail is reachable for free. Diagnostics form on
+    /admin (n=10; optional country=it biases the domain TLD). POST + CSRF (R3-21):
+    up to 25 careers scrapes, each of which may fall through to the paid LLM."""
     from sqlalchemy import func
 
     from jbhntr_engine import scrape_careers
@@ -1064,14 +1079,18 @@ def admin_test_careers_sample(n: int = 10, country: str = "",
             f"({round(100*hit/len(picked))}%)\n\n" + "\n".join(lines))
 
 
-@router.get("/admin/reprobe-unresolved", response_class=PlainTextResponse)
+@router.post("/admin/reprobe-unresolved")
 def admin_reprobe_unresolved(_: bool = Depends(require_admin),
+                             _csrf: None = Depends(require_admin_csrf),
                              db: DbSession = Depends(get_session)):
     """One-time maintenance: clear resolver dead-ends so they re-resolve with the
     fixed logic — (a) `ats='none'` markers (probed, no board found), and (b)
     `ats='custom'` companies whose token is an aggregator/tracker host (e.g.
     jobviewtrack.com), which the old bug stored as if it were the company's website.
-    Both are re-resolvable cache, no jobs attached. After this, click Run-resolve."""
+    Both are re-resolvable cache, no jobs attached. After this, click Run-resolve.
+    POST + CSRF (R3-21): it deletes Company rows, so a GET must never reach it."""
+    from urllib.parse import quote
+
     from sqlalchemy import or_
 
     from jbhntr_engine import AGGREGATOR_HOSTS
@@ -1081,9 +1100,10 @@ def admin_reprobe_unresolved(_: bool = Depends(require_admin),
     n_bad = (db.query(Company).filter(Company.ats == "custom", bad)
              .delete(synchronize_session=False))
     db.commit()
-    return (f"cleared {n_none} 'none' markers + {n_bad} bad-domain custom companies.\n\n"
-            "Now click 'Resolve corpus companies' on /admin — they'll re-resolve with "
-            "Clearbit (real domains) instead of the tracker URL.")
+    msg = (f"Cleared {n_none} 'none' markers + {n_bad} bad-domain custom companies. "
+           "Now click 'Resolve corpus companies now' — they'll re-resolve with "
+           "Clearbit (real domains) instead of the tracker URL.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
 
 
 @router.post("/admin/run-agencies")
