@@ -1,13 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Unsubscribed · JBHNTR{% endblock %}
+{% block title %}Unsubscribe · JBHNTR{% endblock %}
 {% block content %}
 <div class="card authcard">
   {% if done %}
+    {% if scope == "waitlist" %}
+    <h1>Done. You are off the list.</h1>
+    {% else %}
     <h1>Done. No more digests.</h1>
     <p class="muted">You will not get the daily email any more. Your shortlist is still
       at <a href="/matches">/matches</a> whenever you want it.</p>
+    {% endif %}
     <p class="small muted">Changed your mind? Turn it back on under
       <a href="/account#email">email settings</a>.</p>
+  {% elif confirm %}
+    {# R3-22: the opt-out is a POST — mail scanners prefetch GET links. #}
+    <h1>{% if scope == "waitlist" %}Leave the waiting list?{% else %}Stop the digest emails?{% endif %}</h1>
+    <p class="muted">One click and {% if scope == "waitlist" %}we remove you from the list{% else %}the digest stops{% endif %}.
+      Your account and shortlist stay as they are.</p>
+    <form method="post" action="/unsubscribe">
+      <input type="hidden" name="t" value="{{ token }}">
+      {% if scope %}<input type="hidden" name="scope" value="{{ scope }}">{% endif %}
+      <button type="submit" class="btn">Unsubscribe</button>
+    </form>
   {% else %}
     <h1>That link has expired.</h1>
     <p class="muted">Manage the digest under <a href="/account#email">email settings</a>.</p>

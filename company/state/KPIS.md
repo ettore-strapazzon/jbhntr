@@ -19,4 +19,5 @@ Live view: **`/admin` Business metrics + `/admin/metrics.json`** (R3-06, cycle 6
 | **Spend (USD)** | ≤ 1,000 lifetime | — | — | LEDGER.csv |
 | Revenue (USD, paid credits) | — (Phase 2) | — | — | LEDGER.csv |
 | Compute cost / active user | minimise | — | — | CFO model |
+| _Note (c12): view/click counts exclude bots, embeds and prefetches from deploy of R3-22 on — definition change, not a drop._ | | | | |
 | First-scan rate by meter variant (R3-04 A/B) | meter > control | — | — | `activation.first_scan_rate_by_variant` (ProductEvent) |

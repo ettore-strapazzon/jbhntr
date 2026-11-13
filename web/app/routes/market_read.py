@@ -34,7 +34,7 @@ from ..db import SessionLocal, get_session
 from ..models import Profile, Search, User
 from ..seo import absolute_url
 from ..services import referral
-from ..services.events import record
+from ..services.events import countable_view, record
 from ..templating import templates
 from ..config import config
 from .share import (
@@ -163,7 +163,7 @@ def public_read(token: str, request: Request):
         code = referral.ensure_code(db, owner) if owner else ""
         db.commit()
         ready = s.status == "done"
-        if ready:
+        if ready and countable_view(request, "shared_artifact_viewed"):   # R3-22
             record(db, "shared_artifact_viewed", user_id=None, kind="read")
         headline = headline_of(s)
         ctx = {

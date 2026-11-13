@@ -70,13 +70,16 @@ def go(channel: str, request: Request):
     from urllib.parse import urlencode
 
     from ..db import SessionLocal
-    from ..services.events import record
+    from ..services.events import countable_view, record
 
-    db = SessionLocal()
-    try:
-        record(db, "channel_click", channel=channel[:64])
-    finally:
-        db.close()
+    # R3-22: a cross-site <img>/<iframe>, prefetch or link-preview bot still gets
+    # the redirect but is not a click. A cross-site *navigation* is the point.
+    if countable_view(request, "channel_click"):
+        db = SessionLocal()
+        try:
+            record(db, "channel_click", channel=channel[:64])
+        finally:
+            db.close()
 
     # Only relative, same-site targets. "//host" and "/\" are protocol-relative
     # open-redirect vectors, so anything not a lone-slash path falls back to "/".

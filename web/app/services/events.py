@@ -15,6 +15,7 @@ of first shortlists that produce a save, rating or application.
 from __future__ import annotations
 
 import logging
+import re
 
 log = logging.getLogger("jbhntr.events")
 
@@ -46,6 +47,45 @@ ALLOWED_PROPS = frozenset({
     # R3-14 — gate answer: much_better | better | same | worse (4 values).
     "answer",
 })
+
+
+# R3-22 — a view/click event counts only a person loading the page: a top-level
+# document navigation (Sec-Fetch-Dest "document", or absent on older browsers),
+# not a speculative prefetch, and not a link-preview crawler / bot / script.
+# Without this, <img src=/m/{token}> on any site, or Slack/WhatsApp unfurling a
+# shared link, inflates shared_artifact_viewed, channel_click and
+# invite_page_viewed. The page/redirect itself is served either way.
+_BOT_UA = re.compile(
+    r"(?<!cu)bot\b|bot/|crawl|spider|slurp|facebookexternalhit|facebookcatalog|meta-external"
+    r"|embedly|whatsapp|telegram|skypeuripreview|vkshare|pinterest|bitly|outbrain"
+    r"|quora link preview|preview|nuzzel|iframely|headless|lighthouse|curl/|wget"
+    r"|python-requests|python-httpx|python-urllib|aiohttp|go-http-client|okhttp"
+    r"|java/|libwww|httpclient|scrapy|validator",
+    re.I)
+
+
+def view_skip_reason(headers) -> str | None:
+    """Why this request must not count as a view, or None if it should."""
+    dest = (headers.get("sec-fetch-dest") or "").lower()
+    if dest and dest != "document":
+        return "embed"                                 # img/iframe/script/fetch...
+    purpose = (headers.get("sec-purpose") or headers.get("purpose")
+               or headers.get("x-purpose") or headers.get("x-moz") or "").lower()
+    if "prefetch" in purpose or "prerender" in purpose:
+        return "prefetch"
+    ua = headers.get("user-agent") or ""
+    if not ua.strip() or _BOT_UA.search(ua):
+        return "bot"
+    return None
+
+
+def countable_view(request, name: str = "") -> bool:
+    """True if `request` is a real page view/click to record. Skips are logged at
+    debug with the reason only (no UA, no IP) so a KPI dip can be explained."""
+    reason = view_skip_reason(request.headers)
+    if reason:
+        log.debug("product event not counted: %s (%s)", name or "view", reason)
+    return reason is None
 
 
 def _clean(props: dict) -> dict:

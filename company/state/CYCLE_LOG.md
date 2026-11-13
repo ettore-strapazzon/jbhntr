@@ -154,3 +154,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014.
 - **Spend:** none.
 - **Observations:** CTO extended obs 0003/0004 (no new ones). Old `/admin/test-*?name=` bookmarks now 405, so use the /admin Diagnostics forms. Skill-observation review never run (4 open), and the offer stands.
+
+## 2026-11-13 · cycle 12 (public GET side-effects closed)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 9/10.
+- **Dispatched (foreground):** CTO (R3-22). CPO idle (R3-18 optional backlog) · CMO idle (digest filed) · CFO idle (R-006 open) · GC idle (no open GC task).
+- **Result (accepted):** CTO → **R3-22**: `GET /logout` → 405, logout is POST + `require_same_origin`, nav links are now forms. New `countable_view()` in `services/events.py` gates `shared_artifact_viewed` (/m, /r), `/go` channel clicks and `invite_page_viewed`: embeds (`Sec-Fetch-Dest` ≠ document), prefetch/prerender and crawler/script UAs aren't counted, but the page or redirect is still served. OG PNGs never counted, and a test now pins that. `/unsubscribe` GET is a read-only confirm page; POST opts out (token from query for RFC 8058 one-click, or form). **Found:** the digest already sent `List-Unsubscribe-Post` but had no POST handler, so Gmail/Yahoo one-click unsubscribe hit 405. Fixed now and tested end-to-end from the header URL. Static no-GET-writes detector extended to public routes with a reasoned allowlist.
+- **CEO review:** diff read (routes, events helper, templates, tests). Per-visitor dedupe not added: acceptance said "e.g.", and existing specs count each reload. No fixes needed.
+- **Test gate (CEO, once):** **1093 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-23 (move `require_same_origin` to `security.py`; detector to follow helper calls).
+- **Requests:** none new. R-009 (brand accounts), R-013 (/invite flip), R-014 (cron DEBUG check) still open.
+- **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014. Sprint R3 has no unblocked must-do task left. Next cycles go to R3-23/R3-18/R3-09 (backlog) unless the Founder answers.
+- **Spend:** none.
+- **Observations:** the CTO skipped the task-observer session start (admitted), so it was a SKILLS.md miss. View KPIs now exclude bots and embeds, so post-deploy counts may dip; that is a definition change, not a drop in real views.

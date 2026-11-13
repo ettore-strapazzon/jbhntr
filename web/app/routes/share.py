@@ -38,7 +38,7 @@ from ..db import SessionLocal, get_session
 from ..models import JobResult, User
 from ..seo import absolute_url
 from ..services import referral
-from ..services.events import record
+from ..services.events import countable_view, record
 from ..templating import templates
 
 log = logging.getLogger("jbhntr.share")
@@ -232,7 +232,8 @@ def public_card(token: str, request: Request):
             return HTMLResponse("This shared match could not be found.",
                                 status_code=404, headers=NOINDEX)
         ctx = _card_context(db, r)
-        record(db, "shared_artifact_viewed", user_id=None, kind="card")
+        if countable_view(request, "shared_artifact_viewed"):     # R3-22
+            record(db, "shared_artifact_viewed", user_id=None, kind="card")
         v = ctx["verdict"] or "A JBHNTR match"
         og_title = f"{v}: {r.title}" if r.title else v
         ctx.update({

@@ -17,6 +17,7 @@ from ..db import get_session
 from ..models import User
 from ..security import password_problems
 from ..templating import templates
+from .admin import require_same_origin
 
 log = logging.getLogger("jbhntr.auth")
 router = APIRouter()
@@ -124,9 +125,12 @@ def do_login(
     return response
 
 
-@router.get("/logout")
 @router.post("/logout")
-def do_logout(request: Request, db: DbSession = Depends(get_session)):
+def do_logout(request: Request, _xs: None = Depends(require_same_origin),
+              db: DbSession = Depends(get_session)):
+    """POST only (R3-22): a GET logout let any page log a visitor out with an
+    <img src=/logout>. The nav posts a form; a cross-site POST is refused the same
+    way as the admin/boardroom POSTs (Sec-Fetch-Site / Origin). GET -> 405."""
     from ..auth import COOKIE
 
     token = request.cookies.get(COOKIE)

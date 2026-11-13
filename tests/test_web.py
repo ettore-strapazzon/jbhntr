@@ -172,7 +172,7 @@ def test_unsubscribe_waitlist_scope_removes_intent(client):
     db.commit()
     tok = make_unsub_token(u.id)
     db.close()
-    client.get(f"/unsubscribe?t={tok}&scope=waitlist")
+    client.post("/unsubscribe", data={"t": tok, "scope": "waitlist"})
     db = SessionLocal()
     u = db.query(User).filter_by(email="uw@example.com").one()
     assert u.premium_requested_at is None              # waiting-list row removed
@@ -480,7 +480,7 @@ def test_password_reset_flow(client):
     from web.app.models import User
     from web.app.services import email as mail
     signup(client, "pw@example.com")
-    client.get("/logout")
+    client.post("/logout")
     assert "Forgot your password" in client.get("/login").text
     # Enumeration-safe: same message whether or not the account exists.
     a = client.post("/forgot", data={"email": "pw@example.com"}).text
@@ -492,7 +492,7 @@ def test_password_reset_flow(client):
     r = client.post("/reset", data={"token": token, "password": "brandnew99xy"},
                     follow_redirects=False)
     assert r.status_code == 303
-    client.get("/logout")
+    client.post("/logout")
     ok = client.post("/login", data={"email": "pw@example.com", "password": "brandnew99xy"},
                      follow_redirects=False)
     assert ok.status_code == 303                       # new password works
@@ -789,7 +789,7 @@ def test_protected_pages_redirect_when_logged_out(client):
 def test_logout_clears_the_session(client):
     signup(client, "out@example.com")
     assert client.get("/search").status_code == 200
-    client.get("/logout")
+    client.post("/logout")
     r = client.get("/search", follow_redirects=False)
     assert r.status_code in (303, 307)
 

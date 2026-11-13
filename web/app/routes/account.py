@@ -37,27 +37,46 @@ def set_digest(frequency: str = Form(...), user: User = Depends(require_user),
 
 
 @router.get("/unsubscribe", response_class=HTMLResponse)
-def unsubscribe(request: Request, t: str = "", scope: str = "",
-                db: DbSession = Depends(get_session)):
-    """One-click opt-out, works without logging in (signed token, R13.4).
-
-    Default scope turns the digest off. scope=waitlist comes from the premium
-    waiting-list email (S-07) and also removes the waiting-list row.
-    """
+def unsubscribe_confirm(request: Request, t: str = "", scope: str = "",
+                        db: DbSession = Depends(get_session)):
+    """Confirm page for the email unsubscribe link (R13.4). Read-only (R3-22):
+    mail scanners and link previewers prefetch GETs, so the opt-out itself is the
+    POST below. Works without logging in (signed token)."""
     from ..services.email import read_unsub_token
     uid = read_unsub_token(t)
-    done = False
-    if uid:
-        u = db.get(User, uid)
-        if u:
-            if scope == "waitlist":
-                u.premium_requested_at = None
-            else:
-                u.digest = "off"
-            db.commit()
-            done = True
+    valid = bool(uid and db.get(User, uid))
+    return templates.TemplateResponse(request, "unsubscribed.html", {
+        "request": request, "confirm": valid, "done": False,
+        "token": t if valid else "", "scope": scope})
+
+
+@router.post("/unsubscribe", response_class=HTMLResponse)
+async def unsubscribe(request: Request, db: DbSession = Depends(get_session)):
+    """Opt out (R13.4 / R3-22). Two callers, one handler:
+    * RFC 8058 one-click — the mailbox provider POSTs `List-Unsubscribe=One-Click`
+      to the exact List-Unsubscribe URI (token in the query string), with no
+      cookies and a foreign/absent Origin, so no same-origin check: the signed
+      token is the authorisation.
+    * the confirm page's button (token + scope as form fields).
+
+    Default scope turns the digest off. scope=waitlist comes from the premium
+    waiting-list email (S-07) and removes the waiting-list row instead.
+    """
+    from ..services.email import read_unsub_token
+    form = await request.form()
+    t = str(form.get("t") or request.query_params.get("t") or "")
+    scope = str(form.get("scope") or request.query_params.get("scope") or "")
+    uid = read_unsub_token(t)
+    u = db.get(User, uid) if uid else None
+    if u:
+        if scope == "waitlist":
+            u.premium_requested_at = None
+        else:
+            u.digest = "off"
+        db.commit()
     return templates.TemplateResponse(request, "unsubscribed.html",
-        {"request": request, "done": done, "scope": scope})
+        {"request": request, "done": bool(u), "confirm": False, "scope": scope},
+        status_code=200 if u else 400)
 
 
 # --------------------------------------------------------------------------- #

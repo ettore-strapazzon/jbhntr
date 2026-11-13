@@ -35,7 +35,7 @@ from ..config import config
 from ..db import get_session
 from ..models import CreditLedger, ReferralReward, User
 from ..services import referral
-from ..services.events import record
+from ..services.events import countable_view, record
 from ..templating import templates
 
 router = APIRouter()
@@ -173,7 +173,8 @@ def invite_page(request: Request, db: DbSession = Depends(get_session)):
         # in `url`, so it is not repeated in `text`.
         "native_text": messages[0]["message"][: -len(link)].rstrip(),
     }
-    record(db, "invite_page_viewed", user_id=user.id)
+    if countable_view(request, "invite_page_viewed"):          # R3-22
+        record(db, "invite_page_viewed", user_id=user.id)
     return templates.TemplateResponse(request, "invite.html", ctx, headers=NOINDEX)
 
 

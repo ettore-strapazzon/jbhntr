@@ -82,7 +82,7 @@
       {% if config.invite_page %}<a href="/invite"{% if cur.startswith('/invite') %} aria-current="page"{% endif %}>Invite</a>{% endif %}
       <a href="/credits" class="pill pill-credits{% if user.credit_balance <= config.low_balance_at %} pill-credits-low{% endif %}">{{ user.credit_balance }} credit{% if user.credit_balance != 1 %}s{% endif %}</a>
       <a href="/account"{% if cur.startswith('/account') %} aria-current="page"{% endif %}>Account</a>
-      <a href="/logout">Log out</a>
+      <form class="logout-form" method="post" action="/logout"><button type="submit" class="linklike">Log out</button></form>
     {% else %}
       <a href="/how-it-works" class="nav-sec">How it works</a>
       <a href="/credits" class="nav-sec">Credits</a>
@@ -118,7 +118,7 @@
   <a href="/compare/linkedin-jobs">Comparisons</a>
   <a href="/account">Account</a>
   <button class="mm-theme" type="button" data-theme-toggle>Switch colour theme</button>
-  <a href="/logout">Log out</a>
+  <form class="logout-form" method="post" action="/logout"><button type="submit" class="mm-logout">Log out</button></form>
 </nav>
 {% endif %}
 
