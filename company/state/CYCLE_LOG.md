@@ -178,3 +178,5 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014.
 - **Spend:** none.
 - **Observations:** obs 0005 logged and extended: don't `git stash` in a checkout shared with parallel agents. The skill-observation review has never been run (5 open), and the offer stands.
+
+- 2026-11-13 · idle, skipped: the daily cap of 10/10 full cycles is reached. No "doing" tasks to recover and no new Founder orders. Next eligible: R3-24 / R3-09 on 2026-11-14.
