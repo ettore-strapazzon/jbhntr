@@ -768,3 +768,6 @@ class GateAnswer(Base):
         DateTime(timezone=True), default=None)
     answered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None)
+    # R3-18: page the answer came from ('matches' | 'applications'); NULL until
+    # answered, and for rows answered before the column existed (all /matches).
+    surface: Mapped[str | None] = mapped_column(String(16), default=None)

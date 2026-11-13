@@ -102,6 +102,17 @@ def applications_page(request: Request, error: str = "",
         groups[s].sort(key=key, reverse=True)
     needs.sort(key=lambda n: n["order"])
 
+    # R3-18: the R3-14 gate prompt, after the first save. Same row and the same
+    # eligibility function as /matches (services/gate.py), so it is asked once
+    # per user across both pages.
+    from ..services import gate
+    gate_ctx = None
+    if gate.prompt_for(db, user.id, surface="applications"):
+        from ..auth import COOKIE
+        from ..security import csrf_token
+        gate_ctx = {"answers": gate.ANSWERS, "surface": "applications",
+                    "csrf": csrf_token(request.cookies.get(COOKIE) or "")}
+
     return templates.TemplateResponse(request, "applications.html", {
         "request": request, "user": user, "config": config, "error": error,
         "allow": doc_quota.allowance(db, user), "sort": sort,
@@ -111,4 +122,5 @@ def applications_page(request: Request, error: str = "",
         "close_outcomes": job_state.CLOSE_OUTCOMES,
         "event_kinds": job_events.EVENT_KINDS,
         "has_any": bool(groups and any(counts.values())),
+        "gate": gate_ctx,
     })

@@ -166,3 +166,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014. Sprint R3 has no unblocked must-do task left. Next cycles go to R3-23/R3-18/R3-09 (backlog) unless the Founder answers.
 - **Spend:** none.
 - **Observations:** the CTO skipped the task-observer session start (admitted), so it was a SKILLS.md miss. View KPIs now exclude bots and embeds, so post-deploy counts may dip; that is a definition change, not a drop in real views.
+
+## 2026-11-13 · cycle 13 (GET-writes detector deepened + gate prompt on My Jobs)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 10/10. This is the daily cap, so there are no more full cycles today.
+- **Dispatched (foreground, parallel):** CTO (R3-23) · CPO (R3-18). CMO idle (digest filed) · CFO idle (R-006 open) · GC idle (no open GC task).
+- **Result (accepted):** CTO → **R3-23**: `require_same_origin` moved to `security.py`; admin/boardroom/auth import the same object (test-pinned). New shared `tests/get_write_scan.py` follows one level of project helper calls (bare names, `module.func`, in-function imports) for all three GET-write detectors. It is self-checked against synthetic helper-hidden DB writes, thread starts and paid calls, has minimum-count floors, and fails on a stale allowlist entry. Findings: `/search/{id}/status` → `fail_stuck_searches` sweeps every user's stuck scans (allowlisted with a reason, follow-up R3-24); `/fields/corpus-count` lazily creates the caller's Profile (allowlisted). CPO → **R3-18**: the gate prompt now also shows on /applications after the first save (with a real scan). It shares one `prompt_for()` and one `GateAnswer` row, so answering or "not now" on either page counts for both. A new `GateAnswer.surface` column (via the migrator) records the page. The no-JS redirect target is whitelisted (no open redirect). 10 new tests.
+- **CEO review:** diffs read (gate service/routes, applications, security). CPO flagged a real bug, which I fixed: `db.py`'s migrator dict had `"job_states"` twice, so `digest_sent_at`/`next_step`/`next_step_on`/`closed_from_stage` were never added to a pre-existing DB. I merged the two entries and added `tests/test_db_migrator_keys.py` (AST duplicate-key check). Process slip: the CTO ran `git stash` in the shared checkout while the CPO was mid-edit. The pop was clean and the full suite is green, but parallel agents must not stash (obs 0005).
+- **Test gate (CEO, once):** **1107 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-24 (narrow the GET-triggered stuck-scan reaper to the caller's own search).
+- **Requests:** none new. R-009 (brand accounts), R-013 (/invite flip), R-014 (cron DEBUG check) still open.
+- **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014.
+- **Spend:** none.
+- **Observations:** obs 0005 logged and extended: don't `git stash` in a checkout shared with parallel agents. The skill-observation review has never been run (5 open), and the offer stands.

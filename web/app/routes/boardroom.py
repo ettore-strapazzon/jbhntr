@@ -26,9 +26,10 @@ from sqlalchemy.orm import Session as DbSession
 from ..config import ROOT
 from ..db import get_session
 from ..models import BoardroomMessage, TeamLogEntry, aware
+from ..security import require_same_origin
 from ..templating import templates
 from .admin import (admin_csrf_token, require_admin,  # reuse the admin gate verbatim
-                    require_admin_csrf, require_same_origin)
+                    require_admin_csrf)
 
 router = APIRouter()
 

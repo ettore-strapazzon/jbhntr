@@ -424,22 +424,36 @@ def _api_routes(routes, prefix=""):
             yield from _api_routes(r.routes, prefix + getattr(r, "path", ""))
 
 
-# A public GET handler containing any of these changes state or emits an event.
-WRITE_MARKS = (".commit(", ".delete(", ".add(", ".add_all(", ".merge(",
-               "record(", "record_once(", "logout(", "Thread(")
+# A public GET handler containing any of these — in its own body OR in a project
+# helper it calls directly (R3-23, one level deep) — changes state or emits an event.
+WRITE_MARKS = (".commit(", ".delete(", ".add(", ".add_all(", ".merge(", ").update(",
+               ".bulk_save_objects(", "record(", "record_once(", "logout(", "Thread(")
+
+# Reviewed false positives, per (helper, marker) — never a whole helper, so a real
+# write added to it later still trips the guard.
+NOT_A_WRITE = {
+    "web.app.services.doc_quota.kinds_by_key": {".add(": "set.add on an in-memory dict"},
+}
 
 # Legitimate GETs that write, each with why it is safe. Anything new must be
 # added here deliberately (or made a POST).
 ALLOWED_GET_WRITES = {
     "/auth/google/callback": "OAuth redirect target; state-checked by authlib",
     "/matches": "record_once(first_shortlist_viewed): idempotent, own session only",
-    "/m/{token}": "shared_artifact_viewed, gated by countable_view()",
+    "/m/{token}": "shared_artifact_viewed (gated by countable_view()) + "
+                  "_card_context ensure_code commit (idempotent backfill)",
     "/r/{token}": "shared_artifact_viewed (gated by countable_view()) + "
                   "ensure_code commit (idempotent backfill)",
     "/go/{channel}": "channel_click, gated by countable_view()",
     "/invite": "invite_page_viewed (gated by countable_view()) + ensure_code commit",
     "/credits": "ensure_code commit (idempotent backfill of a missing referral code)",
     "/boardroom/pull": "admin Basic auth + require_same_origin (R3-21)",
+    # R3-23 helper-hidden finds:
+    "/fields/corpus-count": "fields._profile lazily creates the signed-in user's own "
+                            "empty Profile row (idempotent backfill, same as POSTs)",
+    "/search/{search_id}/status": "search_service.fail_stuck_searches: live safety net "
+                                  "for scans stuck >15 min (idempotent fail + refund); "
+                                  "only runs while the user's own scan is running",
 }
 GATED_VIEWS = {"/m/{token}", "/r/{token}", "/go/{channel}", "/invite"}
 
@@ -449,26 +463,69 @@ def _public_gets():
             if "GET" in r.methods and not p.startswith("/admin")}
 
 
-def _writes(fn) -> list[str]:
-    src = inspect.getsource(fn)
-    assert "def " in src, fn       # a source we could not read must not pass as clean
-    return [m for m in WRITE_MARKS if m in src]
+def _writes(fn) -> dict[str, list[str]]:
+    """{"self" | helper qualname: [write marks]} — the handler plus one level of
+    project helpers it calls (tests/get_write_scan.py), minus reviewed exemptions."""
+    from tests.get_write_scan import scan
+    hits = {}
+    for where, marks in scan(fn, WRITE_MARKS).items():
+        marks = [m for m in marks if m not in NOT_A_WRITE.get(where, {})]
+        if marks:
+            hits[where] = marks
+    return hits
+
+
+# Synthetic positive control: a GET-shaped handler whose own body is clean but
+# whose helper commits. The pre-R3-23 detector (own source only) missed this.
+def _synthetic_hidden_write(db):
+    db.add(object())
+    db.commit()
+
+
+def _synthetic_clean_get(db):
+    return _synthetic_hidden_write(db)
 
 
 def test_public_get_write_detector_is_not_vacuous():
-    from web.app.routes import account, auth_routes
+    from web.app.routes import account, auth_routes, fields, search
     assert _writes(account.set_digest)            # a known POST that commits
     assert _writes(auth_routes.do_logout)
+    # helper-hidden writes are caught and attributed to the helper:
+    hits = _writes(_synthetic_clean_get)
+    assert "self" not in hits
+    assert set(hits[f"{__name__}._synthetic_hidden_write"]) == {".add(", ".commit("}
+    assert "web.app.routes.fields._profile" in _writes(fields.corpus_count)
+    assert ("web.app.services.search_service.fail_stuck_searches"
+            in _writes(search.status))            # a function-local import is followed
+
+
+def test_not_a_write_exemptions_are_still_needed():
+    """Each reviewed false positive must still exist and still contain its mark,
+    or the exemption is stale and must be dropped."""
+    import importlib
+    import inspect as _inspect
+    for qual, marks in NOT_A_WRITE.items():
+        mod, name = qual.rsplit(".", 1)
+        src = _inspect.getsource(getattr(importlib.import_module(mod), name))
+        for m in marks:
+            assert m in src, (qual, m)
 
 
 def test_no_public_get_writes_outside_the_allowlist():
+    from tests.get_write_scan import direct_callees
     gets = _public_gets()
     assert len(gets) >= 20, sorted(gets)
+    followed = sum(len(direct_callees(r.endpoint)) for r in gets.values())
+    assert followed >= 30, followed               # the helper walk is really running
     offenders = {p: hits for p, r in gets.items()
                  if p not in ALLOWED_GET_WRITES and (hits := _writes(r.endpoint))}
     assert not offenders, f"public GET routes that write state: {offenders}"
     stale = set(ALLOWED_GET_WRITES) - set(gets)
     assert not stale, f"allowlisted GETs that no longer exist: {stale}"
+    still_writing = {p for p in ALLOWED_GET_WRITES if _writes(gets[p].endpoint)}
+    assert still_writing == set(ALLOWED_GET_WRITES), \
+        f"allowlisted GETs that no longer write (drop them): " \
+        f"{set(ALLOWED_GET_WRITES) - still_writing}"
 
 
 def test_logout_and_unsubscribe_are_not_get_writes():

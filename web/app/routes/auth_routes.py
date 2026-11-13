@@ -15,9 +15,8 @@ from ..auth import (
 from ..config import config
 from ..db import get_session
 from ..models import User
-from ..security import password_problems
 from ..templating import templates
-from .admin import require_same_origin
+from ..security import password_problems, require_same_origin
 
 log = logging.getLogger("jbhntr.auth")
 router = APIRouter()

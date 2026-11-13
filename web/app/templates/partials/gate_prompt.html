@@ -1,6 +1,9 @@
 {# R3-14 gate prompt — "vs how you search today" (services/gate.py has the rules).
-   Rendered on /matches only when routes/matches.py sets `gate` (first scan
-   reviewed, not answered, not dismissed for good). One tap answers.
+   Rendered on /matches (routes/matches.py) and /applications (R3-18,
+   routes/applications.py) only when the route sets `gate` — both via the one
+   gate.prompt_for(), so it is asked once per user across pages. `gate.surface`
+   tells POST /gate which page answered (and where a no-JS submit returns).
+   One tap answers.
    No inline JS (CSP): works as plain forms; with htmx it swaps in place.
    `gate_done` renders the thank-you fragment returned to an htmx answer. #}
 {% if gate_done %}
@@ -13,6 +16,7 @@
   <form method="post" action="/gate" class="gate-form"
         hx-post="/gate" hx-target="#gate-prompt" hx-swap="outerHTML" hx-sync="this:drop">
     <input type="hidden" name="csrf" value="{{ gate.csrf }}">
+    {% if gate.surface %}<input type="hidden" name="surface" value="{{ gate.surface }}">{% endif %}
     <fieldset>
       <legend class="gate-q" id="gate-q">Compared with how you search for jobs today, this shortlist is:</legend>
       <div class="gate-options">
@@ -25,6 +29,7 @@
   <form method="post" action="/gate/dismiss" class="gate-later"
         hx-post="/gate/dismiss" hx-target="#gate-prompt" hx-swap="outerHTML" hx-sync="this:drop">
     <input type="hidden" name="csrf" value="{{ gate.csrf }}">
+    {% if gate.surface %}<input type="hidden" name="surface" value="{{ gate.surface }}">{% endif %}
     <button type="submit" class="gate-link">Not now</button>
   </form>
   <p class="gate-note small muted">One question, asked once. It tells us whether we're worth your time.</p>

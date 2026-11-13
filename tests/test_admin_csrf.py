@@ -243,20 +243,52 @@ def _admin_get_routes() -> list[APIRoute]:
 
 
 # Source markers for "this handler changes state / spends money". A GET handler
-# must contain none of them (R3-20 threads; R3-21 deletes/commits and paid calls).
+# must contain none of them (R3-20 threads; R3-21 deletes/commits and paid calls),
+# in its own body or in any project helper it calls directly (R3-23).
 GET_FORBIDDEN = {
     "starts a thread": ("threading.Thread", "Thread("),
-    "writes the DB": (".commit(", ".delete(", ".add(", ".add_all(", ".merge("),
+    "writes the DB": (".commit(", ".delete(", ".add(", ".add_all(", ".merge(",
+                      ").update(", ".bulk_save_objects(", "record_op("),
     "spends money/quota": ("scrape_careers", "browser_fetch_portal",
                            "browser_debug_portal", "KEYED_SOURCES"),
 }
 
 
+def _forbidden_where(fn) -> dict[str, list[str]]:
+    """{"self" | helper qualname: [kinds]} over the handler and one level of the
+    project helpers it calls (tests/get_write_scan.py)."""
+    from tests.get_write_scan import scan
+    kind_of = {m: kind for kind, marks in GET_FORBIDDEN.items() for m in marks}
+    out = {}
+    for where, marks in scan(fn, tuple(kind_of)).items():
+        out[where] = sorted({kind_of[m] for m in marks})
+    return out
+
+
 def _forbidden_hits(fn) -> list[str]:
-    import inspect
-    src = inspect.getsource(fn)
-    assert len(src) > 80, fn       # a source we could not read must not pass as clean
-    return [kind for kind, marks in GET_FORBIDDEN.items() if any(m in src for m in marks)]
+    return sorted({k for kinds in _forbidden_where(fn).values() for k in kinds})
+
+
+# Synthetic positive controls (R3-23): a GET-shaped handler with a clean body whose
+# helper does the forbidden thing. The own-source-only detector missed all three.
+def _hidden_commit(db):
+    db.query(object).filter().update({"x": 1})
+    db.commit()
+
+
+def _hidden_thread():
+    import threading
+    threading.Thread(target=print).start()
+
+
+def _hidden_paid_call(sources):
+    return sources.scrape_careers("https://example.com")
+
+
+def _synthetic_clean_admin_get(db, sources):    # scanned only, never executed
+    _hidden_commit(db)
+    _hidden_thread()
+    return _hidden_paid_call(sources)
 
 
 def test_get_guard_detector_is_not_vacuous():
@@ -267,14 +299,22 @@ def test_get_guard_detector_is_not_vacuous():
     assert "spends money/quota" in _forbidden_hits(admin_mod.admin_test_careers_sample)
     assert "spends money/quota" in _forbidden_hits(admin_mod.admin_test_browser)
     assert "spends money/quota" in _forbidden_hits(admin_mod.admin_test_source)
+    where = _forbidden_where(_synthetic_clean_admin_get)
+    assert "self" not in where                    # its own body is clean...
+    assert where == {f"{__name__}._hidden_commit": ["writes the DB"],
+                     f"{__name__}._hidden_thread": ["starts a thread"],
+                     f"{__name__}._hidden_paid_call": ["spends money/quota"]}
 
 
 def test_no_admin_get_route_starts_a_thread_writes_or_spends():
     """Static guard: no GET /admin handler spawns a thread, writes the DB, or makes
     a paid/quota outbound call (those are POST + CSRF)."""
+    from tests.get_write_scan import direct_callees
     gets = _admin_get_routes()
     assert len(gets) >= 12, [r.path for r in gets]
-    offenders = {r.path: hits for r in gets if (hits := _forbidden_hits(r.endpoint))}
+    followed = sum(len(direct_callees(r.endpoint)) for r in gets)
+    assert followed >= 12, followed               # the helper walk is really running
+    offenders = {r.path: hits for r in gets if (hits := _forbidden_where(r.endpoint))}
     assert not offenders, f"GET admin routes that change state or spend: {offenders}"
 
 

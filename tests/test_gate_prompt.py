@@ -358,3 +358,119 @@ def test_one_row_per_user_is_enforced_by_the_database():
         db.rollback()
     finally:
         db.close()
+
+
+# ------------------------------------------ R3-18: also on /applications --
+# Same prompt on My Jobs after the user's first save, under the SAME
+# once-per-user rule: one GateAnswer row, one eligibility function
+# (gate.prompt_for), so answering or exhausting "not now" on either page
+# suppresses it on both. GateAnswer.surface records where it was answered.
+APPS = "/applications"
+
+
+def test_my_jobs_shows_prompt_after_first_save(client):
+    uid = _reviewed_user(client)             # completed scan + job_saved
+    html = client.get(APPS).text
+    assert html.count(MARK) == 1             # never twice in one page load
+    assert "Compared with how you search for jobs today" in html
+    assert 'name="surface" value="applications"' in html
+    assert f'name="csrf" value="{_csrf(client)}"' in html
+    assert _events(uid, "gate_prompt_shown") == [{"n": 1}]
+
+
+def test_my_jobs_counts_a_saved_job_state_without_an_event(client):
+    from web.app.db import SessionLocal
+    from web.app.models import JobState
+    uid = _signup(client)
+    _scan(uid)
+    db = SessionLocal()
+    try:
+        db.add(JobState(user_id=uid, dedup_key=uuid.uuid4().hex, saved=True))
+        db.commit()
+    finally:
+        db.close()
+    assert MARK in client.get(APPS).text
+
+
+def test_my_jobs_hides_prompt_before_any_save(client):
+    uid = _signup(client)
+    _scan(uid)
+    assert MARK not in client.get(APPS).text
+    _triage(uid, "job_dismissed")            # triaged, but nothing saved yet
+    assert MARK not in client.get(APPS).text
+    assert _row(uid) is None and _events(uid, "gate_prompt_shown") == []
+
+
+def test_my_jobs_hides_prompt_for_a_save_without_a_real_scan(client):
+    uid = _signup(client)
+    _scan(uid, stage="Imported job")         # only an imported job, no shortlist
+    _triage(uid, "job_saved")
+    assert MARK not in client.get(APPS).text
+
+
+def test_my_jobs_hides_prompt_once_answered_on_matches(client):
+    uid = _reviewed_user(client)
+    assert MARK in client.get("/matches").text
+    r = client.post("/gate", data={"answer": "better", "csrf": _csrf(client)},
+                    follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/matches"
+    assert _row(uid).surface == "matches"
+    assert MARK not in client.get(APPS).text
+
+
+def test_answer_on_my_jobs_records_surface_and_hides_on_matches(client):
+    uid = _reviewed_user(client)
+    client.get(APPS)
+    r = client.post("/gate", data={"answer": "much_better", "surface": "applications",
+                                   "csrf": _csrf(client)}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == APPS
+    row = _row(uid)
+    assert row.answer == "much_better" and row.surface == "applications"
+    assert MARK not in client.get("/matches").text
+    assert MARK not in client.get(APPS).text
+
+
+def test_unknown_surface_falls_back_to_matches(client):
+    uid = _reviewed_user(client)
+    client.get(APPS)
+    r = client.post("/gate", data={"answer": "same", "surface": "https://evil.example",
+                                   "csrf": _csrf(client)}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/matches"
+    assert _row(uid).surface == "matches"
+
+
+def test_my_jobs_respects_kill_switch(client, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "gate_prompt", False, raising=False)
+    uid = _reviewed_user(client)
+    assert MARK not in client.get(APPS).text and _row(uid) is None
+
+
+def test_shown_event_is_shared_across_both_pages(client):
+    uid = _reviewed_user(client)
+    client.get("/matches")
+    client.get(APPS)
+    assert _events(uid, "gate_prompt_shown") == [{"n": 1}]
+
+
+def test_not_now_cadence_is_shared_across_both_pages(client):
+    uid = _reviewed_user(client)
+    assert MARK in client.get("/matches").text
+    r = client.post("/gate/dismiss", data={"surface": "applications", "csrf": _csrf(client)},
+                    follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == APPS
+    assert MARK not in client.get(APPS).text           # hidden on both right away
+    assert MARK not in client.get("/matches").text
+
+    _age_dismissal(uid, days=2)                        # too soon on either page
+    assert MARK not in client.get(APPS).text
+    _age_dismissal(uid, days=4)                        # the one re-ask, on My Jobs
+    assert MARK in client.get(APPS).text
+    assert MARK in client.get("/matches").text         # same ask, not a third
+    assert _events(uid, "gate_prompt_shown") == [{"n": 1}, {"n": 2}]
+
+    client.post("/gate/dismiss", data={"csrf": _csrf(client)})   # 2nd not-now on /matches
+    _age_dismissal(uid, days=60)
+    assert MARK not in client.get(APPS).text           # never again, on either
+    assert MARK not in client.get("/matches").text
+    assert _row(uid).dismiss_count == 2

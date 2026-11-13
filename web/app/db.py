@@ -161,7 +161,8 @@ def _add_missing_columns() -> None:
         "job_states": {"digest_sent_at": ("TIMESTAMP", ""),
                        "next_step": ("TEXT", "DEFAULT ''"),
                        "next_step_on": ("DATE", ""),
-                       "closed_from_stage": ("TEXT", "DEFAULT ''")},
+                       "closed_from_stage": ("TEXT", "DEFAULT ''"),
+                       "saved_at": ("TIMESTAMP", "")},
         "searches": {"notify_email": ("BOOLEAN", "DEFAULT false"),
                      "located_count": ("INTEGER", "DEFAULT 0"),
                      "ranked_count": ("INTEGER", "DEFAULT 0"),
@@ -183,9 +184,9 @@ def _add_missing_columns() -> None:
                       "font": ("TEXT", "DEFAULT ''")},
         "materials": {"style_json": ("TEXT", "DEFAULT ''")},
         "feedback": {"rating": ("INTEGER", ""), "user_score": ("INTEGER", "")},
-        "job_states": {"saved_at": ("TIMESTAMP", "")},
         "page_views": {"visitor": ("TEXT", "")},
         "referral_rewards": {"held_at": ("TIMESTAMP", "")},
+        "gate_answers": {"surface": ("TEXT", "")},           # R3-18
     }
     import logging
 

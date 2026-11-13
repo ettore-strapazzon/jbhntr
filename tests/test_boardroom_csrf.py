@@ -30,6 +30,7 @@ if "web.app.main" not in sys.modules:
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from web.app import security  # noqa: E402
 from web.app.main import app  # noqa: E402
 from web.app.routes import admin as admin_mod  # noqa: E402
 from web.app.routes import boardroom as boardroom_mod  # noqa: E402
@@ -212,8 +213,8 @@ def _queue_founder_message(client, body: str) -> int:
 def test_pull_route_enforces_same_origin_after_basic_auth():
     route = next(r for r in boardroom_mod.router.routes if r.path == "/boardroom/pull")
     calls = [d.call for d in route.dependant.dependencies]
-    assert admin_mod.require_same_origin in calls
-    assert calls.index(admin_mod.require_admin) < calls.index(admin_mod.require_same_origin)
+    assert security.require_same_origin in calls
+    assert calls.index(admin_mod.require_admin) < calls.index(security.require_same_origin)
 
 
 def test_vm_script_curl_pull_shape_succeeds_and_consumes(monkeypatch):
@@ -258,15 +259,28 @@ def test_unauthenticated_cross_site_pull_is_401_before_403(client):
 
 
 def test_no_boardroom_or_admin_get_commits_without_a_same_origin_check():
-    """Sweep guard: any /admin or /boardroom GET whose handler commits must carry
-    require_same_origin. Positive control: /boardroom/pull is found by the sweep."""
-    import inspect
-
+    """Sweep guard: any /admin or /boardroom GET whose handler commits — itself or
+    in a project helper it calls directly (R3-23) — must carry require_same_origin.
+    Positive control: /boardroom/pull is found by the sweep."""
+    from tests.get_write_scan import scan
     from tests.test_admin_csrf import _api_routes, _dep_calls
-    committing = []
+    committing, swept = [], 0
     for path, r in _api_routes(app.routes):
         if "GET" in r.methods and path.startswith(("/admin", "/boardroom")):
-            if ".commit(" in inspect.getsource(r.endpoint):
+            swept += 1
+            if scan(r.endpoint, (".commit(",)):
                 committing.append(path)
-                assert admin_mod.require_same_origin in _dep_calls(r.dependant), path
+                assert security.require_same_origin in _dep_calls(r.dependant), path
+    assert swept >= 15, swept
     assert "/boardroom/pull" in committing
+
+
+def test_require_same_origin_lives_in_security_and_is_shared():
+    """R3-23: one implementation, owned by web.app.security, used by every gate."""
+    from web.app.routes import auth_routes
+    assert security.require_same_origin.__module__ == "web.app.security"
+    assert admin_mod.require_same_origin is security.require_same_origin
+    assert boardroom_mod.require_same_origin is security.require_same_origin
+    assert auth_routes.require_same_origin is security.require_same_origin
+    logout = next(r for r in auth_routes.router.routes if r.path == "/logout")
+    assert security.require_same_origin in [d.call for d in logout.dependant.dependencies]

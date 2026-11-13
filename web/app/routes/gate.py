@@ -1,10 +1,13 @@
-"""R3-14 gate prompt endpoints (rendered on /matches; rules in services/gate.py).
+"""R3-14 gate prompt endpoints (rendered on /matches and, R3-18, on
+/applications; rules in services/gate.py).
 
-  POST /gate           answer=much_better|better|same|worse, csrf=...
-                       -> 303 /matches (no-JS form) or the thank-you fragment
+  POST /gate           answer=much_better|better|same|worse, csrf=...,
+                       surface=matches|applications (optional, whitelisted;
+                       stored on the row, and the no-JS redirect target)
+                       -> 303 back to that page (no-JS form) or the thank-you fragment
                        (HTMX). 400 unknown answer, 409 never asked / already
                        answered, 403 bad CSRF, 303 /login when logged out.
-  POST /gate/dismiss   "Not now" -> 303 /matches or an empty fragment (HTMX).
+  POST /gate/dismiss   "Not now" -> 303 back to the page or an empty fragment (HTMX).
 
 CSRF: the login cookie is SameSite=lax (the app-wide defence) AND these POSTs
 carry the per-session HMAC token from security.csrf_token, checked here.
@@ -34,24 +37,30 @@ def _csrf_valid(request: Request, submitted: str) -> bool:
     return csrf_ok(request.cookies.get(COOKIE) or "", submitted or "")
 
 
+def _back(surface: str) -> RedirectResponse:
+    # surface_of() whitelists, so this can never become an open redirect.
+    return RedirectResponse("/" + gate.surface_of(surface), status_code=303)
+
+
 @router.post("/gate")
 def gate_answer(request: Request, answer: str = Form(""), csrf: str = Form(""),
+                surface: str = Form(""),
                 user: User = Depends(require_user), db: DbSession = Depends(get_session)):
     if not _csrf_valid(request, csrf):
         return Response("Your session expired. Reload the page and try again.",
                         status_code=403, media_type="text/plain")
     try:
-        gate.answer(db, user.id, answer)
+        gate.answer(db, user.id, answer, surface=gate.surface_of(surface))
     except gate.GateError as e:
         return Response(str(e), status_code=e.status, media_type="text/plain")
     if _htmx(request):
         return templates.TemplateResponse(
             request, "partials/gate_prompt.html", {"gate_done": True})
-    return RedirectResponse("/matches", status_code=303)
+    return _back(surface)
 
 
 @router.post("/gate/dismiss")
-def gate_dismiss(request: Request, csrf: str = Form(""),
+def gate_dismiss(request: Request, csrf: str = Form(""), surface: str = Form(""),
                  user: User = Depends(require_user), db: DbSession = Depends(get_session)):
     if not _csrf_valid(request, csrf):
         return Response("Your session expired. Reload the page and try again.",
@@ -62,4 +71,4 @@ def gate_dismiss(request: Request, csrf: str = Form(""),
         return Response(str(e), status_code=e.status, media_type="text/plain")
     if _htmx(request):
         return HTMLResponse("")
-    return RedirectResponse("/matches", status_code=303)
+    return _back(surface)

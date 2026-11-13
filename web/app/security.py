@@ -12,6 +12,7 @@ import secrets
 from typing import Optional
 
 from cryptography.fernet import Fernet, InvalidToken
+from fastapi import HTTPException, Request
 from passlib.context import CryptContext
 
 from .config import config
@@ -164,6 +165,23 @@ def csrf_token(session_token: str) -> str:
 
 def csrf_ok(session_token: str, submitted: str) -> bool:
     return bool(submitted) and hmac.compare_digest(csrf_token(session_token), submitted)
+
+
+# --------------------------------------------------------------------------- #
+# Same-origin check (browser cross-site request refusal)
+# --------------------------------------------------------------------------- #
+def require_same_origin(request: Request) -> None:
+    """Reject a browser cross-site request: Sec-Fetch-Site cross-site/same-site, or
+    an Origin (including the opaque `null`) whose host is not ours. Requests with
+    neither header — curl/script callers — pass unchanged. Use after the route's
+    auth gate (require_admin on /admin and /boardroom); also guards POST /logout."""
+    if request.headers.get("sec-fetch-site", "") in ("cross-site", "same-site"):
+        raise HTTPException(status_code=403, detail="Cross-site request refused")
+    origin = request.headers.get("origin")
+    if origin is not None:
+        from urllib.parse import urlsplit
+        if origin == "null" or urlsplit(origin).netloc != request.headers.get("host", ""):
+            raise HTTPException(status_code=403, detail="Cross-origin request refused")
 
 
 def new_secret(length: int = 48) -> str:

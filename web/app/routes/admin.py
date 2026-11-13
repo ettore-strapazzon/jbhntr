@@ -32,6 +32,7 @@ from ..models import (
     JobResult, OpsLog, PageView, ProductEvent, Search, SiteFeedback, User,
     aware, utcnow,
 )
+from ..security import require_same_origin
 from ..templating import templates
 
 router = APIRouter()
@@ -77,19 +78,6 @@ def admin_csrf_token() -> str:
     return hmac.new(config.secret_key.encode(),
                     f"admin-csrf:{config.admin_token}".encode(),
                     hashlib.sha256).hexdigest()
-
-
-def require_same_origin(request: Request) -> None:
-    """Reject a browser cross-site request: Sec-Fetch-Site cross-site/same-site, or
-    an Origin (including the opaque `null`) whose host is not ours. Requests with
-    neither header — curl/script callers — pass unchanged. Use after require_admin."""
-    if request.headers.get("sec-fetch-site", "") in ("cross-site", "same-site"):
-        raise HTTPException(status_code=403, detail="Cross-site request refused")
-    origin = request.headers.get("origin")
-    if origin is not None:
-        from urllib.parse import urlsplit
-        if origin == "null" or urlsplit(origin).netloc != request.headers.get("host", ""):
-            raise HTTPException(status_code=403, detail="Cross-origin request refused")
 
 
 def require_admin_csrf(request: Request, csrf: str = Form("")) -> None:
