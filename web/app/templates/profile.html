@@ -6,6 +6,8 @@
 {% if saved %}<div class="notice ok" role="status">Saved.</div>{% endif %}
 {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
 
+{% include "partials/activation_meter.html" %}
+
 {# ---- strength block (§5.5 / §11.9) ---- #}
 <section class="strength band-{{ strength.band }}">
   <div class="bandbar" aria-hidden="true">

@@ -46,3 +46,18 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** none. R3-02/03/04 (market read, invite, activation meter) build next on the share machine.
 - **Spend:** none. Added prod dep `cairosvg` (fallback-safe).
 - **Scheduler:** hourly cloud routine `trig_01SFpcUqEqDrtvmsSUwYm2qw` — re-enabled + first run validated after this push.
+
+## 2026-11-13 · cycle 4 (market read + activation meter + artefact privacy hardening)
+- **Recovery:** none ("doing" tasks: none). No new Founder orders in BACKLOG/REQUESTS/DECISIONS. Note: R3-07 was already done in c3 but still marked todo — corrected.
+- **Dispatched (foreground, parallel):** CTO (R3-02 market read) · CPO (R3-04 activation meter) · CMO (/invite copy for R3-03 + digest) · GC (match-card compliance review owed from c3 + R3-07 close-out). CFO idle (no unblocked finance task; R-006 still open).
+- **Results:**
+  - CTO → **R3-02 sent back once** (GC found false claims "every live role scanned"/"every role is scored both ways", no incentive disclosure, no unshare, PNGs under public `/static`, no noindex header; CTO's first report was a security review only). Re-delivered: `/r/{token}` stage funnel (raw→located→ranked→scored), anonymise default on (PII canary tests both states), owner-only share/unshare for card+read, OG cache → `data/og/` (git-ignored), `X-Robots-Tag: noindex`, PNGs deleted on account deletion, employer default off, GC caption text w/ referral disclosure, /cookies (jb_ref, "two cookies") + /privacy rows. 22 new tests. **Accepted.** CTO ran `git stash`/`pop` on the shared tree briefly (restored cleanly) — reminded: never on a shared worktree.
+  - CPO → **R3-04 accepted**: meter on onboarding + /profile (meter arm only, until first scan); CTA bound to `Completeness.can_search` with 91%-but-locked fixture + reverse + 70 boundary tests; deterministic 50/50 hash A/B; variant on signup/scan/threshold/onboarding/blocked events; `first_scan_rate_by_variant` readout; `ACTIVATION_METER` kill switch. Not on /matches (protected file).
+  - CMO → /invite copy build-ready in ARTEFACTS_SPEC §3.5 (all states, 6 channel messages w/ incentive disclosure, config-driven numbers); digest `digest/2026-11-13.md` (8 drafts, filed). Dropped invented first-person stories from the brand voice. **Accepted.**
+  - GC → COMPLIANCE_CARD v1.1 (new C11 + 20-element card verdict table + market-read MR1–6 + invite IN1–6 rules), RISK_REGISTER v3 (share over-exposure 3×3 YELLOW). 2 HIGH / 5 MED / 2 LOW card changes — all fixed this cycle except HIGH #2 (fit-notes preview) → R3-10. Found TERMS_DRAFT §6 vs code mismatch on referral payout → R3-11. **Accepted.**
+- **Test gate (CEO, once, after all agents):** first run 1 failure — the new test modules leaked fixture profiles' `search_terms` into the shared test DB, breaking `test_corpus_terms_and_countries_prioritise_users_then_defaults`. CEO added module-scoped teardown fixtures to both new modules. **Final: 645 passed, 1 skipped.** Pushed.
+- **New backlog:** R3-10 (fit-notes preview/concerns toggle), R3-11 (referral payout ↔ terms), R3-12 (GC self-serve compare source pass).
+- **Requests:** R-012 updated with GC's 45-min checklist. None new. R-009 (brand accounts) open 19 days — the top outward blocker (25 drafts filed, none postable).
+- **Blockers:** outward growth still on R-009/R-011; /compare on R-012. GC must clear /invite §3.5 copy + CTO's extra /cookies//privacy sentences before /invite ships.
+- **Spend:** none.
+- **Observations:** `task-observer` skill not present in this session's live skill list (gap). Starting-map skills `cro`/`onboarding`/`referrals`/`copywriting` also absent — SKILLS.md map is stale vs live list.

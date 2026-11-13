@@ -182,6 +182,9 @@ class WebConfig:
         "company_type", "verticals", "locations", "job_type",
     )
     quality_threshold: int = 70  # below this we nudge "improve your profile"
+    # R3-04 activation-meter experiment: "ab" splits users 50/50 by a hash of
+    # their id; "on" shows the meter to everyone, "off" to no one (kill switch).
+    activation_meter: str = os.environ.get("ACTIVATION_METER", "ab").strip().lower()
 
     # --- email ---
     # Resend HTTP API (port 443, works where cloud hosts block outbound SMTP).

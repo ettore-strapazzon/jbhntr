@@ -1576,3 +1576,17 @@ body.home main{padding-bottom:0}              /* the last section's padding owns
 @media (max-width:860px){
   .fit-band__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* R3-04 activation meter: sticky profile-completeness strip + free-scan CTA */
+.actmeter{background:var(--surface-raised);
+  border:1px solid var(--border-subtle);border-radius:var(--r-card);padding:12px 16px;margin:0 auto 18px;max-width:880px;box-shadow:var(--elev-1)}
+.actmeter--onboarding{position:sticky;top:0;z-index:5}   /* profile has its own sticky subtabs */
+.actmeter-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.actmeter-head{margin:0;font-size:15px}
+.actmeter-cta{margin:0}
+.actmeter-rail{position:relative;height:8px;border-radius:4px;background:var(--border-subtle);margin:10px 0 4px;overflow:visible}
+.actmeter-rail>i{display:block;height:8px;border-radius:4px;background:var(--status-attention);transition:width .2s}
+.actmeter.is-open .actmeter-rail>i{background:var(--action-primary)}
+.actmeter-mark{position:absolute;top:-3px;width:2px;height:14px;background:var(--text-primary);border-radius:1px}
+.actmeter-missing{margin:6px 0 0;color:var(--text-secondary)}
+@media (max-width:600px){.actmeter-cta,.actmeter-cta button{width:100%}}

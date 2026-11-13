@@ -16,6 +16,8 @@
 
 {% if error %}<div class="notice err" role="alert">{{ error }}</div>{% endif %}
 
+{% include "partials/activation_meter.html" %}
+
 <div class="onboard">
   <h1>{{ step_title }}</h1>
   {% block step %}{% endblock %}

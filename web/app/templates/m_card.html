@@ -26,9 +26,9 @@
 
     {% if r.fit_role or r.fit_candidate %}
       <div class="fitbars">
-        <div class="fitbar"><span class="fitbar-label">Fits what you want</span>
+        <div class="fitbar"><span class="fitbar-label">Fits the candidate’s goals</span>
           <div class="scorebar" aria-hidden="true"><div style="width:{{ r.fit_role }}%"></div></div></div>
-        <div class="fitbar"><span class="fitbar-label">You fit their requirements</span>
+        <div class="fitbar"><span class="fitbar-label">Candidate fits the requirements</span>
           <div class="scorebar" aria-hidden="true"><div style="width:{{ r.fit_candidate }}%"></div></div></div>
       </div>
     {% endif %}
@@ -50,8 +50,16 @@
     </div>
 
     <div class="shared-cta">
-      <a class="btn" href="{{ cta_url }}">Scan your first job match free</a>
-      <p class="small muted">See fit both ways — what you want and what they need. No card.</p>
+      {% if first_scan_free %}
+        <a class="btn" href="{{ cta_url }}">Scan your first job match free</a>
+        <p class="small muted">See fit both ways: what you want and what they need. First scan free, no credit card.</p>
+      {% else %}
+        <a class="btn" href="{{ cta_url }}">Scan your own job matches</a>
+        <p class="small muted">See fit both ways: what you want and what they need.</p>
+      {% endif %}
+      {% if ref_disclosed %}
+        <p class="small muted">Sign up from this card and you get {{ referral_friend_credits }} bonus credits; the person who shared it gets credits once you run your first scan.</p>
+      {% endif %}
     </div>
   </article>
 </section>

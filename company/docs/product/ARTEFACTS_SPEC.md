@@ -1,7 +1,7 @@
 # Step-1 Share Artefacts — Build Spec
 
 Owner: CPO · v1 (2026-10-25), build plan R3-01..04 (2026-10-26), live-code re-verify
-(2026-10-28). Builds: **R3-01 match card this cycle (CTO+CPO); R3-02 market read /
+(2026-10-28), /invite build-ready copy §3.5 (CMO, 2026-11-13). Builds: **R3-01 match card this cycle (CTO+CPO); R3-02 market read /
 R3-03 /invite / R3-04 meter next cycle.** The measurement foundation (R2-01) is shipped.
 Spec only — no product code in this doc. Stack: FastAPI + Jinja + HTMX, Postgres, Railway.
 
@@ -177,16 +177,11 @@ as a quieter secondary line. "Live" = recomputed on each page load (no socket ne
 ponytail: a DB count per load is fine at this scale).
 
 ### 3.3 Pre-written messages (one per channel, link pre-embedded)
-Plain-text templates with `{invite_url}` filled server-side, each with a copy button and,
-where it exists, a share-intent link:
-- **LinkedIn / X / Bluesky**: "I've been testing JBHNTR — it scans every live role and
-  tells you the ~15 worth your time, with the reasons for and against each. First scan's
-  free: {invite_url}"
-- **WhatsApp / iMessage**: shorter, 1 line + link (WhatsApp `https://wa.me/?text=`).
-- **Email**: subject + 3-line body (`mailto:` with subject+body).
-- **Reddit**: comment-safe phrasing (disclosed, answer-first) per GTM §4 posture.
-Keep copy honest/plural-voice per CHARTER (no "I built"; "a tool I'm testing" is fine on a
-personal share). GC clears external claim copy before launch — **REQUEST** (see §6).
+Plain-text templates with the link filled server-side, each with a copy button and, where
+it exists, a share-intent link. **The final copy and the channel list are in §3.5** (CMO,
+2026-11-13) and supersede the v1 draft lines that were here. Reddit and a separate
+iMessage button are dropped from v1 (reasons in §3.5.6); iMessage is covered by the mobile
+native share sheet. GC clears external claim copy before launch — **REQUEST** (see §6).
 
 ### 3.4 Acceptance criteria
 - `/invite` shows the user's real code + link; copy buttons work; numbers come from config.
@@ -196,6 +191,139 @@ personal share). GC clears external claim copy before launch — **REQUEST** (se
 - Landing: `/signup?ref={code}` attributes the signup (`attach_and_reward_friend` already
   wires this) and the referred user's first scan pays the inviter
   (`reward_inviter_if_activated`, already wired).
+- Every visible string on `/invite` is taken verbatim from §3.5 (no ad-hoc copy).
+
+### 3.5 Build-ready copy (CMO, 2026-11-13 — for R3-03)
+
+Wire verbatim. Pending only GC clearance (§6 / §8.5); if GC changes a line, GC edits it
+here in place. Nothing below needs a copy decision from the CTO.
+
+**Placeholders** (filled server-side; never hard-code the numbers):
+| Token | Value |
+|---|---|
+| `{link}` | `referral.invite_url(code)` exactly (e.g. `https://jbhntr.app/signup?ref=ABCD2345`). No UTM added — channel attribution is the `invite_link_copied` `channel` prop. |
+| `{code}` | `referral.ensure_code(db, user)` |
+| `{friend_credits}` | `config.referral_friend_credits` (today 5) |
+| `{inviter_credits}` | `config.referral_credits` (today 15) |
+| `{activated}` / `{signed_up}` / `{earned}` | the §3.2 counts |
+
+Voice: the page speaks as "we" (the JBHNTR team). The share messages are sent by the user,
+so they are written in the sharer's own first person, name the product, and never imply
+the sharer built it. Every message discloses the sharer's incentive (they earn credits),
+because a referral reward is a material connection. No emojis, no em dashes in share
+text, no stats, no "every role", no competitor names.
+
+#### 3.5.1 Page head
+- `<title>`: **Invite friends · JBHNTR** · `meta robots`: `noindex,nofollow` (authenticated page)
+- Nav label (header + `/credits` link to this page): **Invite**
+- **H1:** Know someone applying to everything?
+- **Subhead:** Send them JBHNTR. We read live job listings and return the short list worth
+  their time, with a fit score in both directions and the reasons for and against each
+  role. Their first scan is free.
+
+#### 3.5.2 Code + link block
+- Label: **Your invite link** · value `{link}` · button **Copy link**
+- Label: **Your invite code** · value `{code}` (monospace) · button **Copy code**
+- Helper (small, muted): Friends can paste the code at sign-up if the link gets lost.
+- Mobile only, when `navigator.share` exists — button: **Share…** (shares the WhatsApp
+  message text from §3.5.5 with `url={link}`; event `channel=native`)
+- Copy success (replaces button label for 2s): **Copied**
+- Copy failure (inline, below the field): Couldn't copy. Select the text and copy it manually.
+
+#### 3.5.3 How it works (3 steps, numbered)
+1. **Share your link.** Send it by message, email or chat. It carries your code, so we
+   know the invite came from you.
+2. **They sign up and run their first scan.** Their first scan is free, and your link
+   adds {friend_credits} bonus credits to their account.
+3. **You get {inviter_credits} credits.** We add them once your friend has completed their
+   profile and run that first scan, and our usual checks are clear. Usually within 72 hours.
+
+#### 3.5.4 Reward line + fine print (GTM §5: uncapped, delayed, abuse-controlled)
+- **Reward line** (directly under the H1 subhead, bold): Your friend gets {friend_credits}
+  bonus credits. You get {inviter_credits} for every friend who runs their first scan. No cap.
+- **Fine print** (small, under "How it works"):
+  There's no limit on how many friends you invite or how many credits you earn. Credits
+  are added after a short check, usually within 72 hours. Self-invites don't count, and
+  invites that look like duplicate or throwaway accounts may be held while we take a look.
+  Credits stay on your account: they can't be transferred or exchanged for cash.
+  If you share publicly, say that you earn credits from your link (the messages below
+  already do). [Terms](/terms)
+- Honesty notes for the CTO (no copy choice involved): today `reward_inviter_if_activated`
+  pays immediately on first scan, which is still "usually within 72 hours", so the copy is
+  true now and stays true when the GTM §5 delayed payout ships. "May be held" is true today
+  because the Founder can review manually; do not add a stated ceiling number to the page
+  (the 25/mo soft ceiling is an internal review trigger, not a cap).
+
+#### 3.5.5 Live counter (§3.2 data)
+- Section heading: **Your invites**
+- Headline number: **{activated} friends activated · +{earned} credits earned**
+  (singular when 1: **1 friend activated**)
+- Secondary line (muted): {signed_up} signed up with your link
+  (singular: **1 signed up with your link**)
+- Freshness note (small): Updates each time you open this page.
+- Zero state (`signed_up == 0`): **No invites yet.** Share your link below. When a friend
+  runs their first scan, it shows up here.
+- Signed up but none activated (`signed_up > 0`, `activated == 0`): secondary line reads
+  {signed_up} signed up with your link · waiting for their first scan
+
+#### 3.5.6 Per-channel messages
+Section heading: **Ready-to-send messages** · Helper: Edit them however you like. Each one
+already includes your link and says you earn credits from it.
+Each card: channel name, the message in a read-only textarea, **Copy message** button, and
+the share button where listed. `channel` value = the `invite_link_copied` prop (and the
+same value on the share-button click). URL-encode the message for every intent.
+
+**WhatsApp** · `channel=whatsapp` · button **Open WhatsApp** → `https://wa.me/?text={message}`
+> Have you seen JBHNTR? It reads live job listings and gives you a short list of roles worth applying to, with reasons for and against each. First scan is free, and my link adds bonus credits. (Disclosure: I earn credits if you join.) {link}
+
+**LinkedIn DM** · `channel=linkedin` · button **Open LinkedIn messages** →
+`https://www.linkedin.com/messaging/` (LinkedIn has no prefilled-DM intent: user copies,
+then pastes)
+> Hi, thought of you as I've been looking at roles. I signed up to JBHNTR: it reads live job listings and returns a short list worth applying to, with a fit score in both directions and the reasons for and against each role. It doesn't apply for you, it helps you choose. Your first scan is free, and my link adds {friend_credits} bonus credits. Full disclosure, I get credits too if you join. {link}
+
+**Email** · `channel=email` · button **Open email** → `mailto:?subject={subject}&body={body}`
+- Subject: **A job-search tool you might find useful**
+- Body:
+> Hi,
+>
+> I signed up to JBHNTR and thought of you. It reads live job listings and gives you a short list of roles worth applying to, with a fit score in both directions and the reasons for and against each one. It doesn't apply for you; it helps you decide where your time goes.
+>
+> Your first scan is free, and signing up through my link adds {friend_credits} bonus credits:
+> {link}
+>
+> Full disclosure: I get {inviter_credits} credits if you sign up and run a scan.
+
+**X** · `channel=x` · button **Post on X** → `https://twitter.com/intent/tweet?text={message}`
+(≤ 280 with the link counted as 23: measured 246)
+> Apply to fewer roles, chosen better. JBHNTR reads live job listings and gives you a short list that fits both ways, with reasons for and against each. First scan is free. Disclosure: I earn credits if you join via my link. {link}
+
+**Bluesky** · `channel=bluesky` · button **Post on Bluesky** →
+`https://bsky.app/intent/compose?text={message}` — same text as X (≤ 300 graphemes with a
+full 39-char link; measured 261, 265 with a 12-char fallback code).
+
+**Slack / Teams** · `channel=slack_teams` · copy only (no share intent) · helper (muted):
+For community, alumni or job-search channels. Check the channel allows referral links first.
+> If anyone here is job hunting: JBHNTR reads live job listings and gives you a short list of roles worth applying to, with reasons for and against each. First scan is free. My link adds bonus credits for you (disclosure: I earn credits too if you join): {link}
+
+**Not in v1 (decided, CMO):** **Reddit** — most job-search subreddits ban referral links,
+and a user-posted referral link under our name cuts against the brand's disclosed,
+answer-first Reddit posture (GTM §4–5). **iMessage/SMS** as its own button — covered by the
+mobile **Share…** sheet. Copy-link covers everything else.
+
+**Event `channel` values (final):** `link` · `code` · `native` · `whatsapp` · `linkedin` ·
+`email` · `x` · `bluesky` · `slack_teams` (all ≤ 64 chars, `channel` already in
+`events.ALLOWED_PROPS` — no allowlist change).
+
+#### 3.5.7 Claims self-check (for GC)
+Every factual claim above, and its basis: "reads live job listings" (the scan pipeline);
+"short list … reasons for and against" (`why_good` / `why_bad`); "fit score in both
+directions" (`fit_role` + `fit_candidate`); "doesn't apply for you" (never auto-apply,
+CHARTER principle 5); "first scan is free" (`config.first_scan_free`, default true — if
+that flag is ever turned off, the three "first scan is free" lines must be removed);
+"{friend_credits}/{inviter_credits} credits" (config); "usually within 72 hours" (true
+now — immediate payout — and under the GTM §5 delay); "no cap" (no cap in code or policy;
+the soft ceiling triggers review, not refusal). No stats, no comparatives, no "every".
+Incentive disclosure present in all 6 messages and the fine print.
 
 ---
 
@@ -411,7 +539,7 @@ activation events (shipped) — so it can be built in parallel with any of the a
 |---|---|---|
 | **R3-01 Match card** | `match_card_shared` → owner clicks **Share** on a match/tracker card (`POST /job/{id}/share`); prop `source` = `matches` \| `applications`. · `shared_artifact_viewed` → logged-out visitor opens `/m/{token}` (anon, `user_id=None`); prop `kind` = `card`. | **On the first Share click** for that card, inside `POST /job/{id}/share`: if `JobResult.share_token` is null, mint `secrets.token_urlsafe(9)` and persist, then return the share sheet. Idempotent — a second Share reuses it. |
 | **R3-02 Market read** | `market_read_shared` → owner clicks **Share this read** on a completed scan; prop `source` = where the button sat (`matches` \| `read`). · `shared_artifact_viewed` → logged-out visitor opens `/r/{token}`; prop `kind` = `read`. | **On the first "Share this read" click**, same lazy pattern on `Search.share_token` (reuse the R3-01 mint helper — §8.0a.1). Unshared scans stay private. |
-| **R3-03 /invite** | `invite_page_viewed` → `GET /invite` renders for the signed-in user (one per load). · `invite_link_copied` → user copies the link or a per-channel message; prop `channel` = `link` \| `linkedin` \| `x` \| `whatsapp` \| `email` \| `reddit` \| `imessage` \| `bluesky`. | None — `/invite` uses the user's existing referral code (`referral.ensure_code`), not a `share_token`. |
+| **R3-03 /invite** | `invite_page_viewed` → `GET /invite` renders for the signed-in user (one per load). · `invite_link_copied` → user copies the link or a per-channel message; prop `channel` = `link` \| `code` \| `native` \| `whatsapp` \| `linkedin` \| `email` \| `x` \| `bluesky` \| `slack_teams` (final, §3.5.6). | None — `/invite` uses the user's existing referral code (`referral.ensure_code`), not a `share_token`. |
 
 Rule for the two `_shared` events: **fire on the Share *action*, in the same handler that
 mints/looks-up the token** — one event per click, including re-shares (we want raw share
@@ -456,12 +584,12 @@ on the share, so the two together give a share→view ratio.
       credits"** leading with *activated* (the thing that pays out), signed-up count
       secondary; numbers match `User.referred_by_user_id == me.id` + the
       `referral_activated` ledger rows (§3.2).
-- [ ] Per-channel pre-written messages (LinkedIn / X / Bluesky, WhatsApp / iMessage, email,
-      Reddit) each embed the correct `invite_url`; share-intent links open the right
+- [ ] Per-channel pre-written messages (WhatsApp, LinkedIn DM, email, X, Bluesky,
+      Slack/Teams — copy verbatim from §3.5) each embed the correct `invite_url`; share-intent links open the right
       composer; mobile uses `navigator.share` where available. **Copy is GC-cleared before
       launch** (§6 / §8.5).
 - [ ] `GET /invite` writes exactly one `invite_page_viewed` per load; each copy control
-      writes `invite_link_copied` with the right `channel` value.
+      writes `invite_link_copied` with the right `channel` value (final list in §3.5.6).
 - [ ] `/signup?ref={code}` attribution + first-scan reward already wired
       (`attach_and_reward_friend`, `reward_inviter_if_activated`) — no new reward code.
 

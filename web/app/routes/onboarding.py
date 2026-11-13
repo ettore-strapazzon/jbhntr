@@ -18,6 +18,7 @@ from ..auth import require_user
 from ..db import get_session
 from ..models import Material, Profile, User
 from ..security import UploadError, encrypt_bytes, extract_text, validate_upload
+from ..services.activation import assign_variant, meter_for
 from ..services.profile_service import (
     ABOUT_TARGET, COUNTRIES, DEPTH_LABELS, MIN_TEXT, OBJECTIVE_TARGET,
     WORK_MODES, completeness, rebuild_locations, remote_anywhere_on,
@@ -123,6 +124,8 @@ def _render(request: Request, step: str, db: DbSession, user: User, **extra):
         "about_depth": text_depth(p.about_me or "", ABOUT_TARGET),
         "depth_labels": DEPTH_LABELS,
         "values": {},
+        # R3-04 activation meter (None for the control arm / after the first scan).
+        "meter": meter_for(db, user, surface="onboarding"),
     }
     ctx.update(extra)
     return templates.TemplateResponse(request, f"onboarding/{step}.html", ctx)
@@ -192,6 +195,7 @@ async def upload(
     if kind == "cv":
         from ..services.events import record
         record(db, "cv_uploaded", user_id=user.id)
+        _step_done(db, user, "upload")
     return RedirectResponse(dest, status_code=303)
 
 
@@ -227,6 +231,7 @@ async def save_aim(request: Request, user: User = Depends(require_user),
     p.job_type = [v for v in form.getlist("job_type") if v in JOB_TYPES]
     rebuild_locations(p)
     db.commit()
+    _step_done(db, user, "aim")
     return RedirectResponse("/onboarding/words", status_code=303)
 
 
@@ -250,10 +255,13 @@ async def save_words(
     p.objective = objective.strip()[:10_000]
     p.about_me = about_me.strip()[:20_000]
     db.commit()
+    _step_done(db, user, "words")
     # Words is the last step; if the profile is now searchable, onboarding is done.
     if completeness(db, user).can_search:
         from ..config import config
+        from ..services.activation import note_threshold
         from ..services.events import record_once
+        note_threshold(db, user)
         record_once(db, "onboarding_completed", user.id)
         # ONBOARD-02: run the first market scan straight away — that one's on us.
         if user.first_scan_used_at is None and config.first_scan_free:
@@ -262,4 +270,34 @@ async def save_words(
                 start_search(db, user, free=True)
             except QuotaError:
                 pass
+    return RedirectResponse("/matches", status_code=303)
+
+
+# --------------------- R3-04 activation meter CTA ------------------------ #
+def _step_done(db: DbSession, user: User, step_name: str) -> None:
+    """onboarding_step_completed (spec §8.4) — localises where users stall."""
+    from ..services.events import record
+    record(db, "onboarding_step_completed", user_id=user.id,
+           step_name=step_name, variant=assign_variant(user.id))
+
+
+@router.post("/first-scan")
+def first_scan(request: Request, user: User = Depends(require_user),
+               db: DbSession = Depends(get_session)):
+    """The meter's "Run my free scan" button. Starts the scan directly — no
+    intermediate screen. The button is disabled while Completeness.can_search
+    is False; a stale page or deep link still reaching here goes through
+    start_search's own gate (which logs scan_blocked_incomplete)."""
+    from urllib.parse import quote
+
+    from ..config import config
+    from ..services.credits import InsufficientCredits
+    from ..services.search_service import QuotaError, start_search
+    free = bool(config.first_scan_free and user.first_scan_used_at is None)
+    try:
+        start_search(db, user, free=free)
+    except QuotaError as exc:
+        return RedirectResponse(f"/profile?error={quote(str(exc))}", status_code=303)
+    except InsufficientCredits:
+        return RedirectResponse("/credits?from=scan", status_code=303)
     return RedirectResponse("/matches", status_code=303)

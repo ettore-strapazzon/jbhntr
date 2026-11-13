@@ -75,8 +75,10 @@ def start_search(db: DbSession, user: User, free: bool = False) -> Search:
     state = completeness(db, user)
     if not state.can_search:
         from . import events
+        from .activation import assign_variant
         events.record(db, "scan_blocked_incomplete", user_id=user.id,
-                      count=len(state.missing_required))
+                      count=len(state.missing_required),
+                      variant=assign_variant(user.id))
         raise QuotaError("Finalise your profile first: " + ", ".join(state.missing_required))
 
     phash = _profile_hash(user)
@@ -100,8 +102,10 @@ def start_search(db: DbSession, user: User, free: bool = False) -> Search:
                       ref_id=str(search.id), idempotency_key=f"search:{search.id}")
     db.commit()
 
+    from .activation import assign_variant
     from .events import record
-    record(db, "scan_started", user_id=user.id)
+    # R3-04: the arm rides on the KPI numerator so first-scan rate reads per cohort.
+    record(db, "scan_started", user_id=user.id, variant=assign_variant(user.id))
 
     threading.Thread(target=_run_search, args=(search.id, user.id, free_kind), daemon=True).start()
     return search

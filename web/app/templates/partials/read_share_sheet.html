@@ -1,0 +1,47 @@
+{# Share sheet returned by POST /search/{id}/share (market read, R3-02). Mirrors
+   partials/share_sheet.html (R3-01). Expects: s, source, share_url, og_url,
+   caption. No inline JS (CSP): copy uses the delegated [data-copy] handler
+   already in app.js; channel buttons are plain links. #}
+<div class="share-sheet" id="read-share-sheet-{{ s.id }}">
+  <p class="small muted" style="margin:0 0 6px">Your market read is ready. Anyone with the link can see this scan’s stage counts{% if not s.share_anonymous %}, your target role and your countries{% endif %}. It never shows your name, CV, email or the employers you matched. You can stop sharing at any time.</p>
+
+  <div class="share-link">
+    <input type="text" value="{{ share_url }}" readonly data-select-on-click
+           aria-label="Public market read link" class="share-url">
+    <button type="button" class="btn ghost small" data-copy="{{ share_url }}">Copy link</button>
+  </div>
+
+  <div class="share-channels">
+    <a class="btn ghost small" target="_blank" rel="noopener"
+       href="https://www.linkedin.com/sharing/share-offsite/?url={{ share_url | urlencode }}">LinkedIn</a>
+    <a class="btn ghost small" target="_blank" rel="noopener"
+       href="https://twitter.com/intent/tweet?text={{ caption | urlencode }}">X</a>
+    <a class="btn ghost small" target="_blank" rel="noopener"
+       href="https://wa.me/?text={{ caption | urlencode }}">WhatsApp</a>
+    <a class="btn ghost small" href="{{ og_url }}" download="jbhntr-market-read.png">Download image</a>
+  </div>
+
+  <button type="button" class="linklike small" data-copy="{{ caption }}">Copy caption</button>
+
+  {# Anonymise toggle (default ON). Re-submits the same endpoint (idempotent
+     token); prefs=1 marks it a settings save; an unchecked box sends nothing. #}
+  <form class="share-opts" method="post" action="/search/{{ s.id }}/share"
+        hx-post="/search/{{ s.id }}/share" hx-trigger="change"
+        hx-target="#read-share-sheet-{{ s.id }}" hx-swap="outerHTML">
+    <input type="hidden" name="source" value="{{ source }}">
+    <input type="hidden" name="prefs" value="1">
+    <label class="small">
+      <input type="checkbox" name="anonymous" value="1"
+             {% if s.share_anonymous %}checked{% endif %}>
+      Share anonymised (counts only — hides your target role and countries)
+    </label>
+    <noscript><button type="submit" class="ghost small">Update</button></noscript>
+  </form>
+
+  {# Revoke (C11): page + image 404 at once; re-sharing mints a new link. #}
+  <form class="share-stop" method="post" action="/search/{{ s.id }}/unshare"
+        hx-post="/search/{{ s.id }}/unshare"
+        hx-target="#read-share-sheet-{{ s.id }}" hx-swap="outerHTML">
+    <button type="submit" class="linklike small">Stop sharing</button>
+  </form>
+</div>

@@ -5441,7 +5441,8 @@ def test_r3_public_card_renders_without_auth_and_no_leak(client):
     body = r.text
     # The card shows the match substance...
     assert "Head of Ops" in body and "Apply now" in body
-    assert "Fits what you want" in body and "You fit their requirements" in body
+    assert ("Fits the candidate’s goals" in body
+            and "Candidate fits the requirements" in body)  # third-party labels (GC #9)
     # ...and never the private surfaces.
     assert "secret-apply.example" not in body
     assert "SECRETJDTEXT" not in body and "SECRETBLURB" not in body
@@ -5491,9 +5492,12 @@ def test_r3_employer_toggle_hides_company(client):
     rid, uid = _share_result("share6@example.com")
     client.post(f"/job/{rid}/share", data={"source": "matches"})
     tok = _token_of(rid)
-    # Default on: employer shows.
+    # Default OFF (privacy by default, GC #5): employer hidden.
+    assert "Acme Corp" not in TestClient(app).get(f"/m/{tok}").text
+    # Toggle on -> shown; toggle off (box unchecked) -> hidden again.
+    client.post(f"/job/{rid}/share",
+                data={"source": "matches", "prefs": "1", "show_company": "1"})
     assert "Acme Corp" in TestClient(app).get(f"/m/{tok}").text
-    # Re-submit the toggle form with prefs set and the box unchecked -> hidden.
     client.post(f"/job/{rid}/share", data={"source": "matches", "prefs": "1"})
     assert "Acme Corp" not in TestClient(app).get(f"/m/{tok}").text
 

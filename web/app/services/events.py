@@ -39,6 +39,8 @@ EVENT_NAMES = frozenset({
 # Property keys that may be stored, all non-identifying and low-cardinality.
 ALLOWED_PROPS = frozenset({
     "kind", "tier", "rating", "source", "count", "n", "step_name", "channel",
+    # R3-04 — A/B arm ('meter' | 'control'), so first-scan rate reads per cohort.
+    "variant",
 })
 
 

@@ -3,18 +3,22 @@
 {% block content %}
 <h1>Cookies</h1>
 <div class="card">
-  <p>We use <b>one</b> cookie.</p>
+  <p>We use <b>two</b> cookies.</p>
   <table style="width:100%;font-size:14px">
     <tr><th align="left">Name</th><th align="left">Purpose</th><th align="left">Duration</th><th align="left">Type</th></tr>
     <tr><td><code>jbhntr_session</code></td><td>Keeps you signed in</td>
         <td>{{ config.session_days }} days</td><td>Strictly necessary</td></tr>
+    <tr><td><code>jb_ref</code></td><td>Remembers the invite code from the link you followed, so your bonus credits apply when you sign up</td>
+        <td>30 days, or until you sign up</td><td>Strictly necessary</td></tr>
   </table>
-  <p class="small muted">It is <code>HttpOnly</code>, <code>Secure</code> and
-    <code>SameSite=Lax</code>, so it can't be read by scripts or sent from other sites.</p>
+  <p class="small muted">Both are <code>HttpOnly</code> and <code>SameSite=Lax</code>, so
+    they can't be read by scripts or sent from other sites; the session cookie is also
+    <code>Secure</code>.</p>
 
   <h2>Why there's no "accept cookies" pop-up</h2>
   <p>Under the EU ePrivacy Directive, cookies that are strictly necessary to deliver a
-    service the user asked for don't require consent. Ours only keeps you logged in, and
+    service the user asked for don't require consent. Ours only keep you logged in and
+    remember an invite code you followed, and
     our analytics (Plausible) sets <b>no cookies</b> and collects no personal data or IP
     addresses. So we show a short notice instead of a consent gate — there's nothing to
     consent to.</p>

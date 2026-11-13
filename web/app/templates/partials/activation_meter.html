@@ -1,0 +1,34 @@
+{# R3-04 activation meter (ARTEFACTS_SPEC §8.4). Rendered only for the 'meter'
+   arm before the first scan. The button's disabled state is meter.cta_enabled,
+   which is Completeness.can_search — never `score >= 70`. No inline JS. #}
+{% if meter %}
+<section class="actmeter actmeter--{{ meter.surface }}{% if meter.locked %} is-locked{% else %} is-open{% endif %}"
+         aria-labelledby="actmeter-head" data-variant="meter">
+  <div class="actmeter-row">
+    <p class="actmeter-head" id="actmeter-head">
+      <b>Profile {{ meter.score }}%</b>
+      {% if meter.cta_enabled %}
+        · Ready. {% if meter.free %}Your first scan is on us.{% else %}Your first scan is unlocked.{% endif %}
+      {% elif meter.score < meter.unlock_at %}
+        · Your {% if meter.free %}free {% endif %}scan unlocks at {{ meter.unlock_at }}%.
+      {% else %}
+        · Your {% if meter.free %}free {% endif %}scan unlocks once the required fields below are in.
+      {% endif %}
+    </p>
+    <form method="post" action="/onboarding/first-scan" class="actmeter-cta">
+      <button type="submit"{% if not meter.cta_enabled %} disabled aria-describedby="actmeter-missing"{% endif %}>
+        {% if meter.free %}Run my free scan{% else %}Run my first scan{% endif %}</button>
+    </form>
+  </div>
+  <div class="actmeter-rail" role="progressbar" aria-label="Profile completeness"
+       aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ meter.score }}">
+    <i style="width:{{ meter.score }}%"></i>
+    <span class="actmeter-mark" style="left:{{ meter.unlock_at }}%" aria-hidden="true"></span>
+  </div>
+  {% if meter.locked %}
+    <p class="actmeter-missing small" id="actmeter-missing">Still needed:
+      {% for f in meter.missing %}<a href="{{ f.href }}">{{ f.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% if meter.more_missing %}, and {{ meter.more_missing }} more{% endif %}.
+    </p>
+  {% endif %}
+</section>
+{% endif %}

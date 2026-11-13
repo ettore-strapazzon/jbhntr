@@ -70,9 +70,11 @@ def signup(
     db.commit()
 
     ref_code = request.cookies.get("jb_ref", "")
+    from ..services.activation import assign_variant
     from ..services.events import record
     record(db, "signup_completed", user_id=user.id,
-           source="referral" if ref_code else "organic")
+           source="referral" if ref_code else "organic",
+           variant=assign_variant(user.id))   # R3-04 cohort (first-scan rate denominator)
 
     # Redeem an invite code (REFERRAL-02): credit the friend now; the inviter is paid
     # when this account completes its first scan. Emits referred_signup on a hit.

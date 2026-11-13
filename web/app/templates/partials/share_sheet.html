@@ -2,7 +2,7 @@
    og_url, caption. No inline JS (CSP): copy uses the delegated [data-copy]
    handler already in app.js; channel buttons are plain links. #}
 <div class="share-sheet" id="share-sheet-{{ r.id }}">
-  <p class="small muted" style="margin:0 0 6px">Your shareable match card is ready. It shows the scores and reasons, never your CV, email or the apply link.</p>
+  <p class="small muted" style="margin:0 0 6px">Your match card is ready. Anyone with the link can see the role, the scores and the notes, which are written from your profile. It never shows your name, CV, email or the apply link. You can stop sharing at any time.</p>
 
   <div class="share-link">
     <input type="text" value="{{ share_url }}" readonly data-select-on-click
@@ -35,5 +35,12 @@
       Show the employer’s name on the card
     </label>
     <noscript><button type="submit" class="ghost small">Update</button></noscript>
+  </form>
+
+  {# Revoke (C11): page + image 404 at once; re-sharing mints a new link. #}
+  <form class="share-stop" method="post" action="/job/{{ r.id }}/unshare"
+        hx-post="/job/{{ r.id }}/unshare"
+        hx-target="#share-sheet-{{ r.id }}" hx-swap="outerHTML">
+    <button type="submit" class="linklike small">Stop sharing</button>
   </form>
 </div>

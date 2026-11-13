@@ -142,6 +142,10 @@ def delete_account(request: Request, confirm: str = Form(default=""),
         })
 
     uid = user.id
+    # Public artefact images first (C11): once the rows go, nothing could find
+    # the cached PNGs again.
+    from .share import delete_user_artefact_pngs
+    delete_user_artefact_pngs(db, uid)
     db.query(Document).filter(Document.user_id == uid).delete()
     db.query(Feedback).filter(Feedback.user_id == uid).delete()
     db.query(JobResult).filter(JobResult.user_id == uid).delete()

@@ -21,3 +21,5 @@ Owner: CEO. Append-only; superseded rows kept and annotated inline.
 - Coach/partner economics when Step 4 starts: credits only (default) vs credits + a small cash bounty per activated client (→ R-003).
 - Show HN timing: fixed to ~week 8 vs conditional on ≥70% positive interview verdicts (→ R-004).
 - Incorporation vehicle + timing (before Phase 2 / before the spikes) (→ R-005).
+| 2026-11-13 | **Share artefacts private-by-default + revocable** (GC C11): employer hidden on match cards by default, owner "Stop sharing" kills page+image, OG PNGs out of `/static`, `X-Robots-Tag: noindex`. **Interim rule:** no digest draft/invite/brand post links a match card until R3-10 (fit-notes preview + concerns toggle) lands | GC | CEO |
+| 2026-11-13 | **Activation meter ships as a 50/50 A/B** (hash of user id; `ACTIVATION_METER=ab|on|off` kill switch); KPI = first-scan rate by signup cohort via `activation.first_scan_rate_by_variant` | CPO | CEO |

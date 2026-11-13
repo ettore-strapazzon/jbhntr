@@ -19,6 +19,7 @@ from ..services.profile_service import (
     WORK_MODES, completeness, rebuild_locations, remote_anywhere_on, split_list,
     strength, text_depth, text_too_short,
 )
+from ..services.activation import meter_for
 from ..templating import templates
 from .onboarding import (
     COMPANY_TYPES, JOB_TYPES, SENIORITY, SENIORITY_LABELS, VERTICALS,
@@ -46,6 +47,7 @@ def profile_page(request: Request, user: User = Depends(require_user),
         "about_depth": text_depth(p.about_me or "", ABOUT_TARGET),
         "depth_labels": DEPTH_LABELS, "min_text": MIN_TEXT,
         "saved": saved, "error": error,
+        "meter": meter_for(db, user, surface="profile"),   # R3-04 (None = control)
     })
 
 

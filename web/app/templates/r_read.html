@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{# Public, no-auth "my market read" (/r/{token}). v1 = the stage funnel read
+   straight off the Search counts; the reason histogram is v2 (engine work).
+   Never the sharer's name, email, CV/objective text or any employer names.
+   The target role + countries line appears only when the sharer turned
+   anonymise off. Funnel bars reuse the .funnel styles; app.js animates them
+   (no inline JS — CSP). #}
+{% block content %}
+<section class="wrap shared-card market-read">
+  <article class="job public-read">
+    <p class="small muted">A JBHNTR market read</p>
+    {% if ready %}
+      <h1>{{ headline }}</h1>
+      {% if context_line %}<p class="muted">{{ context_line }}</p>{% endif %}
+
+      <div class="funnel" aria-label="How one scan narrowed the live market to a shortlist">
+        {% for st in stages %}
+        <div class="funnel-row">
+          <span class="funnel-label">{{ st.label }}</span>
+          <div class="funnel-bar" style="width:{{ st.pct }}%"></div>
+          <span class="funnel-pct">{{ "{:,}".format(st.n) }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="small muted funnel-note">The shortlisted roles are scored both ways: how they fit what the job seeker wants and how the job seeker fits what the employer asks.</p>
+    {% else %}
+      <h1>This market read isn’t ready yet.</h1>
+      <p class="muted">The scan behind it hasn’t finished. Check back in a few minutes.</p>
+    {% endif %}
+
+    <div class="shared-cta">
+      {% if first_scan_free %}
+        <a class="btn" href="{{ cta_url }}">Get your own market read — first scan free</a>
+        <p class="small muted">See how many live roles are actually worth your time. First scan free, no credit card.</p>
+      {% else %}
+        <a class="btn" href="{{ cta_url }}">Get your own market read</a>
+        <p class="small muted">See how many live roles are actually worth your time.</p>
+      {% endif %}
+      {% if ref_disclosed %}
+        <p class="small muted">Sign up from this read and you get {{ referral_friend_credits }} bonus credits; the person who shared it gets credits once you run your first scan.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}

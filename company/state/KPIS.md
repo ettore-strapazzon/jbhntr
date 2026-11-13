@@ -19,3 +19,4 @@ CTO populates `current` from the prod DB + ProductEvent table in cycle 1 and ref
 | **Spend (USD)** | ≤ 1,000 lifetime | — | — | LEDGER.csv |
 | Revenue (USD, paid credits) | — (Phase 2) | — | — | LEDGER.csv |
 | Compute cost / active user | minimise | — | — | CFO model |
+| First-scan rate by meter variant (R3-04 A/B) | meter > control | — | — | `activation.first_scan_rate_by_variant` (ProductEvent) |

@@ -98,5 +98,7 @@ Answer:
 **To unblock the held items:** (a) confirm/drop Indeed's current "Apply-for-Me" status with a dated source; (b) confirm Teal+'s current pricing structure; (c) CFO/CTO owe a dated query on our own match corpus to substantiate the "most value is in the first handful of applications" claim.
 **Reply:** when you want to do the source pass (or "GC drafts the checklist first"). Not blocking — the pages aren't built yet (R3-08).
 
+**Update (2026-11-13, c4) — GC checklist ready, ~45 min, no accounts needed:** (1) in a private window open jobright.ai, simplify.jobs, tealhq.com (incl. pricing), and the LazyApply/AIApply/Sonara/LoopCV home + pricing pages; (2) for each `[VERIFY]` cell in `company/docs/marketing/COMPARE_COPY.md` mark ✓ / ✗ (+ what the site says) / ? and paste the URL; (3) Indeed help centre: search "Apply for me", paste URL + status; (4) Teal: paste the Teal+ price + billing period; (5) LinkedIn User Agreement: paste the current automated-activity sentence; (6) reply with today's date + the list. **Note:** next cycle GC will first do the no-account public-page reads itself (R3-12), so this may shrink to only the cells needing a competitor account — you can wait for that.
+
 Answer:
 

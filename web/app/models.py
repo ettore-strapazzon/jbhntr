@@ -202,6 +202,9 @@ class Search(Base):
     # Minted lazily on first share; NULL means the scan has no public surface.
     share_token: Mapped[str | None] = mapped_column(
         String(32), unique=True, index=True, default=None)
+    # Owner toggle for the public read (ARTEFACTS_SPEC §2.4): anonymised by
+    # default — aggregate counts only; off adds the target role + countries.
+    share_anonymous: Mapped[bool] = mapped_column(Boolean, default=True)
 
     results: Mapped[list["JobResult"]] = relationship(cascade="all, delete-orphan")
 
@@ -245,9 +248,9 @@ class JobResult(Base):
     share_token: Mapped[str | None] = mapped_column(
         String(32), unique=True, index=True, default=None)
     # Owner opt-ins for what the public card shows (ARTEFACTS_SPEC §1.2):
-    # employer defaults on (hide for a stealth search); first name defaults off
-    # and is never shown unless the owner turns it on.
-    share_show_company: Mapped[bool] = mapped_column(Boolean, default=True)
+    # employer defaults OFF (privacy by default, COMPLIANCE_CARD C11/#5); first
+    # name defaults off and is never shown unless the owner turns it on.
+    share_show_company: Mapped[bool] = mapped_column(Boolean, default=False)
     share_show_name: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

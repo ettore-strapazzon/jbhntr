@@ -12,6 +12,10 @@ config/materials/*
 data/*.sqlite
 data/*.jsonl
 data/*.json
+# Cached public-artefact OG PNGs (match card / market read) — per-user, never
+# committed (COMPLIANCE_CARD C11). Old location under /static kept ignored too.
+data/og/
+web/app/static/og/
 
 # Personal profile + target-company list (could name a former employer).
 # Ship the .example versions instead.

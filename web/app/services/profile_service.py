@@ -51,6 +51,13 @@ FIELDS: dict[str, tuple[str, bool]] = {
 }
 
 
+# Share of the completeness score carried by the required fields. Filling every
+# required field lands the score at exactly this number, which is why the
+# activation meter can honestly say "your free scan unlocks at {REQUIRED_WEIGHT}%".
+# The meter copy reads this constant — never a hard-coded "70" (R3-04).
+REQUIRED_WEIGHT = 70
+
+
 @dataclass
 class Completeness:
     missing_required: list[str]
@@ -102,12 +109,12 @@ def completeness(db: Session, user: User) -> Completeness:
     missing_opt = [FIELDS[k][0] for k, (_, req) in FIELDS.items()
                    if not req and not present.get(k)]
 
-    # Required fields carry 70% of the score, optional the remaining 30%.
+    # Required fields carry REQUIRED_WEIGHT% of the score, optional the rest.
     req_keys = [k for k, (_, r) in FIELDS.items() if r]
     opt_keys = [k for k, (_, r) in FIELDS.items() if not r]
     req_hit = sum(1 for k in req_keys if present.get(k)) / len(req_keys)
     opt_hit = sum(1 for k in opt_keys if present.get(k)) / len(opt_keys)
-    score = round(req_hit * 70 + opt_hit * 30)
+    score = round(req_hit * REQUIRED_WEIGHT + opt_hit * (100 - REQUIRED_WEIGHT))
 
     return Completeness(missing_req, missing_opt, score)
 

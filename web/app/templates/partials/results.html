@@ -1,6 +1,19 @@
 {# The result list: count line, grouped cards, long shots, and the empty states.
    Rendered on the page and re-rendered alone by the live filter bar (R7/R16). #}
 {% set has_results = m.groups or m.long_shots %}
+{# R3-02: share this scan's market read (stage funnel) — the selected run, else
+   the latest completed one. Same HTMX pattern as the card Share (no inline JS). #}
+{% set read = m.run or m.latest %}
+{% if read %}
+  <div class="read-share">
+    <span class="small muted">{{ "{:,}".format(read.raw_count or 0) }} roles scanned →
+      {{ "{:,}".format(read.scored_count or 0) }} worth a decision.</span>
+    <button type="button" class="ghost small" hx-post="/search/{{ read.id }}/share"
+            hx-vals='{"source": "matches"}' hx-target="#read-share-{{ read.id }}"
+            hx-swap="innerHTML">Share this market read</button>
+    <div class="share-slot" id="read-share-{{ read.id }}"></div>
+  </div>
+{% endif %}
 {% if not has_results %}
   {% if not m.latest and state.can_search %}
     <section class="emptybox">
