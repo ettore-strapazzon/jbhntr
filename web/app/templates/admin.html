@@ -12,7 +12,7 @@
   <h2>Business metrics <span class="muted small">(counts only · <a href="/admin/metrics.json">JSON</a>)</span></h2>
   <div class="admin-stats">
     {% for key in ["activated", "signups", "activation_rate", "k_factor",
-                   "outcome_events_per_active_user_week", "gate_better",
+                   "outcome_events_per_active_user_week", "gate_better", "gate_much_better",
                    "spend_usd", "revenue_usd"] %}
       {% set x = m[key] %}
       <div class="stat" title="{{ x.formula }}"><b>{{ x.display }}</b><span>{{ x.label }}</span>
@@ -175,6 +175,48 @@
     <input type="email" name="email" placeholder="user@example.com" required
            style="max-width:280px">
     <button type="submit">Clear board</button>
+  </form>
+</div>
+
+{# ===== R3-15 / GC E-2: held referral rewards — weekly human review ===== #}
+<div class="card" id="referral-held-queue">
+  <h2>Held referral rewards <span class="muted small">({{ held_referrals|length }})</span></h2>
+  <p class="small muted">Rewards past the monthly ceiling or held for review (TERMS §6).
+    <b>Unlock</b> returns a reward to pending; it pays on the next nightly release once
+    the delay and triage checks pass. Reviewed weekly at the Monday report.</p>
+  {% if held_referrals %}
+  <table class="small">
+    <thead><tr><th>Reward</th><th>Inviter</th><th>Friend</th><th>Credits</th>
+      <th>Created</th><th>Held</th><th>Reason</th><th></th></tr></thead>
+    <tbody>
+    {% for r in held_referrals %}
+    <tr data-reward-id="{{ r.id }}"><td>#{{ r.id }}</td>
+      <td><a href="/admin/users/{{ r.inviter_id }}">user {{ r.inviter_id }}</a></td>
+      <td><a href="/admin/users/{{ r.friend_id }}">user {{ r.friend_id }}</a></td>
+      <td>{{ r.amount }}</td><td>{{ r.created }}</td><td>{{ r.held }}</td>
+      <td>{{ r.reason }}</td>
+      <td><form method="post" action="/admin/referral-unlock">
+        <input type="hidden" name="reward_id" value="{{ r.id }}">
+        <input type="hidden" name="csrf" value="{{ admin_csrf }}">
+        <button type="submit">Unlock</button></form></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="small muted">No held rewards.</p>
+  {% endif %}
+  <h2 style="margin-top:20px">Hold a pending reward</h2>
+  <p class="small muted">Duplicate or fraud suspicion. Pending reward ids are in
+    <a href="/admin/referral-rewards">/admin/referral-rewards</a>.</p>
+  <form method="post" action="/admin/referral-hold" class="row" style="margin-top:8px">
+    <input type="number" name="reward_id" min="1" step="1" required
+           placeholder="Reward id" aria-label="Reward id" style="max-width:140px">
+    <select name="reason" aria-label="Reason">
+      <option value="review">review</option>
+      <option value="duplicate_suspect">duplicate_suspect</option>
+      <option value="fraud_suspect">fraud_suspect</option></select>
+    <input type="hidden" name="csrf" value="{{ admin_csrf }}">
+    <button type="submit">Hold</button>
   </form>
 </div>
 

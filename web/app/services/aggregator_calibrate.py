@@ -1,123 +1,50 @@
 """Find the age at which an aggregator's links go dead, then purge the dead tail.
 
-careerjet/jooble hand out redirect trackers (jobviewtrack.com etc.) that 404 once
-the underlying job expires. The tracker refuses our datacenter IP (the reaper reads
-it as 'unknown'), so a plain HTTP check can't tell a live recent job from a dead old
-one. But age predicts liveness: careerjet re-lists a job daily while it's open — so
-`last_seen_at` stays fresh — and drops it when it dies, freezing `last_seen_at`.
+Some aggregators hand out redirect trackers that die once the underlying job
+expires, and a plain HTTP check can't tell a live recent job from a dead old one.
+Age predicts liveness: an open job keeps being re-listed (fresh `last_seen_at`),
+a dead one stops. So bucket jobs by days-since-last-seen, sample a few per bucket
+through the engine's tracker check, find the age where the dead rate crosses a
+threshold (two buckets in a row), and delete jobs older than that.
 
-So: bucket jobs by days-since-last-seen, sample a few per bucket through the Bright
-Data Scraping Browser (a residential IP that gets past the bot-wall), find the age
-where the 404 rate crosses a threshold, and delete jobs whose last_seen is older than
-that. No fixed-guess TTL; recent live jobs are kept; there's no whack-a-mole because
-a stale-last_seen job is one careerjet already stopped serving.
+The DB side (buckets, cutoff, purge) is the shell's; which sources, the browser
+check and the dead-landing rule are engine-side (R3-16, ``jbhntr_engine``).
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import random
 from collections import Counter
 from datetime import timedelta
 from urllib.parse import urlparse
 
+from jbhntr_engine import (
+    AGGREGATOR_SOURCES, aggregator_check_configured, aggregator_link_dead,
+    aggregator_link_statuses,
+)
+
 from ..models import Job, aware, utcnow
 
 log = logging.getLogger("jbhntr.calibrate")
 
-_CDP_HOST = "brd.superproxy.io:9222"
-AGG_SOURCES = ("api:careerjet", "api:jooble")
-_DEAD_STATUSES = (404, 410)
+# Which sources hand out trackers, the browser check that reads a tracker's real
+# fate and the "bounced back to the aggregator" rule are engine-side (R3-16).
+AGG_SOURCES = AGGREGATOR_SOURCES
 _DEAD_MIN = 2            # a bucket is "dead" at >= this many dead hits in its sample (>=2/5)
-
-# A dead careerjet/jooble tracker doesn't 404 through a real browser — it bounces the
-# viewer to a "similar jobs" search on one of the aggregator's OWN domains. So landing
-# back on any of these (rather than a real employer/ATS site) means the job is gone.
-_AGG_HOSTS = ("jobviewtrack.com", "careerjet.", "optioncarriere.", "opcionempleo.",
-              "jobrapido.", "jooble.", "whatjobs.", "trovit.", "jobisjob.")
 
 
 def _is_dead(status, final_url: str) -> bool:
-    if status in _DEAD_STATUSES:
-        return True
-    if status is None:
-        return False                    # couldn't load — unknown, not counted dead
-    host = urlparse(final_url or "").netloc.lower()
-    return any(h in host for h in _AGG_HOSTS)
+    return aggregator_link_dead(status, final_url)
 
 
-def _auth() -> str:
-    from jbhntr_engine import Settings
-    return getattr(Settings.from_env(), "brightdata_browser_auth", "") or ""
-
-
-async def _statuses(urls: list[str], auth: str, connections: int = 3) -> dict[str, tuple]:
-    """{url: (final_status, final_url)}. The Bright Data Scraping Browser is one page
-    per CDP session — opening several pages on ONE session errors them all (that's why
-    an earlier run read 214/215 as None). So open a few SEPARATE sessions and let each
-    walk its slice sequentially (fresh page per URL). We keep the final URL because a
-    dead tracker bounces to a 200 aggregator page rather than 404ing; images/media/CSS
-    are blocked to keep Browser bandwidth (=cost) low."""
-    from playwright.async_api import async_playwright
-
-    out: dict[str, tuple] = {}
-
-    async def _block(route):
-        if route.request.resource_type in ("image", "media", "font", "stylesheet"):
-            await route.abort()
-        else:
-            await route.continue_()
-
-    async with async_playwright() as p:
-        async def _worker(chunk: list[str]):
-            try:
-                browser = await p.chromium.connect_over_cdp(f"wss://{auth}@{_CDP_HOST}")
-            except Exception as exc:
-                log.warning("calibrate: CDP connect failed: %s", str(exc)[:160])
-                for u in chunk:
-                    out[u] = (None, "")
-                return
-            try:
-                for u in chunk:
-                    page = await browser.new_page()
-                    page.set_default_navigation_timeout(45000)
-                    try:
-                        try:
-                            await page.route("**/*", _block)
-                        except Exception:
-                            pass
-                        resp = await page.goto(u, wait_until="domcontentloaded")
-                        await page.wait_for_timeout(1000)      # let JS/meta redirects settle
-                        out[u] = ((resp.status if resp else None), page.url)
-                    except Exception:
-                        out[u] = (None, "")
-                    finally:
-                        try:
-                            await page.close()
-                        except Exception:
-                            pass
-            finally:
-                try:
-                    await browser.close()
-                except Exception:
-                    pass
-
-        chunks = [urls[i::connections] for i in range(connections)]
-        await asyncio.gather(*[_worker(c) for c in chunks if c])
-    return out
+def _auth() -> bool:
+    return aggregator_check_configured()
 
 
 def _check(urls: list[str]) -> dict[str, tuple]:
-    """Sync wrapper -> {url: (status, final_url)}. Returns {} if no creds or it fails."""
-    auth = _auth()
-    if not auth or not urls:
-        return {}
-    try:
-        return asyncio.run(_statuses(urls, auth))
-    except Exception as exc:
-        log.warning("calibrate: browser check failed: %s", str(exc)[:200])
-        return {}
+    """{url: (status, final_url)} via the engine's browser check; {} without creds."""
+    return aggregator_link_statuses(urls)
 
 
 def calibrate(db, sources: tuple[str, ...] = AGG_SOURCES,

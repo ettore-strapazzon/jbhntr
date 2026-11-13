@@ -12,14 +12,16 @@ See docs/INGESTION_ENGINE.md → Lane C / §4.
 from __future__ import annotations
 
 import logging
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from jbhntr_engine import ATS_FETCHERS as FETCHERS
-from jbhntr_engine import JobPosting, Settings, load_companies
+from jbhntr_engine import (
+    JobPosting, Settings, is_aggregator_host, is_foreign_tld, load_companies,
+    resolve_company_domain,
+)
 
 from ..config import config
 from ..models import Company, User, aware, utcnow
@@ -147,19 +149,6 @@ def upsert_custom_company(db: DbSession, name: str, domain: str,
                                 source="scraped", user_id=user_id)
 
 
-# Hosts that are NOT an employer's own site — aggregators and their redirect
-# trackers. A corpus URL on one of these gives us no employer domain, so we must
-# fall through to Clearbit resolution instead of mistaking the tracker for the
-# company's website (jobviewtrack.com is careerjet's redirect — the #1 offender).
-_AGGREGATOR_HOSTS = (
-    "careerjet", "jobviewtrack", "adzuna", "jooble", "indeed", "linkedin",
-    "glassdoor", "monster", "totaljobs", "jobrapido", "neuvoo", "talent.com",
-    "ziprecruiter", "simplyhired", "whatjobs", "jobisjob", "trovit", "jobsora",
-    "stepstone", "infojobs", "lever.co", "greenhouse.io", "myworkdayjobs",
-    "bebee", "joblift", "jobtome", "learn4good", "kariera",
-)
-
-
 def _corpus_domain(db: DbSession, company: str) -> str:
     """A best-effort employer domain from a non-aggregator job URL of this company
     (helps the careers-page fallback in verify). Aggregator URLs give no employer
@@ -181,7 +170,7 @@ def _corpus_hints(db: DbSession, company: str) -> tuple[str, str]:
                            .filter(Job.company == company).limit(20)):
         if not domain and url:
             host = urlparse(url or "").netloc.lower().replace("www.", "")
-            if host and not any(a in host for a in _AGGREGATOR_HOSTS):
+            if host and not is_aggregator_host(host):
                 domain = host
         if not code and countries:
             code = str(countries[0] or "").lower()
@@ -190,114 +179,15 @@ def _corpus_hints(db: DbSession, company: str) -> tuple[str, str]:
     return domain, code
 
 
-# ISO country code -> the TLD that market's companies most often use, for domain
-# guessing when the corpus gives us no employer domain (careerjet's thin tail).
-_COUNTRY_TLD = {
-    "it": "it", "fr": "fr", "de": "de", "es": "es", "nl": "nl", "se": "se",
-    "pl": "pl", "pt": "pt", "dk": "dk", "no": "no", "fi": "fi", "at": "at",
-    "ch": "ch", "be": "be", "ie": "ie", "uk": "co.uk", "gb": "co.uk",
-    "br": "com.br", "mx": "com.mx", "ca": "ca",
-}
+# Domain resolution (aggregator-host list, country TLDs, Clearbit lookup, guess
+# and probe order) is engine-side (R3-16): jbhntr_engine.resolve_company_domain /
+# is_foreign_tld / is_aggregator_host. Thin aliases keep the call sites unchanged.
+def _resolve_domain(name: str, code: str) -> str:
+    return resolve_company_domain(name, code)
 
 
 def _foreign_tld(domain: str, code: str) -> bool:
-    """True when a country-targeted resolve landed on a DIFFERENT country's ccTLD
-    (an Italy scrape resolving to gottardo.de / staffspa.co.uk) — a mis-resolution
-    to skip. Generic TLDs (com/io/co/ai…) and the target market's own ccTLD pass."""
-    if not code:
-        return False
-    last = (domain or "").lower().rsplit(".", 1)[-1]
-    if len(last) != 2 or last in ("io", "co", "ai"):   # 2-letter generics aren't ccTLDs
-        return False
-    return last != code.lower()
-
-
-def _guess_domains(name: str, code: str) -> list[str]:
-    """Candidate website domains for a company we have no domain for: the
-    squished name across common TLDs, market TLD first. Best-effort — wrong
-    guesses simply don't resolve or yield no ATS board (verify only accepts a
-    board that actually returns jobs), so there's no false-positive risk."""
-    base = re.sub(r"[^a-z0-9]+", "", (name or "").lower())
-    if len(base) < 2:
-        return []
-    tlds = ["com", "io", "co", "ai"]
-    t = _COUNTRY_TLD.get((code or "").lower())
-    if t and t not in tlds:
-        tlds.insert(0, t)          # a local company is likelier foo.it than foo.com
-    return [f"{base}.{tld}" for tld in tlds]
-
-
-def _live_domain(guesses: list[str]) -> str:
-    """First candidate domain that answers an HTTP request — the company's real
-    site, so verify() can probe its careers page. Short timeout; stops at first."""
-    from jbhntr_engine import http_client
-    for d in guesses:
-        try:
-            with http_client(timeout=6.0) as c:
-                r = c.get(f"https://{d}", follow_redirects=True)
-            if r.status_code < 400:
-                return d
-        except Exception:
-            continue
-    return ""
-
-
-def _clearbit_domains(name: str) -> list[str]:
-    """Free, keyless company-name -> domain suggestions (Clearbit autocomplete),
-    best-match first. This is the real fix for the long tail whose domain doesn't
-    resemble its name (Satispay->satispay.com, not the .it a guess would try).
-    Fail-soft: [] on any error / rate-limit, so we fall back to TLD guessing."""
-    from jbhntr_engine import http_client
-    try:
-        with http_client(timeout=8.0) as c:
-            r = c.get("https://autocomplete.clearbit.com/v1/companies/suggest",
-                      params={"query": name})
-        if r.status_code != 200:
-            return []
-        return [d["domain"] for d in r.json()
-                if isinstance(d, dict) and d.get("domain")]
-    except Exception:
-        return []
-
-
-def _resolve_domain(name: str, code: str) -> str:
-    """Best-effort employer domain for a company we have none for. Ask Clearbit
-    (real, name-matched domains), rank them, append TLD guesses as a fallback, and
-    return the first candidate that actually answers HTTP. '' if none resolve."""
-    # A pinned override wins outright (fixes Clearbit mis-resolutions like
-    # Orienta -> a Malaysian newspaper, Synergie's real site synergie-italia.it).
-    from jbhntr_engine import agency_domain_for as domain_for
-    pinned = domain_for(name, code)
-    if pinned:
-        return pinned
-
-    norm = re.sub(r"[^a-z0-9]+", "", (name or "").lower())
-
-    def _score(dom: str) -> int:
-        base = re.sub(r"[^a-z0-9]+", "", dom.split(".")[0].lower())
-        s = 50 if base == norm else (20 if norm and norm in base else 0)
-        t = _COUNTRY_TLD.get((code or "").lower())
-        if t and dom.endswith("." + t):
-            s += 5
-        return -s
-
-    cands = sorted(_clearbit_domains(name), key=_score) + _guess_domains(name, code)
-    # For an in-country company, try the market-TLD of the COMPANY NAME first
-    # (Orienta -> orienta.it), ahead of Clearbit — whose top hit for an ambiguous
-    # name can be a wrong foreign site (Orienta -> orientaldaily.com.my). A staffing
-    # agency's localised portal (randstad.it) also carries THIS country's jobs.
-    t = _COUNTRY_TLD.get((code or "").lower())
-    if t:
-        name_slug = re.sub(r"[^a-z0-9]+", "", (name or "").lower())
-        if len(name_slug) >= 2:
-            cands = [f"{name_slug}.{t}"] + cands
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for d in cands:
-        if d and d not in seen:
-            seen.add(d)
-            ordered.append(d)
-    return _live_domain(ordered[:6])
+    return is_foreign_tld(domain, code)
 
 
 def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:

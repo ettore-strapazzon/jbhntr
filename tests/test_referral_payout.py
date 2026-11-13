@@ -317,10 +317,126 @@ def test_admin_unlock_route_unlocks_held(db, monkeypatch):
     listed = c.get("/admin/referral-rewards", auth=("admin", "t0k3n-admin-r311"))
     assert listed.status_code == 200
     assert any(x["id"] == rw.id for x in listed.json()["held"])
-    r = c.post("/admin/referral-unlock", data={"reward_id": rw.id},
+    from web.app.routes.admin import admin_csrf_token
+    r = c.post("/admin/referral-unlock",
+               data={"reward_id": rw.id, "csrf": admin_csrf_token()},
                auth=("admin", "t0k3n-admin-r311"), follow_redirects=False)
     assert r.status_code == 303
     assert _reward(db, friend).status == "pending"
+
+
+# ------------------------------------------- R3-15 / GC E-2: held-referral queue
+ADMIN = ("admin", "t0k3n-admin-r315")
+
+
+def _held_and_pending(db, monkeypatch):
+    """One pending reward, then one held past the (zeroed) ceiling."""
+    from web.app.config import config
+    from web.app.services import referral
+    _, f_pending = _pair(db)
+    referral.reward_inviter_if_activated(db, f_pending)
+    monkeypatch.setattr(config, "referral_monthly_ceiling", 0)
+    inviter, f_held = _pair(db)
+    referral.reward_inviter_if_activated(db, f_held)
+    held, pending = _reward(db, f_held), _reward(db, f_pending)
+    assert (held.status, pending.status) == ("held", "pending")
+    return inviter, f_held, held, pending
+
+
+def _row(html, rid):
+    import re
+    m = re.search(rf'<tr data-reward-id="{rid}">(.*?)</tr>', html, re.S)
+    return m.group(1) if m else None
+
+
+def test_admin_queue_renders_held_rows_only(db, monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", ADMIN[1])
+    inviter, f_held, held, pending = _held_and_pending(db, monkeypatch)
+    html = TestClient(app).get("/admin", auth=ADMIN).text
+    assert 'id="referral-held-queue"' in html
+    row = _row(html, held.id)
+    assert row is not None and _row(html, pending.id) is None
+    assert f"/admin/users/{inviter.id}" in row and f"/admin/users/{f_held.id}" in row
+    assert "monthly_ceiling" in row
+    assert held.activated_at.strftime("%Y-%m-%d") in row       # created date
+    assert held.held_at is not None                            # held date stamped
+    assert inviter.email not in row and f_held.email not in row  # ids only, no PII
+
+
+def test_admin_queue_buttons_post_to_unlock_and_hold_routes(db, monkeypatch):
+    import re
+
+    from web.app.config import config
+    from web.app.routes.admin import admin_csrf_token
+    monkeypatch.setattr(config, "admin_token", ADMIN[1])
+    _, f_held, held, pending = _held_and_pending(db, monkeypatch)
+    c = TestClient(app)
+    html = c.get("/admin", auth=ADMIN).text
+    row = _row(html, held.id)
+    assert re.search(r'<form method="post" action="/admin/referral-unlock"', row)
+    assert f'name="reward_id" value="{held.id}"' in row
+    assert f'name="csrf" value="{admin_csrf_token()}"' in row
+    queue = html[html.index('id="referral-held-queue"'):]
+    assert re.search(r'<form method="post" action="/admin/referral-hold"', queue)
+    assert queue.count(f'name="csrf" value="{admin_csrf_token()}"') >= 2
+    # The buttons actually work end to end.
+    tok = admin_csrf_token()
+    r = c.post("/admin/referral-unlock", data={"reward_id": held.id, "csrf": tok},
+               auth=ADMIN, follow_redirects=False)
+    assert r.status_code == 303 and _reward(db, f_held).status == "pending"
+    r = c.post("/admin/referral-hold",
+               data={"reward_id": pending.id, "reason": "duplicate_suspect", "csrf": tok},
+               auth=ADMIN, follow_redirects=False)
+    assert r.status_code == 303
+    db.expire_all()
+    from web.app.models import ReferralReward
+    rw = db.get(ReferralReward, pending.id)
+    assert (rw.status, rw.hold_reason) == ("held", "duplicate_suspect")
+    assert rw.held_at is not None
+    assert _row(c.get("/admin", auth=ADMIN).text, pending.id) is not None
+
+
+def test_admin_queue_and_actions_forbidden_for_non_admin(db, monkeypatch):
+    from web.app.config import config
+    from web.app.routes.admin import admin_csrf_token
+    monkeypatch.setattr(config, "admin_token", ADMIN[1])
+    _, f_held, held, pending = _held_and_pending(db, monkeypatch)
+    c = TestClient(app)
+    for auth in (None, ("admin", "wrong")):
+        page = c.get("/admin", auth=auth)
+        assert page.status_code == 401 and 'referral-held-queue' not in page.text
+        for path, rid in (("/admin/referral-unlock", held.id),
+                          ("/admin/referral-hold", pending.id)):
+            r = c.post(path, data={"reward_id": rid, "csrf": admin_csrf_token()},
+                       auth=auth, follow_redirects=False)
+            assert r.status_code == 401
+    assert (_reward(db, f_held).status, pending.status) == ("held", "pending")
+
+
+def test_admin_actions_reject_missing_csrf_and_cross_site(db, monkeypatch):
+    """Basic-auth credentials ride along on a cross-site form POST, so the
+    actions need their own CSRF proof: the HMAC token and a same-site origin."""
+    from web.app.config import config
+    from web.app.routes.admin import admin_csrf_token
+    monkeypatch.setattr(config, "admin_token", ADMIN[1])
+    _, f_held, held, _p = _held_and_pending(db, monkeypatch)
+    c = TestClient(app)
+    for data, headers in (
+            ({"reward_id": held.id}, {}),                                  # no token
+            ({"reward_id": held.id, "csrf": "forged"}, {}),                # bad token
+            ({"reward_id": held.id, "csrf": admin_csrf_token()},
+             {"Origin": "https://evil.example"}),                          # cross-origin
+            ({"reward_id": held.id, "csrf": admin_csrf_token()},
+             {"Sec-Fetch-Site": "cross-site"})):
+        r = c.post("/admin/referral-unlock", data=data, headers=headers,
+                   auth=ADMIN, follow_redirects=False)
+        assert r.status_code == 403, (data, headers)
+    assert _reward(db, f_held).status == "held"
+    # Token is bound to the admin token: rotating ADMIN_TOKEN invalidates it.
+    old = admin_csrf_token()
+    monkeypatch.setattr(config, "admin_token", "rotated-r315")
+    assert admin_csrf_token() != old
 
 
 def test_nightly_cron_runs_release_stage(monkeypatch):

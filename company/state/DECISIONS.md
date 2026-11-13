@@ -30,3 +30,7 @@ Owner: CEO. Append-only; superseded rows kept and annotated inline.
 | 2026-11-13 | **K-factor definition** for KPIs/Phase-2 gate = referred activated users ÷ all activated users (standard viral coefficient); per-activated-inviter ratio reported alongside | CTO | CEO |
 | 2026-11-13 | **Comparison pages ship** for Jobright, Simplify, auto-apply tools (dated 13 Nov 2026, vendor disclosure on page); Teal waits R-012; Indeed not named | CMO+GC | CEO |
 | 2026-11-13 | **Repo split steps 1–3 done in-repo:** public `jbhntr_engine` = contract + selector (`JBHNTR_ENGINE`, default auto→real); private backend named `jbhntr_engine_real` (+ `jobhunter/`) so a public checkout can never shadow the installed private package; `Settings`/types are public; production (`DEBUG` off) refuses to boot on the demo engine | CTO | CEO |
+| 2026-11-13 | **Gate prompt** (R3-14): asked once per user on /matches after their first triage action (not on first page view); "not now" re-asks once ≥3 days later, then never; gate % shown only from n≥10 answers | CPO | CEO |
+| 2026-11-13 | **Admin POSTs need a CSRF token** because Basic auth is resent cross-site: referral unlock/hold hardened now (HMAC token + origin check), remaining admin forms → R3-17 | CTO | CEO |
+| 2026-11-13 | **Private carve complete** (R3-16): CV prompt, ingest plan tables, domain guessing, extraction, reaper markers and aggregator calibration live in `jbhntr_engine_real`; shell keeps DB-owning code. Split step 4 still needs a Founder go + R-014 | CTO | CEO |
+

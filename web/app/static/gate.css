@@ -1,0 +1,24 @@
+/* R3-14 gate prompt (partials/gate_prompt.html). Uses app.css tokens only. */
+.gate{display:grid;grid-template-columns:1fr auto;gap:8px 16px;align-items:start;
+  padding:14px 16px;margin:0 0 14px;background:var(--surface-raised);
+  border:1px solid var(--border-subtle);border-left:3px solid var(--accent-warm);
+  border-radius:10px}
+.gate fieldset{border:0;margin:0;padding:0;min-width:0}
+.gate-q{font-weight:600;color:var(--text-primary);margin:0 0 10px;padding:0;font-size:15px}
+.gate--done{display:block}
+.gate--done .gate-q{margin:0;font-weight:500}
+.gate-options{display:flex;flex-wrap:wrap;gap:8px}
+.gate-options button{min-height:44px}           /* touch target */
+.gate-later{margin:0;grid-column:2;grid-row:1}
+.gate-link{background:none;border:0;box-shadow:none;padding:4px 0;min-height:44px;
+  color:var(--link);text-decoration:underline;font-size:14px;cursor:pointer}
+.gate-link:hover{color:var(--link-hover);background:none}
+.gate-link:focus-visible,.gate-options button:focus-visible{
+  outline:2px solid var(--focus-ring);outline-offset:2px}
+.gate-note{grid-column:1 / -1;margin:0}
+@media (max-width:560px){
+  .gate{grid-template-columns:1fr}
+  .gate-later{grid-column:1;grid-row:auto}
+  .gate-options{display:grid;grid-template-columns:1fr 1fr}
+  .gate-options button{width:100%}
+}

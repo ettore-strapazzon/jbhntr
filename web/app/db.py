@@ -185,6 +185,7 @@ def _add_missing_columns() -> None:
         "feedback": {"rating": ("INTEGER", ""), "user_score": ("INTEGER", "")},
         "job_states": {"saved_at": ("TIMESTAMP", "")},
         "page_views": {"visitor": ("TEXT", "")},
+        "referral_rewards": {"held_at": ("TIMESTAMP", "")},
     }
     import logging
 

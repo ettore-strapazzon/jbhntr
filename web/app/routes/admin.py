@@ -67,6 +67,49 @@ def require_admin(credentials: HTTPBasicCredentials | None = Depends(_basic)) ->
     return True
 
 
+def admin_csrf_token() -> str:
+    """CSRF token for /admin forms. The admin gate is HTTP Basic, and a browser
+    re-sends cached Basic credentials on a cross-site form POST, so state-changing
+    admin actions need their own proof. Bound to SECRET_KEY and ADMIN_TOKEN:
+    unforgeable without them, and rotating ADMIN_TOKEN invalidates it."""
+    import hashlib
+    import hmac
+    return hmac.new(config.secret_key.encode(),
+                    f"admin-csrf:{config.admin_token}".encode(),
+                    hashlib.sha256).hexdigest()
+
+
+def require_admin_csrf(request: Request, csrf: str = Form("")) -> None:
+    """Reject a forged admin POST: a cross-site Sec-Fetch-Site / foreign Origin,
+    or a missing/wrong admin CSRF token. Use after require_admin."""
+    if request.headers.get("sec-fetch-site", "") == "cross-site":
+        raise HTTPException(status_code=403, detail="Cross-site request refused")
+    origin = request.headers.get("origin")
+    if origin and origin != "null":
+        from urllib.parse import urlsplit
+        if urlsplit(origin).netloc != request.headers.get("host", ""):
+            raise HTTPException(status_code=403, detail="Cross-origin request refused")
+    elif origin == "null":
+        raise HTTPException(status_code=403, detail="Cross-origin request refused")
+    if not (csrf and secrets.compare_digest(csrf, admin_csrf_token())):
+        raise HTTPException(status_code=403, detail="Missing or invalid CSRF token")
+
+
+def _held_referrals(db: DbSession, limit: int = 200) -> list[dict]:
+    """R3-15 / GC E-2: held referral rewards for the human review queue. Ids
+    only (each links to the existing /admin/users page) — no extra PII."""
+    from ..models import ReferralReward
+    out = []
+    for r in (db.query(ReferralReward).filter_by(status="held")
+              .order_by(ReferralReward.activated_at, ReferralReward.id).limit(limit)):
+        held = r.held_at or (r.activated_at if r.hold_reason == "monthly_ceiling" else None)
+        out.append({"id": r.id, "inviter_id": r.inviter_id, "friend_id": r.friend_id,
+                    "amount": r.amount, "reason": r.hold_reason or "review",
+                    "created": r.activated_at.strftime("%Y-%m-%d") if r.activated_at else "",
+                    "held": held.strftime("%Y-%m-%d") if held else "unknown"})
+    return out
+
+
 def _since(days: int):
     return utcnow() - timedelta(days=days)
 
@@ -363,7 +406,8 @@ def admin_dashboard(request: Request, _: bool = Depends(require_admin),
     from ..services import metrics
     ctx = _gather(db)
     return templates.TemplateResponse(request, "admin.html",
-        {"request": request, "reset_msg": reset_msg, "bi": metrics.compute(db), **ctx})
+        {"request": request, "reset_msg": reset_msg, "bi": metrics.compute(db),
+         "held_referrals": _held_referrals(db), "admin_csrf": admin_csrf_token(), **ctx})
 
 
 @router.get("/admin/metrics.json")
@@ -665,7 +709,8 @@ def admin_test_source(name: str = "", _: bool = Depends(require_admin),
     buf = io.StringIO()
     handler = _logging.StreamHandler(buf)
     handler.setLevel(_logging.DEBUG)
-    lg = _logging.getLogger("jobhunter.sources.keyed")
+    from jbhntr_engine import engine_logger
+    lg = engine_logger("keyed_sources")
     prev = lg.level
     lg.setLevel(_logging.DEBUG)
     lg.addHandler(handler)
@@ -731,24 +776,11 @@ def admin_test_domain(name: str = "Satispay", code: str = "it",
     (datacenter IPs are sometimes throttled where a laptop isn't), the parsed
     candidates, TLD guesses, and the final resolved domain + verify() board. Tells
     us if the low resolve rate is Clearbit being blocked server-side."""
-    from jbhntr_engine import http_client
+    from jbhntr_engine import company_domain_debug
 
-    from ..services import companies_service as cs
-
-    raw_status = ""
-    raw = ""
-    try:
-        with http_client(timeout=8.0) as c:
-            r = c.get("https://autocomplete.clearbit.com/v1/companies/suggest",
-                      params={"query": name})
-        raw_status = str(r.status_code)
-        raw = (str(r.json())[:300] if r.status_code == 200 else (r.text or "")[:300])
-    except Exception as exc:
-        raw_status = f"EXCEPTION {type(exc).__name__}: {str(exc)[:160]}"
-
-    clb = cs._clearbit_domains(name)
-    guesses = cs._guess_domains(name, code)
-    resolved = cs._resolve_domain(name, code)
+    d = company_domain_debug(name, code)          # engine-side resolution (R3-16)
+    raw_status, raw = d["lookup_status"], d["lookup_raw"]
+    clb, guesses, resolved = d["lookup_domains"], d["guesses"], d["resolved"]
     board = None
     if resolved:
         from jbhntr_engine import company_slug, verify_company
@@ -759,7 +791,7 @@ def admin_test_domain(name: str = "Satispay", code: str = "it",
     return (f"name = {name!r}  code = {code!r}\n\n"
             f"Clearbit HTTP   : {raw_status}\n"
             f"Clearbit raw    : {raw}\n"
-            f"_clearbit_domains: {clb}\n"
+            f"Clearbit domains: {clb}\n"
             f"tld guesses     : {guesses}\n"
             f"RESOLVED domain : {resolved!r}\n"
             f"verify() board  : {board}\n")
@@ -1031,10 +1063,10 @@ def admin_reprobe_unresolved(_: bool = Depends(require_admin),
     Both are re-resolvable cache, no jobs attached. After this, click Run-resolve."""
     from sqlalchemy import or_
 
-    from ..services.companies_service import _AGGREGATOR_HOSTS
+    from jbhntr_engine import AGGREGATOR_HOSTS
     n_none = (db.query(Company).filter(Company.ats == "none")
               .delete(synchronize_session=False))
-    bad = or_(*[Company.ats_token.ilike(f"%{h}%") for h in _AGGREGATOR_HOSTS])
+    bad = or_(*[Company.ats_token.ilike(f"%{h}%") for h in AGGREGATOR_HOSTS])
     n_bad = (db.query(Company).filter(Company.ats == "custom", bad)
              .delete(synchronize_session=False))
     db.commit()
@@ -1526,6 +1558,7 @@ def admin_referral_rewards(_: bool = Depends(require_admin),
 
 @router.post("/admin/referral-unlock")
 def admin_referral_unlock(_: bool = Depends(require_admin),
+                          _csrf: None = Depends(require_admin_csrf),
                           reward_id: int = Form(...),
                           db: DbSession = Depends(get_session)):
     """Operator action: release a held referral reward back to pending; the
@@ -1542,6 +1575,7 @@ def admin_referral_unlock(_: bool = Depends(require_admin),
 
 @router.post("/admin/referral-hold")
 def admin_referral_hold(_: bool = Depends(require_admin),
+                        _csrf: None = Depends(require_admin_csrf),
                         reward_id: int = Form(...), reason: str = Form("review"),
                         db: DbSession = Depends(get_session)):
     """Operator action: hold a pending referral reward for review (TERMS §6
@@ -1549,6 +1583,8 @@ def admin_referral_hold(_: bool = Depends(require_admin),
     from urllib.parse import quote
 
     from ..services import referral
+    import re
+    reason = reason if re.fullmatch(r"[a-z_]{1,24}", reason or "") else "review"
     ok = referral.hold(db, reward_id, reason)
     record_op("referral_hold", f"reward {reward_id}: {'held' if ok else 'not pending'}")
     msg = (f"Referral reward {reward_id} held for review." if ok

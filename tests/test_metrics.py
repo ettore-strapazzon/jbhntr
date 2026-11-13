@@ -103,7 +103,7 @@ def test_empty_db_counts_are_zero_and_ratios_are_dash(db, no_ledger):
     assert out["signups"]["value"] == 0
     assert out["activated"]["value"] == 0
     for key in ("activation_rate", "k_factor", "outcome_events_per_active_user_week",
-                "gate_better"):
+                "gate_better", "gate_much_better"):
         assert out[key]["value"] is None, key
         assert out[key]["display"] == "—"
         assert out[key]["reason"], key
@@ -256,9 +256,50 @@ def test_first_scan_rate_by_variant_reads_activation_kpi(db, no_ledger):
 
 
 # ------------------------------------------------------------- gate prompt --
-def test_gate_is_dash_until_the_prompt_exists(db, no_ledger):
+def _gate(db, answer=None, dismiss_count=0):
+    from web.app.models import GateAnswer
+    u = _user(db)
+    db.add(GateAnswer(user_id=u.id, answer=answer, dismiss_count=dismiss_count,
+                      answered_at=utcnow() if answer else None))
+    db.commit()
+    return u
+
+
+def test_gate_empty_is_dash_with_reason(db, no_ledger):
+    out = metrics.compute(db, ledger_path=no_ledger)["metrics"]
+    for key in ("gate_better", "gate_much_better"):
+        assert out[key]["value"] is None and out[key]["display"] == "—"
+        assert "no gate answers yet" in out[key]["reason"]
+    assert out["gate_better"]["n"] == 0
+
+
+def test_gate_below_minimum_n_is_dash_but_reports_n(db, no_ledger):
+    for _ in range(metrics.GATE_MIN_N - 1):
+        _gate(db, "much_better")
     m = _m(db, no_ledger, "gate_better")
-    assert m["value"] is None and "not built" in m["reason"]
+    assert m["value"] is None and m["n"] == metrics.GATE_MIN_N - 1
+    assert f"n={metrics.GATE_MIN_N - 1}" in m["reason"]
+    assert str(metrics.GATE_MIN_N) in m["reason"]
+    assert _m(db, no_ledger, "gate_much_better")["value"] is None
+
+
+def test_gate_math_from_real_rows(db, no_ledger):
+    # 4 much_better, 3 better, 2 same, 1 worse = 10 answers
+    for ans, k in (("much_better", 4), ("better", 3), ("same", 2), ("worse", 1)):
+        for _ in range(k):
+            _gate(db, ans)
+    # Unanswered / dismissed prompts are not answers and never enter n.
+    _gate(db, None)
+    _gate(db, None, dismiss_count=2)
+    out = metrics.compute(db, ledger_path=no_ledger)["metrics"]
+    g, mb = out["gate_better"], out["gate_much_better"]
+    assert g["n"] == 10 and mb["n"] == 10
+    assert g["value"] == 0.7 and g["display"] == "70.0%"
+    assert mb["value"] == 0.4 and mb["display"] == "40.0%"
+    assert g["by_answer"] == {"much_better": 4, "better": 3, "same": 2, "worse": 1}
+    assert g["much_better"] == 0.4
+    assert "n=10" in g["label"] and "40.0%" in g["label"]
+    assert g["asked"] == 12 and g["dismissed_for_good"] == 1
 
 
 # -------------------------------------------------------- referral rewards --

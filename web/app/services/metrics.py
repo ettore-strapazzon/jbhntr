@@ -30,10 +30,12 @@ from sqlalchemy.orm import Session
 
 from ..config import ROOT
 from ..models import (
-    JobState, Material, ProductEvent, Profile, ReferralReward, Search,
+    GateAnswer, JobState, Material, ProductEvent, Profile, ReferralReward, Search,
     SeedCompany, User, utcnow,
 )
 from .activation import first_scan_rate_by_variant
+from .gate import ANSWERS as GATE_ANSWER_CHOICES
+from .gate import MAX_ASKS as GATE_MAX_ASKS
 from .profile_service import Completeness, completeness_from, present_from
 from .referral import TRIAGE_EVENTS
 
@@ -45,6 +47,10 @@ SHARE_EVENTS = ("match_card_shared", "market_read_shared")
 OUTCOME_EVENTS = (*TRIAGE_EVENTS, "document_generated", *SHARE_EVENTS)
 REWARD_STATUSES = ("pending", "held", "paid")
 DASH = "—"
+# R3-14 gate tile: below this many answers one reply moves the % by >10 points,
+# so the tile shows "—" with the n rather than a number nobody should act on.
+GATE_MIN_N = 10
+GATE_ANSWERS = tuple(v for v, _ in GATE_ANSWER_CHOICES)
 
 
 # ---------------------------------------------------------------- helpers --
@@ -165,12 +171,42 @@ def compute(db: Session, *, now=None, ledger_path: Path | None = None) -> dict:
         "match_rated event or any JobState row (referral.has_triaged rule); "
         "share = match_card_shared|market_read_shared event", steps=steps)
 
-    # --- gate prompt ---
+    # --- gate prompt (R3-14: services/gate.py, one GateAnswer row per user) ---
+    by_answer = {a: 0 for a in GATE_ANSWERS}
+    asked = dismissed_for_good = 0
+    for ans, dismissed, n in (db.query(GateAnswer.answer,
+                                       GateAnswer.dismiss_count >= GATE_MAX_ASKS,
+                                       func.count(GateAnswer.id))
+                              .group_by(GateAnswer.answer,
+                                        GateAnswer.dismiss_count >= GATE_MAX_ASKS)):
+        asked += int(n)
+        if ans in by_answer:
+            by_answer[ans] += int(n)
+        elif ans is None and dismissed:
+            dismissed_for_good += int(n)
+    gate_n = sum(by_answer.values())
+    pos = by_answer["much_better"] + by_answer["better"]
+    if gate_n == 0:
+        gate_why = "no gate answers yet"
+    elif gate_n < GATE_MIN_N:
+        gate_why = f"n={gate_n} answers, below the {GATE_MIN_N} needed to read a %"
+    else:
+        gate_why = ""
+    better = _ratio(pos, gate_n) if not gate_why else None
+    much = _ratio(by_answer["much_better"], gate_n) if not gate_why else None
+    much_txt = f"{much * 100:.1f}%" if much is not None else DASH
+    gate_extra = {"n": gate_n, "by_answer": by_answer, "asked": asked,
+                  "dismissed_for_good": dismissed_for_good, "min_n": GATE_MIN_N}
     out["gate_better"] = _metric(
-        'Gate: "vs how you search today" better/much-better', None,
-        "answers in (better, much_better) / all gate answers",
-        reason="gate prompt not built yet — no answers are stored (PRD step 7)",
-        fmt="pct")
+        f'Gate "vs how you search today": better+much-better '
+        f'(much-better {much_txt}, n={gate_n})', better,
+        "answers in (much_better, better) / all gate answers; '—' while "
+        f"n < {GATE_MIN_N} (KPI: >=60% better, >=30% much-better)",
+        reason=gate_why, fmt="pct", much_better=much, **gate_extra)
+    out["gate_much_better"] = _metric(
+        f'Gate: much-better (n={gate_n})', much,
+        f"answers = much_better / all gate answers; '—' while n < {GATE_MIN_N}",
+        reason=gate_why, fmt="pct", **gate_extra)
 
     # --- K-factor ---
     referred_activated = {u.id for u in users

@@ -414,3 +414,66 @@ extract_posting = lambda url, page_text, settings: None   # noqa: E731
 
 def resolve_countries(locations: list[str], settings) -> list[str]:
     return [_country_of(loc) for loc in locations]
+
+
+# --- R3-16: demo equivalents of the engine-side heuristics/tables/prompts ----- #
+def structured_cv(materials, job, settings, sections: list[str]) -> dict | None:
+    """No prompt in the demo: None makes the shell fall back to the demo Generator."""
+    return None
+
+
+# No real sources, so nothing is scheduled; fallbacks keep the runner's shape.
+INGEST_PLAN: dict = {
+    "lane_a_aggregators": (), "localized_aggregators": frozenset(),
+    "keyed_settings": {}, "source_cadence": {}, "source_countries": {},
+    "default_terms": ["operations manager", "product manager"],
+    "default_countries": ["United States", "United Kingdom"],
+    "terms_cap": 5, "terms_max": 10, "countries_cap": 2, "countries_max": 4,
+    "agency_markets": 0, "agency_n": 0,
+}
+
+AGGREGATOR_HOSTS: tuple[str, ...] = ()
+AGGREGATOR_SOURCES: tuple[str, ...] = ()
+
+
+def resolve_company_domain(name: str, code: str) -> str:
+    return ""                                         # demo resolves nothing
+
+
+def company_domain_debug(name: str, code: str) -> dict:
+    return {"lookup_status": "demo", "lookup_raw": "", "lookup_domains": [],
+            "guesses": [], "resolved": ""}
+
+
+is_aggregator_host = lambda host: False               # noqa: E731
+is_foreign_tld = lambda domain, code: False           # noqa: E731
+is_unscrapable_url = lambda url: False                # noqa: E731
+is_tracker_url = lambda url: False                    # noqa: E731
+
+
+def extract_job_body(html: str) -> str:
+    """Whole-page text (no JD heuristics in the demo)."""
+    return re.sub(r"\s+", " ", strip_html(html or "")).strip()
+
+
+def classify_link(url: str, client) -> str:
+    """Status-code-only link check: 404/410 gone, 200 active, anything else unknown."""
+    if not url:
+        return "unknown"
+    try:
+        r = client.get(url, follow_redirects=True)
+    except Exception:
+        return "unknown"
+    if r.status_code in (404, 410):
+        return "gone"
+    return "active" if r.status_code == 200 else "unknown"
+
+
+aggregator_check_configured = lambda: False           # noqa: E731
+aggregator_link_statuses = lambda urls: {}            # noqa: E731
+aggregator_link_dead = lambda status, final_url: status in (404, 410)   # noqa: E731
+
+
+def engine_logger(component: str):
+    import logging
+    return logging.getLogger("jbhntr.engine.demo")

@@ -34,6 +34,8 @@ EVENT_NAMES = frozenset({
     "referral_activated",
     # R2-01 — channel attribution (/go/{channel} redirect click)
     "channel_click",
+    # R3-14 — post-scan gate prompt ("vs how you search today")
+    "gate_prompt_shown", "gate_prompt_answered", "gate_prompt_dismissed",
 })
 
 # Property keys that may be stored, all non-identifying and low-cardinality.
@@ -41,6 +43,8 @@ ALLOWED_PROPS = frozenset({
     "kind", "tier", "rating", "source", "count", "n", "step_name", "channel",
     # R3-04 — A/B arm ('meter' | 'control'), so first-scan rate reads per cohort.
     "variant",
+    # R3-14 — gate answer: much_better | better | same | worse (4 values).
+    "answer",
 })
 
 

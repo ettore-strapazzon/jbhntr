@@ -738,5 +738,33 @@ class ReferralReward(Base):
         DateTime(timezone=True), default=utcnow, index=True)
     unlocked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None)
+    held_at: Mapped[datetime | None] = mapped_column(   # R3-15: admin queue date
+        DateTime(timezone=True), default=None)
     released_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None)
+
+
+class GateAnswer(Base):
+    """R3-14 gate prompt: "Compared with how you search for jobs today, this
+    shortlist is: much better / better / about the same / worse".
+
+    One row per user (unique user_id), created the first time the prompt is
+    shown. ``answer`` is NULL until answered and is never overwritten
+    (services/gate.py). ``asks`` counts how many times it has been put to the
+    user (1, or 2 after a "not now" re-ask); ``dismiss_count`` >= 2 means the
+    user is never asked again. Feeds the gate tile in services/metrics.py.
+    """
+
+    __tablename__ = "gate_answers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    answer: Mapped[str | None] = mapped_column(String(16), default=None, index=True)
+    asks: Mapped[int] = mapped_column(Integer, default=1)
+    dismiss_count: Mapped[int] = mapped_column(Integer, default=0)
+    shown_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None)
+    answered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None)

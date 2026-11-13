@@ -61,6 +61,14 @@ def matches_page(request: Request, user: User = Depends(require_user),
     if m is not None and getattr(m, "total", 0):
         from ..services.events import record_once
         record_once(db, "first_shortlist_viewed", user.id)   # once per user
+    # R3-14 gate prompt: only after the first scan has been reviewed (rules in
+    # services/gate.py); rendered by partials/gate_prompt.html.
+    from ..services import gate
+    if gate.prompt_for(db, user.id):
+        from ..auth import COOKIE
+        from ..security import csrf_token
+        ctx["gate"] = {"answers": gate.ANSWERS,
+                       "csrf": csrf_token(request.cookies.get(COOKIE) or "")}
     return templates.TemplateResponse(request, "matches.html", ctx)
 
 

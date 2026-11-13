@@ -103,3 +103,18 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** steps 4–7 of the split need a separate Founder go (after R3-16).
 - **Spend:** none.
 - **Observations:** CTO logged a reusable lesson: a refactor that changes which modules load at startup needs a check in a clean environment built only from the production requirements.
+
+## 2026-11-13 · cycle 8 (gate prompt + held-referral queue + private carve)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 5/10.
+- **Dispatched (foreground, parallel):** CPO (R3-14 gate prompt) · CTO (R3-15 then R3-16). CMO idle (digest filed) · CFO idle (R-006 open) · GC idle (no open GC task).
+- **Results (all accepted):**
+  - CPO → **R3-14**: `services/gate.py` + `routes/gate.py` (`POST /gate`, `/gate/dismiss`), `GateAnswer` table (unique per user, conditional update → second submit 409), partial included once in matches.html (one line, approved), CSP-safe htmx forms, events `gate_prompt_shown/answered/dismissed`, `GATE_PROMPT` kill switch; metrics `gate_better` + new `gate_much_better` with — below n=10. Trigger = first triage action after a completed scan with ≥1 result (first view fires before any card is read). 20 new tests.
+  - CTO → **R3-15**: /admin held-rewards table (user ids only) + Unlock/Hold, new `held_at`, HMAC admin-CSRF + origin check on both referral routes; /invite pending = pending+held reward rows. **R3-16**: six private modules in `jbhntr_engine_real/`, façade 48→64 names with demo equivalents, boundary test 24 tests (9 paste-back mutations + pre-carve HEAD files all trip it), wheel `--verify` OK, clean `requirements-web.txt` venv with `DEBUG=false` → real engine, `/health` 200. Plan §0 updated.
+- **CEO review fixes:** added `gate_much_better` to the /admin tile list (one line).
+- **Test gate (CEO, once, after all agents):** **784 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-17 (CSRF on remaining /admin forms), R3-18 (gate prompt on My Jobs, backlog).
+- **Requests:** **R-014** filed (confirm cron `DEBUG=false`). R-013 (/invite flip) and R-009 (brand accounts) still open.
+- **Blockers:** split step 4 waits Founder go + R-014; outward growth on R-009.
+- **Spend:** none.
+- **Observations:** CTO found a class of bug worth a reusable check: Basic-auth admin panels are CSRF-exposed on every POST form.
+

@@ -21,6 +21,7 @@ from .routes import (
     fields, invite, job, legal, market_read, marketing, matches, onboarding, profile,
     search, share,
 )
+from .routes import gate as gate_routes  # R3-14 post-scan gate prompt
 from .templating import templates
 
 logging.basicConfig(
@@ -143,6 +144,7 @@ app.include_router(onboarding.router)
 app.include_router(fields.router)
 app.include_router(profile.router)
 app.include_router(matches.router)
+app.include_router(gate_routes.router)   # POST /gate, /gate/dismiss (R3-14)
 app.include_router(applications.router)
 app.include_router(documents.router)
 app.include_router(search.router)

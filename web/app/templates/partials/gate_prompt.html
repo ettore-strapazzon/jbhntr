@@ -1,0 +1,32 @@
+{# R3-14 gate prompt — "vs how you search today" (services/gate.py has the rules).
+   Rendered on /matches only when routes/matches.py sets `gate` (first scan
+   reviewed, not answered, not dismissed for good). One tap answers.
+   No inline JS (CSP): works as plain forms; with htmx it swaps in place.
+   `gate_done` renders the thank-you fragment returned to an htmx answer. #}
+{% if gate_done %}
+<section id="gate-prompt-done" class="gate gate--done" role="status" aria-live="polite">
+  <p class="gate-q">Thank you. Your answer goes straight into how we judge whether JBHNTR is earning its place in your search.</p>
+</section>
+{% elif gate %}
+<link rel="stylesheet" href="/static/gate.css?v={{ asset_v }}">
+<section id="gate-prompt" class="gate" aria-labelledby="gate-q">
+  <form method="post" action="/gate" class="gate-form"
+        hx-post="/gate" hx-target="#gate-prompt" hx-swap="outerHTML" hx-sync="this:drop">
+    <input type="hidden" name="csrf" value="{{ gate.csrf }}">
+    <fieldset>
+      <legend class="gate-q" id="gate-q">Compared with how you search for jobs today, this shortlist is:</legend>
+      <div class="gate-options">
+        {% for value, label in gate.answers %}
+          <button type="submit" name="answer" value="{{ value }}" class="ghost btn-sm">{{ label }}</button>
+        {% endfor %}
+      </div>
+    </fieldset>
+  </form>
+  <form method="post" action="/gate/dismiss" class="gate-later"
+        hx-post="/gate/dismiss" hx-target="#gate-prompt" hx-swap="outerHTML" hx-sync="this:drop">
+    <input type="hidden" name="csrf" value="{{ gate.csrf }}">
+    <button type="submit" class="gate-link">Not now</button>
+  </form>
+  <p class="gate-note small muted">One question, asked once. It tells us whether we're worth your time.</p>
+</section>
+{% endif %}

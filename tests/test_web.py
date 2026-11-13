@@ -2080,7 +2080,8 @@ def test_enrich_thin_descriptions_fills_retags_and_reembeds(monkeypatch):
             "<div>Role: Head of Operations. You will lead the ops team, own the P&L, "
             "and build processes across the company. Requirements: 10 years experience.</div>"
             "<footer>Privacy Terms Contact 2026</footer></body></html>")
-    main = enrich_service._extract_main(html)
+    from jbhntr_engine_real import extract as _jd   # engine-side heuristic (R3-16)
+    main = _jd.extract_main(html)
     assert "Head of Operations" in main and "own the P&L" in main
     assert "Login" not in main and "Privacy Terms" not in main and "var a" not in main
 
@@ -2100,7 +2101,8 @@ def test_enrich_thin_descriptions_fills_retags_and_reembeds(monkeypatch):
             "<div>Role: Head of Operations. You will lead the ops team, own the P&L, "
             "and build processes across the company. Requirements: 10 years experience.</div>"
             "<footer>Privacy Terms Contact 2026</footer></body></html>")
-    main = enrich_service._extract_main(html)
+    from jbhntr_engine_real import extract as _jd   # engine-side heuristic (R3-16)
+    main = _jd.extract_main(html)
     assert "Head of Operations" in main and "own the P&L" in main
     assert "Login" not in main and "Privacy Terms" not in main and "var a" not in main
 

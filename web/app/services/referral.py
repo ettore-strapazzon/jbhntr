@@ -124,7 +124,7 @@ def reward_inviter_if_activated(db, friend: User) -> None:
                 .filter(CreditLedger.idempotency_key == _ledger_key(friend.id)).first()):
             rw.status, rw.released_at = "paid", now  # paid under the old rule
         elif this_month >= config.referral_monthly_ceiling:
-            rw.status, rw.hold_reason = "held", "monthly_ceiling"
+            rw.status, rw.hold_reason, rw.held_at = "held", "monthly_ceiling", now
         db.add(rw)
         try:
             db.commit()
@@ -199,11 +199,12 @@ def unlock(db, reward_id: int) -> bool:
 def hold(db, reward_id: int, reason: str = "review") -> bool:
     """Admin: hold a PENDING reward for review (duplicate/fraud suspicion,
     TERMS §6). False if it isn't pending (already paid or held)."""
-    from ..models import ReferralReward
+    from ..models import ReferralReward, utcnow
     rw = db.get(ReferralReward, reward_id)
     if rw is None or rw.status != "pending":
         return False
     rw.status, rw.hold_reason = "held", (reason or "review")[:24]
+    rw.held_at = utcnow()
     db.add(rw)
     db.commit()
     return True

@@ -16,16 +16,17 @@ embedding so the next embed pass re-embeds it with the JD.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DbSession
 
-from jbhntr_engine import JobPosting, deterministic_tags, http_client, strip_html
+from jbhntr_engine import (
+    JobPosting, deterministic_tags, extract_job_body, http_client, is_tracker_url,
+    is_unscrapable_url,
+)
 
 from ..config import config
 from ..models import Job, aware, utcnow
@@ -38,96 +39,23 @@ _DESC_CAP = 20_000    # store at most this much
 _TIMEOUT = 15.0
 _WORKERS = 12
 
-# URLs a plain HTTP fetch can never turn into a JD (measured 0-5% yield): redirect
-# trackers that land on a JavaScript shell, and hosts that 403 every bot. Scraping
-# these just burns our IP — skip them and mark the row done, so the enrich queue
-# holds only URLs that CAN yield a body. Such jobs get a full JD another way: a
-# fuller posting for the same company|title from jsearch/an ATS upgrades the row
-# via the upsert dedup path.
-_DEAD_URL_BITS = (
-    "jobviewtrack.com",   # careerjet redirect tracker -> JS/err (0% measured)
-    "/jobs/land/",        # adzuna land redirect (its /details/ pages still work)
-    "indeed.com", "linkedin.com", "glassdoor.",  # 403 to bots
-)
+# Which URLs can never yield a JD, which are expiring redirect trackers, and how
+# to pull the JD out of a page (JSON-LD first, then chrome-stripped main text) are
+# engine-side heuristics (R3-16): jbhntr_engine.is_unscrapable_url /
+# is_tracker_url / extract_job_body.
+_TRACKER_STALE_DAYS = 14   # a tracker row the feed stopped refreshing is reaped
 
 
 def _is_dead_url(url: str) -> bool:
-    u = (url or "").lower()
-    return any(bit in u for bit in _DEAD_URL_BITS)
-
-
-# Redirect trackers (careerjet/adzuna) that 404 once the underlying job expires —
-# unlike the live boards in _DEAD_URL_BITS (indeed/linkedin/glassdoor), which are
-# real destinations we simply can't scrape. A tracker row the feed has stopped
-# refreshing is a dead link: reap it instead of cementing it as permanently thin,
-# so it stops cluttering the thin/agency views (DATA-cleanup).
-_TRACKER_BITS = ("jobviewtrack.com", "/jobs/land/")
-_TRACKER_STALE_DAYS = 14
+    return is_unscrapable_url(url)
 
 
 def _is_expired_tracker(url: str) -> bool:
-    u = (url or "").lower()
-    return any(bit in u for bit in _TRACKER_BITS)
-
-# Page chrome to drop BEFORE extracting text, so we store the JD rather than the
-# nav/footer/cookie banner (whole-page strip_html was polluting descriptions).
-_CHROME = re.compile(
-    r"(?is)<(script|style|noscript|nav|header|footer|aside|form|svg|template|"
-    r"select|button)\b[^>]*>.*?</\1\s*>")
-_COMMENTS = re.compile(r"(?is)<!--.*?-->")
-
-
-_JSONLD = re.compile(
-    r'(?is)<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>')
-
-
-def _iter_nodes(data):
-    """Walk a JSON-LD document, yielding every dict (through lists and @graph)."""
-    if isinstance(data, list):
-        for x in data:
-            yield from _iter_nodes(x)
-    elif isinstance(data, dict):
-        yield data
-        if "@graph" in data:
-            yield from _iter_nodes(data["@graph"])
-
-
-def _jsonld_description(html: str) -> str:
-    """The `description` of a JobPosting in the page's JSON-LD, if present. This is
-    the reliable path: Google for Jobs makes most postings (ATS + company sites)
-    embed the FULL JD as structured data in the server HTML, so it works even when
-    the visible page is JavaScript-rendered and plain scraping gets nothing."""
-    for m in _JSONLD.finditer(html):
-        try:
-            data = json.loads(m.group(1).strip())
-        except Exception:
-            continue
-        for node in _iter_nodes(data):
-            t = node.get("@type")
-            types = t if isinstance(t, list) else [t]
-            if any(str(x).lower() == "jobposting" for x in types) and node.get("description"):
-                return re.sub(r"\s+", " ", strip_html(str(node["description"]))).strip()
-    return ""
-
-
-def _extract_main(html: str) -> str:
-    """Best-effort main-content text: drop chrome tags, strip the rest, collapse
-    whitespace. Returns "" for a page that's essentially a JavaScript shell (no
-    server-rendered body to read)."""
-    html = _COMMENTS.sub(" ", html)
-    html = _CHROME.sub(" ", html)
-    text = re.sub(r"\s+", " ", strip_html(html)).strip()
-    return text
+    return is_tracker_url(url)
 
 
 def _best_body(html: str) -> str:
-    """Prefer the JSON-LD JobPosting description; fall back to main-content text."""
-    jd = _jsonld_description(html)
-    main = _extract_main(html)
-    # JSON-LD is the cleanest when it's substantial; otherwise take whichever is longer.
-    if len(jd) >= _GOOD_CHARS:
-        return jd
-    return jd if len(jd) >= len(main) else main
+    return extract_job_body(html)
 
 
 def _fetch_body(url: str, timeout: float = _TIMEOUT) -> tuple[str, bool]:

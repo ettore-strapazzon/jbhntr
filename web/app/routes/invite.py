@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session as DbSession
 from ..auth import require_user
 from ..config import config
 from ..db import get_session
-from ..models import CreditLedger, ProductEvent, User
+from ..models import CreditLedger, ReferralReward, User
 from ..services import referral
 from ..services.events import record
 from ..templating import templates
@@ -129,9 +129,10 @@ def counter(db: DbSession, user: User) -> dict:
     signed_up  users whose referred_by_user_id is me
     credited   my `referral_activated` ledger rows keyed referral:{friend_id}
                (invites that actually paid out)
-    pending    referred friends who ran a first scan (scan_completed or the
-               referral_activated event) but have no ledger row yet — inside the
-               R3-11 delay, awaiting a triage action, or held for review
+    pending    my ReferralReward rows in 'pending' or 'held' (GC E-3): inside
+               the R3-11 delay, awaiting a triage action, or held for review.
+               Read from the reward rows, not events, so a failed reward insert
+               never shows as "waiting for checks"
     earned     SUM of my `referral_activated` ledger deltas
     """
     friend_ids = [fid for (fid,) in db.query(User.id)
@@ -140,13 +141,9 @@ def counter(db: DbSession, user: User) -> dict:
             .filter(CreditLedger.user_id == user.id,
                     CreditLedger.reason == "referral_activated").all())
     earned = sum(d for _, d in rows)
-    credited_keys = {k for k, _ in rows}
-    pending = 0
-    if friend_ids:
-        scanned = {uid for (uid,) in db.query(ProductEvent.user_id).filter(
-            ProductEvent.user_id.in_(friend_ids),
-            ProductEvent.name.in_(("scan_completed", "referral_activated"))).distinct()}
-        pending = sum(1 for fid in scanned if f"referral:{fid}" not in credited_keys)
+    pending = (db.query(ReferralReward.id)
+               .filter(ReferralReward.inviter_id == user.id,
+                       ReferralReward.status.in_(("pending", "held"))).count())
     return {"signed_up": len(friend_ids), "credited": len(rows),
             "pending": pending, "earned": int(earned)}
 

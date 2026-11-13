@@ -37,6 +37,12 @@ from jobhunter.sources import browser_sniff as _browser
 from jobhunter.sources import careers_scrape as _careers
 from jobhunter.sources import keyed as _keyed
 
+from . import calibrate as _calibrate
+from . import cv_prompt as _cv
+from . import domains as _domains
+from . import extract as _extract
+from . import ingest_plan as _plan
+from . import link_check as _link
 from . import llm_tasks as _tasks
 from . import panel as _panel
 from . import recover as _recover
@@ -120,3 +126,30 @@ vision_style = _late(_vision, "vision_style")
 resolve_countries = _late(_tasks, "resolve_countries")
 translate_terms = _late(_tasks, "translate_terms")
 extract_posting = _late(_tasks, "extract_posting")
+
+# --- R3-16: engine-side heuristics, tables and prompts carved out of the shell - #
+structured_cv = _late(_cv, "structured_cv")
+INGEST_PLAN = _plan.INGEST_PLAN
+resolve_company_domain = _late(_domains, "resolve_company_domain")
+company_domain_debug = _late(_domains, "company_domain_debug")
+AGGREGATOR_HOSTS = _domains.AGGREGATOR_HOSTS
+is_aggregator_host = _late(_domains, "is_aggregator_host")
+is_foreign_tld = _late(_domains, "is_foreign_tld")
+extract_job_body = _late(_extract, "extract_job_body")
+is_unscrapable_url = _late(_extract, "is_unscrapable_url")
+is_tracker_url = _late(_extract, "is_tracker_url")
+classify_link = _late(_link, "classify_link")
+AGGREGATOR_SOURCES = _calibrate.AGGREGATOR_SOURCES
+aggregator_check_configured = _late(_calibrate, "aggregator_check_configured")
+aggregator_link_statuses = _late(_calibrate, "aggregator_link_statuses")
+aggregator_link_dead = _late(_calibrate, "aggregator_link_dead")
+
+# Engine components whose log output operator diagnostics capture, by role, so
+# the shell never names engine-internal loggers.
+_ENGINE_LOGGERS = {"keyed_sources": "jobhunter.sources.keyed"}
+
+
+def engine_logger(component: str):
+    """The logger an engine component writes to (for admin log capture)."""
+    import logging
+    return logging.getLogger(_ENGINE_LOGGERS.get(component, "jobhunter"))

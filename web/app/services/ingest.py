@@ -23,8 +23,8 @@ import logging
 from collections import Counter
 
 from jbhntr_engine import (
-    AGGREGATORS, BOARD_NAMES, KEYED_MAX_TERMS, KEYED_PROVIDERS, Profile, Settings,
-    fetch_boards, geo,
+    AGGREGATORS, BOARD_NAMES, INGEST_PLAN, KEYED_MAX_TERMS, KEYED_PROVIDERS, Profile,
+    Settings, fetch_boards, geo,
 )
 
 from ..db import SessionLocal
@@ -34,78 +34,24 @@ from .profile_service import COUNTRIES as PICKER_COUNTRIES
 
 log = logging.getLogger("jbhntr.ingest")
 
-# No-key sources that return broadly (Lane A). Boards are added in full below.
-LANE_A_AGGREGATORS = ["adzuna", "remotive", "remoteok", "arbeitnow"]
-# Aggregators worth querying PER COUNTRY with localized role titles (keyword +
-# country search). The others (remotive/remoteok/arbeitnow) are English-language
-# remote-only boards — one global call is enough, localization adds nothing.
-_LOCALIZED_AGGREGATORS = {"adzuna"}
-
-# Lane B — metered/keyed sources: name -> (settings attr that enables it, fn).
-# Each only runs if its key is set, so listing one is harmless when unconfigured.
-# SerpApi (Google-for-Jobs) is included again now its query sends the country +
-# language (gl/hl) — it previously came back empty for the EU because it defaulted
-# to US/English. It is paid + metered, so it runs weekly and stays tightly capped
-# (serpapi_max_terms × serpapi_max_locations).
-KEYED_SOURCES = {
-    "careerjet": ("careerjet_affid", KEYED_PROVIDERS["careerjet"]),
-    "reed": ("reed_key", KEYED_PROVIDERS["reed"]),
-    "web3career": ("web3career_key", KEYED_PROVIDERS["web3career"]),
-    "usajobs": ("usajobs_key", KEYED_PROVIDERS["usajobs"]),
-    "jsearch": ("jsearch_key", KEYED_PROVIDERS["jsearch"]),
-    "serpapi": ("serpapi_key", KEYED_PROVIDERS["serpapi"]),
-    "francetravail": ("france_travail_id", KEYED_PROVIDERS["francetravail"]),   # gov FR, full JD
-    "jobtech": ("jobtech_enabled", KEYED_PROVIDERS["jobtech"]),                 # gov SE, keyless, full JD
-    "bundesagentur": ("bundesagentur_enabled", KEYED_PROVIDERS["bundesagentur"]),  # gov DE, keyless, full JD (detail-fetched)
-}
-# Findwork removed: its links are its own findwork.dev pages, which are
-# profile-gated AND ephemeral (they 404 once the listing rotates), so a user
-# clicking through hits a wall or a dead page. findwork.dev is also on
-# GATED_HOSTS, so any leftover rows get cleaned out.
-
-# The metered ceilings run weekly; everything else daily (§11b).
-SOURCE_CADENCE = {
-    "careerjet": "daily", "reed": "daily",
-    "web3career": "daily", "usajobs": "daily",
-    # JSearch (Google-for-Jobs) is the Italy backbone and now has budget headroom
-    # (10k/mo) — run it daily for fresher continental coverage.
-    "jsearch": "daily", "serpapi": "weekly",
-    "francetravail": "daily", "jobtech": "daily",   # free gov APIs
-    "bundesagentur": "weekly",                       # per-job detail calls -> gentler cadence
-}
-
-# Single-country sources ignore the active-user country set.
-# JSearch (Google-for-Jobs) is NO longer US-only: it's the highest-yield ToS-safe
-# way to pull Italian/continental board content (InfoJobs/Subito/careers pages
-# that Google indexes), so it now runs for the active-user countries.
-SOURCE_COUNTRIES = {
-    "reed": ["United Kingdom"],
-    "usajobs": ["United States"],
-    "francetravail": ["France"],
-    "jobtech": ["Sweden"],
-    "bundesagentur": ["Germany"],
-}
-
-# Fallbacks so a cold corpus (or a user who typed no terms) still ingests
-# something broad. User-derived terms/countries take priority over these.
-DEFAULT_TERMS = [
-    "chief of staff", "business operations", "operations manager",
-    "head of operations", "strategy", "project manager", "product manager",
-    "program manager", "general manager", "founders associate",
-]
-DEFAULT_COUNTRIES = ["United States", "United Kingdom", "Italy", "Germany",
-                     "France", "Spain", "Canada"]
-
-# Floors give a cold/small corpus broad coverage; ceilings bound API-call volume
-# (countries × terms × pages × sources). Between them, EVERY active user's own
-# countries and terms are always included — so a new profile's country/term is
-# ingested from the next run, never crowded out by the defaults.
-TERMS_CAP = 25          # pad user terms up to this with defaults
-TERMS_MAX = 40          # absolute ceiling
-COUNTRIES_CAP = 7       # pad user countries up to this with defaults (the 7 majors)
-COUNTRIES_MAX = 10      # absolute ceiling
-_AGENCY_MARKETS = 7     # top active markets to scrape agency portals for (nightly)
-_AGENCY_N = 10          # top thin-JD companies per market to resolve+scrape
+# The ingestion plan — Lane A/B source lists, enabling settings, cadence per
+# metered quota, single-country providers, cold-corpus fallbacks and volume caps —
+# is engine-side (R3-16): jbhntr_engine.INGEST_PLAN. Same module names as before.
+LANE_A_AGGREGATORS = list(INGEST_PLAN["lane_a_aggregators"])
+_LOCALIZED_AGGREGATORS = set(INGEST_PLAN["localized_aggregators"])
+# Lane B: name -> (settings attr that enables it, provider fn).
+KEYED_SOURCES = {name: (attr, KEYED_PROVIDERS[name])
+                 for name, attr in INGEST_PLAN["keyed_settings"].items()}
+SOURCE_CADENCE = dict(INGEST_PLAN["source_cadence"])
+SOURCE_COUNTRIES = dict(INGEST_PLAN["source_countries"])
+DEFAULT_TERMS = list(INGEST_PLAN["default_terms"])
+DEFAULT_COUNTRIES = list(INGEST_PLAN["default_countries"])
+TERMS_CAP = INGEST_PLAN["terms_cap"]              # pad user terms up to this with defaults
+TERMS_MAX = INGEST_PLAN["terms_max"]              # absolute ceiling
+COUNTRIES_CAP = INGEST_PLAN["countries_cap"]      # pad user countries up to this
+COUNTRIES_MAX = INGEST_PLAN["countries_max"]      # absolute ceiling
+_AGENCY_MARKETS = INGEST_PLAN["agency_markets"]   # top markets for agency portals (nightly)
+_AGENCY_N = INGEST_PLAN["agency_n"]               # top thin-JD companies per market
 
 # code -> display name, built from the picker list so provider locations resolve.
 _CODE_TO_NAME: dict[str, str] = {}

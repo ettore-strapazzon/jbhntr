@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session as DbSession
 
-from jbhntr_engine import JobPosting, deterministic_tags
+from jbhntr_engine import JobPosting, deterministic_tags, is_tracker_url
 
 from ..models import DeadLink, Job, aware, utcnow
 
@@ -39,14 +39,10 @@ def is_gated_url(url: str) -> bool:
 
 
 # Aggregator redirect trackers whose apply URL carries a short-lived token: the stored
-# link 404s within ~a day (careerjet's jobviewtrack is the #1 case). We refresh these to
-# the latest on re-ingest so a re-listed live job keeps a working link.
-_EPHEMERAL_URL_BITS = ("jobviewtrack.com", "/jobs/land/")
-
-
+# link 404s within ~a day. We refresh these to the latest on re-ingest so a re-listed
+# live job keeps a working link. Which URLs are trackers is engine-side (R3-16).
 def _is_ephemeral_url(url: str) -> bool:
-    u = (url or "").lower()
-    return any(b in u for b in _EPHEMERAL_URL_BITS)
+    return is_tracker_url(url)
 
 
 def count_matching(db: DbSession, profile) -> int:

@@ -31,6 +31,7 @@
   </div>
 </div>
 
+{% include "partials/gate_prompt.html" %}{# R3-14 gate prompt; renders only when `gate` is set #}
 {# ---- import & score a job from a link (everyone, priced — IMPORT-01) ---- #}
 {% if not running %}
   <form method="post" action="/matches/import" class="import-bar"

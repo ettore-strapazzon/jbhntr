@@ -161,6 +161,9 @@ class WebConfig:
     # R3-03 /invite page. OFF (route 404s) until R3-11 payout<->terms alignment
     # and GC clearance of the ARTEFACTS_SPEC §3.5 copy land.
     invite_page:             bool = _b("INVITE_PAGE", "false")
+    # R3-14 post-scan gate prompt ("vs how you search today"). ON by default:
+    # it is the Phase-1 gate KPI. GATE_PROMPT=false hides it (kill switch).
+    gate_prompt:             bool = _b("GATE_PROMPT", "true")
     outcome_credits:          int = _int("OUTCOME_CREDITS", 2)
     outcome_details_credits:  int = _int("OUTCOME_DETAILS_CREDITS", 3)
     product_feedback_credits: int = _int("PRODUCT_FEEDBACK_CREDITS", 3)

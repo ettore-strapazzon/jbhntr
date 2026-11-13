@@ -138,3 +138,21 @@ Answer:
 **Reply:** `invite live <time>` or `nightly crashed`.
 
 Answer:
+
+---
+
+### R-014 · Confirm the nightly cron runs in production mode (~3 min, no spend) · open
+**What:** the nightly job refuses to run on the demo engine only when `DEBUG=false` is set on the cron service. The repo can't prove it is set (`railway.cron.json` sets no variables; `config.debug` defaults to true). This must be confirmed before repo-split step 4.
+
+**Steps:**
+1. Railway dashboard → project → the **cron** service (start command `python -m web.app.services.cron`) → **Variables**.
+2. Look for `DEBUG`. If it is `false`, change nothing. If it is missing or `true`: **New Variable** (or edit) → name `DEBUG`, value `false` → Add. Don't put the value in any file or chat.
+3. If you changed it, open Deployments and click **Run now** once.
+
+**Verify:** the latest cron run's logs end with a `nightly done …` line, with no `Refusing to start in production` and no `ENGINE:` warning.
+
+**Roll back:** set `DEBUG` back to its previous value and redeploy.
+
+**Reply:** `cron debug=false confirmed` / `was missing, set` / `run failed: <first error line>`.
+
+Answer:

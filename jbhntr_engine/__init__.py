@@ -78,6 +78,16 @@ BACKEND_API: tuple[str, ...] = (
     # engine-side helpers carved out of web/app/services (step 1 placement)
     "recover_apply_url", "panel_deliberate", "vision_style",
     "resolve_countries", "translate_terms", "extract_posting",
+    # R3-16 carve: engine-side heuristics/tables/prompts that used to sit in the shell
+    "structured_cv",                                         # cv_build prompt
+    "INGEST_PLAN",                                           # ingest lanes/cadence/countries
+    "resolve_company_domain", "company_domain_debug",       # companies_service
+    "AGGREGATOR_HOSTS", "is_aggregator_host", "is_foreign_tld",
+    "extract_job_body", "is_unscrapable_url", "is_tracker_url",   # enrich_service
+    "classify_link",                                         # reaper markers
+    "AGGREGATOR_SOURCES", "aggregator_check_configured",     # aggregator_calibrate
+    "aggregator_link_statuses", "aggregator_link_dead",
+    "engine_logger",                                         # admin diagnostics
 )
 
 # Attributes the shell may use on the capability namespaces.

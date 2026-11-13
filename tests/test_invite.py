@@ -45,12 +45,15 @@ def _cleanup_module_rows():
     user_id-keyed rows of our accounts, then the accounts)."""
     with TestClient(app):          # runs lifespan -> init_db() on a fresh DB
         yield
-    from web.app.models import Base
+    from web.app.models import Base, ReferralReward
     from web.app.models import User
     db = _db()
     try:
         ids = [u.id for u in db.query(User).filter(User.email.like(f"{PREFIX}-%@example.com"))]
         if ids:
+            db.query(ReferralReward).filter(
+                ReferralReward.inviter_id.in_(ids) | ReferralReward.friend_id.in_(ids)
+            ).delete(synchronize_session=False)
             for table in reversed(Base.metadata.sorted_tables):
                 if table.name != "users" and "user_id" in table.c:
                     db.execute(table.delete().where(table.c.user_id.in_(ids)))
@@ -99,12 +102,14 @@ def _events(name, user_id):
         db.close()
 
 
-def _refer(inviter_email, friend_name, scanned=False, credited=False):
+def _refer(inviter_email, friend_name, scanned=False, credited=False, status=None):
     """A friend signed up through the inviter's code. `scanned` = the friend ran a
-    first scan (scan_completed event); `credited` = the payout landed (the ledger
-    row keyed referral:{friend_id}). Written directly, not via the payout path, so
-    this stays independent of the R3-11 delay/hold logic the CTO owns."""
-    from web.app.models import User
+    first scan (scan_completed event + the R3-11 ReferralReward row, 'pending');
+    `credited` = the payout landed (the ledger row keyed referral:{friend_id}, the
+    reward row 'paid'); `status` overrides the reward row's status (e.g. 'held').
+    Written directly, not via the payout path, so this stays independent of the
+    R3-11 delay/hold logic."""
+    from web.app.models import ReferralReward, User
     from web.app.services import referral
     friend_email = signup(_client(), friend_name)
     db = _db()
@@ -117,6 +122,10 @@ def _refer(inviter_email, friend_name, scanned=False, credited=False):
         if scanned:
             from web.app.services.events import record
             record(db, "scan_completed", user_id=friend.id, count=3)
+            db.add(ReferralReward(inviter_id=inviter.id, friend_id=friend.id,
+                                  amount=config.referral_credits,
+                                  status=status or ("paid" if credited else "pending")))
+            db.commit()
         if credited:
             from web.app.services import credits
             credits.grant(db, inviter, config.referral_credits, "referral_activated",
@@ -243,6 +252,38 @@ def test_counter_zero_then_signed_up_then_activated(flag_on):
     assert "3 signed up with your link</p>" in html
     assert "1 waiting for checks." in html
     assert "activated" not in html.lower()
+
+
+def test_counter_pending_reads_reward_rows_not_events(flag_on):
+    """GC E-3: "waiting for checks" counts ReferralReward rows in pending+held,
+    so a scan event whose reward insert failed shows nothing as waiting, and a
+    held reward still counts as waiting."""
+    from web.app.models import ReferralReward
+    from web.app.routes.invite import counter
+    c = _client()
+    email = signup(c, "e3")
+    _refer(email, "e3-f1", scanned=True)                     # pending row
+    _refer(email, "e3-f2", scanned=True, status="held")      # held row
+    _refer(email, "e3-f3", scanned=True, credited=True)      # paid row
+    f4 = _user(signup(_client(), "e3-f4"))                   # event, no reward row
+    db = _db()
+    try:
+        from web.app.services import referral
+        from web.app.services.events import record
+        me = _user(email)
+        assert referral.attach_and_reward_friend(db, db.get(type(me), f4.id),
+                                                 me.referral_code) is not None
+        record(db, "scan_completed", user_id=f4.id, count=3)
+        rows = db.query(ReferralReward).filter(
+            ReferralReward.inviter_id == me.id,
+            ReferralReward.status.in_(("pending", "held"))).count()
+        got = counter(db, me)
+    finally:
+        db.close()
+    assert rows == 2
+    assert got["pending"] == rows
+    assert got["signed_up"] == 4 and got["credited"] == 1
+    assert "2 waiting for checks." in c.get("/invite").text
 
 
 def test_no_other_users_data(flag_on):
