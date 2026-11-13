@@ -27,7 +27,8 @@ from ..config import ROOT
 from ..db import get_session
 from ..models import BoardroomMessage, TeamLogEntry, aware
 from ..templating import templates
-from .admin import require_admin  # reuse the existing admin gate verbatim
+from .admin import (admin_csrf_token, require_admin,  # reuse the admin gate verbatim
+                    require_admin_csrf, require_same_origin)
 
 router = APIRouter()
 
@@ -171,6 +172,7 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
     team_entries, team_agents, team_last_id = _team_feed(db)
     return templates.TemplateResponse(request, "boardroom.html", {
         "request": request,
+        "admin_csrf": admin_csrf_token(),
         "messages": messages,
         "last_id": msgs[-1].id if msgs else 0,
         "goal_html": _html(goal),
@@ -192,6 +194,7 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
 
 @router.post("/boardroom/log")
 async def boardroom_log(request: Request, _: bool = Depends(require_admin),
+                        _xs: None = Depends(require_same_origin),
                         db: DbSession = Depends(get_session)):
     """The VM cycle posts one per-agent activity entry AS it works (form or JSON:
     agent, task, status, summary, cycle). Powers the live 'Live team' feed."""
@@ -237,7 +240,8 @@ def boardroom_doc(path: str, request: Request, _: bool = Depends(require_admin))
 
 
 @router.post("/boardroom/send")
-def boardroom_send(_: bool = Depends(require_admin), body: str = Form(""),
+def boardroom_send(_: bool = Depends(require_admin),
+                   _csrf: None = Depends(require_admin_csrf), body: str = Form(""),
                    db: DbSession = Depends(get_session)):
     """Founder posts a message from the browser form. Blank input is a no-op."""
     body = (body or "").strip()
@@ -292,6 +296,7 @@ def boardroom_pull(_: bool = Depends(require_admin),
 
 @router.post("/boardroom/reply")
 async def boardroom_reply(request: Request, _: bool = Depends(require_admin),
+                          _xs: None = Depends(require_same_origin),
                           db: DbSession = Depends(get_session)):
     """The VM cycle posts a CEO reply (form or JSON `body`)."""
     ctype = request.headers.get("content-type", "")

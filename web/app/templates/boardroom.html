@@ -72,6 +72,7 @@
     <p class="muted" id="thread-empty"{% if messages %} hidden{% endif %}>No messages yet — send the first one below.</p>
     <p class="muted" id="ceo-typing" hidden>CEO is replying…</p>
     <form class="chat" method="post" action="/boardroom/send" id="chat-form">
+      <input type="hidden" name="csrf" value="{{ admin_csrf }}">
       <textarea name="body" rows="3" placeholder="Message the company…" required></textarea>
       <button type="submit">Send</button>
     </form>

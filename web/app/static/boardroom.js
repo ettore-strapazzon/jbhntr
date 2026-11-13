@@ -171,12 +171,15 @@
       if (!text) return;
       var body = new URLSearchParams();
       body.append("body", text);
+      var tok = form.querySelector('input[name="csrf"]');
+      body.append("csrf", tok ? tok.value : "");   // R3-19: send needs the admin CSRF token
       fetch("/boardroom/send", {
         method: "POST",
         body: body,
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       })
-        .then(function () {
+        .then(function (r) {
+          if (!r.ok) throw new Error("send " + r.status);   // don't clear a refused message
           ta.value = "";
           if (typing) typing.hidden = false;
           poll();

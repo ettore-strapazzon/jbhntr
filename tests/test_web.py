@@ -1809,6 +1809,12 @@ def test_boardroom_gated_and_renders(client, monkeypatch):
     assert "company founding" in r.text                          # from CYCLE_LOG cycle 1
 
 
+def _admin_csrf():
+    """R3-19: /boardroom/send needs the admin CSRF token (current admin_token)."""
+    from web.app.routes.admin import admin_csrf_token
+    return admin_csrf_token()
+
+
 def test_boardroom_chat_endpoints(client, monkeypatch):
     """The four chat endpoints are admin-gated; send->pull delivers a founder
     message once (second pull is empty); reply shows on the page."""
@@ -1828,7 +1834,7 @@ def test_boardroom_chat_endpoints(client, monkeypatch):
     assert client.post("/boardroom/reply", data={"body": "x"}).status_code == 401
 
     # Founder sends a message -> 303 back to /boardroom.
-    r = client.post("/boardroom/send", data={"body": "ship the invite page"},
+    r = client.post("/boardroom/send", data={"body": "ship the invite page", "csrf": _admin_csrf()},
                     auth=auth, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/boardroom"
 
@@ -1852,7 +1858,7 @@ def test_boardroom_chat_endpoints(client, monkeypatch):
     assert client.get("/boardroom/pull", auth=auth).json() == []  # reply not pullable
 
     # Blank sends are a no-op; reply with no body is a 400.
-    client.post("/boardroom/send", data={"body": "   "}, auth=auth, follow_redirects=False)
+    client.post("/boardroom/send", data={"body": "   ", "csrf": _admin_csrf()}, auth=auth, follow_redirects=False)
     assert client.get("/boardroom/pull", auth=auth).json() == []
     assert client.post("/boardroom/reply", data={"body": ""}, auth=auth).status_code == 400
 
@@ -1870,9 +1876,9 @@ def test_boardroom_peek_counts_without_consuming(client, monkeypatch):
     assert client.get("/boardroom/peek").status_code == 401      # no creds
 
     assert client.get("/boardroom/peek", auth=auth).json() == {"count": 0}
-    client.post("/boardroom/send", data={"body": "status?"}, auth=auth,
+    client.post("/boardroom/send", data={"body": "status?", "csrf": _admin_csrf()}, auth=auth,
                 follow_redirects=False)
-    client.post("/boardroom/send", data={"body": "approve R-003"}, auth=auth,
+    client.post("/boardroom/send", data={"body": "approve R-003", "csrf": _admin_csrf()}, auth=auth,
                 follow_redirects=False)
     # Two waiting, counted without consuming — peek is idempotent.
     assert client.get("/boardroom/peek", auth=auth).json() == {"count": 2}
@@ -1898,7 +1904,7 @@ def test_boardroom_messages_json_feed(client, monkeypatch):
     base = client.get("/boardroom/messages.json", auth=auth).json()
     base_id = base[-1]["id"] if base else 0
 
-    client.post("/boardroom/send", data={"body": "feed-first"}, auth=auth,
+    client.post("/boardroom/send", data={"body": "feed-first", "csrf": _admin_csrf()}, auth=auth,
                 follow_redirects=False)
     client.post("/boardroom/reply", data={"body": "feed-second"}, auth=auth)
     rows = client.get(f"/boardroom/messages.json?after={base_id}", auth=auth).json()

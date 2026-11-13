@@ -79,18 +79,23 @@ def admin_csrf_token() -> str:
                     hashlib.sha256).hexdigest()
 
 
+def require_same_origin(request: Request) -> None:
+    """Reject a browser cross-site request: Sec-Fetch-Site cross-site/same-site, or
+    an Origin (including the opaque `null`) whose host is not ours. Requests with
+    neither header — curl/script callers — pass unchanged. Use after require_admin."""
+    if request.headers.get("sec-fetch-site", "") in ("cross-site", "same-site"):
+        raise HTTPException(status_code=403, detail="Cross-site request refused")
+    origin = request.headers.get("origin")
+    if origin is not None:
+        from urllib.parse import urlsplit
+        if origin == "null" or urlsplit(origin).netloc != request.headers.get("host", ""):
+            raise HTTPException(status_code=403, detail="Cross-origin request refused")
+
+
 def require_admin_csrf(request: Request, csrf: str = Form("")) -> None:
     """Reject a forged admin POST: a cross-site Sec-Fetch-Site / foreign Origin,
     or a missing/wrong admin CSRF token. Use after require_admin."""
-    if request.headers.get("sec-fetch-site", "") == "cross-site":
-        raise HTTPException(status_code=403, detail="Cross-site request refused")
-    origin = request.headers.get("origin")
-    if origin and origin != "null":
-        from urllib.parse import urlsplit
-        if urlsplit(origin).netloc != request.headers.get("host", ""):
-            raise HTTPException(status_code=403, detail="Cross-origin request refused")
-    elif origin == "null":
-        raise HTTPException(status_code=403, detail="Cross-origin request refused")
+    require_same_origin(request)
     if not (csrf and secrets.compare_digest(csrf, admin_csrf_token())):
         raise HTTPException(status_code=403, detail="Missing or invalid CSRF token")
 
@@ -1081,13 +1086,15 @@ def admin_reprobe_unresolved(_: bool = Depends(require_admin),
             "Clearbit (real domains) instead of the tracker URL.")
 
 
-@router.get("/admin/run-agencies", response_class=PlainTextResponse)
-def admin_run_agencies(country: str = "it", n: int = 25,
-                       _: bool = Depends(require_admin)):
+@router.post("/admin/run-agencies")
+def admin_run_agencies(_: bool = Depends(require_admin),
+                       _csrf: None = Depends(require_admin_csrf),
+                       country: str = Form("it"), n: int = Form(25)):
     """Resolve + scrape the top-N thin-JD companies in a market to their LOCAL portal
     (randstad.it, not randstad.com) and ingest their full-JD openings. Runs in the
     background (big agency sitemaps exceed the web-request limit). Watch the
-    Background job log for the per-company trace + counts. e.g. ?country=it&n=25"""
+    Background job log for the per-company trace + counts. POST + CSRF (R3-20): a GET
+    must never start a job."""
     from urllib.parse import quote
 
     from ..db import SessionLocal

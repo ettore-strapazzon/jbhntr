@@ -98,7 +98,8 @@ def admin(monkeypatch):
 # ---- regression guards: nothing new can ship unguarded ----
 
 def test_there_are_admin_post_routes_to_check():
-    assert len(ROUTES) >= 17, ROUTES
+    assert len(ROUTES) >= 18, ROUTES
+    assert "/admin/run-agencies" in ROUTES      # R3-20: was a job-starting GET
 
 
 def test_every_admin_post_route_enforces_require_admin_csrf():
@@ -120,7 +121,7 @@ def test_every_admin_post_form_in_templates_carries_csrf_field():
             tag = m.group(0)
             if re.search(r'method="post"', tag, re.I) and re.search(r'action="/admin', tag):
                 forms.append((path.name, tag))
-    assert len(forms) >= 17
+    assert len(forms) >= 18
     bad = [re.search(r'action="([^"]+)"', t).group(1) for _, t in forms
            if '<input type="hidden" name="csrf" value="{{ admin_csrf }}">' not in t]
     assert not bad, f"admin POST forms without the hidden csrf field: {bad}"
@@ -200,3 +201,45 @@ def test_forged_grant_credits_changes_no_balance(admin):
         db.query(User).filter(User.id == user.id).delete()
         db.commit()
         db.close()
+
+
+# ---- R3-20: a GET must never start a background job ----
+
+def _admin_get_routes() -> list[APIRoute]:
+    return [r for path, r in _api_routes(app.routes)
+            if path.startswith("/admin") and "GET" in r.methods]
+
+
+def test_no_admin_get_route_starts_a_background_thread():
+    """Static guard: no GET /admin handler spawns a thread (jobs are POST + CSRF)."""
+    import inspect
+    gets = _admin_get_routes()
+    assert len(gets) >= 15, [r.path for r in gets]
+    offenders = [r.path for r in gets if "threading.Thread" in inspect.getsource(r.endpoint)]
+    assert not offenders, f"GET admin routes that start a background job: {offenders}"
+
+
+def test_get_run_agencies_is_405_and_starts_no_job(monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", ADMIN[1])
+    started = []
+    monkeypatch.setattr(admin_mod, "threading", SimpleNamespace(
+        Thread=lambda *a, **k: SimpleNamespace(start=lambda: started.append(k))))
+    r = TestClient(app).get("/admin/run-agencies?country=it&n=25", auth=ADMIN,
+                            follow_redirects=False)
+    assert r.status_code == 405, r.status_code
+    assert started == []
+
+
+def test_post_run_agencies_with_token_starts_one_job_for_the_country(monkeypatch):
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", ADMIN[1])
+    started = []
+    monkeypatch.setattr(admin_mod, "threading", SimpleNamespace(
+        Thread=lambda *a, **k: SimpleNamespace(start=lambda: started.append(k))))
+    r = TestClient(app).post("/admin/run-agencies", auth=ADMIN, follow_redirects=False,
+                             data={"country": "de", "n": "10",
+                                   "csrf": admin_mod.admin_csrf_token()})
+    assert r.status_code == 303
+    assert "de" in r.headers["location"]
+    assert len(started) == 1

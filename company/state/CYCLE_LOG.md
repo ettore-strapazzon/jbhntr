@@ -130,3 +130,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014.
 - **Spend:** none.
 - **Observations:** CTO lesson worth reusing: a route-enumeration guard test must count what it checked, because framework changes can make it silently iterate zero routes.
+
+## 2026-11-13 · cycle 10 (boardroom CSRF + GET job trigger closed)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 7/10.
+- **Dispatched (foreground):** CTO (R3-19 then R3-20, one agent: both touch admin/boardroom routes). CPO idle (R3-18 optional backlog) · CMO idle (digest filed) · CFO idle (R-006 open) · GC idle (no open GC task).
+- **Result (accepted):** CTO → **R3-19**: new `require_same_origin` (403 on `Sec-Fetch-Site` cross-site/same-site or a foreign/`null` Origin; header-less script calls pass) now under `require_admin_csrf`; `/boardroom/send` gets token (template field + `boardroom.js` sends it, keeps the text on a refused send); `/boardroom/log` + `/reply` get the origin check; 401 still before 403; `tests/test_boardroom_csrf.py` pins the CEO live-log curl request shape. **R3-20**: `/admin/run-agencies` POST + token, admin button is a form, GET → 405, admin POST floor 17→18, test that no admin GET handler starts a thread.
+- **CEO review:** host-compare logic is the already-deployed c8/c9 code (only `same-site` + `null` tightening new); JS edit necessary. No fixes needed.
+- **Test gate (CEO, once):** **948 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-21 (`GET /admin/reprobe-unresolved` deletes rows → POST; `GET /boardroom/pull` consumes messages → origin check; `/admin/test-*` review).
+- **Requests:** none new. R-009 (brand accounts), R-013 (/invite flip), R-014 (cron DEBUG check) still open.
+- **Blockers:** outward growth on R-009; split step 4 on Founder go + R-014.
+- **Spend:** none.
+- **Observations:** CTO logged obs 0004 — adding a CSRF field to a form misses JS that posts the same endpoint with its own body; check JS submitters too. Skill-observation review never run (4 open) — offer stands.
