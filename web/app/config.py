@@ -54,6 +54,9 @@ class WebConfig:
     # --- limits (the levers that protect the AI bill) ---
     # Free is a lifetime allowance; Premium document allowances are per calendar
     # month. All numbers are config-driven so copy never hard-codes them.
+    # premium_cvs/cover_letters_monthly are the LEGACY Premium doc allowance, still
+    # read by doc_quota for is_premium users; Phase-2 Plus replaces it with a
+    # 100-credit monthly grant (plus_plan below) — retire them with that wiring.
     free_searches: int = _int("FREE_SEARCHES", 3)
     free_cvs: int = _int("FREE_CVS", 3)                    # lifetime, per distinct job
     free_cover_letters: int = _int("FREE_COVER_LETTERS", 3)
@@ -232,12 +235,18 @@ class WebConfig:
     # if it differs; blank hides the link.
     repo_url: str = os.environ.get("REPO_URL", "https://github.com/ettore-strapazzon/jbhntr")
 
-    # Premium pricing (display only until payments are switched on).
-    plans: tuple[dict, ...] = field(default_factory=lambda: (
-        {"months": 1, "usd": 30, "label": "1 month"},
-        {"months": 2, "usd": 50, "label": "2 months", "note": "save $10"},
-        {"months": 3, "usd": 60, "label": "3 months", "note": "best value"},
+    # Phase-2 pricing (R3-09) — the chosen model in company/docs/finance/BUDGET.md
+    # §6. DATA ONLY: nothing renders or charges it while payments_enabled is off
+    # (tests/test_pricing_config.py keeps it out of templates). Packs and Plus are
+    # credit grants, not the legacy premium_* monthly doc allowance above.
+    credit_packs: tuple[dict, ...] = field(default_factory=lambda: (
+        {"name": "Starter", "credits": 50, "usd": 12},
+        {"name": "Value", "credits": 150, "usd": 30, "anchor": True},
+        {"name": "Pro", "credits": 400, "usd": 60},
     ))
+    plus_plan: dict = field(default_factory=lambda: {
+        "name": "JBHNTR Plus", "usd_month": 15, "usd_year": 150, "credits_month": 100,
+    })
 
     def validate(self) -> list[str]:
         """Problems that must be fixed before running in production."""

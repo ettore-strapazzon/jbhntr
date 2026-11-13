@@ -106,6 +106,160 @@ def test_fail_stuck_searches_recovers_and_refunds(client):
         db.close()
 
 
+# R3-24: the status poll reaps only the caller's own stuck scan; the global
+# sweep is left to boot + the nightly cron.
+def _stuck_paid_search(db, user, minutes_ago=30):
+    import datetime as _dt
+
+    from web.app.models import Search, utcnow
+    from web.app.services import credits
+    s = Search(user_id=user.id, status="running", stage="Scoring…",
+               started_at=utcnow() - _dt.timedelta(minutes=minutes_ago))
+    db.add(s); db.flush()
+    credits.grant(db, user, 2, "admin_grant", idempotency_key=f"r324-grant:{s.id}")
+    debit = credits.debit(db, user, 2, "search", ref_type="search", ref_id=str(s.id),
+                          idempotency_key=f"search:{s.id}")
+    db.commit()
+    return s, debit
+
+
+def _drop_r324_rows(db, *searches):
+    """Delete just the ledger + search rows these tests added: the SQLite DB is
+    shared across test files, and a leftover `search:{id}` key would collide with
+    another file's literal idempotency keys (e.g. test_credits' `search:1`)."""
+    from web.app.models import CreditLedger, Search
+    try:
+        db.rollback()
+        ids = [s.id for s in searches]
+        db.query(CreditLedger).filter(CreditLedger.ref_type == "search",
+                                      CreditLedger.ref_id.in_([str(i) for i in ids])
+                                      ).delete(synchronize_session=False)
+        db.query(CreditLedger).filter(CreditLedger.idempotency_key.in_(
+            [f"r324-grant:{i}" for i in ids])).delete(synchronize_session=False)
+        db.query(Search).filter(Search.id.in_(ids)).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _refunds(db, debit):
+    from web.app.models import CreditLedger
+    return db.query(CreditLedger).filter(
+        CreditLedger.idempotency_key == f"refund:{debit.id}").count()
+
+
+def test_status_poll_reaps_only_my_own_stuck_search(client):
+    signup(client, email="r324-other@example.com")
+    signup(client, email="r324-me@example.com")          # the client is now "me"
+    from web.app.db import SessionLocal
+    from web.app.models import Search, User
+    from web.app.services.search_service import fail_stuck_searches
+    db = SessionLocal()
+    try:
+        me = db.query(User).filter_by(email="r324-me@example.com").one()
+        other = db.query(User).filter_by(email="r324-other@example.com").one()
+        mine, my_debit = _stuck_paid_search(db, me)
+        theirs, their_debit = _stuck_paid_search(db, other)
+
+        r = client.get(f"/search/{mine.id}/status")
+        assert r.status_code == 200
+        db.expire_all()
+        # Another user's stuck scan is NOT touched by my poll.
+        assert db.get(Search, theirs.id).status == "running"
+        assert _refunds(db, their_debit) == 0
+        # Mine IS reaped and refunded exactly once, even if I keep polling.
+        assert db.get(Search, mine.id).status == "failed"
+        assert _refunds(db, my_debit) == 1
+        client.get(f"/search/{mine.id}/status")
+        assert _refunds(db, my_debit) == 1
+
+        # The global sweep still reaps the other user's scan; racing it with the
+        # per-search reap never double-refunds either row.
+        assert fail_stuck_searches(db, older_than_minutes=15) >= 1
+        db.expire_all()
+        assert db.get(Search, theirs.id).status == "failed"
+        assert _refunds(db, their_debit) == 1
+        assert _refunds(db, my_debit) == 1
+        fail_stuck_searches(db)
+        assert _refunds(db, their_debit) == 1 and _refunds(db, my_debit) == 1
+    finally:
+        _drop_r324_rows(db, mine, theirs)
+        db.close()
+
+
+def test_status_poll_leaves_a_young_running_scan_alone(client):
+    signup(client, email="r324-young@example.com")
+    from web.app.db import SessionLocal
+    from web.app.models import Search, User
+    db = SessionLocal()
+    try:
+        me = db.query(User).filter_by(email="r324-young@example.com").one()
+        s, debit = _stuck_paid_search(db, me, minutes_ago=1)
+        client.get(f"/search/{s.id}/status")
+        db.expire_all()
+        assert db.get(Search, s.id).status == "running" and _refunds(db, debit) == 0
+    finally:
+        _drop_r324_rows(db, s)
+        db.close()
+
+
+def test_reap_claims_a_stuck_search_once_even_from_a_stale_read():
+    """Two reapers that both read the row as 'running' (per-search poll vs the
+    global sweep, or two web workers): only the conditional update that flips it
+    wins, so the first-scan slot / refund is undone once — a stale second reaper
+    must not reset a free-scan slot the user has since used again."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User, utcnow
+    from web.app.services import credits
+    from web.app.services.search_service import reap_stuck_search
+    init_db()
+    a, b = SessionLocal(), SessionLocal()
+    try:
+        u = User(email="r324-race@example.com"); a.add(u); a.commit()
+        s = Search(user_id=u.id, status="running", started_at=utcnow())
+        a.add(s); a.flush()
+        u.first_scan_used_at = utcnow()
+        credits.record(a, u, "first_scan_free", ref_type="search", ref_id=str(s.id))
+        a.commit()
+        stale = b.get(Search, s.id)                  # reaper B reads 'running' ...
+        assert stale.status == "running"
+
+        assert reap_stuck_search(a, s.id) is True    # ... reaper A wins
+        a.refresh(u)
+        assert u.first_scan_used_at is None
+        u.first_scan_used_at = utcnow(); a.commit()  # user re-runs the free scan
+
+        assert reap_stuck_search(b, stale.id) is False   # B loses the claim
+        a.refresh(u)
+        assert u.first_scan_used_at is not None      # slot not handed out twice
+    finally:
+        b.close()
+        _drop_r324_rows(a, s)
+        a.close()
+
+
+def test_nightly_cron_sweeps_stuck_searches_but_not_live_ones():
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services import cron
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="r324-cron@example.com"); db.add(u); db.commit()
+        old, debit = _stuck_paid_search(db, u, minutes_ago=60)
+        live, live_debit = _stuck_paid_search(db, u, minutes_ago=1)
+        out = {}
+        cron._stage(out, "stuck_searches", cron._reap_stuck_searches)
+        assert out["stuck_searches"] >= 1
+        db.expire_all()
+        assert db.get(Search, old.id).status == "failed" and _refunds(db, debit) == 1
+        # A scan still running in the web process is not the cron's to kill.
+        assert db.get(Search, live.id).status == "running" and _refunds(db, live_debit) == 0
+    finally:
+        _drop_r324_rows(db, old, live)
+        db.close()
+
+
 def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     signup(client, email="f09@example.com")
     from web.app.db import SessionLocal

@@ -451,9 +451,14 @@ ALLOWED_GET_WRITES = {
     # R3-23 helper-hidden finds:
     "/fields/corpus-count": "fields._profile lazily creates the signed-in user's own "
                             "empty Profile row (idempotent backfill, same as POSTs)",
-    "/search/{search_id}/status": "search_service.fail_stuck_searches: live safety net "
-                                  "for scans stuck >15 min (idempotent fail + refund); "
-                                  "only runs while the user's own scan is running",
+    # R3-24: narrowed from the global sweep to the caller's own row. Still a write
+    # on GET by design — the poller is the only thing watching a hung scan between
+    # nightly sweeps — but scoped by search id AND user id, gated by the 15-min age,
+    # and claimed by a conditional UPDATE so it fails + refunds at most once.
+    "/search/{search_id}/status": "search_service.reap_stuck_search: fails + refunds "
+                                  "the CALLER'S OWN scan only (id + user_id scoped), "
+                                  "once stuck >15 min; conditional-update claim, "
+                                  "idempotent refund",
 }
 GATED_VIEWS = {"/m/{token}", "/r/{token}", "/go/{channel}", "/invite"}
 
@@ -495,8 +500,19 @@ def test_public_get_write_detector_is_not_vacuous():
     assert "self" not in hits
     assert set(hits[f"{__name__}._synthetic_hidden_write"]) == {".add(", ".commit("}
     assert "web.app.routes.fields._profile" in _writes(fields.corpus_count)
-    assert ("web.app.services.search_service.fail_stuck_searches"
+    assert ("web.app.services.search_service.reap_stuck_search"
             in _writes(search.status))            # a function-local import is followed
+
+
+def test_status_poll_never_reaches_the_global_stuck_sweep():
+    """R3-24: a user's status poll must not run the all-users reaper (it would
+    fail + refund other users' scans); that sweep belongs to boot + the cron."""
+    from tests.get_write_scan import direct_callees
+    from web.app.routes import search
+    from web.app.services import search_service
+    callees = direct_callees(search.status)
+    assert search_service.reap_stuck_search in callees
+    assert search_service.fail_stuck_searches not in callees
 
 
 def test_not_a_write_exemptions_are_still_needed():

@@ -13,15 +13,11 @@ from ..config import config
 from ..db import get_session
 from ..models import Document, Feedback, JobResult, Search, User
 from ..services.profile_service import completeness
-from ..services.search_service import QuotaError, start_search
+from ..services.search_service import STUCK_SEARCH_MINUTES, QuotaError, start_search
 from ..templating import templates
 
 log = logging.getLogger("jbhntr.search")
 router = APIRouter()
-
-# A real scan takes a few minutes; past this a 'running' search is treated as a
-# hung/killed worker and recovered by the status poller.
-STUCK_SEARCH_MINUTES = 15
 
 
 from urllib.parse import quote
@@ -84,10 +80,12 @@ def status(search_id: int, request: Request, user: User = Depends(require_user),
     if not search or search.user_id != user.id:   # ownership check
         return HTMLResponse("", status_code=404)
     # Live safety net: a scan whose worker thread hung (or died without a restart)
-    # is recovered after a generous timeout so the poller stops spinning.
+    # is recovered after a generous timeout so the poller stops spinning. Only the
+    # caller's OWN row (R3-24) — the global sweep runs at boot and in the cron.
     if search.status in ("running", "queued"):
-        from ..services.search_service import fail_stuck_searches
-        if fail_stuck_searches(db, older_than_minutes=STUCK_SEARCH_MINUTES):
+        from ..services.search_service import reap_stuck_search
+        if reap_stuck_search(db, search.id, user_id=user.id,
+                             older_than_minutes=STUCK_SEARCH_MINUTES):
             db.refresh(search)
     if search.status in ("done", "failed"):
         # Tell HTMX to reload the page so results render.

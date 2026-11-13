@@ -183,3 +183,16 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - 2026-11-13 · idle, skipped (re-check): daily cap 10/10 still reached; no "doing" tasks, no new Founder orders. Next eligible: R3-24 / R3-09 on 2026-11-14.
 - 2026-11-13 · idle, skipped (re-check): daily cap 10/10 still reached; no "doing" tasks, no new Founder orders. Next eligible: R3-24 / R3-09 on 2026-11-14.
 - 2026-11-13 · idle, skipped (re-check): daily cap 10/10 still reached; no "doing" tasks, no new Founder orders. Next eligible: R3-24 / R3-09 on 2026-11-14.
+
+## 2026-11-14 · cycle 14 (stuck-scan reaper scoped + Phase-2 prices in config)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 1/10.
+- **Dispatched (foreground):** CTO (R3-24, then R3-09). CMO/CPO/CFO/GC idle: no unblocked task in R3. Outward growth waits on R-009 and R-013.
+- **Result (accepted):** CTO → **R3-24**: `GET /search/{id}/status` now calls `reap_stuck_search(search.id, user_id=caller)`, so a poll touches only the caller's own scan and only after 15 minutes. `fail_stuck_searches` is now a loop over it, at boot (no age filter, unchanged) and in a new nightly `stuck_searches` cron stage (15-minute age filter, since the cron is a separate process). The status flip is a conditional UPDATE, so exactly one reaper claims a row and only that one refunds. This also closes a stale-read path that could hand back a second free first scan. The GET-write allowlist entry is narrowed (own row only) rather than removed, which is honest because the poll still writes. A new test forbids the route from calling the global sweep. **R3-09** (display/config part): the unused `plans` setting ($30/50/60 per month) is replaced by `credit_packs` + `plus_plan`, taken from BUDGET §6. The dead `_compare.html` Free/Premium table is deleted (nothing included it). A test stops any template rendering prices. `premium_*` is kept because `doc_quota` still uses it. **Grant-wiring plan (→ R3-27):** payment-id-keyed `pack_purchase` grants; Plus subscription with a monthly 100-credit grant keyed by user+month; `is_premium` from active Plus; retire `premium_*`; all behind `payments_enabled` + the EU withdrawal ack + a Founder request for a payment provider.
+- **CEO review:** diff read (search service, status route, cron, config, tests). Checked that `_set` had no side effects lost by the switch to a bulk UPDATE, and that no template or code read `plans` or `_compare.html` (the `.plans` CSS class is unrelated). No fixes needed.
+- **Test gate (CEO, once):** **1117 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-25 (worker must not overwrite a reaped scan with 'done'), R3-26 (boot sweep vs more than one instance, low priority), R3-27 (Phase-2 credit grants).
+- **Requests:** none new. R-009 (brand accounts), R-013 (/invite flip), R-014 (cron DEBUG check) still open.
+- **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
+- **Spend:** none.
+- **Observations:** the CTO logged obs 0006 (new tests leaked ledger rows into the shared SQLite DB and broke `test_credits` only in combination). The skill-observation review has never been run (6 open), and the offer stands.
+

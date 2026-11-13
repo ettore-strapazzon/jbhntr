@@ -84,6 +84,10 @@ def nightly(today: datetime.date | None = None) -> dict:
     # session, so an OOM/crash in the heavy ingest/enrich/reaper stages below can
     # never skip a night's payouts (the "two to three days" promise on /invite).
     _stage(out, "referral_released", _release_referrals)
+    # R3-24: the global stuck-scan sweep (fail + refund) lives here and at boot,
+    # not on a user's status poll. Age-filtered: the cron is a separate process, so
+    # a young 'running' row may be a live thread in the web process.
+    _stage(out, "stuck_searches", _reap_stuck_searches)
 
     if is_weekly:
         _stage(out, "discover", lambda: ingest_run("discover"))
@@ -122,6 +126,17 @@ def nightly(today: datetime.date | None = None) -> dict:
 
     log.info("nightly done (weekly=%s): %s", is_weekly, out)
     return out
+
+
+def _reap_stuck_searches() -> int:
+    """Fail + refund every user's scan stuck longer than the poller's timeout."""
+    from ..db import SessionLocal
+    from .search_service import STUCK_SEARCH_MINUTES, fail_stuck_searches
+    db = SessionLocal()
+    try:
+        return fail_stuck_searches(db, older_than_minutes=STUCK_SEARCH_MINUTES)
+    finally:
+        db.close()
 
 
 def _release_referrals() -> int:

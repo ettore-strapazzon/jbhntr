@@ -27,6 +27,10 @@ from .profile_service import (
 
 log = logging.getLogger("jbhntr.search")
 
+# A real scan takes a few minutes; past this a 'running' search is treated as a
+# hung/killed worker and recovered by the status poller and the nightly sweep.
+STUCK_SEARCH_MINUTES = 15
+
 MAX_RESULTS_STORED = 60   # tier 1-3 shown; scoring already filters hard
 MAX_LONGSHOTS = 15        # tier-4 "long shots", shown in a collapsed section
 
@@ -110,41 +114,67 @@ def start_search(db: DbSession, user: User, free: bool = False) -> Search:
 
 # --------------------------------------------------------------------------- #
 def fail_stuck_searches(db: DbSession, older_than_minutes: int | None = None) -> int:
-    """Recover scans left 'running'/'queued' by an interrupted worker.
+    """Global sweep: recover EVERY user's scans left 'running'/'queued' by an
+    interrupted worker.
 
     A scan runs in a daemon thread inside the web process, so a deploy or restart
     kills it mid-run with no exception — stranding the Search row forever and the
     progress poller with it. At boot every such row is an orphan (threads don't
     survive a restart), so this is called with no age filter in the app lifespan;
-    the status poller also calls it with a timeout to recover a thread that hung
-    without the process dying. Each row is marked failed and its charge undone
-    (refund a paid scan — idempotent — or free the first-scan slot)."""
+    the nightly cron calls it with a timeout to catch a thread that hung without
+    the process dying. A user's status poll does NOT call this — it reaps only its
+    own row via `reap_stuck_search` (R3-24). Returns the number of rows reaped."""
+    q = db.query(Search.id).filter(Search.status.in_(("running", "queued")))
+    if older_than_minutes is not None:
+        q = q.filter(Search.started_at < utcnow() - timedelta(minutes=older_than_minutes))
+    n = sum(reap_stuck_search(db, sid, older_than_minutes=older_than_minutes)
+            for (sid,) in q.all())
+    if n:
+        log.info("Recovered %d interrupted search(es)", n)
+    return n
+
+
+def reap_stuck_search(db: DbSession, search_id: int, *, user_id: int | None = None,
+                      older_than_minutes: int | None = None) -> bool:
+    """Fail ONE stuck scan and undo its charge (refund a paid scan, or free the
+    first-scan slot). `user_id` scopes it to the caller's own row (status poll).
+
+    The status flip is a conditional UPDATE (… WHERE status IN running/queued), so
+    when the per-search reap, the global sweep or two workers race on the same row
+    exactly one claims it and only that one undoes the charge. The refund is also
+    idempotency-keyed (`refund:{debit id}`) as a second line. Returns True iff this
+    call claimed the row."""
     from . import credits
     from ..models import CreditLedger
 
-    q = db.query(Search).filter(Search.status.in_(("running", "queued")))
+    q = db.query(Search).filter(Search.id == search_id,
+                                Search.status.in_(("running", "queued")))
+    if user_id is not None:
+        q = q.filter(Search.user_id == user_id)
     if older_than_minutes is not None:
         q = q.filter(Search.started_at < utcnow() - timedelta(minutes=older_than_minutes))
-    stuck = q.all()
-    for s in stuck:
-        _set(db, s, status="failed", stage="",
-             error="Interrupted — please run the scan again.", finished_at=utcnow())
-        debit = (db.query(CreditLedger)
-                 .filter(CreditLedger.idempotency_key == f"search:{s.id}").first())
-        if debit is not None:
-            credits.refund(db, debit)        # idempotent; no-op if it wasn't a debit
-        else:
-            first = (db.query(CreditLedger)
-                     .filter(CreditLedger.reason == "first_scan_free",
-                             CreditLedger.ref_id == str(s.id)).first())
-            if first is not None:
-                u = db.get(User, s.user_id)
-                if u is not None and u.first_scan_used_at is not None:
-                    u.first_scan_used_at = None      # let them retry the free scan
-                    db.commit()
-    if stuck:
-        log.info("Recovered %d interrupted search(es)", len(stuck))
-    return len(stuck)
+    claimed = q.update({Search.status: "failed", Search.stage: "",
+                        Search.error: "Interrupted — please run the scan again.",
+                        Search.finished_at: utcnow()}, synchronize_session=False)
+    db.commit()
+    if not claimed:
+        return False
+    s = db.get(Search, search_id)
+    db.refresh(s)
+    debit = (db.query(CreditLedger)
+             .filter(CreditLedger.idempotency_key == f"search:{s.id}").first())
+    if debit is not None:
+        credits.refund(db, debit)        # idempotent; no-op if it wasn't a debit
+    else:
+        first = (db.query(CreditLedger)
+                 .filter(CreditLedger.reason == "first_scan_free",
+                         CreditLedger.ref_id == str(s.id)).first())
+        if first is not None:
+            u = db.get(User, s.user_id)
+            if u is not None and u.first_scan_used_at is not None:
+                u.first_scan_used_at = None      # let them retry the free scan
+                db.commit()
+    return True
 
 
 # --------------------------------------------------------------------------- #
