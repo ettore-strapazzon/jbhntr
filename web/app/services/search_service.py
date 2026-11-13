@@ -119,11 +119,12 @@ def fail_stuck_searches(db: DbSession, older_than_minutes: int | None = None) ->
 
     A scan runs in a daemon thread inside the web process, so a deploy or restart
     kills it mid-run with no exception — stranding the Search row forever and the
-    progress poller with it. At boot every such row is an orphan (threads don't
-    survive a restart), so this is called with no age filter in the app lifespan;
-    the nightly cron calls it with a timeout to catch a thread that hung without
-    the process dying. A user's status poll does NOT call this — it reaps only its
-    own row via `reap_stuck_search` (R3-24). Returns the number of rows reaped."""
+    progress poller with it. Boot (app lifespan) and the nightly cron both call it
+    with the STUCK_SEARCH_MINUTES floor: boot can't tell its own orphans from a
+    live scan on another instance (R3-26), and the cron also catches a thread that
+    hung without the process dying. `older_than_minutes=None` (no floor) is only
+    safe with a single instance and no live workers. A user's status poll does
+    NOT call this — it reaps only its own row via `reap_stuck_search` (R3-24). Returns the number of rows reaped."""
     q = db.query(Search.id).filter(Search.status.in_(("running", "queued")))
     if older_than_minutes is not None:
         q = q.filter(Search.started_at < utcnow() - timedelta(minutes=older_than_minutes))
@@ -178,10 +179,30 @@ def reap_stuck_search(db: DbSession, search_id: int, *, user_id: int | None = No
 
 
 # --------------------------------------------------------------------------- #
-def _set(db: DbSession, search: Search, **fields) -> None:
-    for k, v in fields.items():
-        setattr(search, k, v)
+class _ScanReaped(Exception):
+    """The worker's row is no longer running/queued: a reaper failed (and refunded)
+    it under us. The worker stops and writes nothing more (R3-25)."""
+
+
+def _claim(db: DbSession, search_id: int, **fields) -> bool:
+    """Write `fields` to the scan only while it is still running/queued, with the
+    same conditional UPDATE the reaper uses, then commit. On a lost claim roll back
+    instead, so nothing staged with this write (e.g. the JobResult rows) lands."""
+    n = (db.query(Search)
+         .filter(Search.id == search_id, Search.status.in_(("running", "queued")))
+         .update(fields, synchronize_session=False))
+    if not n:
+        db.rollback()
+        return False
     db.commit()
+    return True
+
+
+def _set(db: DbSession, search: Search, **fields) -> None:
+    """Worker progress/status write. Raises `_ScanReaped` if the row was reaped, so
+    a still-alive thread can't resurrect a 'failed' scan or keep spending compute."""
+    if not _claim(db, search.id, **fields):
+        raise _ScanReaped(search.id)
 
 
 def _trigger_discovery_if_changed(user_id: int) -> None:
@@ -346,7 +367,8 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
                 tags=list(match.tags), why_good=good, why_bad=bad,
                 link_status=("unverified" if job.dedup_key() in unverified else ""),
             ))
-        db.commit()
+        # Not committed here: the results land in the same transaction as the
+        # claim to 'done' below, so a reaped scan's results are rolled back (R3-25).
 
         # A run that couldn't score most of its shortlist is not a run that
         # "found nothing" — say which it was, or the next hour goes into
@@ -374,13 +396,23 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
         if u is not None:
             referral.reward_inviter_if_activated(db, u)
 
+    except _ScanReaped:
+        # A reaper already failed + refunded this scan (it looked hung). Its results
+        # were rolled back; the reaper's 'failed' and refund stand. Charge nothing,
+        # refund nothing — the user re-runs from the "Interrupted" message.
+        log.warning("Search %s was reaped while still running; results discarded",
+                    search_id)
     except Exception as exc:  # never leave a search stuck in 'running'
         log.exception("Search %s failed", search_id)
         try:
-            search = db.get(Search, search_id)
-            if search:
-                _set(db, search, status="failed", stage="",
-                     error=str(exc)[:500], finished_at=utcnow())
+            db.rollback()
+            # Only the writer that flips the row to 'failed' undoes the charge: if a
+            # reaper got there first it already refunded / freed the slot (R3-25).
+            if not _claim(db, search_id, status="failed", stage="",
+                          error=str(exc)[:500], finished_at=utcnow()):
+                log.warning("Search %s already reaped; skipping credit correction",
+                            search_id)
+                return
             # Never charge for a failure: refund a paid scan, or free the first-scan
             # slot so the user can retry for free (PRICE-04 / ONBOARD-02).
             from . import credits

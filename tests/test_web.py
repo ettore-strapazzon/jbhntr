@@ -260,6 +260,196 @@ def test_nightly_cron_sweeps_stuck_searches_but_not_live_ones():
         db.close()
 
 
+# R3-25: the scan worker claims its status writes like the reaper does, so a
+# late-finishing thread can't resurrect a reaped (and refunded) scan.
+@pytest.fixture
+def stub_engine(monkeypatch):
+    """Make `_run_search` run instantly and offline with one scored job. Returns a
+    dict of hooks: `before_links(search_id)` / `score_raises` run mid-scan."""
+    import types
+
+    from jbhntr_engine import JobPosting, MatchResult
+    from web.app.services import search_service as ss
+    hooks = {"before_links": None, "score_raises": None}
+    ns = types.SimpleNamespace
+    job = JobPosting(source="t", title="Chief of Staff", company="Acme",
+                     url="https://example.com/r325")
+    match = MatchResult(tier=1, score=90, reasons="r")
+
+    def score(*a, **k):
+        if hooks["score_raises"]:
+            hooks["score_raises"]()
+            raise RuntimeError("scoring blew up")
+        return [(job, match)]
+
+    def links(db, ranked):
+        if hooks["before_links"]:
+            hooks["before_links"]()
+        return ranked, set()
+
+    monkeypatch.setattr(ss.EngineSettings, "from_env", staticmethod(lambda: ns()))
+    monkeypatch.setattr(ss, "_trigger_discovery_if_changed", lambda uid: None)
+    monkeypatch.setattr(ss, "build_engine_profile",
+                        lambda db, u: ns(search_terms=[], raw={}))
+    monkeypatch.setattr(ss, "build_engine_materials", lambda db, u: None)
+    monkeypatch.setattr(ss, "seed_values", lambda db, u: [])
+    monkeypatch.setattr(ss, "resolve_seeds", lambda *a, **k: [])
+    monkeypatch.setattr(ss, "derive_candidate", lambda *a: ns(target_roles=[]))
+    monkeypatch.setattr(ss, "derive_company_profile", lambda *a: None)
+    monkeypatch.setattr(ss, "derive_criteria", lambda *a: None)
+    monkeypatch.setattr(ss, "Matcher", lambda s: ns(failures=0))
+    monkeypatch.setattr(ss, "_corpus_candidates", lambda *a: ([job], 1, 1))
+    monkeypatch.setattr(ss, "_enrich", lambda jobs, db=None: None)
+    monkeypatch.setattr(ss, "_feedback_examples", lambda db, u: [])
+    monkeypatch.setattr(ss, "_score_cached", score)
+    monkeypatch.setattr(ss, "_location_ok", lambda *a: True)
+    monkeypatch.setattr(ss, "_verify_links", links)
+    return hooks
+
+
+def _r325_cleanup(db, *searches):
+    from web.app.models import JobResult
+    try:
+        db.rollback()
+        db.query(JobResult).filter(JobResult.search_id.in_([s.id for s in searches])
+                                   ).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+    _drop_r324_rows(db, *searches)
+
+
+def test_worker_normal_path_still_sets_done(stub_engine):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services.search_service import _run_search
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="r325-ok@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        _run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert db.get(Search, s.id).status == "done"
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 1
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_worker_finishing_after_a_reap_leaves_the_scan_failed(stub_engine):
+    """The reaper fails + refunds a scan whose thread is in fact still alive; when
+    the thread finishes it must discard its results, not flip the row to 'done'
+    (the user would get a paid scan for free) nor refund a second time."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services.search_service import _run_search, reap_stuck_search
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="r325-reaped@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+
+        def reap():
+            other = SessionLocal()
+            try:
+                assert reap_stuck_search(other, s.id) is True
+            finally:
+                other.close()
+        stub_engine["before_links"] = reap
+
+        _run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert db.get(Search, s.id).status == "failed"
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 0
+        assert _refunds(db, debit) == 1
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_worker_starting_on_a_reaped_queued_scan_does_not_resurrect_it(stub_engine):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services.search_service import _run_search, reap_stuck_search
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="r325-queued@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        s.status = "queued"; db.commit()
+        assert reap_stuck_search(db, s.id) is True
+        _run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert db.get(Search, s.id).status == "failed"
+        assert _refunds(db, debit) == 1
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_worker_failing_after_a_reap_does_not_free_the_first_scan_twice(stub_engine):
+    """Reaper frees the first-scan slot, the user spends it again, then the old
+    thread errors: its failure path must not hand the free scan back a 2nd time."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User, utcnow
+    from web.app.services import credits
+    from web.app.services.search_service import _run_search, reap_stuck_search
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="r325-first@example.com", first_scan_used_at=utcnow())
+        db.add(u); db.commit()
+        s = Search(user_id=u.id, status="running", started_at=utcnow())
+        db.add(s); db.flush()
+        credits.record(db, u, "first_scan_free", ref_type="search", ref_id=str(s.id))
+        db.commit()
+
+        def reap_then_reuse():
+            other = SessionLocal()
+            try:
+                assert reap_stuck_search(other, s.id) is True
+                ou = other.get(User, u.id)
+                assert ou.first_scan_used_at is None
+                ou.first_scan_used_at = utcnow(); other.commit()   # user re-runs
+            finally:
+                other.close()
+        stub_engine["score_raises"] = reap_then_reuse
+
+        _run_search(s.id, u.id, "first")
+        db.expire_all()
+        assert db.get(Search, s.id).status == "failed"
+        assert db.get(User, u.id).first_scan_used_at is not None
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+# R3-26: the boot sweep must not kill another live instance's fresh scans.
+def test_boot_sweep_reaps_only_scans_older_than_the_stuck_floor():
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="r326-boot@example.com"); db.add(u); db.commit()
+        orphan, orphan_debit = _stuck_paid_search(db, u, minutes_ago=60)
+        live, live_debit = _stuck_paid_search(db, u, minutes_ago=1)
+        with TestClient(app):                     # lifespan = boot sweep
+            pass
+        db.expire_all()
+        assert db.get(Search, orphan.id).status == "failed"
+        assert _refunds(db, orphan_debit) == 1
+        # Fresh: may be a scan running on another instance — left to the
+        # per-user poll / nightly cron once it is past the 15-minute floor.
+        assert db.get(Search, live.id).status == "running"
+        assert _refunds(db, live_debit) == 0
+    finally:
+        _drop_r324_rows(db, orphan, live)
+        db.close()
+
+
 def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     signup(client, email="f09@example.com")
     from web.app.db import SessionLocal

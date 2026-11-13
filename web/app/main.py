@@ -35,12 +35,15 @@ async def lifespan(_: FastAPI):
     init_db()
     # A scan runs in a daemon thread; this restart just killed any in-flight one,
     # leaving its Search row stuck 'running'. Recover them (and refund) so the user
-    # isn't staring at a progress bar that will never finish.
+    # isn't staring at a progress bar that will never finish. Only rows past the
+    # 15-minute stuck floor (R3-26): a fresher one may be live on another instance
+    # if Railway scales out. A younger orphan of ours is reaped by its owner's
+    # status poll once it crosses the floor, or by the nightly cron.
     try:
-        from .services.search_service import fail_stuck_searches
+        from .services.search_service import STUCK_SEARCH_MINUTES, fail_stuck_searches
         _db = SessionLocal()
         try:
-            fail_stuck_searches(_db)
+            fail_stuck_searches(_db, older_than_minutes=STUCK_SEARCH_MINUTES)
         finally:
             _db.close()
     except Exception:

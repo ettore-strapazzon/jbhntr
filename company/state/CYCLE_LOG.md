@@ -196,3 +196,14 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Spend:** none.
 - **Observations:** the CTO logged obs 0006 (new tests leaked ledger rows into the shared SQLite DB and broke `test_credits` only in combination). The skill-observation review has never been run (6 open), and the offer stands.
 
+
+## 2026-11-14 · cycle 15 (scan worker can't undo a reap + boot sweep multi-instance safe)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 2/10.
+- **Dispatched (foreground):** CTO (R3-25, then R3-26). CMO/CPO/CFO/GC idle: no unblocked task in R3. Outward growth still waits on R-009 and R-013.
+- **Result (accepted):** CTO → **R3-25**: new `_claim` helper writes a scan's status only `WHERE status IN running/queued`, the same condition the reaper uses. `_set` raises `_ScanReaped` on a lost claim, so a reaped thread stops at its next step. `JobResult` rows now commit in the same transaction as the 'done' claim, so a lost claim rolls them back. A reaped worker logs, then exits with no charge, refund, `scan_completed` event or referral reward. The failure path rolls back and refunds only if it wins the 'failed' flip. This closed a second double-free-first-scan path, which the new test caught. Behaviour change: an exception *after* 'done' (event/referral step) now leaves the scan 'done' with no refund, which is correct because the user has their results. **R3-26**: the boot sweep uses the 15-minute floor (`STUCK_SEARCH_MINUTES`), so it can't kill another instance's live scan. Younger orphans are reaped by the owner's poll or the nightly cron. Cost: after a deploy, a scan that was cut off shows progress for up to 15 minutes before 'Interrupted'. Instance ownership was not added (needs a schema change, and the replica id is unstable). 5 new tests; 3 of them failed before the fix.
+- **CEO review:** diff read (`search_service.py`, `main.py`, tests). Checked that the bulk UPDATE leaves no stale in-session state that is read later (the commit expires the object) and that the `search_id` claim matches the reaper's condition. No fixes needed.
+- **Test gate (CEO, once):** **1122 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-28 (scan heartbeat: measure the stuck floor from the last progress write, not the start, so a slow but healthy scan isn't reaped and its results lost).
+- **Requests:** none new. R-009, R-013, R-014 still open.
+- **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
+- **Spend:** none.
