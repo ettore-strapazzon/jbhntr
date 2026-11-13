@@ -153,6 +153,10 @@ def delete_account(request: Request, confirm: str = Form(default=""),
     db.query(Material).filter(Material.user_id == uid).delete()
     db.query(SeedCompany).filter(SeedCompany.user_id == uid).delete()
     db.query(Profile).filter(Profile.user_id == uid).delete()
+    from ..models import ReferralReward       # R3-11: either side of a referral
+    db.query(ReferralReward).filter((ReferralReward.inviter_id == uid)
+                                    | (ReferralReward.friend_id == uid)).delete(
+        synchronize_session=False)
     db.query(Session).filter(Session.user_id == uid).delete()
     db.query(User).filter(User.id == uid).delete()
     db.commit()

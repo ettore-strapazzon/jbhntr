@@ -79,6 +79,7 @@
       <a href="/matches"{% if cur.startswith('/matches') or cur == '/search' %} aria-current="page"{% endif %}>Matches</a>
       <a id="nav-myjobs" href="/applications"{% if cur.startswith('/applications') %} aria-current="page"{% endif %}>My Jobs</a>
       <a href="/profile"{% if cur.startswith('/profile') %} aria-current="page"{% endif %}>Profile</a>
+      {% if config.invite_page %}<a href="/invite"{% if cur.startswith('/invite') %} aria-current="page"{% endif %}>Invite</a>{% endif %}
       <a href="/credits" class="pill pill-credits{% if user.credit_balance <= config.low_balance_at %} pill-credits-low{% endif %}">{{ user.credit_balance }} credit{% if user.credit_balance != 1 %}s{% endif %}</a>
       <a href="/account"{% if cur.startswith('/account') %} aria-current="page"{% endif %}>Account</a>
       <a href="/logout">Log out</a>
@@ -169,10 +170,10 @@
   </div>
 </footer>
 
-<!-- Only a strictly-necessary session cookie is used, so this is an
+<!-- Only strictly-necessary cookies (session + jb_ref invite code) are used, so this is an
      informational notice rather than a consent gate. See /cookies. -->
 <div id="cookie-note" class="cookie-note" hidden>
-  <span>We use one essential cookie to keep you signed in, and cookieless analytics.
+  <span>We use two essential cookies, one to keep you signed in and one to remember an invite code you followed, plus cookieless analytics.
     <a href="/cookies">Learn more</a>.</span>
   <button type="button" id="cookie-note-dismiss">Got it</button>
 </div>

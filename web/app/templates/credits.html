@@ -31,7 +31,7 @@
 
       <h3>Invite a job seeker</h3>
       <p class="muted">Give a friend {{ config.referral_friend_credits }} credits. You get
-        {{ config.referral_credits }} when they complete their profile and run their first scan.</p>
+        {{ config.referral_credits }} two to three days after they run their first scan, once they've used their results.</p>
       {% if user and invite_url %}
       <label class="small muted" for="invite">Your invite link</label>
       <div class="invite-row">
@@ -39,6 +39,7 @@
         <button type="button" class="btn ghost" data-copy="{{ invite_url }}">Copy</button>
       </div>
       <p class="muted small">Invite code: <b class="invite-code">{{ referral_code }}</b></p>
+      {% if config.invite_page %}<p class="small"><a href="/invite">Invite</a></p>{% endif %}
       {% else %}
       <p class="small muted">Your personal invite link and code appear here once you are signed in.</p>
       {% endif %}

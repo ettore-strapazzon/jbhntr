@@ -159,22 +159,27 @@ shown on `/credits`; this is the dedicated, shareable surface.)
 - **Code** (big, monospace) + **invite link** (`referral.invite_url(code)`), each with a
   one-click copy button (`[data-copy]`).
 - **Reward framing** (referrals: double-sided, lead with the friend's benefit then yours):
-  "Your friend gets their first scan free + {REFERRAL_FRIEND_CREDITS} credits. You get
-  {REFERRAL_CREDITS} credits when they run their first scan." (Pull numbers from config —
-  never hard-code; today 5 / 15.)
+  use the GC-cleared reward line in §3.5.4 verbatim. *(GC 2026-11-13: the v1 line "Your
+  friend gets their first scan free + … credits" is withdrawn — the first scan is free for
+  everyone, so it is not a referral perk; IN1.)* Numbers from config, never hard-coded
+  (today 5 / 15).
 - **Live counter** (§3.2).
 - **Pre-written per-channel messages** (§3.3).
 
 ### 3.2 Live counter — data source
 Query by `User.referred_by_user_id == me.id`:
 - **Invited & signed up** = count of such users.
-- **Activated** = those with a `scan_completed` event (or, cheaper, a `referral_activated`
-  credit-ledger row keyed `referral:{friend_id}`) — this is what pays out.
+- **Credited** (`{credited}`) = count of `referral_activated` credit-ledger rows keyed
+  `referral:{friend_id}` — the invites that have actually paid out. *(GC 2026-11-13: once
+  R3-11 ships, a `scan_completed` event no longer equals a payout, so count the ledger, not
+  the event.)*
+- **Pending** (`{pending}`) = this inviter's `ReferralReward` rows with `status` in
+  (`pending`, `held`) — inside the R3-11 delay, awaiting the friend's first triage action, or
+  held for review.
 - **Credits earned from referrals** = SUM of `CreditLedger.delta WHERE reason='referral_activated'`.
-Show **"M friends activated · +{credits} credits"** as the headline number — lead with
-*activated* because that is what pays out and what the loop optimises — with "N signed up"
-as a quieter secondary line. "Live" = recomputed on each page load (no socket needed —
-ponytail: a DB count per load is fine at this scale).
+Headline/secondary wording is in §3.5.5 (GC-cleared). Never label these counts "activated"
+on the page (IN4: the internal KPI definition differs). "Live" = recomputed on each page
+load (no socket needed — ponytail: a DB count per load is fine at this scale).
 
 ### 3.3 Pre-written messages (one per channel, link pre-embedded)
 Plain-text templates with the link filled server-side, each with a copy button and, where
@@ -185,7 +190,12 @@ native share sheet. GC clears external claim copy before launch — **REQUEST** 
 
 ### 3.4 Acceptance criteria
 - `/invite` shows the user's real code + link; copy buttons work; numbers come from config.
-- Live counter matches the DB (signed-up, activated, credits earned).
+- Live counter matches the DB (signed-up, credited, pending, credits earned).
+- **Launch gate (GC 2026-11-13):** `/invite` is not linked from nav, `/credits`, emails or
+  any post until **R3-11** is live (inviter payout ≈48h after the friend's first scan *and*
+  first triage action; soft ceiling 25 credited invites per inviter per month, beyond which
+  payouts are held for a human unlock — not refused). §3.5 copy describes that behaviour;
+  it is false against today's immediate, unchecked payout.
 - Each channel message contains the correct `invite_url`; share-intent links open the right
   composer; mobile uses `navigator.share` where available.
 - Landing: `/signup?ref={code}` attributes the signup (`attach_and_reward_friend` already
@@ -195,8 +205,14 @@ native share sheet. GC clears external claim copy before launch — **REQUEST** 
 
 ### 3.5 Build-ready copy (CMO, 2026-11-13 — for R3-03)
 
-Wire verbatim. Pending only GC clearance (§6 / §8.5); if GC changes a line, GC edits it
-here in place. Nothing below needs a copy decision from the CTO.
+Wire verbatim. **GC-CLEARED 2026-11-13 (COMPLIANCE_CARD v1.2, §D)** with the GC edits
+below applied in place (marked *GC 2026-11-13*). Clearance is conditional on the R3-11
+launch gate in §3.4. Nothing below needs a copy decision from the CTO.
+
+**Conditional rendering (GC):** every "first scan is free" / "First scan is free" /
+"Their first scan is free" phrase on this page **and inside the six messages** renders only
+when `config.first_scan_free` is true; when false, drop that sentence (messages are built
+server-side per page load, so this is a template condition, not a copy decision).
 
 **Placeholders** (filled server-side; never hard-code the numbers):
 | Token | Value |
@@ -205,7 +221,7 @@ here in place. Nothing below needs a copy decision from the CTO.
 | `{code}` | `referral.ensure_code(db, user)` |
 | `{friend_credits}` | `config.referral_friend_credits` (today 5) |
 | `{inviter_credits}` | `config.referral_credits` (today 15) |
-| `{activated}` / `{signed_up}` / `{earned}` | the §3.2 counts |
+| `{credited}` / `{pending}` / `{signed_up}` / `{earned}` | the §3.2 counts (*GC 2026-11-13: `{activated}` renamed `{credited}`; `{pending}` added*) |
 
 Voice: the page speaks as "we" (the JBHNTR team). The share messages are sent by the user,
 so they are written in the sharer's own first person, name the product, and never imply
@@ -224,9 +240,12 @@ text, no stats, no "every role", no competitor names.
 #### 3.5.2 Code + link block
 - Label: **Your invite link** · value `{link}` · button **Copy link**
 - Label: **Your invite code** · value `{code}` (monospace) · button **Copy code**
-- Helper (small, muted): Friends can paste the code at sign-up if the link gets lost.
+- Helper (small, muted): If the link gets lost, your friend can type jbhntr.app/signup?ref={code} into their browser.
+  *(GC 2026-11-13: replaces "Friends can paste the code at sign-up…" — `/signup` has no
+  code field, so that line was false. If the CTO later adds a code field, the old line may
+  return.)*
 - Mobile only, when `navigator.share` exists — button: **Share…** (shares the WhatsApp
-  message text from §3.5.5 with `url={link}`; event `channel=native`)
+  message text from §3.5.6 with `url={link}`; event `channel=native`)
 - Copy success (replaces button label for 2s): **Copied**
 - Copy failure (inline, below the field): Couldn't copy. Select the text and copy it manually.
 
@@ -235,36 +254,62 @@ text, no stats, no "every role", no competitor names.
    know the invite came from you.
 2. **They sign up and run their first scan.** Their first scan is free, and your link
    adds {friend_credits} bonus credits to their account.
-3. **You get {inviter_credits} credits.** We add them once your friend has completed their
-   profile and run that first scan, and our usual checks are clear. Usually within 72 hours.
+3. **You get {inviter_credits} credits.** We add them two to three days after your friend's
+   first scan, once they've also saved, dismissed, rated or marked a role as applied, and our
+   usual checks are clear.
+   *(GC 2026-11-13: was "once your friend has completed their profile … Usually within 72
+   hours" — the code does not require a completed profile, and R3-11 adds the 48h delay and
+   the first-triage-action condition, so the trigger is stated as it actually works.
+   The list = `referral.TRIAGE_EVENTS` (`job_saved` / `job_dismissed` / `match_rated` /
+   `job_marked_applied`); "two to three days" = 48h delay + nightly release cron, matching
+   TERMS_DRAFT §6 v1.1 "about 2–3 days".)*
 
 #### 3.5.4 Reward line + fine print (GTM §5: uncapped, delayed, abuse-controlled)
 - **Reward line** (directly under the H1 subhead, bold): Your friend gets {friend_credits}
-  bonus credits. You get {inviter_credits} for every friend who runs their first scan. No cap.
+  bonus credits. You get {inviter_credits} for every friend who runs their first scan and
+  starts using their results. No fixed limit.
 - **Fine print** (small, under "How it works"):
-  There's no limit on how many friends you invite or how many credits you earn. Credits
-  are added after a short check, usually within 72 hours. Self-invites don't count, and
-  invites that look like duplicate or throwaway accounts may be held while we take a look.
-  Credits stay on your account: they can't be transferred or exchanged for cash.
-  If you share publicly, say that you earn credits from your link (the messages below
-  already do). [Terms](/terms)
-- Honesty notes for the CTO (no copy choice involved): today `reward_inviter_if_activated`
-  pays immediately on first scan, which is still "usually within 72 hours", so the copy is
-  true now and stays true when the GTM §5 delayed payout ships. "May be held" is true today
-  because the Founder can review manually; do not add a stated ceiling number to the page
-  (the 25/mo soft ceiling is an internal review trigger, not a cap).
+  There's no fixed limit on how many friends you invite or how many credits you earn.
+  Your credits are added two to three days after a friend's first scan, once they've used
+  their results and our checks are clear. If a lot of your invites come through in one
+  month, we review the extra ones by hand before adding their credits, so those can take
+  longer. Self-invites don't count, and credits from duplicate or throwaway accounts may be
+  held or removed. Credits stay on your account: they have no cash value and can't be sold,
+  transferred or exchanged for cash. If you share publicly, say that you earn credits from
+  your link (the messages below already do). [Terms](/terms)
+- *GC 2026-11-13 — why this changed (no copy choice for the CTO):* (1) "usually within 72
+  hours" and "No cap" were written against today's immediate, uncapped payout. Under R3-11
+  the payout waits for a triage action the friend may never take, and past the soft ceiling
+  (25 credited invites / inviter / month) credits are held for a human unlock. An
+  unqualified "No cap" / "no limit" with an undisclosed hold is a misleading omission
+  (C7/C8, IN2; EU UCPD Art 7 material-information test [verify]). "No fixed limit" +
+  the by-hand review sentence is true **only if** held credits are actually reviewed and
+  released when clean — the CTO must not build the ceiling as an automatic refusal. (2) The
+  ceiling **number** stays off the page (CMO call, GC agrees): disclosing that a review
+  exists is what honesty requires; publishing the trigger invites gaming. (3) "held or
+  removed" matches TERMS_DRAFT §6 ("withhold or claw back"). (4) "no cash value … can't be
+  sold" restores the IN2 wording. (5) Timing matches the R3-11 code (`referral_payout_delay_hours`=48 + nightly
+  `release_due` cron) and TERMS §6. If either config value changes, "two to three days" and
+  "25" in TERMS must be re-checked by GC before launch.
 
 #### 3.5.5 Live counter (§3.2 data)
 - Section heading: **Your invites**
-- Headline number: **{activated} friends activated · +{earned} credits earned**
-  (singular when 1: **1 friend activated**)
+- Headline number: **{credited} friends credited · +{earned} credits earned**
+  (singular when 1: **1 friend credited**)
 - Secondary line (muted): {signed_up} signed up with your link
   (singular: **1 signed up with your link**)
+- Pending line (muted, only when `pending > 0`): {pending} waiting for checks. Credits
+  arrive two to three days after a friend's first scan, once they've used their results.
+  (singular: **1 waiting for checks.** …)
 - Freshness note (small): Updates each time you open this page.
-- Zero state (`signed_up == 0`): **No invites yet.** Share your link below. When a friend
-  runs their first scan, it shows up here.
-- Signed up but none activated (`signed_up > 0`, `activated == 0`): secondary line reads
-  {signed_up} signed up with your link · waiting for their first scan
+- Zero state (`signed_up == 0`): **No invites yet.** Share your link below. When a friend's
+  invite is credited, it shows up here.
+- Signed up but none credited and none pending (`signed_up > 0`, `credited == 0`,
+  `pending == 0`): secondary line reads {signed_up} signed up with your link · waiting for
+  their first scan
+- *GC 2026-11-13:* "activated" → "credited" (IN4: never "activated" on the page; and under
+  R3-11 a first scan no longer means paid). The pending line keeps the user from reading a
+  held/delayed reward as a missing one.
 
 #### 3.5.6 Per-channel messages
 Section heading: **Ready-to-send messages** · Helper: Edit them however you like. Each one
@@ -320,10 +365,16 @@ Every factual claim above, and its basis: "reads live job listings" (the scan pi
 directions" (`fit_role` + `fit_candidate`); "doesn't apply for you" (never auto-apply,
 CHARTER principle 5); "first scan is free" (`config.first_scan_free`, default true — if
 that flag is ever turned off, the three "first scan is free" lines must be removed);
-"{friend_credits}/{inviter_credits} credits" (config); "usually within 72 hours" (true
-now — immediate payout — and under the GTM §5 delay); "no cap" (no cap in code or policy;
-the soft ceiling triggers review, not refusal). No stats, no comparatives, no "every".
-Incentive disclosure present in all 6 messages and the fine print.
+"{friend_credits}/{inviter_credits} credits" (config); ~~"usually within 72 hours"~~ →
+"two to three days after a friend's first scan, once they've used their results" (R3-11:
+48h + first triage action + nightly release); ~~"no cap"~~ → "no fixed limit" + by-hand review disclosed
+(R3-11 soft ceiling 25/mo, human unlock, never auto-refusal). No stats, no comparatives,
+no "every". Incentive disclosure present in all 6 messages and the fine print.
+
+**GC verdict 2026-11-13:** all six messages **CLEARED as written** (IN3 met: no absolutes,
+no stats, incentive disclosed in each, C6 "doesn't apply for you" where the format allows,
+user-sent from the user's own client/account so we are not the sender, IN5). Full
+per-element table: `company/docs/legal/COMPLIANCE_CARD.md` §D.
 
 ---
 

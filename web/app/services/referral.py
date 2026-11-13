@@ -1,14 +1,19 @@
 """Referral codes (REFERRAL groundwork).
 
-A short, unambiguous, unique-per-user code used to build invite links. Full
-redemption (crediting inviter and friend) lands in the REFERRAL step; this module
-only mints a code and hands back the invite URL, so the welcome email and the
-/credits page can show them now.
+A short, unambiguous, unique-per-user code used to build invite links, the
+friend's starter bonus at signup, and the inviter's reward. The inviter's reward
+is delayed and soft-capped (R3-11, TERMS §6 / GTM §5): recorded as a pending
+ReferralReward at the friend's activation, released by release_due() once the
+payout delay has passed and the friend has triaged, held past the monthly
+ceiling until an admin unlock.
 """
 
 from __future__ import annotations
 
+import logging
 import secrets
+
+from sqlalchemy.exc import IntegrityError
 
 from ..config import config
 from ..models import User
@@ -73,10 +78,26 @@ def attach_and_reward_friend(db, friend: User, code: str) -> User | None:
     return inviter
 
 
+TRIAGE_EVENTS = ("job_saved", "job_dismissed", "job_marked_applied", "match_rated")
+_log = logging.getLogger("jbhntr.referral")
+
+
+def _ledger_key(friend_id: int) -> str:
+    # Same key the old immediate payout used, so a friend already paid under the
+    # old rule can never be paid again by a release.
+    return f"referral:{friend_id}"
+
+
+def _month_start(now):
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
 def reward_inviter_if_activated(db, friend: User) -> None:
-    """Pay the inviter once the friend they referred has activated (completed their
-    first market scan). Idempotent on the friend, so it is safe to call after every
-    completed scan. No-op for a non-referred user. Never raises into the caller."""
+    """The friend activated (completed a scan): record the inviter's reward as
+    PENDING — never pay now (R3-11, TERMS §6 / GTM §5). Past the inviter's soft
+    monthly ceiling the reward is HELD for a human unlock instead. Idempotent on
+    the friend (one ReferralReward per friend), safe after every completed scan.
+    No-op for a non-referred user. Never raises into the caller."""
     inviter_id = friend.referred_by_user_id
     if not inviter_id:
         return
@@ -86,13 +107,103 @@ def reward_inviter_if_activated(db, friend: User) -> None:
     from . import events
     events.record_once(db, "referral_activated", friend.id)
     try:
-        inviter = db.get(User, inviter_id)
-        if inviter is None:
+        from ..models import CreditLedger, ReferralReward, utcnow
+        if db.get(User, inviter_id) is None:
             return
-        from . import credits
-        credits.grant(db, inviter, config.referral_credits, "referral_activated",
-                      idempotency_key=f"referral:{friend.id}")
+        if db.query(ReferralReward.id).filter_by(friend_id=friend.id).first():
+            release_due(db, friend_id=friend.id)     # opportunistic; still gated
+            return
+        now = utcnow()
+        this_month = (db.query(ReferralReward)
+                      .filter(ReferralReward.inviter_id == inviter_id,
+                              ReferralReward.activated_at >= _month_start(now))
+                      .count())
+        rw = ReferralReward(inviter_id=inviter_id, friend_id=friend.id,
+                            amount=config.referral_credits, activated_at=now)
+        if (db.query(CreditLedger.id)
+                .filter(CreditLedger.idempotency_key == _ledger_key(friend.id)).first()):
+            rw.status, rw.released_at = "paid", now  # paid under the old rule
+        elif this_month >= config.referral_monthly_ceiling:
+            rw.status, rw.hold_reason = "held", "monthly_ceiling"
+        db.add(rw)
+        try:
+            db.commit()
+        except IntegrityError:                       # raced: the other insert won
+            db.rollback()
     except Exception:  # a reward must never break the scan that triggered it
-        import logging
-        logging.getLogger("jbhntr.referral").exception(
-            "inviter reward failed for friend %s", friend.id)
+        db.rollback()
+        _log.exception("inviter reward failed for friend %s", friend.id)
+
+
+def has_triaged(db, friend_id: int) -> bool:
+    """The friend's first triage action: saved / dismissed / marked applied /
+    rated a match (event), or any JobState they created (belt and braces if an
+    analytics write was lost)."""
+    from ..models import JobState, ProductEvent
+    if (db.query(ProductEvent.id)
+            .filter(ProductEvent.user_id == friend_id,
+                    ProductEvent.name.in_(TRIAGE_EVENTS)).first()):
+        return True
+    return db.query(JobState.id).filter(JobState.user_id == friend_id).first() is not None
+
+
+def release_due(db, *, now=None, friend_id: int | None = None) -> int:
+    """Pay every PENDING reward whose payout delay has elapsed AND whose friend
+    has triaged. Idempotent: the ledger grant is keyed referral:{friend_id} and a
+    paid row is never revisited, so re-running (cron + opportunistic) pays once.
+    Returns how many rewards were paid this run."""
+    from datetime import timedelta
+
+    from ..models import ReferralReward, utcnow
+    from . import credits
+    now = now or utcnow()
+    cutoff = now - timedelta(hours=config.referral_payout_delay_hours)
+    q = db.query(ReferralReward).filter(ReferralReward.status == "pending",
+                                        ReferralReward.activated_at <= cutoff)
+    if friend_id is not None:
+        q = q.filter(ReferralReward.friend_id == friend_id)
+    paid = 0
+    for rw in q.order_by(ReferralReward.id).all():
+        try:
+            if not has_triaged(db, rw.friend_id):
+                continue
+            inviter = db.get(User, rw.inviter_id)
+            if inviter is None:
+                continue
+            credits.grant(db, inviter, rw.amount, "referral_activated",
+                          ref_type="referral", ref_id=str(rw.friend_id),
+                          idempotency_key=_ledger_key(rw.friend_id))
+            rw.status, rw.released_at = "paid", now
+            db.add(rw)
+            db.commit()
+            paid += 1
+        except Exception:
+            db.rollback()
+            _log.exception("referral release failed for reward %s", rw.id)
+    return paid
+
+
+def unlock(db, reward_id: int) -> bool:
+    """Admin: move a HELD reward back to pending so the next release run pays it
+    (still subject to the delay + triage). False if it isn't held."""
+    from ..models import ReferralReward, utcnow
+    rw = db.get(ReferralReward, reward_id)
+    if rw is None or rw.status != "held":
+        return False
+    rw.status, rw.unlocked_at = "pending", utcnow()
+    db.add(rw)
+    db.commit()
+    return True
+
+
+def hold(db, reward_id: int, reason: str = "review") -> bool:
+    """Admin: hold a PENDING reward for review (duplicate/fraud suspicion,
+    TERMS §6). False if it isn't pending (already paid or held)."""
+    from ..models import ReferralReward
+    rw = db.get(ReferralReward, reward_id)
+    if rw is None or rw.status != "pending":
+        return False
+    rw.status, rw.hold_reason = "held", (reason or "review")[:24]
+    db.add(rw)
+    db.commit()
+    return True

@@ -151,6 +151,16 @@ class WebConfig:
 
     referral_credits:         int = _int("REFERRAL_CREDITS", 15)
     referral_friend_credits:  int = _int("REFERRAL_FRIEND_CREDITS", 5)
+    # R3-11 / TERMS §6: the inviter's reward is released no sooner than this many
+    # hours after the friend's activation AND only after the friend's first triage
+    # action; released by the nightly cron, so in practice 48-72h.
+    referral_payout_delay_hours: int = _int("REFERRAL_PAYOUT_DELAY_HOURS", 48)
+    # Soft ceiling: rewarded referrals per inviter per calendar month (UTC) before
+    # further rewards are held for a human unlock (/admin/referral-unlock).
+    referral_monthly_ceiling: int = _int("REFERRAL_MONTHLY_CEILING", 25)
+    # R3-03 /invite page. OFF (route 404s) until R3-11 payout<->terms alignment
+    # and GC clearance of the ARTEFACTS_SPEC §3.5 copy land.
+    invite_page:             bool = _b("INVITE_PAGE", "false")
     outcome_credits:          int = _int("OUTCOME_CREDITS", 2)
     outcome_details_credits:  int = _int("OUTCOME_DETAILS_CREDITS", 3)
     product_feedback_credits: int = _int("PRODUCT_FEEDBACK_CREDITS", 3)

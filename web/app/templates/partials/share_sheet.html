@@ -1,8 +1,30 @@
 {# Share sheet returned by POST /job/{id}/share. Expects: r, source, share_url,
-   og_url, caption. No inline JS (CSP): copy uses the delegated [data-copy]
+   og_url, caption, good, bad (the exact public bullets — share.public_bullets).
+   No inline JS (CSP): copy uses the delegated [data-copy]
    handler already in app.js; channel buttons are plain links. #}
 <div class="share-sheet" id="share-sheet-{{ r.id }}">
   <p class="small muted" style="margin:0 0 6px">Your match card is ready. Anyone with the link can see the role, the scores and the notes, which are written from your profile. It never shows your name, CV, email or the apply link. You can stop sharing at any time.</p>
+
+  {# R3-10 / C11: preview of the EXACT fit notes the public page and image
+     show. Same strings (share.public_bullets) and same .why markup as m_card. #}
+  <div class="share-preview">
+    <p class="small" style="margin:0 0 4px"><strong>Your card will show these notes:</strong></p>
+    <div class="why">
+      <div class="why-col good">
+        <p class="why-h">Fits</p>
+        <ul>
+          {% for b in good %}<li>{{ b }}</li>{% endfor %}
+          {% if not good %}<li class="muted">{{ r.why_good or "No notes." }}</li>{% endif %}
+        </ul>
+      </div>
+      {% if bad %}
+      <div class="why-col bad">
+        <p class="why-h">Watch out</p>
+        <ul>{% for b in bad %}<li>{{ b }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
 
   <div class="share-link">
     <input type="text" value="{{ share_url }}" readonly data-select-on-click
@@ -22,7 +44,7 @@
 
   <button type="button" class="linklike small" data-copy="{{ caption }}">Copy caption</button>
 
-  {# Employer visibility toggle. Re-submits the same endpoint (idempotent token),
+  {# Employer + "Watch out" visibility toggles. Re-submits the same endpoint (idempotent token),
      prefs=1 marks it a settings save; an unchecked box sends nothing. #}
   <form class="share-opts" method="post" action="/job/{{ r.id }}/share"
         hx-post="/job/{{ r.id }}/share" hx-trigger="change"
@@ -33,6 +55,11 @@
       <input type="checkbox" name="show_company" value="1"
              {% if r.share_show_company %}checked{% endif %}>
       Show the employer’s name on the card
+    </label>
+    <label class="small">
+      <input type="checkbox" name="show_concerns" value="1"
+             {% if r.share_show_concerns %}checked{% endif %}>
+      Show the “Watch out” notes (off by default; written from your profile)
     </label>
     <noscript><button type="submit" class="ghost small">Update</button></noscript>
   </form>

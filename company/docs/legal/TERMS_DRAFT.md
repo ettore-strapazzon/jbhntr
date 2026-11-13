@@ -1,6 +1,6 @@
 # Terms of Service — JBHNTR (DRAFT for /terms)
 
-Owner: GC · v1 (2026-10-26) · Draft to feed the public `/terms` page. Pairs with `/privacy` (see `PRIVACY_TERMS_NOTES.md`).
+Owner: GC · v1.1 (2026-11-13: §6 referral payout made concrete to match the shipped code, R3-11) · v1 (2026-10-26) · Draft to feed the public `/terms` page. Pairs with `/privacy` (see `PRIVACY_TERMS_NOTES.md`).
 
 > **Not legal advice.** This is a starting draft to be confirmed by an Italian lawyer before public launch (same caveat as `PRIVACY_TERMS_NOTES.md`). JBHNTR is a multi-country product (UK+IE → EU → US → Canada), so EU/UK consumer and data law apply regardless of hosting.
 >
@@ -53,7 +53,14 @@ The Service runs on **credits**. Your first scan is free, no card. Some actions 
 
 ## 6. Referrals
 
-If we run a referral program, earning is subject to anti-abuse controls: delayed payout, duplicate/fraud checks, a soft monthly ceiling, and **non-transferable** credits (GTM §4.4). We may withhold or claw back credits from fake, duplicate, self-referred, or fraudulent activity. Any incentive to share is disclosed on the `/invite` surface (compliance rule C8).
+If we run a referral program, earning is subject to anti-abuse controls (GTM §4.4):
+
+- **Delayed payout.** Your referral credits are not added when your friend signs up. They are added **no sooner than 48 hours after your friend's first completed scan**, and only once your friend has also used their results (saved, dismissed, rated or marked a role as applied). We process payouts once a day, so expect them about **2–3 days** after that first scan.
+- **Soft monthly ceiling.** After **25** rewarded referrals in a calendar month (UTC), further referral credits that month are **held for manual review** and added if the referrals are genuine. There is no fixed limit on how many friends you invite.
+- **Duplicate/fraud checks.** Self-referrals earn nothing; we may hold a reward for review, and withhold or claw back credits from fake, duplicate, or fraudulent activity.
+- Referral credits are **non-transferable** (§5).
+
+Any incentive to share is disclosed on the `/invite` surface (compliance rule C8).
 
 ## 7. No professional advice / no outcome guarantee
 

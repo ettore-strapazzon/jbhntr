@@ -61,3 +61,18 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth still on R-009/R-011; /compare on R-012. GC must clear /invite §3.5 copy + CTO's extra /cookies//privacy sentences before /invite ships.
 - **Spend:** none.
 - **Observations:** `task-observer` skill not present in this session's live skill list (gap). Starting-map skills `cro`/`onboarding`/`referrals`/`copywriting` also absent — SKILLS.md map is stale vs live list.
+
+## 2026-11-13 · cycle 5 (referral payout safety + fit-notes control + /invite built dark)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 2/10.
+- **Dispatched (foreground, parallel):** CTO (R3-10 then R3-11) · CPO (R3-03 /invite behind `INVITE_PAGE` flag) · GC (clear §3.5 invite copy + R3-12 compare source pass). CMO idle (today's digest already filed) · CFO idle (R-006 open).
+- **Results (all accepted):**
+  - CTO → **R3-10**: one `share.public_bullets()` feeds share-sheet preview, `/m/{token}` and the OG PNG (identical by test); new `JobResult.share_show_concerns` (default off, owner-only toggle, resets on re-share, busts PNG cache). **R3-11**: referral reward now `ReferralReward` pending → `release_due()` pays only after ≥48h **and** friend's first triage action (nightly cron + opportunistic), soft ceiling 25/calendar month → held + admin unlock/hold routes (`require_admin`); idempotent on the legacy ledger key (no double pay); account deletion cleans rows; TERMS_DRAFT §6 v1.1 matches code. `test_web` referral e2e test updated to the delayed rule. Auto duplicate-detection (CV/device/IP) not built → engine, post-split.
+  - CPO → **R3-03** `/invite` (route, template, `invite.js` CSP-safe, counter signed-up/credited/pending/earned, events, noindex meta+header), flag default **off** (404). Re-wired mid-build to GC's v1.2 copy.
+  - GC → COMPLIANCE_CARD v1.2: invite copy 16 clear / 7 revised / launch HOLD until R3-11 live + build re-check; COMPARE_COPY: 17✓ 2✗(fixed) 5? dated 2026-11-13; R-012 shrunk to 2 short browser checks (Teal pages + optional Indeed).
+- **CEO review fixes:** applied GC's outstanding text — "about two days" → "two to three days" in invite.html/credits.html/welcome emails (+ test string); step-3 triage list incl. "marked as applied"; `base.html` cookie notice now "two essential cookies" (K6/K7).
+- **Test gate (CEO, once, after all agents):** **682 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-13 (GC re-check of the built /invite, then CEO files the flag-flip request).
+- **Requests:** R-012 rewritten by GC (smaller). None new.
+- **Blockers:** outward growth still on R-009 (brand accounts, open 19 days) / R-011. /invite go-live on R3-13.
+- **Spend:** none.
+- **Observations:** `task-observer` absent from the skill list at session start, appeared mid-cycle → invoked late; logged obs 0001 in the new host workspace `~/.claude/skill-observations/`. GC flagged a reusable gap: a "competitor public-page source pass" workflow with search-result fallback for bot-blocked sites.

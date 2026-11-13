@@ -5,7 +5,7 @@ Three routes:
                            the show-employer / show-name opt-ins, emits
                            match_card_shared, returns the HTMX share sheet.
   GET  /m/{token}          public, no-auth card page (verdict + two fit scores +
-                           fits/watch-out + role, employer iff opted in, always
+                           fits (+ watch-out iff opted in) + role, employer iff opted in, always
                            anonymous — no name source exists yet); CTA carries the
                            sharer's referral code.
   POST /job/{id}/unshare   owner-only "Stop sharing": clears the token and the
@@ -122,6 +122,26 @@ def verdict_of(fit_role: int, fit_candidate: int) -> tuple[str | None, str]:
     return None, ""
 
 
+BULLET_MAX = 80   # chars; one line on the 1200px PNG at 22px
+
+
+def _clip(text: str) -> str:
+    text = (text or "").strip()
+    return text if len(text) <= BULLET_MAX else text[:BULLET_MAX - 1].rstrip() + "…"
+
+
+def public_bullets(r: JobResult) -> tuple[list[str], list[str]]:
+    """The ONE source of the fit notes that go public (COMPLIANCE_CARD #2, C11):
+    the share-sheet preview, the /m/{token} page and the OG PNG all render
+    exactly these strings. "Fits" always; "Watch out" only when the owner opted
+    in via share_show_concerns (default off)."""
+    from ..services.text import as_bullets
+    good = [_clip(b) for b in as_bullets(r.why_good, 3)]
+    bad = ([_clip(b) for b in as_bullets(r.why_bad, 2)]
+           if r.share_show_concerns else [])
+    return good, bad
+
+
 def _caption(url: str) -> str:
     """Copy-ready share caption — GC's exact text (COMPLIANCE_CARD 2026-11-13
     #1): no coverage absolutes, referral incentive disclosed."""
@@ -134,6 +154,7 @@ def _caption(url: str) -> str:
 def share(result_id: int, request: Request,
           source: str = Form("matches"),
           prefs: str = Form(None), show_company: str = Form(None),
+          show_concerns: str = Form(None),
           user: User = Depends(require_user), db: DbSession = Depends(get_session)):
     r = db.get(JobResult, result_id)
     if not r or r.user_id != user.id:
@@ -141,14 +162,17 @@ def share(result_id: int, request: Request,
 
     if not r.share_token and prefs is None:
         # First share (or re-share after Stop sharing): employer starts OFF
-        # (privacy by default, GC #5) whatever an older row stored.
+        # (privacy by default, GC #5) whatever an older row stored; so do the
+        # "Watch out" notes (R3-10).
         r.share_show_company = False
+        r.share_show_concerns = False
     mint_share_token(r)                         # lazy, idempotent mint
     # The sheet's toggle form re-submits with prefs=1; an unchecked checkbox
     # sends nothing, so presence of the field is the value.
     if prefs is not None:
         r.share_show_company = show_company is not None
-        # Drop a cached OG png so it re-renders with the new employer choice.
+        r.share_show_concerns = show_concerns is not None
+        # Drop a cached OG png so it re-renders with the new choices.
         drop_png(card_png_path(r.share_token))
     db.add(r)
     db.commit()
@@ -159,8 +183,9 @@ def share(result_id: int, request: Request,
     db.commit()
 
     url = absolute_url(f"/m/{r.share_token}")
+    good, bad = public_bullets(r)           # the exact public bullets (preview)
     return templates.TemplateResponse(request, "partials/share_sheet.html", {
-        "request": request, "r": r, "source": src,
+        "request": request, "r": r, "source": src, "good": good, "bad": bad,
         "share_url": url, "og_url": absolute_url(f"/m/{r.share_token}/card.png"),
         "caption": _caption(url),
     })
@@ -187,12 +212,12 @@ def _card_context(db: DbSession, r: JobResult) -> dict:
     # The profile has no first-name field today, so there is no name to render —
     # the card stays anonymous, which is the safe default. share_show_name is
     # stored for when a real name source lands (then gate the name on it here).
-    from ..services.text import as_bullets
+    good, bad = public_bullets(r)
     return {
         "r": r, "verdict": verdict, "vcls": vcls,
         "company": r.company if r.share_show_company else "",
         "owner_name": "",
-        "good": as_bullets(r.why_good, 3), "bad": as_bullets(r.why_bad, 2),
+        "good": good, "bad": bad,
         "cta_url": referral.invite_url(code) if code else "/signup",
         **referral_ctx(code),
     }
@@ -232,7 +257,9 @@ def public_card(token: str, request: Request):
 
 def _og_svg(r: JobResult) -> str:
     """The 1200x630 social card as an SVG string. Plain sans-serif only (no web
-    fonts) so cairo's fontconfig resolves it identically everywhere."""
+    fonts) so cairo's fontconfig resolves it identically everywhere. Fit notes
+    come from public_bullets(), so the PNG shows exactly what the share sheet
+    previewed ("Watch out" only when the owner opted in)."""
     import html
 
     verdict, _ = verdict_of(r.fit_role, r.fit_candidate)
@@ -243,28 +270,40 @@ def _og_svg(r: JobResult) -> str:
     fc = max(0, min(100, r.fit_candidate or 0))
     footer = ("See your own shortlist - first scan free" if config.first_scan_free
               else "See your own shortlist on JBHNTR")
-    company_line = (f'<text x="80" y="356" font-family="sans-serif" '
-                    f'font-size="32" fill="#9FB2C4">{company}</text>'
+    company_line = (f'<text x="80" y="232" font-family="sans-serif" '
+                    f'font-size="26" fill="#9FB2C4">{company}</text>'
                     if company else "")
+    good, bad = public_bullets(r)
+    lines, y = [], 282
+    for label, items, colour in (("Fits", good, "#8FC9A3"),
+                                 ("Watch out", bad, "#E0B36A")):
+        for i, b in enumerate(items):
+            head = (f'<tspan font-weight="700" fill="{colour}">{label}: </tspan>'
+                    if i == 0 else f'<tspan fill="{colour}">- </tspan>')
+            lines.append(f'<text x="80" y="{y}" font-family="sans-serif" '
+                         f'font-size="22" fill="#FBF8F2">{head}{html.escape(b)}</text>')
+            y += 30
+    notes = "\n  ".join(lines)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <rect width="1200" height="630" fill="#0B1A27"/>
   <rect x="0" y="0" width="1200" height="12" fill="#6E92C9"/>
-  <text x="80" y="110" font-family="sans-serif" font-size="34" font-weight="700" letter-spacing="3" fill="#9FB2C4">JBHNTR</text>
-  <text x="80" y="210" font-family="sans-serif" font-size="58" font-weight="800" fill="#F2E9C9">{v}</text>
-  <text x="80" y="300" font-family="sans-serif" font-size="46" font-weight="700" fill="#FBF8F2">{title}</text>
+  <text x="80" y="70" font-family="sans-serif" font-size="28" font-weight="700" letter-spacing="3" fill="#9FB2C4">JBHNTR</text>
+  <text x="80" y="140" font-family="sans-serif" font-size="48" font-weight="800" fill="#F2E9C9">{v}</text>
+  <text x="80" y="194" font-family="sans-serif" font-size="38" font-weight="700" fill="#FBF8F2">{title}</text>
   {company_line}
+  {notes}
   <g font-family="sans-serif" fill="#FBF8F2">
-    <text x="80" y="455" font-size="26" font-weight="700">Fits the candidate's goals</text>
-    <text x="1120" y="455" font-size="26" font-weight="700" text-anchor="end">{fr}</text>
-    <rect x="80" y="470" width="1040" height="16" rx="8" fill="#1C3042"/>
-    <rect x="80" y="470" width="{round(fr * 10.4, 1)}" height="16" rx="8" fill="#6E92C9"/>
-    <text x="80" y="535" font-size="26" font-weight="700">Candidate fits the requirements</text>
-    <text x="1120" y="535" font-size="26" font-weight="700" text-anchor="end">{fc}</text>
-    <rect x="80" y="550" width="1040" height="16" rx="8" fill="#1C3042"/>
-    <rect x="80" y="550" width="{round(fc * 10.4, 1)}" height="16" rx="8" fill="#6E92C9"/>
+    <text x="80" y="462" font-size="24" font-weight="700">Fits the candidate's goals</text>
+    <text x="1120" y="462" font-size="24" font-weight="700" text-anchor="end">{fr}</text>
+    <rect x="80" y="474" width="1040" height="14" rx="7" fill="#1C3042"/>
+    <rect x="80" y="474" width="{round(fr * 10.4, 1)}" height="14" rx="7" fill="#6E92C9"/>
+    <text x="80" y="530" font-size="24" font-weight="700">Candidate fits the requirements</text>
+    <text x="1120" y="530" font-size="24" font-weight="700" text-anchor="end">{fc}</text>
+    <rect x="80" y="542" width="1040" height="14" rx="7" fill="#1C3042"/>
+    <rect x="80" y="542" width="{round(fc * 10.4, 1)}" height="14" rx="7" fill="#6E92C9"/>
   </g>
-  <text x="80" y="610" font-family="sans-serif" font-size="24" fill="#9FB2C4">{footer}</text>
+  <text x="80" y="610" font-family="sans-serif" font-size="22" fill="#9FB2C4">{footer}</text>
 </svg>"""
 
 

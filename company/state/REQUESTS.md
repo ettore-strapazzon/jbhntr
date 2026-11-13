@@ -93,12 +93,23 @@ Answer:
 Answer:
 
 ---
-### R-012 · Hands-on source-review before any /compare page publishes · open
-**What:** GC cleared the comparison-page *wording* (20 cleared / 4 revised / 2 held) but — per the compliance card — **no `/compare/*` page ships until a one-time hands-on source check** confirms each competitor claim against the competitor's live site and fills the "Last reviewed against official sources on <date>" line. This is a brief human/Founder pass (a competitor trial = account creation, which agents don't do).
-**To unblock the held items:** (a) confirm/drop Indeed's current "Apply-for-Me" status with a dated source; (b) confirm Teal+'s current pricing structure; (c) CFO/CTO owe a dated query on our own match corpus to substantiate the "most value is in the first handful of applications" claim.
-**Reply:** when you want to do the source pass (or "GC drafts the checklist first"). Not blocking — the pages aren't built yet (R3-08).
+### R-012 · Two 5-minute browser checks before `/compare/teal` ships and before we name Indeed · open (rewritten 2026-11-13 after GC R3-12)
+**What changed:** GC read every competitor's public pages itself on 2026-11-13 (R3-12). 17 of 24 cells confirmed, 2 wrong ones corrected, 4 reworded to what the sites actually say. Three pages (`/compare/jobright`, `/compare/simplify`, `/compare/auto-apply-tools`) now carry a real "Last reviewed … 13 November 2026" date and **need nothing from you**. **No step below needs an account, sign-up, form or payment.** Two sites block automated readers (HTTP 403), so only a human browser can read them. That is the whole residual.
 
-**Update (2026-11-13, c4) — GC checklist ready, ~45 min, no accounts needed:** (1) in a private window open jobright.ai, simplify.jobs, tealhq.com (incl. pricing), and the LazyApply/AIApply/Sonara/LoopCV home + pricing pages; (2) for each `[VERIFY]` cell in `company/docs/marketing/COMPARE_COPY.md` mark ✓ / ✗ (+ what the site says) / ? and paste the URL; (3) Indeed help centre: search "Apply for me", paste URL + status; (4) Teal: paste the Teal+ price + billing period; (5) LinkedIn User Agreement: paste the current automated-activity sentence; (6) reply with today's date + the list. **Note:** next cycle GC will first do the no-account public-page reads itself (R3-12), so this may shrink to only the cells needing a competitor account — you can wait for that.
+**Step 1 — Teal (unblocks `/compare/teal`; ~5 min).** In a normal or private browser window, without logging in:
+1. Open `https://www.tealhq.com/tools/job-tracker`. Answer: does it say you can save/bookmark jobs from job boards with a Chrome extension? (yes/no)
+2. Open `https://www.tealhq.com/tools/resume-builder`. Answer: does it offer a résumé builder that tailors to a job description? (yes/no)
+3. Open `https://www.tealhq.com/` and scroll once. Answer: does Teal **recommend or find jobs for you** (e.g. "job recommendations", "job search", "find jobs") or only organise jobs you save? Paste the one sentence that says so, or write "not seen".
+4. Open `https://www.tealhq.com/pricing`. Answer: is there a free plan and a paid plan called Teal+? (yes/no). Optional: the Teal+ price(s) as shown.
+
+**Step 2 — Indeed "Apply for me" (decides whether the auto-apply page may name Indeed; ~3 min; optional — the page ships without it).**
+1. Open `https://www.indeed.com/news/releases/indeed-tests-apply-for-me-job-search`.
+2. Copy the **date** shown on the release and the one sentence that says who can use "Apply for me" (e.g. "a limited group of U.S. job seekers").
+3. If that page doesn't load, write "not loaded" and stop. Indeed stays unnamed.
+
+**Reply format (paste under Answer):** `2026-MM-DD · Teal 1:yes/no 2:yes/no 3:"<sentence>"/not seen 4:yes/no [$..] · Indeed: <date> "<sentence>" / not loaded`. GC then sets the Teal date (or corrects a cell), and decides the Indeed line.
+
+**No longer on you:** Jobright, Simplify, LazyApply, AIApply, LoopCV and the LinkedIn User Agreement were all read by GC (URLs in `company/docs/marketing/COMPARE_COPY.md`, section "GC source pass R3-12"). Sonara is not named in any copy, so its status doesn't matter. The "first handful of applications" corpus stat is a CFO/CTO task (GTM §5.3), not a request to you. The interim non-numeric copy ships.
 
 Answer:
 

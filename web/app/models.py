@@ -252,6 +252,9 @@ class JobResult(Base):
     # name defaults off and is never shown unless the owner turns it on.
     share_show_company: Mapped[bool] = mapped_column(Boolean, default=False)
     share_show_name: Mapped[bool] = mapped_column(Boolean, default=False)
+    # "Watch out" (reasons-against) notes on the public card + PNG: written from
+    # the user's CV/preferences, so OFF unless the owner opts in (GC R3-10/C11).
+    share_show_concerns: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -708,3 +711,32 @@ class CreditLedger(Base):
     note: Mapped[str] = mapped_column(String(200), default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True)
+
+
+class ReferralReward(Base):
+    """The inviter's reward for one referred friend (R3-11, TERMS §6 / GTM §5).
+
+    Created when the friend activates (first completed scan) but NOT paid then:
+    status 'pending' until services/referral.release_due() finds >= the payout
+    delay elapsed AND the friend's first triage action, then 'paid' (the ledger
+    grant is keyed referral:{friend_id}, so a release can never pay twice).
+    'held' = past the inviter's soft monthly ceiling (or held by an operator);
+    only an admin unlock moves it back to 'pending'. One row per friend.
+    """
+
+    __tablename__ = "referral_rewards"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    inviter_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    friend_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    amount: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(12), default="pending", index=True)
+    hold_reason: Mapped[str] = mapped_column(String(24), default="")
+    activated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True)
+    unlocked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None)
+    released_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None)

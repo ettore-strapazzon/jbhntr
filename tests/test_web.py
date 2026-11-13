@@ -2867,12 +2867,22 @@ def test_referral_redemption_end_to_end(client):
     assert friend.referred_by_user_id == inviter.id
     assert credits.balance(db, friend) == config.signup_grant_credits + config.referral_friend_credits
 
-    # Activation: paid once, and idempotent on repeat.
+    # Activation: NOT paid at once (R3-11 delayed payout, TERMS §6) — pending
+    # until 48h + the friend's first triage, then paid once (idempotent).
     referral.reward_inviter_if_activated(db, friend)
     inviter = db.query(User).filter_by(email="inviter@example.com").one()
-    assert credits.balance(db, inviter) == inviter_start + config.referral_credits
+    assert credits.balance(db, inviter) == inviter_start
+    from datetime import timedelta
+    from web.app.models import ReferralReward, utcnow
+    from web.app.services.events import record
+    record(db, "job_saved", user_id=friend.id)
+    rw = db.query(ReferralReward).filter_by(friend_id=friend.id).one()
+    rw.activated_at = utcnow() - timedelta(hours=49); db.commit()
+    referral.release_due(db)
     referral.reward_inviter_if_activated(db, friend)
+    referral.release_due(db)
     assert credits.balance(db, inviter) == inviter_start + config.referral_credits
+    db.query(ReferralReward).filter_by(friend_id=friend.id).delete(); db.commit()
     db.close()
 
 

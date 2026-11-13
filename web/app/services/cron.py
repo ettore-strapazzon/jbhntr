@@ -107,6 +107,8 @@ def nightly(today: datetime.date | None = None) -> dict:
         _stage(out, "pageview_pruned", lambda: _prune_pageviews(db))
         # Drop thin careerjet snippets that duplicate a full scraped job.
         _stage(out, "dedup_merged", lambda: merge_thin_duplicates(db))
+        # R3-11: pay referral rewards past the 48h delay whose friend has triaged.
+        _stage(out, "referral_released", _release_referrals)
     finally:
         db.close()
 
@@ -117,6 +119,18 @@ def nightly(today: datetime.date | None = None) -> dict:
 
     log.info("nightly done (weekly=%s): %s", is_weekly, out)
     return out
+
+
+def _release_referrals() -> int:
+    """Release due referral rewards (TERMS §6: delayed payout). Own session;
+    idempotent, so a re-run or an overlapping opportunistic release pays once."""
+    from ..db import SessionLocal
+    from . import referral
+    db = SessionLocal()
+    try:
+        return referral.release_due(db)
+    finally:
+        db.close()
 
 
 def _record_corpus_stat(out: dict) -> int:

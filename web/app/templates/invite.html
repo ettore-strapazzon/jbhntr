@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block body_class %}home{% endblock %}
+{% block content %}
+{# R3-03 /invite. Every visible string is ARTEFACTS_SPEC §3.5 verbatim; numbers
+   from config. No inline JS (CSP): handlers live in /static/invite.js and are
+   wired by data-attributes. Deliberately NOT [data-copy] (that is app.js's
+   generic handler, which would double-fire and never restore the label). #}
+<div class="container">
+  <article class="doc invite">
+    <h1>Know someone applying to everything?</h1>
+    <p class="lede">Send them JBHNTR. We read live job listings and return the short list worth
+      their time, with a fit score in both directions and the reasons for and against each
+      role.{% if first_scan_free %} Their first scan is free.{% endif %}</p>
+    <p><b>Your friend gets {{ friend_credits }} bonus credits. You get {{ inviter_credits }} for every friend who runs their first scan and starts using their results. No fixed limit.</b></p>
+
+    <section aria-label="Your invite link">
+      <label class="small muted" for="invite-link">Your invite link</label>
+      <div class="invite-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="invite-link" type="text" readonly value="{{ link }}" data-select-on-click
+               style="flex:1 1 16rem;min-width:0">
+        <button type="button" class="btn ghost" data-invite-copy="#invite-link"
+                data-channel="link">Copy link</button>
+        <button type="button" class="btn ghost" data-invite-native hidden
+                data-share-text="{{ native_text }}" data-share-url="{{ link }}"
+                data-channel="native">Share…</button>
+      </div>
+      <p class="small invite-copy-fail" role="alert" hidden>Couldn't copy. Select the text and copy it manually.</p>
+
+      <label class="small muted" for="invite-code" style="display:block;margin-top:16px">Your invite code</label>
+      <div class="invite-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="invite-code" type="text" readonly value="{{ code }}" data-select-on-click
+               class="invite-code" style="font-family:var(--mono);font-size:20px;letter-spacing:.08em;flex:0 1 12rem">
+        <button type="button" class="btn ghost" data-invite-copy="#invite-code"
+                data-channel="code">Copy code</button>
+      </div>
+      <p class="small invite-copy-fail" role="alert" hidden>Couldn't copy. Select the text and copy it manually.</p>
+      <p class="small muted">If the link gets lost, your friend can type {{ typed_link }} into their browser.</p>
+    </section>
+
+    <section aria-labelledby="inv-counter">
+      <h2 id="inv-counter">Your invites</h2>
+      {% if counts.signed_up == 0 %}
+      <p><b>No invites yet.</b> Share your link below. When a friend's invite is credited, it shows up here.</p>
+      {% else %}
+      <p class="invite-headline" style="font-size:20px"><b>{{ counts.credited }} friend{% if counts.credited != 1 %}s{% endif %} credited · +{{ counts.earned }} credits earned</b></p>
+      <p class="muted">{{ counts.signed_up }} signed up with your link{% if counts.credited == 0 and counts.pending == 0 %} · waiting for their first scan{% endif %}</p>
+      {% if counts.pending > 0 %}
+      <p class="muted">{{ counts.pending }} waiting for checks. Credits arrive two to three days after a friend's first scan, once they've used their results.</p>
+      {% endif %}
+      {% endif %}
+      <p class="small muted">Updates each time you open this page.</p>
+    </section>
+
+    <section aria-labelledby="inv-how">
+      <h2 id="inv-how">How it works</h2>
+      <ol>
+        <li><b>Share your link.</b> Send it by message, email or chat. It carries your code, so we
+          know the invite came from you.</li>
+        <li><b>They sign up and run their first scan.</b>{% if first_scan_free %} Their first scan is free, and your link
+          adds {{ friend_credits }} bonus credits to their account.{% endif %}</li>
+        <li><b>You get {{ inviter_credits }} credits.</b> We add them two to three days after your friend's
+          first scan, once they've also saved, dismissed, rated or marked a role as applied and our usual checks are clear.</li>
+      </ol>
+      <p class="small muted">There's no fixed limit on how many friends you invite or how many credits you earn.
+        Your credits are added two to three days after a friend's first scan, once they've used
+        their results and our checks are clear. If a lot of your invites come through in one
+        month, we review the extra ones by hand before adding their credits, so those can take
+        longer. Self-invites don't count, and credits from duplicate or throwaway accounts may be
+        held or removed. Credits stay on your account: they have no cash value and can't be sold,
+        transferred or exchanged for cash. If you share publicly, say that you earn credits from
+        your link (the messages below already do). <a href="/terms">Terms</a></p>
+    </section>
+
+    <section aria-labelledby="inv-msgs">
+      <h2 id="inv-msgs">Ready-to-send messages</h2>
+      <p class="muted">Edit them however you like. Each one already includes your link and says you earn credits from it.</p>
+      {% for m in messages %}
+      <div class="invite-msg" style="margin-top:20px">
+        <h3 id="msg-{{ m.channel }}-h" style="margin:0 0 6px">{{ m.name }}</h3>
+        {% if m.helper %}<p class="small muted" style="margin:0 0 6px">{{ m.helper }}</p>{% endif %}
+        {% if m.subject %}<p class="small" style="margin:0 0 6px">Subject: <b>{{ m.subject }}</b></p>{% endif %}
+        <textarea id="msg-{{ m.channel }}" readonly rows="{{ 8 if m.channel == 'email' else 4 }}"
+                  aria-labelledby="msg-{{ m.channel }}-h" style="width:100%">{{ m.message }}</textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          <button type="button" class="btn ghost small" data-invite-copy="#msg-{{ m.channel }}"
+                  data-channel="{{ m.channel }}">Copy message</button>
+          {% if m.href %}
+          <a class="btn ghost small" href="{{ m.href }}" data-invite-intent data-channel="{{ m.channel }}"
+             {% if not m.href.startswith('mailto:') %}target="_blank" rel="noopener"{% endif %}>{{ m.button }}</a>
+          {% endif %}
+        </div>
+        <p class="small invite-copy-fail" role="alert" hidden>Couldn't copy. Select the text and copy it manually.</p>
+      </div>
+      {% endfor %}
+    </section>
+  </article>
+</div>
+<script src="/static/invite.js?v={{ asset_v }}" defer></script>
+{% endblock %}

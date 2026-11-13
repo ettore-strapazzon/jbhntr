@@ -1488,3 +1488,53 @@ def waitlist_csv(_: bool = Depends(require_admin),
         w.writerow([email, when.isoformat() if when else ""])
     return PlainTextResponse(buf.getvalue(), media_type="text/csv", headers={
         "Content-Disposition": 'attachment; filename="waitlist.csv"'})
+
+
+# --- R3-11: referral rewards held past the soft monthly ceiling -------------- #
+@router.get("/admin/referral-rewards")
+def admin_referral_rewards(_: bool = Depends(require_admin),
+                           db: DbSession = Depends(get_session)):
+    """Held + pending referral rewards, for the human unlock (TERMS §6)."""
+    from fastapi.responses import JSONResponse
+
+    from ..models import ReferralReward
+
+    def rows(status):
+        return [{"id": r.id, "inviter_id": r.inviter_id, "friend_id": r.friend_id,
+                 "amount": r.amount, "hold_reason": r.hold_reason,
+                 "activated_at": r.activated_at.isoformat() if r.activated_at else None}
+                for r in db.query(ReferralReward).filter_by(status=status)
+                .order_by(ReferralReward.id).limit(500)]
+    return JSONResponse({"held": rows("held"), "pending": rows("pending")})
+
+
+@router.post("/admin/referral-unlock")
+def admin_referral_unlock(_: bool = Depends(require_admin),
+                          reward_id: int = Form(...),
+                          db: DbSession = Depends(get_session)):
+    """Operator action: release a held referral reward back to pending; the
+    nightly release pays it once the delay + triage conditions hold."""
+    from urllib.parse import quote
+
+    from ..services import referral
+    ok = referral.unlock(db, reward_id)
+    record_op("referral_unlock", f"reward {reward_id}: {'unlocked' if ok else 'not held'}")
+    msg = (f"Referral reward {reward_id} unlocked; it pays on the next release run."
+           if ok else f"Referral reward {reward_id} is not held — nothing changed.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)
+
+
+@router.post("/admin/referral-hold")
+def admin_referral_hold(_: bool = Depends(require_admin),
+                        reward_id: int = Form(...), reason: str = Form("review"),
+                        db: DbSession = Depends(get_session)):
+    """Operator action: hold a pending referral reward for review (TERMS §6
+    duplicate/fraud checks). Undo with /admin/referral-unlock."""
+    from urllib.parse import quote
+
+    from ..services import referral
+    ok = referral.hold(db, reward_id, reason)
+    record_op("referral_hold", f"reward {reward_id}: {'held' if ok else 'not pending'}")
+    msg = (f"Referral reward {reward_id} held for review." if ok
+           else f"Referral reward {reward_id} is not pending — nothing changed.")
+    return RedirectResponse(f"/admin?reset_msg={quote(msg)}", status_code=303)

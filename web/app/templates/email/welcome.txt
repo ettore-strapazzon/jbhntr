@@ -17,8 +17,8 @@ always free, credits never expire, and no card is required. A scan can take a fe
 minutes and continues if you close the tab.
 {% if invite_url %}
 Refer a friend and earn credits. They start with {{ config.referral_friend_credits }}
-credits; you get {{ config.referral_credits }} when they complete their profile and
-first scan.
+credits; you get {{ config.referral_credits }} two to three days after their first
+scan, once they've used their results.
 
 Refer a friend: {{ invite_url }}
 Your invite code: {{ referral_code }}
