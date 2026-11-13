@@ -169,6 +169,10 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    # Never run production maintenance on the demo engine (repo-split plan §5.3).
+    from ..config import config
+    from ..engine_guard import enforce_engine
+    enforce_engine(config.debug)
     print(nightly())
 
 

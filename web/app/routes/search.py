@@ -170,7 +170,7 @@ def generate(result_id: int, kind: str, request: Request,
         credits.refund(db, charge, reason="search_refund")
         return RedirectResponse("/applications?error=" + quote(msg), status_code=303)
 
-    from jobhunter.models import MatchResult, RankedJob
+    from jbhntr_engine import MatchResult, RankedJob, panel_deliberate
 
     from ..services.profile_service import build_generation_context
 
@@ -198,8 +198,7 @@ def generate(result_id: int, kind: str, request: Request,
     # only if the structured build above failed; any panel failure falls back.
     if not content:
         try:
-            from ..services import panel
-            pr = panel.deliberate(kind, eng_materials, posting, settings, config)
+            pr = panel_deliberate(kind, eng_materials, posting, settings, config)
             if pr and pr.get("content"):
                 content = pr["content"]
                 note = (f"Refined by a {pr['models']}-model panel "

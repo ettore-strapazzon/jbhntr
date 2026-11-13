@@ -1,8 +1,8 @@
 # ARCHITECTURE — JBHNTR (current state)
 
-Owner: CTO · Updated 2026-10-25 · Living reference, not an essay. Update in place when a component, host, or cost changes.
+Owner: CTO · Updated 2026-11-13 · Living reference, not an essay. Update in place when a component, host, or cost changes.
 
-Live at **jbhntr.app** (Railway, deploys on push to `main`). Stack: FastAPI + Jinja + HTMX, Postgres, Anthropic LLM, on-device embeddings, Resend email. One monorepo today (`web/` shell + `jobhunter/` engine); the open-core split is planned in [REPO_SPLIT_EXECUTION_PLAN.md](REPO_SPLIT_EXECUTION_PLAN.md).
+Live at **jbhntr.app** (Railway, deploys on push to `main`). Stack: FastAPI + Jinja + HTMX, Postgres, Anthropic LLM, on-device embeddings, Resend email. One monorepo today: `web/` shell + the engine behind the **`jbhntr_engine` façade** (repo-split steps 1–3 done, c7). The shell imports the engine only as top-level `jbhntr_engine` names (enforced by `tests/test_engine_boundary.py`); the façade resolves them to the private real engine (`jbhntr_engine_real/` over `jobhunter/`) or the public demo engine (`jbhntr_engine_demo/`). Status + remaining steps: [REPO_SPLIT_EXECUTION_PLAN.md](REPO_SPLIT_EXECUTION_PLAN.md) §0.
 
 ## Component map
 
@@ -15,12 +15,15 @@ Live at **jbhntr.app** (Railway, deploys on push to `main`). Stack: FastAPI + Ji
 | **Ingestion / cron** | Nightly: prune dead jobs + daily ingest; weekly (Mon UTC): discovery refresh + metered sources | `web/app/services/cron.py` → `ingest.py`, `reaper.py` | Railway `cron` service (`railway.cron.json`, `python -m web.app.services.cron`) | LLM + metered-source calls |
 | **Reaper** | Marks postings dead/stale, calibrates aggregators, keeps the corpus fresh | `web/app/services/reaper.py`, `aggregator_calibrate.py` | Railway `cron` | — |
 | **Corpus** | Shared pool of ingested postings (tags, embeddings, geo) scans read from | `web/app/services/corpus_service.py`, `enrich_service.py` | Railway Postgres | storage |
-| **Matching engine** | Two-way fit scoring + reasons (cheap model, cached system prompt), triage, tags, dedup, criteria | `jobhunter/matcher.py`, `criteria.py`, `tags.py`, `dedup.py`, `candidate.py` | in-process (web + cron) | Anthropic `scoring` tier |
+| **Engine façade** | The only engine surface the shell may import: contract types/config (`types.py`, `settings.py`) + lazily-selected backend (`JBHNTR_ENGINE` = auto/real/demo; auto → real) | `jbhntr_engine/` | in-process | — |
+| **Demo engine** | Deterministic, offline stand-in (canned postings, keyword scoring, template docs) so the public shell runs end-to-end | `jbhntr_engine_demo/` | dev / tests / public repo only | free |
+| **Engine boot guard** | Refuses to start web or cron with `DEBUG` off unless the real engine is active (no silent demo fallback) | `web/app/engine_guard.py` → `main.py` lifespan, `services/cron.py` | Railway `web` + `cron` | — |
+| **Matching engine** (private) | Two-way fit scoring + reasons (cheap model, cached system prompt), triage, tags, dedup, criteria | `jobhunter/matcher.py`, `criteria.py`, `tags.py`, `dedup.py`, `candidate.py`; façade adapter `jbhntr_engine_real/` | in-process (web + cron) | Anthropic `scoring` tier |
 | **Sources / connectors** | 25+ endpoints: Adzuna, Careerjet/Jooble/JSearch/Findwork, Arbeitnow/RemoteOK/Remotive, Exa, ATS (Greenhouse/Lever/Ashby…), careers-page scrape | `jobhunter/sources/` | in-process | metered APIs + Bright Data |
 | **Discovery** | "Find more companies like these"; verifies they're hiring | `jobhunter/discover.py`, `seeds.py` | Railway `cron` | LLM + fetches |
 | **LLM** | One interface, two backends (Anthropic default / OpenAI-compatible). `scoring` = cheap/high-volume, `generation` = stronger | `jobhunter/llm.py` | Anthropic API | per-token; provider is a `.env` switch |
 | **Embeddings** | Semantic ranking; on-device ONNX (`fastembed`), no key/quota | `jobhunter/embeddings.py` | in-process (downloads ~150MB model once) | **free** |
-| **Doc generation + export** | Tailored CV + cover letter (stronger model), HTML/CSS → PDF (WeasyPrint, fpdf2 fallback) + DOCX | `jobhunter/generator.py`, `web/app/services/cv_*.py`, `export.py` | in-process; WeasyPrint needs system libs (`nixpacks.toml`) | Anthropic `generation` tier |
+| **Doc generation + export** | Tailored CV + cover letter (stronger model), multi-model panel, HTML/CSS → PDF (WeasyPrint, fpdf2 fallback) + DOCX | `jobhunter/generator.py`, `jbhntr_engine_real/panel.py` + `vision.py`, `web/app/services/cv_*.py`, `export.py` | in-process; WeasyPrint needs system libs (`nixpacks.toml`) | Anthropic `generation` tier |
 | **Credits** | First scan free; priced scans + CV/CL drafts; idempotent grants; referral bonuses | `web/app/services/credits.py`, `referral.py` | Railway Postgres | — |
 | **Email** | Transactional (welcome, reset, digest) via Resend HTTPS API | `web/app/services/email.py`, `digest.py` | Resend | free tier → metered |
 | **Auth** | Email+password (bcrypt via passlib) + Google OAuth (Authlib); signed session cookie, `.jbhntr.app` scoped | `web/app/auth.py`, `routes/auth_routes.py` | Railway `web` | — |
@@ -28,7 +31,7 @@ Live at **jbhntr.app** (Railway, deploys on push to `main`). Stack: FastAPI + Ji
 | **Analytics** | Privacy-preserving `PageView` (daily-rotating one-way visitor hash, no IP/email, 24-mo retention); optional Plausible | `web/app/services/analytics.py`, `main.py` middleware | Railway Postgres (+ Plausible if set) | free / Plausible metered |
 | **Measurement (R1-04)** | `ProductEvent` funnel (allowlisted names + non-identifying props, never raises) + `JobEvent` | `web/app/services/events.py`, `job_events.py`, `models.py` | Railway Postgres | — |
 | **BI dashboard (R1-05)** | Operator metrics incl. the activation funnel from `ProductEvent` | `web/app/routes/admin.py` (`/admin`) | Railway `web` | — |
-| **Secrets / config** | All secrets from env / `.env`; `config.validate()` **refuses to boot in prod** on weak secrets | `web/app/config.py`, `jobhunter/config.py`, `.env.example` | Railway env vars | — |
+| **Secrets / config** | All secrets from env / `.env`; `config.validate()` **refuses to boot in prod** on weak secrets | `web/app/config.py`, `jbhntr_engine/settings.py` (engine config contract; `jobhunter/config.py` aliases it), `.env.example` | Railway env vars | — |
 | **CDN / TLS** | Cloudflare in front of Railway; app trusts `X-Forwarded-*` (ProxyHeaders) | — | Cloudflare | free tier |
 
 ## Request / data flow (scan)
@@ -42,7 +45,7 @@ Live at **jbhntr.app** (Railway, deploys on push to `main`). Stack: FastAPI + Ji
 
 ## Security posture (standing duty)
 
-Strict CSP (no inline handlers; one pinned sha256 for the no-flash theme script), HSTS/X-Frame/X-Content-Type/Referrer/Permissions headers on every response (`main.py` middleware). Session cookie `httpOnly`+`secure`+`sameSite=lax`, bounded `maxAge`. Passwords bcrypt. OAuth state in a separate short-lived cookie. Uploads Fernet-encrypted. Analytics stores no IP/email. `config.validate()` hard-fails prod boot on weak secrets — **the model the demo-fallback boot guard will reuse** (see split plan §c). Gaps tracked by the CTO: shared-store rate limiting on auth, referral anti-abuse heuristics (not yet built — land in the private engine post-split).
+Strict CSP (no inline handlers; one pinned sha256 for the no-flash theme script), HSTS/X-Frame/X-Content-Type/Referrer/Permissions headers on every response (`main.py` middleware). Session cookie `httpOnly`+`secure`+`sameSite=lax`, bounded `maxAge`. Passwords bcrypt. OAuth state in a separate short-lived cookie. Uploads Fernet-encrypted. Analytics stores no IP/email. `config.validate()` hard-fails prod boot on weak secrets, and `engine_guard.enforce_engine()` hard-fails it on a demo/fallback engine (split plan §0/§5). Gaps tracked by the CTO: shared-store rate limiting on auth, referral anti-abuse heuristics (not yet built — land in the private engine post-split).
 
 ## Where R1-04 / R1-05 plug in
 

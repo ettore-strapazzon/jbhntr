@@ -539,7 +539,7 @@ def admin_embed_now(_: bool = Depends(require_admin)):
     free and batched; slow but memory-safe. Runs in the background."""
     from urllib.parse import quote
 
-    from jobhunter.config import Settings
+    from jbhntr_engine import Settings
     from ..config import config as web_config
     from ..db import SessionLocal
     from ..services.corpus_service import embed_new_jobs
@@ -646,8 +646,7 @@ def admin_test_source(name: str = "", _: bool = Depends(require_admin),
     import io
     import logging as _logging
 
-    from jobhunter.config import Profile
-    from jobhunter.sources import keyed
+    from jbhntr_engine import Profile
 
     from ..services.ingest import (
         KEYED_SOURCES, SOURCE_COUNTRIES, corpus_countries, corpus_terms,
@@ -732,7 +731,7 @@ def admin_test_domain(name: str = "Satispay", code: str = "it",
     (datacenter IPs are sometimes throttled where a laptop isn't), the parsed
     candidates, TLD guesses, and the final resolved domain + verify() board. Tells
     us if the low resolve rate is Clearbit being blocked server-side."""
-    from jobhunter.sources.base import http_client
+    from jbhntr_engine import http_client
 
     from ..services import companies_service as cs
 
@@ -752,9 +751,9 @@ def admin_test_domain(name: str = "Satispay", code: str = "it",
     resolved = cs._resolve_domain(name, code)
     board = None
     if resolved:
-        from jobhunter.discover import _slugify, verify
+        from jbhntr_engine import company_slug, verify_company
         try:
-            board = verify(name, _slugify(name), resolved)
+            board = verify_company(name, company_slug(name), resolved)
         except Exception as exc:
             board = f"verify error: {exc}"
     return (f"name = {name!r}  code = {code!r}\n\n"
@@ -775,7 +774,7 @@ def admin_test_careers(name: str = "", domain: str = "",
     carry a full JD — plus whether it came free (JSON-LD) or needed the LLM. Proves
     the JS-page scraping actually works before running the bulk custom scrape.
     e.g. /admin/test-careers?name=Satispay  or  ?domain=satispay.com"""
-    from jobhunter.sources.careers_scrape import scrape_careers
+    from jbhntr_engine import scrape_careers
 
     from ..services import companies_service as cs
     from ..services.profile_service import engine_settings
@@ -809,13 +808,13 @@ def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
     """Diagnose Rung 1 (Bright Data browser) on ONE JS-only agency portal: render it
     and report openings + full-JD count. Proves the paid browser path works before
     the bulk run. Needs BROWSER_AUTH set. e.g. /admin/test-browser?name=Adecco"""
-    from jobhunter.sources import browser_sniff
+    from jbhntr_engine import browser_configured, browser_debug_portal, browser_fetch_portal
 
     from ..services import companies_service as cs
     from ..services.profile_service import engine_settings
 
     settings = engine_settings(premium=True)
-    if not browser_sniff.is_configured(settings):
+    if not browser_configured(settings):
         return ("BROWSER_AUTH is not set — Rung 1 disabled.\n\nSet it on the web + cron "
                 "Railway services to 'brd-customer-<id>-zone-<zone>:<password>' from your "
                 "Bright Data Scraping Browser zone, then retry.")
@@ -826,16 +825,16 @@ def admin_test_browser(name: str = "", domain: str = "", country: str = "it",
     if debug:
         import json as _json
 
-        from jobhunter.sources import agency_hints
-        h = agency_hints.hint_for(name, country) if name else None
+        from jbhntr_engine import agency_hint_for
+        h = agency_hint_for(name, country) if name else None
         listing = (h or {}).get("listing", "")
         try:
             return _json.dumps(
-                browser_sniff.debug_portal(domain, settings, listing=listing), indent=2)[:4000]
+                browser_debug_portal(domain, settings, listing=listing), indent=2)[:4000]
         except Exception as exc:
             return f"debug EXCEPTION: {type(exc).__name__}: {str(exc)[:300]}"
     try:
-        jobs = browser_sniff.fetch_portal(domain, name or domain, settings, country=country) or []
+        jobs = browser_fetch_portal(domain, name or domain, settings, country=country) or []
     except Exception as exc:
         return f"domain = {domain}\nEXCEPTION: {type(exc).__name__}: {str(exc)[:200]}"
     full = [j for j in jobs if len(j.description or "") >= 300]
@@ -854,8 +853,9 @@ def admin_agencies(country: str = "it", _: bool = Depends(require_admin),
     a working agency (mostly full) vs a broken one (all thin) is obvious at a glance."""
     from sqlalchemy import String, case, func
 
-    from jobhunter import geo
-    from jobhunter.sources.agency_hints import AGENCY_HINTS, hint_for, is_ignored
+    from jbhntr_engine import AGENCY_HINTS, geo
+    from jbhntr_engine import agency_hint_for as hint_for
+    from jbhntr_engine import agency_is_ignored as is_ignored
     from ..services.ingest import DEFAULT_COUNTRIES
 
     def cfilt(code):
@@ -983,7 +983,7 @@ def admin_test_careers_sample(n: int = 10, country: str = "",
     /admin/test-careers-sample?n=10  (optional ?country=it biases the domain TLD)."""
     from sqlalchemy import func
 
-    from jobhunter.sources.careers_scrape import scrape_careers
+    from jbhntr_engine import scrape_careers
 
     from ..services import companies_service as cs
     from ..services.profile_service import engine_settings
@@ -1360,7 +1360,7 @@ def admin_run_discovery(_: bool = Depends(require_admin)):
     service. Slow — runs in the background."""
     from urllib.parse import quote
 
-    from jobhunter.config import Settings
+    from jbhntr_engine import Settings
     from ..db import SessionLocal
     from ..services.companies_service import (
         discover_all_active, scrape_custom_companies,
@@ -1369,7 +1369,8 @@ def admin_run_discovery(_: bool = Depends(require_admin)):
     def _work():
         db = SessionLocal()
         try:
-            from jobhunter import llm
+            from jbhntr_engine import llm
+
             from ..services.profile_service import engine_settings
             llm_ok = llm.is_configured(engine_settings())
             found = discover_all_active(db, force=True)
@@ -1413,7 +1414,10 @@ def admin_discovery_selftest(_: bool = Depends(require_admin)):
     def _work():
         db = SessionLocal()
         try:
-            from jobhunter import discover as dm, llm
+            from jbhntr_engine import (
+                discover_extract_companies, discover_research, discover_suggest, llm,
+            )
+
             from ..services.profile_service import (
                 build_engine_profile, engine_settings, seed_values,
             )
@@ -1433,7 +1437,7 @@ def admin_discovery_selftest(_: bool = Depends(require_admin)):
 
             # Stage A: model-knowledge suggestion (no web search) — the reliable path.
             try:
-                mk = dm.suggest(profile, settings, 5, exemplars=seeds,
+                mk = discover_suggest(profile, settings, 5, exemplars=seeds,
                                 exclude=[], web_search=False)
                 names = ", ".join(c.get("name", "?") for c in mk[:5])
                 lines.append(f"[A] model-knowledge suggest -> {len(mk)}: {names or '(empty list)'}")
@@ -1443,11 +1447,11 @@ def admin_discovery_selftest(_: bool = Depends(require_admin)):
             # Stage B: live web research (only if the provider claims support).
             if client.supports_web_search:
                 try:
-                    notes = dm.research(profile, settings, 5, seeds)
+                    notes = discover_research(profile, settings, 5, seeds)
                     preview = " ".join((notes or "").split())[:300]
                     lines.append(f"[B] web research -> {len(notes)} chars; preview: {preview!r}")
                     try:
-                        ex = dm.extract_companies(notes, settings, [])
+                        ex = discover_extract_companies(notes, settings, [])
                         names = ", ".join(c.get("name", "?") for c in ex[:8])
                         lines.append(f"[C] extract -> {len(ex)}: {names or '(empty)'}")
                     except Exception as e:

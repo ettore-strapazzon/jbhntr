@@ -91,3 +91,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth still on R-009 (brand accounts) / R-011; /compare/teal on R-012.
 - **Spend:** none.
 - **Observations:** GC proposed a reusable "flag-flip launch re-check" workflow (copy vs code vs terms + pre-flip ops check); sub-agents skipped task-observer at task start.
+
+## 2026-11-13 · cycle 7 (repo split steps 1–3 — solo)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 4/10.
+- **Dispatched (foreground, solo by c6 decision):** CTO (R3-05). CPO/CMO/GC/CFO held: R3-14/R3-15 touch `web/` and would collide with a 78-site import refactor; today's digest already filed; R-006 open.
+- **Result (accepted):** CTO → **R3-05** steps 1–3 in-repo: `jbhntr_engine/` = public contract + lazy selector (`JBHNTR_ENGINE=auto|real|demo`, default auto→real); all 78 `jobhunter.*` imports in `web/` now 60 `from jbhntr_engine import …` lines (0 left; `tests/test_engine_boundary.py`, mutation-checked); prompt-bearing `panel`/`recover`/CV-vision + 3 small prompts moved to `jbhntr_engine_real/`; `jbhntr_engine_demo/` (12 fictional example.com jobs, keyword scoring, no LLM/network) runs signup→scan→/matches end-to-end; `web/app/engine_guard.py` at web start + cron refuses non-real engine with `DEBUG` off; `scripts/build_engine_wheel.py --verify` proves public-only → demo (prod refuses) and public+wheel → real. No new env var needed for the live deploy (CTO checked a clean `requirements-web.txt` venv; CEO re-checked `DEBUG=false` → real engine, no problems). Deviations recorded in plan §0 (naming `jbhntr_engine_real`; Settings/types public; façade 48 symbols vs 8).
+- **CEO review fixes:** CTO found a pre-existing bug — `search_service._verify_links` returned a bare list on its early exits while the caller unpacks two values, so zero-result scans (or a link-check exception) failed and were refunded. Fixed (returns `(ranked, set())`) + `tests/test_verify_links.py`.
+- **Test gate (CEO, once, after all agents):** **745 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-16 (finish the private carve + cron `DEBUG=false` check before step 4).
+- **Requests:** none new. R-009 (brand accounts) still the top outward blocker; R-013 (flip `INVITE_PAGE`) awaiting Founder.
+- **Blockers:** steps 4–7 of the split need a separate Founder go (after R3-16).
+- **Spend:** none.
+- **Observations:** CTO logged a reusable lesson: a refactor that changes which modules load at startup needs a check in a clean environment built only from the production requirements.

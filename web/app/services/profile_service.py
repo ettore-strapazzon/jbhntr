@@ -1,4 +1,4 @@
-"""Bridge between the database and the `jobhunter` engine.
+"""Bridge between the database and the engine (via the `jbhntr_engine` façade).
 
 The engine reads a `Profile` (from YAML) and `Materials` (from a folder). Here
 we build exactly those objects from a user's database rows, so the engine runs
@@ -13,8 +13,8 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from jobhunter.config import Materials as EngineMaterials
-from jobhunter.config import Profile as EngineProfile
+from jbhntr_engine import Materials as EngineMaterials
+from jbhntr_engine import Profile as EngineProfile
 
 from ..config import config
 from ..models import Feedback, Material, Profile, SeedCompany, User
@@ -294,7 +294,7 @@ WORK_MODES = ["onsite", "hybrid", "remote"]
 
 # Countries offered in the picker. Adzuna-covered ones (best data) first, then
 # other markets Careerjet reaches / we can match by name. Names must be ones
-# jobhunter.geo recognises so nothing is a dead option.
+# the engine geo (jbhntr_engine.geo) recognises so nothing is a dead option.
 COUNTRIES = [
     "United States", "United Kingdom", "Canada", "Australia", "New Zealand",
     "Ireland", "Italy", "Germany", "France", "Spain", "Portugal",
@@ -314,11 +314,11 @@ def infer_structured_location(locations: list[str]) -> tuple[list[str], list[str
     tokens (Remote-EU) can't map to one country and are simply skipped — the
     user re-picks countries, which is more precise anyway.
     """
-    from jobhunter import geo
+    from jbhntr_engine import geo
 
     name_by_code = {}
     for name in COUNTRIES:
-        code = geo._country_of(name)
+        code = geo.country_of(name)
         if code:
             name_by_code.setdefault(code, name)
 
@@ -333,7 +333,7 @@ def infer_structured_location(locations: list[str]) -> tuple[list[str], list[str
                 modes.append("remote")
         elif "onsite" not in modes:
             modes.append("onsite")
-        code = geo._country_of(t)
+        code = geo.country_of(t)
         if code and code in name_by_code and name_by_code[code] not in countries:
             countries.append(name_by_code[code])
     return modes, countries
@@ -439,7 +439,7 @@ def engine_settings(premium: bool = True):
     it so these paths match search and a leftover JOBHUNTER_SCORING_MODEL can't
     break them.
     """
-    from jobhunter.config import Settings as EngineSettings
+    from jbhntr_engine import Settings as EngineSettings
     s = EngineSettings.from_env()
     s.scoring_model = config.premium_scoring_model if premium else config.free_scoring_model
     if not s.generation_model:
@@ -455,9 +455,8 @@ def build_generation_context(db: Session, user: User, result, config):
     """(gen, eng_profile, eng_materials, posting) for one JobResult — shared by
     document generation and the refine loop, so both configure the engine the
     same way (models, drive-less Generator)."""
-    from jobhunter.config import Settings as EngineSettings
-    from jobhunter.generator import Generator
-    from jobhunter.models import JobPosting
+    from jbhntr_engine import Generator, JobPosting
+    from jbhntr_engine import Settings as EngineSettings
 
     settings = EngineSettings.from_env()
     settings.scoring_model = config.scoring_model   # one quality level (D-2)

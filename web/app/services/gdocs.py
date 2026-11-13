@@ -28,7 +28,7 @@ _SCOPES = [
 
 
 def _settings():
-    from jobhunter.config import Settings
+    from jbhntr_engine import Settings
     return Settings.from_env()
 
 

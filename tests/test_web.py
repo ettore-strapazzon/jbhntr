@@ -4115,7 +4115,7 @@ def _panel_job():
 def test_panel_converges_when_models_agree(monkeypatch):
     from jobhunter import llm
     from jobhunter.config import Materials
-    from web.app.services import panel
+    from jbhntr_engine_real import panel  # engine-side since repo-split step 1
 
     cfg = _panel_cfg(monkeypatch, ["m1", "m2", "m3"])
     calls = {"draft": 0, "vote": 0, "synth": 0}
@@ -4144,7 +4144,7 @@ def test_panel_completeness_guard_restores_over_compressed_cv(monkeypatch):
     pass runs against the original — the fix for 'it dropped my achievements'."""
     from jobhunter import llm
     from jobhunter.config import Materials
-    from web.app.services import panel
+    from jbhntr_engine_real import panel  # engine-side since repo-split step 1
 
     cfg = _panel_cfg(monkeypatch, ["m1", "m2"], rounds=0)      # skip the vote rounds
     long_cv = "Jane Doe\n" + ("Scaled revenue to EUR 2M with a team of 12. " * 60)
@@ -4167,7 +4167,7 @@ def test_panel_completeness_guard_restores_over_compressed_cv(monkeypatch):
 def test_panel_revises_when_below_threshold(monkeypatch):
     from jobhunter import llm
     from jobhunter.config import Materials
-    from web.app.services import panel
+    from jbhntr_engine_real import panel  # engine-side since repo-split step 1
 
     cfg = _panel_cfg(monkeypatch, ["m1", "m2", "m3"], rounds=1, thresh=0.75)
     synths = []
@@ -4192,7 +4192,7 @@ def test_panel_revises_when_below_threshold(monkeypatch):
 
 def test_panel_disabled_or_too_few_models_returns_none(monkeypatch):
     from jobhunter.config import Materials
-    from web.app.services import panel
+    from jbhntr_engine_real import panel  # engine-side since repo-split step 1
     cfg = _panel_cfg(monkeypatch, ["m1", "m2"], enabled=False)
     assert panel.deliberate("cv", Materials(), _panel_job(), object(), cfg) is None
     cfg = _panel_cfg(monkeypatch, ["only-one"])        # needs >= 2 for a panel
@@ -4202,7 +4202,7 @@ def test_panel_disabled_or_too_few_models_returns_none(monkeypatch):
 def test_panel_drops_a_failing_model(monkeypatch):
     from jobhunter import llm
     from jobhunter.config import Materials
-    from web.app.services import panel
+    from jbhntr_engine_real import panel  # engine-side since repo-split step 1
 
     cfg = _panel_cfg(monkeypatch, ["good1", "bad", "good2"])
 
@@ -4231,7 +4231,7 @@ def test_panel_drops_a_failing_model(monkeypatch):
 def test_title_match_and_recover(monkeypatch):
     from jobhunter.models import JobPosting
     from jobhunter.sources import ats
-    from web.app.services import recover
+    from jbhntr_engine_real import recover  # engine-side since repo-split step 1
 
     assert recover._title_match("Chief of Staff",
                                 "Chief of Staff (Future Founder/VC)") == 1.0
@@ -4255,7 +4255,8 @@ def test_title_match_and_recover(monkeypatch):
 def test_verify_links_recovers_gated_before_dropping(client, monkeypatch):
     from web.app.db import SessionLocal
     from web.app.models import Job
-    from web.app.services import reaper, recover, search_service
+    from jbhntr_engine_real import recover  # engine-side since repo-split step 1
+    from web.app.services import reaper, search_service
     from jobhunter.models import JobPosting, MatchResult
 
     gated = JobPosting(source="api:wwr", title="Chief of Staff", company="Abundant",
@@ -4284,7 +4285,8 @@ def test_verify_links_recovers_gated_before_dropping(client, monkeypatch):
 def test_verify_links_drops_unrecoverable_gated(client, monkeypatch):
     from web.app.db import SessionLocal
     from web.app.models import Job
-    from web.app.services import reaper, recover, search_service
+    from jbhntr_engine_real import recover  # engine-side since repo-split step 1
+    from web.app.services import reaper, search_service
     from jobhunter.models import JobPosting, MatchResult
 
     gated = JobPosting(source="api:wwr", title="Obscure Role", company="NoAtsCo",
@@ -4311,7 +4313,8 @@ def test_verify_links_flags_blocked_captcha_unverified(client, monkeypatch):
     flagged 'unverified' — not silently dropped, not shown as clean."""
     from web.app.db import SessionLocal
     from web.app.models import Job
-    from web.app.services import reaper, recover, search_service
+    from jbhntr_engine_real import recover  # engine-side since repo-split step 1
+    from web.app.services import reaper, search_service
     from jobhunter.models import JobPosting, MatchResult
 
     blocked = JobPosting(source="api:jooble", title="Head of Ops", company="CaptchaCo",

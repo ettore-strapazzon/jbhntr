@@ -9,6 +9,9 @@ out. Every knob (models, rounds, threshold, synthesiser) is env-configurable.
 Premium-only; free keeps the single-model path. Never raises — if the panel is
 disabled or every model errors, it returns None and the caller falls back to the
 normal single-model generation.
+
+Engine-side (private): moved from ``web/app/services/panel.py`` in repo-split step 1; the shell
+reaches it only through the ``jbhntr_engine`` façade.
 """
 
 from __future__ import annotations

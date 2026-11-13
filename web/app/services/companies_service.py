@@ -18,9 +18,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from jobhunter.config import Settings, load_companies
-from jobhunter.models import JobPosting
-from jobhunter.sources.ats import FETCHERS
+from jbhntr_engine import ATS_FETCHERS as FETCHERS
+from jbhntr_engine import JobPosting, Settings, load_companies
 
 from ..config import config
 from ..models import Company, User, aware, utcnow
@@ -231,7 +230,7 @@ def _guess_domains(name: str, code: str) -> list[str]:
 def _live_domain(guesses: list[str]) -> str:
     """First candidate domain that answers an HTTP request — the company's real
     site, so verify() can probe its careers page. Short timeout; stops at first."""
-    from jobhunter.sources.base import http_client
+    from jbhntr_engine import http_client
     for d in guesses:
         try:
             with http_client(timeout=6.0) as c:
@@ -248,7 +247,7 @@ def _clearbit_domains(name: str) -> list[str]:
     best-match first. This is the real fix for the long tail whose domain doesn't
     resemble its name (Satispay->satispay.com, not the .it a guess would try).
     Fail-soft: [] on any error / rate-limit, so we fall back to TLD guessing."""
-    from jobhunter.sources.base import http_client
+    from jbhntr_engine import http_client
     try:
         with http_client(timeout=8.0) as c:
             r = c.get("https://autocomplete.clearbit.com/v1/companies/suggest",
@@ -267,7 +266,7 @@ def _resolve_domain(name: str, code: str) -> str:
     return the first candidate that actually answers HTTP. '' if none resolve."""
     # A pinned override wins outright (fixes Clearbit mis-resolutions like
     # Orienta -> a Malaysian newspaper, Synergie's real site synergie-italia.it).
-    from jobhunter.sources.agency_hints import domain_for
+    from jbhntr_engine import agency_domain_for as domain_for
     pinned = domain_for(name, code)
     if pinned:
         return pinned
@@ -311,7 +310,8 @@ def resolve_corpus_companies(db: DbSession, limit: int | None = None) -> dict:
         return {"probed": 0, "resolved": 0, "skipped": "disabled"}
     from sqlalchemy import func
 
-    from jobhunter.discover import _slugify, verify
+    from jbhntr_engine import company_slug as _slugify
+    from jbhntr_engine import verify_company as verify
 
     from ..models import Job
 
@@ -395,7 +395,7 @@ def discover_for_user(db: DbSession, user: User, target: int | None = None) -> d
     registry. Pricey (LLM + web search), so call on a slow cadence, not per
     search. Returns counts. Never raises.
     """
-    from jobhunter import discover as discover_mod
+    from jbhntr_engine import discover_companies
     from .profile_service import build_engine_profile
 
     target = target or config.discover_target
@@ -422,7 +422,7 @@ def discover_for_user(db: DbSession, user: User, target: int | None = None) -> d
         if remaining == 0:
             return {"discovered": 0, "added": 0, "seeds": len(seeds),
                     "reason": f"target reached ({have}/{target} discovered)"}
-        verified, rejected = discover_mod.discover(
+        verified, rejected = discover_companies(
             profile, settings, target=remaining, seeds=seeds,
             max_rounds=DISCOVER_MAX_ROUNDS, exclude=already)
 
@@ -446,7 +446,7 @@ def discover_for_user(db: DbSession, user: User, target: int | None = None) -> d
         # LLM) instead of being dropped — this is what makes discovery from the
         # user's vertical/stage/country preferences actually land jobs, not just
         # from named seeds.
-        from jobhunter import geo
+        from jbhntr_engine import geo
         pref_code = ""
         for loc in (profile.locations or []):
             pref_code = geo.country_of(loc) or ""
@@ -539,7 +539,7 @@ def scrape_custom_companies(db: DbSession, settings: Settings | None = None,
     Jobs go through `deterministic_tags`, matched like any corpus posting. Never
     raises.
     """
-    from jobhunter.sources.careers_scrape import scrape_careers
+    from jbhntr_engine import scrape_careers
     from .profile_service import engine_settings
 
     settings = settings or engine_settings(premium=True)
@@ -585,7 +585,7 @@ def scrape_market_agencies(db: DbSession, country: str = "it", n: int = 25,
     scrape it now (sitemap JSON-LD). Returns counts + a per-company trace."""
     from sqlalchemy import String, func
 
-    from jobhunter.sources.careers_scrape import scrape_careers
+    from jbhntr_engine import scrape_careers
 
     from .corpus_service import upsert_jobs
     from .profile_service import engine_settings
@@ -594,7 +594,7 @@ def scrape_market_agencies(db: DbSession, country: str = "it", n: int = 25,
     from ..models import Job
     thin = func.coalesce(func.length(Job.description), 0) < 300
     cfilt = func.cast(Job.countries, String).ilike(f'%"{country.lower()}"%')
-    from jobhunter.sources.agency_hints import is_ignored
+    from jbhntr_engine import agency_is_ignored as is_ignored
     rows = (db.query(Job.company, func.count(Job.id))
             .filter(thin, cfilt, Job.company.isnot(None), Job.company != "")
             .group_by(Job.company).order_by(func.count(Job.id).desc())

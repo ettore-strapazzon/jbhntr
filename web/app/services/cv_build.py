@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 
-from jobhunter import llm
+from jbhntr_engine import llm
 
 from .export import parse_lines
 

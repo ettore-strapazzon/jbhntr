@@ -47,3 +47,6 @@ Job Hunting Websites.md
 
 # Local Claude Code config (machine-specific: launch.json, etc.)
 .claude/
+
+# Private engine wheel built by scripts/build_engine_wheel.py (repo-split step 3)
+dist/

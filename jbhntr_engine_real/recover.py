@@ -6,6 +6,9 @@ Free path: guess the company's ATS handle from its name and probe the big three
 (Greenhouse / Lever / Ashby — where most of these jobs actually live), then match
 the role by title. Returns the direct apply URL only on a confident title match;
 otherwise None, because a link to the wrong role is worse than none.
+
+Engine-side (private): moved from ``web/app/services/recover.py`` in repo-split step 1; the shell
+reaches it only through the ``jbhntr_engine`` façade.
 """
 
 from __future__ import annotations

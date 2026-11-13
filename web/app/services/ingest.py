@@ -22,9 +22,10 @@ import argparse
 import logging
 from collections import Counter
 
-from jobhunter import geo
-from jobhunter.config import Profile, Settings
-from jobhunter.sources import AGGREGATORS, boards, keyed
+from jbhntr_engine import (
+    AGGREGATORS, BOARD_NAMES, KEYED_MAX_TERMS, KEYED_PROVIDERS, Profile, Settings,
+    fetch_boards, geo,
+)
 
 from ..db import SessionLocal
 from ..models import Profile as ProfileRow
@@ -47,15 +48,15 @@ _LOCALIZED_AGGREGATORS = {"adzuna"}
 # to US/English. It is paid + metered, so it runs weekly and stays tightly capped
 # (serpapi_max_terms × serpapi_max_locations).
 KEYED_SOURCES = {
-    "careerjet": ("careerjet_affid", keyed._careerjet),
-    "reed": ("reed_key", keyed._reed),
-    "web3career": ("web3career_key", keyed._web3career),
-    "usajobs": ("usajobs_key", keyed._usajobs),
-    "jsearch": ("jsearch_key", keyed._jsearch),
-    "serpapi": ("serpapi_key", keyed._serpapi),
-    "francetravail": ("france_travail_id", keyed._francetravail),   # gov FR, full JD
-    "jobtech": ("jobtech_enabled", keyed._jobtech),                 # gov SE, keyless, full JD
-    "bundesagentur": ("bundesagentur_enabled", keyed._bundesagentur),  # gov DE, keyless, full JD (detail-fetched)
+    "careerjet": ("careerjet_affid", KEYED_PROVIDERS["careerjet"]),
+    "reed": ("reed_key", KEYED_PROVIDERS["reed"]),
+    "web3career": ("web3career_key", KEYED_PROVIDERS["web3career"]),
+    "usajobs": ("usajobs_key", KEYED_PROVIDERS["usajobs"]),
+    "jsearch": ("jsearch_key", KEYED_PROVIDERS["jsearch"]),
+    "serpapi": ("serpapi_key", KEYED_PROVIDERS["serpapi"]),
+    "francetravail": ("france_travail_id", KEYED_PROVIDERS["francetravail"]),   # gov FR, full JD
+    "jobtech": ("jobtech_enabled", KEYED_PROVIDERS["jobtech"]),                 # gov SE, keyless, full JD
+    "bundesagentur": ("bundesagentur_enabled", KEYED_PROVIDERS["bundesagentur"]),  # gov DE, keyless, full JD (detail-fetched)
 }
 # Findwork removed: its links are its own findwork.dev pages, which are
 # profile-gated AND ephemeral (they 404 once the listing rotates), so a user
@@ -188,9 +189,9 @@ def _lane_a(db, settings: Settings, terms: list[str], countries: list[str],
     postings: list = []
     base = Profile(raw={
         "locations": countries,
-        "sources": {"boards": list(boards.BOARDS), "search_terms": terms},
+        "sources": {"boards": list(BOARD_NAMES), "search_terms": terms},
     })
-    postings += _fetch("boards", boards.fetch, base, settings)
+    postings += _fetch("boards", fetch_boards, base, settings)
     local_cache: dict[str, list[str]] = {}
     for name in LANE_A_AGGREGATORS:
         fn = AGGREGATORS.get(name)
@@ -270,7 +271,7 @@ def _lane_b(db, settings: Settings, terms: list[str], countries: list[str],
             country_terms = _localized(country)
             # Providers cap terms at keyed.MAX_TERMS internally, so batch to
             # cover the full corpus term set without exceeding per-call limits.
-            for batch in _chunks(country_terms, keyed.MAX_TERMS):
+            for batch in _chunks(country_terms, KEYED_MAX_TERMS):
                 prof = Profile(raw={
                     "locations": [country],
                     "sources": {"search_terms": batch},

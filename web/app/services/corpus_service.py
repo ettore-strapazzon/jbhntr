@@ -16,8 +16,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session as DbSession
 
-from jobhunter.models import JobPosting
-from jobhunter.tags import deterministic_tags
+from jbhntr_engine import JobPosting, deterministic_tags
 
 from ..models import DeadLink, Job, aware, utcnow
 
@@ -61,9 +60,9 @@ def count_matching(db: DbSession, profile) -> int:
     """
     from datetime import timedelta
 
-    from jobhunter import geo
+    from jbhntr_engine import geo
 
-    codes = {c for c in (geo._country_of(n) for n in (profile.countries or [])) if c}
+    codes = {c for c in (geo.country_of(n) for n in (profile.countries or [])) if c}
     remote_any = "Remote-Anywhere" in (profile.locations or [])
     if not codes and not remote_any:
         return 0
@@ -292,7 +291,7 @@ def embed_new_jobs(db: DbSession, settings, limit: int = 1000) -> int:
     Only touches rows missing an embedding or embedded by a different model,
     so a model switch re-embeds cleanly.
     """
-    from jobhunter import embeddings
+    from jbhntr_engine import embeddings
 
     if not embeddings.is_configured(settings):
         return 0
@@ -343,65 +342,14 @@ def _apply_tags(row: Job, tags: dict) -> None:
 # ingestion, cached on Job.countries + Job.geo_checked, shared by every user.
 _GEO_BATCH = 50
 
-_COUNTRY_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "results": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "index": {"type": "integer"},
-                    "code": {
-                        "type": "string",
-                        "description": "ISO 3166-1 alpha-2 country code, lowercase "
-                                       "(e.g. 'gb', 'it', 'us'). Empty string if the "
-                                       "location is remote/global/anywhere or names "
-                                       "no identifiable country.",
-                    },
-                },
-                "required": ["index", "code"],
-                "additionalProperties": False,
-            },
-        }
-    },
-    "required": ["results"],
-    "additionalProperties": False,
-}
-
-_GEO_SYS = (
-    "You map job-posting location strings to a single country. For each numbered "
-    "location return its ISO 3166-1 alpha-2 code in lowercase. If the location is "
-    "remote/global/anywhere, or names no identifiable country, return an empty "
-    "string. Judge only the place named — do not guess from anything else. Return "
-    "exactly one result per input index."
-)
-
 
 def _resolve_country_batch(locations: list[str], settings) -> list[str]:
-    """LLM: location strings -> ISO alpha-2 codes (aligned to input order).
+    """LLM: location strings -> ISO alpha-2 codes (aligned to input order); "" for
+    any it can't place. Never raises. The prompt lives in the engine
+    (jbhntr_engine.resolve_countries)."""
+    from jbhntr_engine import resolve_countries
 
-    Returns "" for any it can't place. Never raises — a failed batch just yields
-    all-empty, so those rows are marked checked and simply carry no country tag.
-    """
-    from jobhunter import llm
-
-    listing = "\n".join(f"{i}. {loc}" for i, loc in enumerate(locations))
-    try:
-        data = llm.get_client(settings).json(
-            system=_GEO_SYS, user="Locations:\n" + listing,
-            schema=_COUNTRY_SCHEMA, tier=llm.SCORING, max_tokens=1500)
-    except Exception as exc:
-        log.warning("Country-resolve batch failed (%d locations): %s", len(locations), exc)
-        return ["" for _ in locations]
-
-    out = ["" for _ in locations]
-    for item in data.get("results", []):
-        i = item.get("index")
-        code = (item.get("code") or "").strip().lower()
-        if isinstance(i, int) and 0 <= i < len(out) and len(code) == 2 and code.isalpha():
-            out[i] = code
-    return out
+    return resolve_countries(locations, settings)
 
 
 def correct_ats_locations(db: DbSession, limit: int = 400) -> int:
@@ -416,7 +364,7 @@ def correct_ats_locations(db: DbSession, limit: int = 400) -> int:
     """
     from collections import defaultdict
 
-    from jobhunter.sources.ats import board_location_index, parse_ats_job
+    from jbhntr_engine import board_location_index, parse_ats_job
 
     rows = db.query(Job).filter(Job.ats_checked.is_(False)).limit(limit).all()
     if not rows:
@@ -458,8 +406,8 @@ def backfill_countries(db: DbSession, settings, limit: int = 500) -> int:
     only a genuinely-unresolvable real place costs an LLM call, batched. No-op
     when no LLM is configured (the tag just stays empty, as before).
     """
-    from jobhunter import geo, llm
-    from jobhunter.dedup import _is_generic_remote
+    from jbhntr_engine import geo, llm
+    from jbhntr_engine import is_generic_remote as _is_generic_remote
 
     if not llm.is_configured(settings):
         return 0
@@ -514,8 +462,7 @@ def backfill_remote_modes(db: DbSession, limit: int = 20000,
 
     Batched by id so a full-corpus pass doesn't load every Job into memory.
     """
-    from jobhunter.models import JobPosting
-    from jobhunter.tags import remote_mode
+    from jbhntr_engine import JobPosting, remote_mode
 
     modes = ("unknown", "onsite") if include_onsite else ("unknown",)
     changed = processed = 0

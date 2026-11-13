@@ -12,14 +12,11 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session as DbSession
 
-from jobhunter import seeds as seeds_mod
-from jobhunter import sources
-from jobhunter.candidate import derive as derive_candidate
-from jobhunter.candidate import derive_company_profile
-from jobhunter.config import Settings as EngineSettings
-from jobhunter.criteria import derive as derive_criteria
-from jobhunter.dedup import cap_per_company, prefilter
-from jobhunter.matcher import Matcher
+from jbhntr_engine import Matcher, cap_per_company, collect_all_sources
+from jbhntr_engine import Settings as EngineSettings
+from jbhntr_engine import (
+    derive_candidate, derive_company_profile, derive_criteria, prefilter, resolve_seeds,
+)
 
 from ..config import config
 from ..db import SessionLocal
@@ -208,8 +205,8 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
 
         profile = build_engine_profile(db, user)
         materials = build_engine_materials(db, user)
-        labels = [s.label() for s in seeds_mod.resolve(seed_values(db, user),
-                                                       guess_domains=True)]
+        labels = [s.label() for s in resolve_seeds(seed_values(db, user),
+                                                   guess_domains=True)]
 
         # Derive the candidate profile FIRST: keyword-based sources need real
         # job titles to query. Users who skip the optional "job titles" step
@@ -246,7 +243,7 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
 
         if jobs is None:
             _set(db, search, stage="Collecting job postings…")
-            raw = sources.collect_all(profile, settings)
+            raw = collect_all_sources(profile, settings)
             scanned = len(raw)
             # Write-through so this fetch also enriches the shared corpus.
             _cache_to_corpus(raw)
@@ -400,7 +397,7 @@ CORPUS_MIN_KEEP = 20      # below this the corpus is too thin -> live fallback
 
 
 def _job_to_posting(row) -> object:
-    from jobhunter.models import JobPosting
+    from jbhntr_engine import JobPosting
     return JobPosting(
         source=row.source, title=row.title, company=row.company,
         location=row.location, description=row.description, url=row.url,
@@ -428,7 +425,7 @@ def _candidate_query_text(profile, candidate) -> str:
 VERIFY_LIMIT = 30    # top results to link-check before showing (bounds latency)
 
 
-def _verify_links(db: DbSession, ranked: list) -> list:
+def _verify_links(db: DbSession, ranked: list) -> tuple[list, set]:
     """Link-check the top results; drop the dead/gated ones and purge them from
     the shared corpus, so a user never sees a 404 or a login-wall. Survivors are
     stamped checked so the nightly reaper skips them. Fail-soft: any trouble and
@@ -436,15 +433,14 @@ def _verify_links(db: DbSession, ranked: list) -> list:
     from concurrent.futures import ThreadPoolExecutor
 
     import httpx
+    from jbhntr_engine import recover_apply_url
 
     from ..models import Job
     from .reaper import BROWSER_HEADERS, check_url
 
-    from .recover import recover_apply_url
-
     head = ranked[:VERIFY_LIMIT]
     if not head:
-        return ranked
+        return ranked, set()
     try:
         with httpx.Client(timeout=12.0, headers=BROWSER_HEADERS) as client:
             def _one(pair):
@@ -454,7 +450,7 @@ def _verify_links(db: DbSession, ranked: list) -> list:
                 verdicts = dict(pool.map(_one, head))
     except Exception as exc:
         log.warning("Link verification skipped: %s", exc)
-        return ranked
+        return ranked, set()
 
     # Gated (login wall) and blocked (captcha/bot-wall) jobs may still be live —
     # try to recover the real apply link from the company's own ATS. Recovered
@@ -581,7 +577,7 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
     back to a live fetch — when embeddings are off, the profile can't be
     embedded, or the corpus is too thin for this user's geography.
     """
-    from jobhunter import embeddings, geo
+    from jbhntr_engine import embeddings, geo
     from ..models import Job
 
     if not embeddings.is_configured(settings):
@@ -690,7 +686,7 @@ def _enrich(jobs, db=None) -> None:
     not re-fetched."""
     from concurrent.futures import ThreadPoolExecutor
 
-    from jobhunter.sources.ats import enrich_description
+    from jbhntr_engine import enrich_description
 
     from . import enrich_service
 

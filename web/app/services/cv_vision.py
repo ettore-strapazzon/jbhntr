@@ -9,6 +9,9 @@ a small style profile. Called once per upload; the result is cached on Material.
 
 Never raises to the caller — returns None on any failure so the caller falls back
 to the deterministic docx/pdf extraction.
+
+Open-core split: the shell keeps the rendering; the vision prompt + schema live
+in the engine (``jbhntr_engine.vision_style``).
 """
 
 from __future__ import annotations
@@ -16,37 +19,6 @@ from __future__ import annotations
 import logging
 
 log = logging.getLogger("jbhntr.cv_vision")
-
-_VISION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "font_class": {"type": "string", "enum": ["serif", "sans", "mono"],
-                       "description": "the CV's main body font family class"},
-        "font_family": {"type": "string",
-                        "description": "the specific font name if identifiable "
-                                       "(e.g. 'Calibri', 'Garamond'), else empty"},
-        "accent_hex": {"type": "string",
-                       "description": "the dominant colour used for the name / "
-                                      "section headings as #rrggbb; '' if plain black"},
-        "heading_upper": {"type": "boolean",
-                          "description": "true if section headers are UPPER CASE"},
-        "heading_bold": {"type": "boolean",
-                         "description": "true if section headers are bold"},
-        "layout": {"type": "string", "enum": ["single", "two-column"]},
-    },
-    "required": ["font_class", "font_family", "accent_hex", "heading_upper",
-                 "heading_bold", "layout"],
-    "additionalProperties": False,
-}
-
-_SYSTEM = (
-    "You are a document-design analyst. Look at this CV/résumé image and describe "
-    "its VISUAL STYLE only (not the content). Report the body font family class, "
-    "the specific font if you recognise it, the accent colour used for the "
-    "candidate's name and section headings, whether section headers are uppercase "
-    "and/or bold, and whether the page is single- or two-column. Judge colours "
-    "from what you see; use '' for accent if headings are plain black."
-)
 
 
 def render_cv_image(raw: bytes, mime: str, filename: str = "",
@@ -71,20 +43,7 @@ def render_cv_image(raw: bytes, mime: str, filename: str = "",
 
 
 def vision_style(images: list[bytes], settings) -> dict | None:
-    """Ask a vision model for the CV's style. Returns the schema dict or None."""
-    if not images:
-        return None
-    from jobhunter import llm
-    if not llm.is_configured(settings):
-        return None
-    model = getattr(settings, "scoring_model", "") or None
-    try:
-        data = llm.get_client(settings).json(
-            system=_SYSTEM,
-            user="Analyse this CV's visual style and return the JSON.",
-            schema=_VISION_SCHEMA, tier=llm.SCORING, max_tokens=500,
-            cache_system=False, model=model, images=images[:2])
-        return data or None
-    except Exception as exc:
-        log.warning("cv_vision: vision call failed: %s", exc)
-        return None
+    """Ask the engine's vision model for the CV's style (schema dict or None).
+    The prompt lives in the engine (jbhntr_engine.vision_style)."""
+    from jbhntr_engine import vision_style as _engine_vision_style
+    return _engine_vision_style(images, settings)

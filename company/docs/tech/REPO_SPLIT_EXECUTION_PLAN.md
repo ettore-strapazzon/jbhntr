@@ -1,8 +1,38 @@
 # REPO_SPLIT_EXECUTION_PLAN — open-core split
 
-Owner: CTO (+ GC on licence) · Updated 2026-10-25 · **Status: PROPOSED — Founder approval required before any code moves.** · Backlog R1-06 · GTM §7 / manual §12.
+Owner: CTO (+ GC on licence) · Updated 2026-11-13 · **Status: steps 1–3 done (c7, R3-05, in-repo only — approved as R-008). Steps 4–7 (public snapshot, repos, token, cut-over) still need a separate Founder go.** · Backlog R1-06 / R3-05 · GTM §7 / manual §12.
 
-This is a plan, not an execution. No code is moved by writing it. It is built from a real inspection of this repo (`web/`, `jobhunter/`, `tests/`).
+The plan below is unchanged from the approved draft; **§0 records what was built and where it deviated.**
+
+## 0. Status — steps 1–3 done (c7)
+
+**Built (all in this repo; no repo, org, token or push):**
+
+| Piece | Where | Public / private after step 4 |
+|---|---|---|
+| Façade + contract + selector | `jbhntr_engine/` — `__init__.py` (lazy backend selection, `BACKEND_API`, `NAMESPACE_API`, `engine_problems()`), `types.py` (was `jobhunter/models.py`), `settings.py` (was `jobhunter/config.py`) | public |
+| Real backend (adapter over the engine) | `jbhntr_engine_real/` — façade names → `jobhunter.*`; plus engine-side code carved out of the shell: `panel.py`, `recover.py`, `vision.py` (vision prompt), `llm_tasks.py` (country-resolve, term-localize, import-extract prompts) | **private** |
+| Engine internals | `jobhunter/` (`models.py`/`config.py` are now `sys.modules` aliases of the contract) | **private** |
+| Demo engine | `jbhntr_engine_demo/` — deterministic, offline: 12 fictional `example.com` postings, keyword scoring, template documents, no LLM/prompts/sources | public |
+| Boot guard | `web/app/engine_guard.py` → called in the `main.py` lifespan (after `config.validate()`) and in the cron entrypoint | public |
+| Private-package carve | `scripts/build_engine_wheel.py` builds `jbhntr-engine` (= `jobhunter` + `jbhntr_engine_real`) from a temp staging dir; `--verify` proves offline that the public snapshot alone runs on demo (and prod refuses it) and public + wheel resolves to the real engine and boots in prod mode | tooling |
+| Tests | `tests/test_engine_boundary.py` (AST boundary, namespace-attribute discipline, public-never-imports-private, backend parity, default=real), `tests/test_demo_engine.py` (demo unit, **shell end-to-end scan on demo**, boot-guard scenarios, cron guard) | — |
+
+**Import sites:** all **78** `jobhunter.*` import statements in `web/` now go through `from jbhntr_engine import …` (60 statements after consolidation); 0 remain. Private helpers the shell reached into got public façade names (`_slugify`→`company_slug`, `verify`→`verify_company`, `_is_generic_remote`→`is_generic_remote`, `keyed._careerjet…`→`KEYED_PROVIDERS[…]`, `FETCHERS`→`ATS_FETCHERS`, `geo._country_of`→`geo.country_of`). The boundary test fails the build on any regression.
+
+**Selection / boot guard (§5):** `JBHNTR_ENGINE` = `auto` (default) | `real` | `demo`. `auto` → real if importable, else demo **with the fallback reason recorded**; `real` that can't import is a loud ImportError. `ENGINE_KIND` comes from the module that loaded, not from env. With `DEBUG` off, any non-real engine → `RuntimeError("Refusing to start in production …")`. **Production needs no new env var**: verified in a clean venv built only from `requirements-web.txt` with `DEBUG=false` → `real`, guard passes, app imports.
+
+**Deviations from the plan:**
+1. **Naming.** The private backend is `jbhntr_engine_real` (dist `jbhntr-engine`), and `jbhntr_engine` is the *public* contract + selector. In the plan both real and demo were called `jbhntr_engine`; that breaks once the shell checkout sits first on `sys.path` (a public `jbhntr_engine/` dir would shadow a pip-installed private one). The demo is a package in the public repo (`jbhntr_engine_demo`), not a separate dist.
+2. **Façade granularity.** 48 backend names (incl. 3 capability namespaces) + 9 contract names (`llm`, `geo`, `embeddings`, attribute-allow-listed), not the 8-function `run_scan`/`ingest` API sketched in §4. Scan and ingest orchestration stay in the shell's DB-owning services (`search_service._run_search`, `ingest.run`) calling façade primitives — collapsing them behind a corpus port is a later, separate refactor. The contract is the `BACKEND_API` tuple; both backends are checked against it.
+3. **Config is contract too.** `Settings`/`Profile`/`Materials` moved to the public `jbhntr_engine/settings.py` (env-var schema + YAML loaders, no source logic) because the shell builds them and the demo must accept them. The private engine therefore depends on the public contract (pin it when the repos split).
+4. **Shell tests that exercised engine-side code** (`panel`, `recover`) now import it from `jbhntr_engine_real`; at step 4 they move with the engine.
+
+**Still in the public shell — carve before the step-4 public snapshot** (engine-adjacent content, now behind the façade boundary but not yet moved): `web/app/services/cv_build.py` (structured-CV prompt; coupled to `export.parse_lines`), the ingest lane tables in `ingest.py` (provider list, cadence, countries), `companies_service` domain-resolution heuristics, `enrich_service` HTML-extraction heuristics, `reaper` marker lists, `aggregator_calibrate`, and admin diagnostics that name engine loggers. These are the step-4 pre-flight checklist alongside the secret scan.
+
+**Notes for steps 4–7:** public CI should run with `JBHNTR_ENGINE=demo` (today's suite runs on the real engine); the cron service's guard is only fatal when `DEBUG=false` is also set on the Railway cron service (it defaults to `true`) — confirm at cut-over.
+
+---
 
 ## 1. Goal and shape
 

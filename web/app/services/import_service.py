@@ -14,11 +14,9 @@ import re
 import httpx
 from sqlalchemy.orm import Session as DbSession
 
-from jobhunter.candidate import derive_company_profile
-from jobhunter.criteria import derive as derive_criteria
-from jobhunter.matcher import Matcher
-from jobhunter.models import JobPosting
-from jobhunter.tags import deterministic_tags
+from jbhntr_engine import (
+    JobPosting, Matcher, derive_company_profile, derive_criteria, deterministic_tags,
+)
 
 from ..models import JobResult, Search, User, utcnow
 from .profile_service import (
@@ -28,23 +26,6 @@ from .profile_service import (
 log = logging.getLogger("jbhntr.import")
 
 _UA = "Mozilla/5.0 (compatible; JBHNTR-import/1.0)"
-
-_EXTRACT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "is_job": {"type": "boolean",
-                   "description": "true only if the page is a single job posting"},
-        "title": {"type": "string"},
-        "company": {"type": "string"},
-        "location": {"type": "string",
-                     "description": "city/country, or 'Remote', as stated"},
-        "description": {"type": "string",
-                        "description": "the full role description text"},
-    },
-    "required": ["is_job", "title", "company", "location", "description"],
-    "additionalProperties": False,
-}
-
 
 class JobImportError(Exception):
     """A user-facing reason the import could not complete."""
@@ -64,8 +45,9 @@ def _fetch_text(url: str) -> str:
 
 
 def _extract_posting(url: str, settings) -> JobPosting:
-    """Fetch + structure a single posting. Raises ImportError with a clear reason."""
-    from jobhunter import llm
+    """Fetch + structure a single posting. Raises ImportError with a clear reason.
+    The extraction prompt lives in the engine (jbhntr_engine.extract_posting)."""
+    from jbhntr_engine import extract_posting
 
     try:
         text = _fetch_text(url)
@@ -75,23 +57,12 @@ def _extract_posting(url: str, settings) -> JobPosting:
         raise JobImportError("That page had almost no readable text — it may need a login "
                           "or render with JavaScript. Try the direct posting URL.")
     try:
-        data = llm.get_client(settings).json(
-            system="You extract a single job posting's fields from raw page text. "
-                   "If the page is not a job posting, set is_job=false.",
-            user=f"Page URL: {url}\n\nPage text:\n{text}",
-            schema=_EXTRACT_SCHEMA, tier=llm.SCORING, max_tokens=2000, cache_system=False)
+        posting = extract_posting(url, text, settings)
     except Exception as exc:
         raise JobImportError(f"Couldn't read the posting ({exc}).") from exc
-
-    if not data.get("is_job") or not (data.get("title") or "").strip():
+    if posting is None:
         raise JobImportError("That didn't look like a single job posting.")
-    loc = (data.get("location") or "").strip()
-    return JobPosting(
-        source="import", title=(data.get("title") or "").strip()[:300],
-        company=(data.get("company") or "").strip()[:200], location=loc[:200],
-        description=(data.get("description") or "").strip(), url=url,
-        is_remote="remote" in loc.lower(),
-    )
+    return posting
 
 
 def import_job(db: DbSession, user: User, url: str) -> tuple[JobResult, int]:
@@ -109,8 +80,8 @@ def import_job(db: DbSession, user: User, url: str) -> tuple[JobResult, int]:
     profile = build_engine_profile(db, user)
     materials = build_engine_materials(db, user)
     try:
-        from jobhunter import seeds as seeds_mod
-        labels = [s.label() for s in seeds_mod.resolve(seed_values(db, user), guess_domains=True)]
+        from jbhntr_engine import resolve_seeds
+        labels = [s.label() for s in resolve_seeds(seed_values(db, user), guess_domains=True)]
         company_profile = derive_company_profile(labels, settings)
         criteria = derive_criteria(profile, labels, settings)
         scored = Matcher(settings).score([posting], profile, materials, [],

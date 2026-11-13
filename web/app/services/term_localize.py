@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 
-from jobhunter import llm
+from jbhntr_engine import translate_terms
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
@@ -29,49 +29,10 @@ LANG_BY_CODE = {
     "be": "Dutch", "br": "Portuguese", "mx": "Spanish",
 }
 
-_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "results": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "term": {"type": "string"},
-                    "variants": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["term", "variants"],
-            },
-        }
-    },
-    "required": ["results"],
-}
-
-
 def _translate(settings, terms: list[str], language: str) -> dict[str, list[str]]:
-    """LLM-translate each role title into 1-3 realistic local variants."""
-    system = (
-        f"You localize job-role titles into {language} as they actually appear in "
-        f"real {language} job postings. For each title give 1-3 common local "
-        "variants a candidate would search — the natural translation(s), plus the "
-        "English form ONLY if it's genuinely common locally (e.g. 'Chief of Staff' "
-        "is often kept in English in Italian startups). Titles only, no extra words."
-    )
-    user = "Localize these role titles:\n" + "\n".join(f"- {t}" for t in terms)
-    try:
-        out = llm.get_client(settings).json(
-            system=system, user=user, schema=_SCHEMA, tier=llm.SCORING,
-            max_tokens=1200, cache_system=False)
-    except Exception as exc:
-        log.warning("term localization failed (%s): %s", language, exc)
-        return {}
-    mapped: dict[str, list[str]] = {}
-    for row in (out or {}).get("results", []):
-        term = (row.get("term") or "").strip()
-        variants = [str(v).strip() for v in (row.get("variants") or []) if str(v).strip()]
-        if term and variants:
-            mapped[term] = variants
-    return mapped
+    """LLM-translate each role title into 1-3 realistic local variants.
+    The prompt lives in the engine (jbhntr_engine.translate_terms)."""
+    return translate_terms(settings, terms, language)
 
 
 def localized_terms(db: DbSession, settings, terms: list[str], code: str) -> list[str]:

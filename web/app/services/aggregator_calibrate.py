@@ -48,7 +48,7 @@ def _is_dead(status, final_url: str) -> bool:
 
 
 def _auth() -> str:
-    from jobhunter.config import Settings
+    from jbhntr_engine import Settings
     return getattr(Settings.from_env(), "brightdata_browser_auth", "") or ""
 
 

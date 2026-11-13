@@ -25,9 +25,7 @@ from datetime import timedelta
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session as DbSession
 
-from jobhunter.models import JobPosting
-from jobhunter.sources.base import http_client, strip_html
-from jobhunter.tags import deterministic_tags
+from jbhntr_engine import JobPosting, deterministic_tags, http_client, strip_html
 
 from ..config import config
 from ..models import Job, aware, utcnow

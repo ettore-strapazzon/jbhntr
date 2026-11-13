@@ -44,7 +44,7 @@ templates.env.globals["source_phrase"] = source_phrase
 # Strength word from the tier at render time (AX-2), not the value stored on the
 # row when it was scored — so a relabel shows immediately on old and new results
 # alike, with no re-scan needed.
-from jobhunter.models import TIER_LABELS, tier_for_score  # noqa: E402
+from jbhntr_engine import TIER_LABELS, tier_for_score  # noqa: E402
 
 
 def tier_word(tier) -> str:

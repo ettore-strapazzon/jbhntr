@@ -14,6 +14,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .config import ROOT, config
 from .db import SessionLocal, init_db
+from .engine_guard import enforce_engine
 from .models import PageView
 from .routes import (
     account, admin, alpha, applications, auth_routes, boardroom, documents,
@@ -49,6 +50,8 @@ async def lifespan(_: FastAPI):
     if problems and not config.debug:
         # Never boot a production instance with weak secrets.
         raise RuntimeError("Refusing to start in production: " + "; ".join(problems))
+    # Never boot production on the demo engine (silent fallback or explicit).
+    enforce_engine(config.debug)
     yield
 
 

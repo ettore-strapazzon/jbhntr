@@ -18,8 +18,7 @@ import logging
 
 from sqlalchemy.orm import Session as DbSession
 
-from jobhunter.matcher import PROMPT_VERSION
-from jobhunter.models import JobPosting, MatchResult
+from jbhntr_engine import PROMPT_VERSION, JobPosting, MatchResult
 
 from ..models import ScoreCache
 
