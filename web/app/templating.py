@@ -15,6 +15,9 @@ templates.env.globals["config"] = config
 # Render reason prose as short bullets in the job card (R8.2).
 from .services.text import as_bullets  # noqa: E402
 templates.env.globals["as_bullets"] = as_bullets
+# Scan progress rail: stage text -> step, explicit per worker stage (R3-31).
+from .services.scan_stages import stage_step  # noqa: E402
+templates.env.globals["scan_step"] = stage_step
 
 
 # Provenance (AX-3): turn a raw source token into a human phrase for the card, so

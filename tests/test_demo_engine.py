@@ -249,3 +249,20 @@ def test_engine_kind_comes_from_the_loaded_backend_not_env(mode):
     r = _run("import jbhntr_engine; print('KIND', jbhntr_engine.ENGINE_KIND)",
              JBHNTR_ENGINE=mode)
     assert f"KIND {mode}" in r.stdout, r.stdout + r.stderr[-2000:]
+
+
+def test_demo_triage_takes_progress_and_should_stop():
+    """R3-31: `Matcher.triage` joins the long stages on the contract; the demo
+    engine accepts the same hooks, reports once, and stops when asked."""
+    import jbhntr_engine_demo as demo
+    from jbhntr_engine import Profile
+
+    prof = Profile(raw={"sources": {"search_terms": ["chief of staff"]}})
+    jobs = demo.collect_all_sources(prof, None) * 30
+    seen = []
+    out = demo.Matcher(None).triage(jobs, prof, progress=lambda d, t: seen.append((d, t)))
+    assert len(out) == 40 and seen == [(len(jobs), len(jobs))]
+    assert demo.Matcher(None).triage(jobs, prof, should_stop=lambda: True) == []
+    def boom(*a):
+        raise RuntimeError("x")
+    assert len(demo.Matcher(None).triage(jobs, prof, progress=boom, should_stop=boom)) == 40

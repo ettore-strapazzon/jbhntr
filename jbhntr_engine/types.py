@@ -17,7 +17,7 @@ from typing import Callable, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 # In-stage progress (R3-29). The long engine stages (``Matcher.score``,
-# ``collect_all_sources``) take an optional keyword ``progress(done, total)``:
+# ``collect_all_sources``, and since R3-31 ``Matcher.triage``) take an optional keyword ``progress(done, total)``:
 # counts in the stage's own work units, called on the CALLER's thread (the shell
 # writes its heartbeat with a non-thread-safe DB session), as often as the engine
 # likes — throttling is the caller's job. It is an observer: the engine never
@@ -37,7 +37,7 @@ def report_progress(progress: Optional[ProgressFn], done: int, total: int) -> No
 
 # Cancellation (R3-30). The same two stages take an optional keyword
 # ``should_stop()``: the engine asks it on the CALLER's thread between units of
-# work (jobs, sources, ATS companies) and, once it returns True, stops starting
+# work (jobs, sources, ATS companies, triage batches) and, once it returns True, stops starting
 # new work and returns what it already has. Partial output is not a valid stage
 # result — the caller asked to stop, so the caller discards it. A stop is a
 # return, not an exception: a raise inside a source would be swallowed by the

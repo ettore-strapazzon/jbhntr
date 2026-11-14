@@ -282,3 +282,61 @@ def test_ats_fetch_stops_early_when_asked(monkeypatch):
                      should_stop=should_stop)
     assert len(jobs) == 2
     assert calls["n"] <= 2 + ats.MAX_WORKERS        # only the in-flight companies ran
+
+
+# R3-31: the batched AI triage (live-fetch fallback, >40 jobs) runs its batches
+# SERIALLY — ceil(N/25) calls of up to ~90-185 s each in the worst case — so it
+# takes the same optional `progress` / `should_stop` keywords as scoring.
+def _triage_client(monkeypatch, calls):
+    import jobhunter.llm as llm
+
+    class Client:
+        def json(self, **kw):
+            calls.append(kw["user"].count("\n"))           # one call per batch
+            return {"verdicts": []}                        # unrated -> kept
+
+    monkeypatch.setattr(llm, "get_client", lambda s: Client())
+
+
+def test_triage_reports_progress_per_batch_on_the_callers_thread(monkeypatch):
+    import threading
+
+    from jobhunter.matcher import TRIAGE_BATCH
+    calls, seen, threads = [], [], set()
+    _triage_client(monkeypatch, calls)
+
+    def progress(done, total):
+        seen.append((done, total))
+        threads.add(threading.get_ident())
+
+    jobs = [JobPosting(source="x", title=f"j{i}") for i in range(2 * TRIAGE_BATCH + 10)]
+    out = Matcher(Settings()).triage(jobs, Profile(raw={}), progress=progress)
+    n = len(jobs)
+    assert len(out) == n and len(calls) == 3
+    assert seen == [(TRIAGE_BATCH, n), (2 * TRIAGE_BATCH, n), (n, n)]
+    assert threads == {threading.get_ident()}
+
+
+def test_triage_stops_between_batches_when_asked(monkeypatch):
+    from jobhunter.matcher import TRIAGE_BATCH
+    calls, seen = [], []
+    _triage_client(monkeypatch, calls)
+    jobs = [JobPosting(source="x", title=f"j{i}") for i in range(10 * TRIAGE_BATCH)]
+    out = Matcher(Settings()).triage(jobs, Profile(raw={}),
+                                     progress=lambda d, t: seen.append(d),
+                                     should_stop=lambda: len(seen) >= 2)
+    assert len(calls) == 2                       # not all 10 paid batches
+    assert len(out) == 2 * TRIAGE_BATCH          # partial (the caller discards it)
+
+
+def test_triage_survives_a_failing_progress_or_should_stop(monkeypatch):
+    from jobhunter.matcher import TRIAGE_BATCH
+    calls = []
+    _triage_client(monkeypatch, calls)
+
+    def boom(*a):
+        raise RuntimeError("db hiccup")
+
+    jobs = [JobPosting(source="x", title=f"j{i}") for i in range(3 * TRIAGE_BATCH)]
+    out = Matcher(Settings()).triage(jobs, Profile(raw={}), progress=boom, should_stop=boom)
+    assert len(out) == len(jobs) and len(calls) == 3

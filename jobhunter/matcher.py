@@ -367,8 +367,14 @@ class Matcher:
     def triage(
         self, jobs: list[JobPosting], profile: Profile, candidate=None,
         company_profile=None,
+        progress: Optional[ProgressFn] = None,
+        should_stop: Optional[StopFn] = None,
     ) -> list[JobPosting]:
-        """Stage 1: drop the obviously-irrelevant, cheaply and in batches."""
+        """Stage 1: drop the obviously-irrelevant, cheaply and in batches.
+
+        The batches run serially, so a big live fetch takes minutes (R3-31):
+        `progress(done, total)` is reported per batch (in jobs) and `should_stop()`
+        is asked between batches, both on this (the caller's) thread."""
         if not jobs:
             return []
         system = _triage_system_prompt(profile, candidate, company_profile)
@@ -377,6 +383,12 @@ class Matcher:
             batch = jobs[start : start + TRIAGE_BATCH]
             keep = self._triage_batch(system, batch)
             survivors.extend(keep)
+            done = start + len(batch)
+            report_progress(progress, done, len(jobs))
+            # Caller asked to stop: no more paid batches; it discards the partial list.
+            if done < len(jobs) and stop_requested(should_stop):
+                log.info("Triage stopped by caller at %d/%d", done, len(jobs))
+                break
         log.info(
             "Triage: %d/%d jobs worth a full read (%.0f%% filtered out)",
             len(survivors),

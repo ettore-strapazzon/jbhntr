@@ -208,7 +208,12 @@ class Matcher:
         self.settings = settings
         self.failures = 0
 
-    def triage(self, jobs, profile, candidate=None, company_profile=None):
+    def triage(self, jobs, profile, candidate=None, company_profile=None,
+               progress: Optional[ProgressFn] = None,
+               should_stop: Optional[StopFn] = None):
+        if stop_requested(should_stop):
+            return []
+        report_progress(progress, len(jobs), len(jobs))
         return list(jobs)[:40]
 
     def score(self, jobs, profile, materials, feedback_examples=None,

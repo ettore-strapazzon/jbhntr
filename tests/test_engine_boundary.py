@@ -158,10 +158,10 @@ def test_demo_callables_are_call_compatible_with_the_real_engine():
 @pytest.mark.parametrize("backend", sorted(BACKENDS))
 def test_long_stages_take_the_progress_callback(backend):
     """R3-29: the in-stage heartbeat is part of the contract. Both backends accept
-    an optional keyword `progress(done, total)` on the two long stages, so the
-    shell never needs to know which engine (or which engine internals) it runs."""
+    an optional keyword `progress(done, total)` on the long stages (R3-31: triage too),
+    so the shell never needs to know which engine (or which engine internals) it runs."""
     mod = __import__(backend)
-    for fn in (mod.Matcher.score, mod.collect_all_sources):
+    for fn in (mod.Matcher.score, mod.Matcher.triage, mod.collect_all_sources):
         p = inspect.signature(fn).parameters.get("progress")
         assert p is not None, f"{backend}.{fn.__qualname__} lacks `progress`"
         assert p.default is None, f"{backend}.{fn.__qualname__}: `progress` must be optional"
@@ -170,10 +170,10 @@ def test_long_stages_take_the_progress_callback(backend):
 @pytest.mark.parametrize("backend", sorted(BACKENDS))
 def test_long_stages_take_the_should_stop_hook(backend):
     """R3-30: cancellation is part of the contract too. Both backends accept an
-    optional keyword `should_stop()` on the two long stages, so the shell can stop
+    optional keyword `should_stop()` on the long stages (R3-31: triage too), so the shell can stop
     a reaped scan mid-stage without knowing which engine it runs."""
     mod = __import__(backend)
-    for fn in (mod.Matcher.score, mod.collect_all_sources):
+    for fn in (mod.Matcher.score, mod.Matcher.triage, mod.collect_all_sources):
         p = inspect.signature(fn).parameters.get("should_stop")
         assert p is not None, f"{backend}.{fn.__qualname__} lacks `should_stop`"
         assert p.default is None, f"{backend}.{fn.__qualname__}: `should_stop` must be optional"

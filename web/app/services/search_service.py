@@ -225,7 +225,8 @@ HEARTBEAT_SECONDS = 30
 
 class _Heartbeat:
     """The throttled ``progress(done, total)`` callback handed to the engine's long
-    stages (scoring, live fetch), so a stage running past STUCK_SEARCH_MINUTES
+    stages (scoring, live fetch; R3-30/31: enrichment, link checks, triage, and
+    between the opening AI calls), so a stage running past STUCK_SEARCH_MINUTES
     keeps stamping `last_progress_at` and isn't reaped mid-flight (R3-29).
 
     It writes through `_claim`, so a reaped row is never written (never revived).
@@ -341,7 +342,14 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
         # job titles to query. Users who skip the optional "job titles" step
         # would otherwise get no keyword results at all.
         _set(db, search, status="running", stage="Understanding your profile…")
+        # Three serial AI calls follow (candidate, company profile, criteria), each
+        # up to ~90 s (45 s timeout + 1 retry), ~185 s on the OpenAI-compatible
+        # client (strict + loose JSON attempts): ~9 min with no write. Beat between
+        # them (R3-31); a reaped scan stops before the next paid call.
+        opening = _Heartbeat(db, search.id, "Understanding your profile…")
         candidate = derive_candidate(profile, materials, settings)
+        opening(1, 3)
+        opening.check()
         # Always widen coverage with adjacent titles the CV implies — the user's
         # own terms lead (they win the per-source query slots and rank ties),
         # then the derived roles fill in to catch jobs worded differently.
@@ -360,7 +368,11 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
 
         terms = list(profile.search_terms) + list(candidate.target_roles or [])
         company_profile = derive_company_profile(labels, settings)
+        opening(2, 3)
+        opening.check()
         criteria = derive_criteria(profile, labels, settings)
+        opening(3, 3)
+        opening.check()
         matcher = Matcher(settings)
 
         # Step 4: read the shared corpus (fast — no live fetch). Cosine ranking
@@ -389,7 +401,11 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
             jobs = cap_per_company(list(unique.values()), terms=terms)
             if len(jobs) > 40:
                 _set(db, search, stage=f"Shortlisting {len(jobs)} jobs…")
-                jobs = matcher.triage(jobs, profile, candidate, company_profile)
+                # ceil(N/25) SERIAL AI batches — minutes on a big fetch (R3-31).
+                beat = _Heartbeat(db, search.id, "Shortlisting")
+                jobs = matcher.triage(jobs, profile, candidate, company_profile,
+                                      progress=beat, should_stop=beat.should_stop)
+                beat.check()
         else:
             # `matched` is the full set of jobs in the user's geography; `jobs` is
             # the cosine-ranked top-K sent to scoring. Show the true located count.

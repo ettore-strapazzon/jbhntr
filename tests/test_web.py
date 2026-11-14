@@ -1063,6 +1063,161 @@ def test_scan_reaped_during_enrichment_skips_scoring(stub_engine, monkeypatch):
         db.close()
 
 
+# R3-31: the AI triage (live-fetch fallback with >40 jobs: ceil(N/25) SERIAL calls
+# of up to ~90 s, ~185 s on the OpenAI-compatible client) and the three opening AI
+# calls (up to ~9 min together, with no write in between) beat too.
+def _r331_triage_path(monkeypatch, triage):
+    import types
+
+    from web.app.services import search_service as ss
+    jobs = _r330_jobs(45)                            # > 40 -> the triage stage runs
+    monkeypatch.setattr(ss, "_corpus_candidates", lambda *a: (None, 0, 0))
+    monkeypatch.setattr(ss, "collect_all_sources", lambda *a, **k: list(jobs))
+    monkeypatch.setattr(ss, "_cache_to_corpus", lambda raw: None)
+    monkeypatch.setattr(ss, "prefilter", lambda j, p: True)
+    monkeypatch.setattr(ss, "cap_per_company", lambda js, terms=None: js)
+    monkeypatch.setattr(ss, "Matcher",
+                        lambda s: types.SimpleNamespace(failures=0, triage=triage))
+
+
+def test_heartbeat_keeps_a_long_triage_alive(stub_engine, monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    seen = {}
+
+    def triage(jobs, profile, candidate=None, company_profile=None,
+               progress=None, should_stop=None):
+        _r329_silence(s.id)                          # 20 min of serial batches
+        progress(25, len(jobs))
+        seen["stage"] = _r329_stage(s.id)
+        seen["reaped"] = _r329_reap(s.id)
+        seen["stop"] = should_stop()
+        return jobs[:1]
+    _r331_triage_path(monkeypatch, triage)
+
+    db = SessionLocal()
+    try:
+        u = User(email="r331-triage-alive@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"stage": "Shortlisting 25/45", "reaped": False, "stop": False}
+        assert db.get(Search, s.id).status == "done"
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 1
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_scan_reaped_during_triage_stops_and_skips_scoring(stub_engine, monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    seen = {"scored": False, "enriched": False}
+
+    def triage(jobs, profile, candidate=None, company_profile=None,
+               progress=None, should_stop=None):
+        assert _r329_reap(s.id, floor=False) is True
+        progress(25, len(jobs))                      # lost claim
+        seen["stop"] = should_stop()                 # -> engine stops batching
+        return jobs[:25]                             # partial: must be discarded
+    _r331_triage_path(monkeypatch, triage)
+    monkeypatch.setattr(ss, "_enrich",
+                        lambda *a, **k: seen.__setitem__("enriched", True))
+    monkeypatch.setattr(ss, "_score_cached",
+                        lambda *a, **k: seen.__setitem__("scored", True) or [])
+
+    db = SessionLocal()
+    try:
+        u = User(email="r331-triage-reaped@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"stop": True, "scored": False, "enriched": False}
+        row = db.get(Search, s.id)
+        assert row.status == "failed" and row.error.startswith("Interrupted")
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 0
+        assert _refunds(db, debit) == 1
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_heartbeat_between_the_opening_ai_calls(stub_engine, monkeypatch):
+    """Three serial AI calls (candidate, company profile, criteria) ran with no
+    write between "Understanding your profile…" and the corpus stage."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    import types
+    seen = {}
+
+    def derive_candidate(*a):
+        _r329_silence(s.id)                          # the first call ran long
+        return types.SimpleNamespace(target_roles=[])
+
+    def derive_company_profile(*a):
+        seen["stage"] = _r329_stage(s.id)
+        seen["reaped"] = _r329_reap(s.id)
+        return None
+    monkeypatch.setattr(ss, "derive_candidate", derive_candidate)
+    monkeypatch.setattr(ss, "derive_company_profile", derive_company_profile)
+
+    db = SessionLocal()
+    try:
+        u = User(email="r331-opening-alive@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"stage": "Understanding your profile… 1/3", "reaped": False}
+        assert db.get(Search, s.id).status == "done"
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_scan_reaped_during_the_opening_calls_makes_no_more_ai_calls(stub_engine,
+                                                                      monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    import types
+    later = []
+
+    def derive_candidate(*a):
+        assert _r329_reap(s.id, floor=False) is True
+        return types.SimpleNamespace(target_roles=[])
+    monkeypatch.setattr(ss, "derive_candidate", derive_candidate)
+    monkeypatch.setattr(ss, "derive_company_profile", lambda *a: later.append("cp"))
+    monkeypatch.setattr(ss, "derive_criteria", lambda *a: later.append("crit"))
+    monkeypatch.setattr(ss, "_corpus_candidates",
+                        lambda *a: later.append("corpus") or (None, 0, 0))
+
+    db = SessionLocal()
+    try:
+        u = User(email="r331-opening-reaped@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert later == []                           # no further paid calls
+        assert db.get(Search, s.id).status == "failed"
+        assert _refunds(db, debit) == 1
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
 def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     signup(client, email="f09@example.com")
     from web.app.db import SessionLocal
