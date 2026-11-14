@@ -282,7 +282,7 @@ def stub_engine(monkeypatch):
             raise RuntimeError("scoring blew up")
         return [(job, match)]
 
-    def links(db, ranked):
+    def links(db, ranked, **k):                # k: the R3-30 `beat`
         if hooks["before_links"]:
             hooks["before_links"]()
         return ranked, set()
@@ -299,7 +299,7 @@ def stub_engine(monkeypatch):
     monkeypatch.setattr(ss, "derive_criteria", lambda *a: None)
     monkeypatch.setattr(ss, "Matcher", lambda s: ns(failures=0))
     monkeypatch.setattr(ss, "_corpus_candidates", lambda *a: ([job], 1, 1))
-    monkeypatch.setattr(ss, "_enrich", lambda jobs, db=None: None)
+    monkeypatch.setattr(ss, "_enrich", lambda jobs, db=None, **k: None)  # k: R3-30 beat
     monkeypatch.setattr(ss, "_feedback_examples", lambda db, u: [])
     monkeypatch.setattr(ss, "_score_cached", score)
     monkeypatch.setattr(ss, "_location_ok", lambda *a: True)
@@ -694,7 +694,7 @@ def test_heartbeat_keeps_a_long_live_fetch_alive(stub_engine, monkeypatch):
     job, _ = _r329_job()
     seen = {}
 
-    def collect(profile, settings, progress=None):
+    def collect(profile, settings, progress=None, **k):   # k: R3-30 should_stop
         _r329_silence(s.id)
         progress(3, 7)
         seen["stage"] = _r329_stage(s.id)
@@ -745,11 +745,11 @@ def test_heartbeat_never_revives_a_reaped_scan(stub_engine, monkeypatch, stage):
             reap_then_report(progress)
         return [(job, match)]
 
-    def collect(profile, settings, progress=None):
+    def collect(profile, settings, progress=None, **k):   # k: R3-30 should_stop
         reap_then_report(progress)
         return [job]
 
-    def links(db, ranked):
+    def links(db, ranked, **k):
         seen["links"] = True
         return ranked, set()
     monkeypatch.setattr(ss, "_score_cached", score)
@@ -811,6 +811,253 @@ def test_heartbeat_failure_never_kills_a_healthy_scan(stub_engine, monkeypatch):
         assert db.get(Search, s.id).status == "done"
         assert db.query(JobResult).filter_by(search_id=s.id).count() == 1
         assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+# R3-30 (a): cancellation. The heartbeat is also the engine's `should_stop` hook:
+# once a beat loses its claim (the scan was reaped), the engine is told to stop
+# mid-stage instead of finishing work whose results will be discarded.
+def test_heartbeat_should_stop_turns_true_on_a_lost_claim():
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import User
+    from web.app.services import search_service as ss
+    init_db()
+    db = SessionLocal()
+    s = None
+    try:
+        u = User(email="r330-hook@example.com"); db.add(u); db.commit()
+        s, _ = _stuck_paid_search(db, u, minutes_ago=0)
+        hb = ss._Heartbeat(db, s.id, "Scoring", every=0)
+        hb(1, 3)
+        assert hb.should_stop() is False             # healthy scan: keep going
+        assert _r329_reap(s.id, floor=False) is True
+        hb(2, 3)                                     # this beat loses its claim
+        assert hb.should_stop() is True
+    finally:
+        if s is not None:
+            _r325_cleanup(db, s)
+        db.close()
+
+
+@pytest.mark.parametrize("stage", ["score", "fetch"])
+def test_reaped_scan_tells_the_engine_to_stop_mid_stage(stub_engine, monkeypatch, stage):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    job, match = _r329_job()
+    seen = {}
+
+    def run_stage(progress, should_stop):
+        progress(1, 3)
+        seen["before"] = should_stop()               # still ours
+        assert _r329_reap(s.id, floor=False) is True
+        progress(2, 3)                               # lost claim
+        seen["after"] = should_stop()                # -> engine stops here
+
+    def score(*a, progress=None, should_stop=None, **k):
+        if stage == "score":
+            run_stage(progress, should_stop)
+        return [(job, match)]
+
+    def collect(profile, settings, progress=None, should_stop=None):
+        run_stage(progress, should_stop)
+        return [job]
+
+    monkeypatch.setattr(ss, "_score_cached", score)
+    if stage == "fetch":
+        monkeypatch.setattr(ss, "_corpus_candidates", lambda *a: (None, 0, 0))
+        monkeypatch.setattr(ss, "collect_all_sources", collect)
+        monkeypatch.setattr(ss, "_cache_to_corpus", lambda raw: None)
+        monkeypatch.setattr(ss, "prefilter", lambda j, p: True)
+        monkeypatch.setattr(ss, "cap_per_company", lambda jobs, terms=None: jobs)
+
+    db = SessionLocal()
+    try:
+        u = User(email=f"r330-stop-{stage}@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"before": False, "after": True}
+        row = db.get(Search, s.id)
+        assert row.status == "failed" and row.error.startswith("Interrupted")
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 0
+        assert _refunds(db, debit) == 1                # the reaper's refund, once
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+# R3-30 (b): enrichment (up to 120 page fetches, 8 at a time, 15 s + 10 s timeouts
+# each) and the link check (30 checks + a SERIAL ATS recovery of up to 3 boards per
+# gated/blocked link) can each run for minutes, so they beat and can be stopped too.
+class _R330Beat:
+    def __init__(self, stop_after=None):
+        import threading
+        self.calls, self.threads, self.stop_after = [], set(), stop_after
+        self._ident = threading.get_ident
+
+    def __call__(self, done, total):
+        self.calls.append((done, total))
+        self.threads.add(self._ident())
+
+    def should_stop(self):
+        return self.stop_after is not None and len(self.calls) >= self.stop_after
+
+
+def _r330_slow_enrich(monkeypatch, first_free=10**6):
+    """Stub the page fetches. Fetches after the first `first_free` block until the
+    returned `release()` opens the gate (on a short timer), so what was in flight
+    when the caller said stop is exactly known."""
+    import threading
+
+    from jobhunter.sources import ats
+    from web.app.services import enrich_service
+    lock, gate, calls = threading.Lock(), threading.Event(), {"n": 0}
+
+    def fetch(url, timeout=10.0):
+        with lock:
+            calls["n"] += 1
+            n = calls["n"]
+        if n > first_free:
+            gate.wait(5)
+        return ""
+
+    def release():
+        if not gate.is_set():
+            threading.Timer(0.2, gate.set).start()
+    monkeypatch.setattr(ats, "enrich_description", lambda j: False)
+    monkeypatch.setattr(enrich_service, "fetch_description", fetch)
+    return calls, release
+
+
+def _r330_jobs(n):
+    from jbhntr_engine import JobPosting
+    return [JobPosting(source="t", title=f"Role {i}", company=f"Co{i}",
+                       url=f"https://example.com/r330/{i}") for i in range(n)]
+
+
+def test_enrich_beats_on_the_callers_thread(monkeypatch):
+    import threading
+
+    from web.app.services import search_service as ss
+    _r330_slow_enrich(monkeypatch)
+    beat = _R330Beat()
+    ss._enrich(_r330_jobs(12), None, beat=beat)
+    assert [d for d, _ in beat.calls] == list(range(1, 13))
+    assert beat.calls[-1] == (12, 12)
+    assert beat.threads == {threading.get_ident()}
+
+
+def test_enrich_stops_early_when_asked(monkeypatch):
+    from web.app.services import search_service as ss
+    calls, release = _r330_slow_enrich(monkeypatch, first_free=2)
+
+    class Beat(_R330Beat):
+        def should_stop(self):
+            if len(self.calls) >= 2:
+                release()
+                return True
+            return False
+
+    ss._enrich(_r330_jobs(80), None, beat=Beat())
+    assert calls["n"] <= 2 + 8                       # only the in-flight fetches ran
+
+
+def test_verify_links_beats_and_stops_before_recovering_everything(monkeypatch):
+    import threading
+
+    from jbhntr_engine import MatchResult
+    from jbhntr_engine_real import recover
+    from web.app.services import reaper
+    from web.app.services import search_service as ss
+    tried = []
+    monkeypatch.setattr(reaper, "check_url", lambda url, c: "gated")
+    monkeypatch.setattr(recover, "recover_apply_url",
+                        lambda company, title: tried.append(company) or None)
+    m = MatchResult(tier=1, score=88, reasons="ok")
+    ranked = [(j, m) for j in _r330_jobs(10)]
+    beat = _R330Beat(stop_after=12)                  # 10 checks, then 2 recoveries
+    kept, unverified = ss._verify_links(None, ranked, beat=beat)   # no DB touched
+    assert len(tried) == 2                           # not all 10 serial recoveries
+    assert kept == ranked and unverified == set()    # partial verdicts discarded
+    assert len(beat.calls) == 12
+    assert beat.threads == {threading.get_ident()}
+
+
+@pytest.mark.parametrize("step", ["enrich", "links"])
+def test_heartbeat_keeps_enrichment_and_link_checks_alive(stub_engine, monkeypatch, step):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    seen = {}
+
+    def long_step(beat):
+        _r329_silence(s.id)                          # 20 min into the step
+        if beat is not None:
+            beat(1, 2)
+        seen["reaped"] = _r329_reap(s.id)
+
+    def enrich(jobs, db=None, beat=None):
+        if step == "enrich":
+            long_step(beat)
+
+    def links(db, ranked, beat=None):
+        if step == "links":
+            long_step(beat)
+        return ranked, set()
+    monkeypatch.setattr(ss, "_enrich", enrich)
+    monkeypatch.setattr(ss, "_verify_links", links)
+
+    db = SessionLocal()
+    try:
+        u = User(email=f"r330-alive-{step}@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"reaped": False}
+        assert db.get(Search, s.id).status == "done"
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 1
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_scan_reaped_during_enrichment_skips_scoring(stub_engine, monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    seen = {"scored": False}
+
+    def enrich(jobs, db=None, beat=None):
+        assert _r329_reap(s.id, floor=False) is True
+        if beat is not None:
+            beat(1, 1)
+
+    def score(*a, **k):
+        seen["scored"] = True
+        return []
+    monkeypatch.setattr(ss, "_enrich", enrich)
+    monkeypatch.setattr(ss, "_score_cached", score)
+
+    db = SessionLocal()
+    try:
+        u = User(email="r330-enrich-reaped@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen["scored"] is False               # no scoring spend after a reap
+        assert db.get(Search, s.id).status == "failed"
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 0
+        assert _refunds(db, debit) == 1
     finally:
         _r325_cleanup(db, s)
         db.close()

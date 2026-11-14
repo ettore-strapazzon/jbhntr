@@ -85,6 +85,24 @@ def test_demo_engine_accepts_and_honours_the_progress_callback():
     assert len(demo.Matcher(None).score(jobs, prof, Materials(), progress=boom)) == len(jobs)
 
 
+def test_demo_engine_honours_should_stop():
+    """R3-30: the demo engine takes `should_stop` too and stops early when asked;
+    a failing `should_stop` never stops it."""
+    import jbhntr_engine_demo as demo
+    from jbhntr_engine import Materials, Profile
+
+    prof = Profile(raw={"sources": {"search_terms": ["chief of staff"]}})
+    jobs = demo.collect_all_sources(prof, None)
+    assert len(jobs) > 1
+    assert demo.collect_all_sources(prof, None, should_stop=lambda: True) == []
+    out = demo.Matcher(None).score(jobs, prof, Materials(), should_stop=lambda: True)
+    assert len(out) == 1                      # stops after the job in hand
+    def boom():
+        raise RuntimeError("x")
+    assert len(demo.Matcher(None).score(jobs, prof, Materials(), should_stop=boom)) == len(jobs)
+    assert demo.collect_all_sources(prof, None, should_stop=boom) == jobs
+
+
 def test_demo_generator_returns_real_shapes():
     import jbhntr_engine_demo as demo
     from jbhntr_engine import JobPosting, Materials, MatchResult, RankedJob

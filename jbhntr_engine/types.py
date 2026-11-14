@@ -35,6 +35,28 @@ def report_progress(progress: Optional[ProgressFn], done: int, total: int) -> No
         logging.getLogger("jbhntr.engine").warning("progress callback failed: %s", exc)
 
 
+# Cancellation (R3-30). The same two stages take an optional keyword
+# ``should_stop()``: the engine asks it on the CALLER's thread between units of
+# work (jobs, sources, ATS companies) and, once it returns True, stops starting
+# new work and returns what it already has. Partial output is not a valid stage
+# result — the caller asked to stop, so the caller discards it. A stop is a
+# return, not an exception: a raise inside a source would be swallowed by the
+# per-source catch-all. Asked via ``stop_requested``, which fails open (keep
+# going) so a broken hook can never cut a healthy stage short.
+StopFn = Callable[[], bool]
+
+
+def stop_requested(should_stop: Optional[StopFn]) -> bool:
+    """True only if ``should_stop()`` says so; a missing or failing hook means go on."""
+    if should_stop is None:
+        return False
+    try:
+        return bool(should_stop())
+    except Exception as exc:
+        logging.getLogger("jbhntr.engine").warning("should_stop hook failed: %s", exc)
+        return False
+
+
 # Five bands give useful separation between "drop everything and apply" and
 # "worth a look", which a 3-tier scale collapsed together.
 MatchTier = Literal[1, 2, 3, 4, 5]

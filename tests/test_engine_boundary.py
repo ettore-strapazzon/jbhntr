@@ -167,6 +167,18 @@ def test_long_stages_take_the_progress_callback(backend):
         assert p.default is None, f"{backend}.{fn.__qualname__}: `progress` must be optional"
 
 
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_long_stages_take_the_should_stop_hook(backend):
+    """R3-30: cancellation is part of the contract too. Both backends accept an
+    optional keyword `should_stop()` on the two long stages, so the shell can stop
+    a reaped scan mid-stage without knowing which engine it runs."""
+    mod = __import__(backend)
+    for fn in (mod.Matcher.score, mod.collect_all_sources):
+        p = inspect.signature(fn).parameters.get("should_stop")
+        assert p is not None, f"{backend}.{fn.__qualname__} lacks `should_stop`"
+        assert p.default is None, f"{backend}.{fn.__qualname__}: `should_stop` must be optional"
+
+
 def test_keyed_provider_names_match_between_backends():
     import jbhntr_engine_demo as demo
     import jbhntr_engine_real as real

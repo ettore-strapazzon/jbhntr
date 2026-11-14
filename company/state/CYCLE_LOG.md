@@ -229,3 +229,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Requests:** none new. R-009, R-013, R-014 still open.
 - **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
 - **Spend:** none.
+
+## 2026-11-14 · cycle 18 (reaped scans stop mid-stage + heartbeat for enrichment and link checks)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 5/10.
+- **Dispatched (foreground):** CTO (R3-30). CMO/CPO/CFO/GC idle: no unblocked task in R3 (R3-27 is gated on PMF; outward growth waits on R-009/R-013).
+- **Result (accepted):** CTO → **R3-30**: (a) the engine contract gains an optional `should_stop()` on `Matcher.score` and `collect_all_sources`. It is checked on the caller's thread between jobs, sources and ATS companies. A stop is a *return* of what the engine has so far, which the shell then discards; a raise would be swallowed by the per-source catch-all. `stop_requested` fails open, so a broken hook can't cut a healthy scan short. Real engine: scoring cancels queued work (at most 6 jobs in flight finish), and sources/ATS cancel queued fetches. The demo engine honours the hook too. Nothing was added to the façade. `_Heartbeat.should_stop` is passed to both stages. (b) Enrichment (up to 120 pages, 8 at a time, over 6 minutes in the worst case) and link checks (serial recovery across up to 3 boards per link, about 20 minutes in the worst case) now beat. If a scan is reaped they stop without writing to the corpus, and a `check()` after enrichment means a reaped scan never reaches paid scoring. Corpus search gets no heartbeat because it is bounded at seconds (one embedding call plus SQL). 22 new test cases, all failed before the fix; 5 test fakes gained `**k`.
+- **CEO review:** diff read (types, matcher, sources, ats, demo, search_service, tests). Checked that `_claim`/`_set`/reapers are unchanged, that the new kwargs default to None, that `_enrich`'s early `pool.shutdown(cancel_futures=True)` inside the `with` is safe (exit still waits only for running fetches), and that link-check beats come from the caller's thread (`pool.map` iteration). Scores finished before a stop stay in the score cache. That is kept because each score is valid and it makes a retry cheaper. No fixes needed.
+- **Test gate (CEO, once):** **1157 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-31 (heartbeat for AI triage/opening calls; the progress rail drops to step 0 during the link check; low).
+- **Requests:** none new. R-009, R-013, R-014 still open.
+- **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
+- **Spend:** none.
+- **Observations:** the CTO loaded only 2 of the matching skills (incremental-implementation and surgical-patch were applied in practice but not invoked; this was flagged honestly). The skill-observation review has never been run (6 open), and the offer stands.

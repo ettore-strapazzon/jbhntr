@@ -238,6 +238,10 @@ class _Heartbeat:
     Any other failure (DB hiccup) is logged and swallowed: a missed beat must
     never kill a healthy scan. Beats from a non-owner thread are dropped — the
     worker's session is not thread-safe (the engine contract says caller's thread).
+
+    `should_stop` (R3-30) is the same flag as the engine's cancellation hook: once
+    a beat has lost its claim the engine stops at its next job/source and returns
+    early; the worker's `check()` then discards the partial output.
     """
 
     def __init__(self, db: DbSession, search_id: int, label: str, *,
@@ -268,6 +272,10 @@ class _Heartbeat:
                 self.db.rollback()
             except Exception:
                 pass
+
+    def should_stop(self) -> bool:
+        """The engine's `should_stop` hook: True once this scan has been reaped."""
+        return self.reaped
 
     def check(self) -> None:
         """Call after the stage: stop the worker if the scan was reaped during it."""
@@ -365,7 +373,8 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
         if jobs is None:
             _set(db, search, stage="Collecting job postings…")
             beat = _Heartbeat(db, search.id, "Collecting job postings…")
-            raw = collect_all_sources(profile, settings, progress=beat)
+            raw = collect_all_sources(profile, settings, progress=beat,
+                                      should_stop=beat.should_stop)
             beat.check()
             scanned = len(raw)
             # Write-through so this fetch also enriches the shared corpus.
@@ -391,11 +400,16 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
         _set(db, search, raw_count=scanned, located_count=located, ranked_count=len(jobs))
 
         _set(db, search, stage=f"Scoring {len(jobs)} jobs in detail…")
-        _enrich(jobs, db)
+        # Enrichment and the link check fetch pages for minutes too (R3-30): beat.
+        # The label keeps "scor" so the progress rail stays on the scoring step.
+        beat = _Heartbeat(db, search.id, "Scoring: reading job descriptions")
+        _enrich(jobs, db, beat=beat)
+        beat.check()
         feedback = _feedback_examples(db, user)
         beat = _Heartbeat(db, search.id, "Scoring")
         scored = _score_cached(db, matcher, jobs, profile, materials, feedback,
-                               company_profile, criteria, settings, progress=beat)
+                               company_profile, criteria, settings, progress=beat,
+                               should_stop=beat.should_stop)
         beat.check()
 
         # Hard location gate, now that the LLM has surfaced the real location for
@@ -421,7 +435,9 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
         # one clicks into a 404 or a login wall. Drops the dead ones and purges
         # them from the shared corpus. Fail-soft — never blocks a search.
         _set(db, search, stage="Checking links…")
-        ranked, unverified = _verify_links(db, ranked)
+        beat = _Heartbeat(db, search.id, "Checking links…")
+        ranked, unverified = _verify_links(db, ranked, beat=beat)
+        beat.check()
 
         _set(db, search, stage="Saving results…")
         for i, (job, match) in enumerate(ranked, start=1):
@@ -561,11 +577,15 @@ def _candidate_query_text(profile, candidate) -> str:
 VERIFY_LIMIT = 30    # top results to link-check before showing (bounds latency)
 
 
-def _verify_links(db: DbSession, ranked: list) -> tuple[list, set]:
+def _verify_links(db: DbSession, ranked: list, beat=None) -> tuple[list, set]:
     """Link-check the top results; drop the dead/gated ones and purge them from
     the shared corpus, so a user never sees a 404 or a login-wall. Survivors are
     stamped checked so the nightly reaper skips them. Fail-soft: any trouble and
-    the unmodified list is returned (a working search beats a perfect one)."""
+    the unmodified list is returned (a working search beats a perfect one).
+
+    `beat` (a `_Heartbeat`, R3-30) is called on this thread per checked link and
+    per recovery attempt (recovery is serial, up to 3 ATS boards per link). If it
+    says stop, the unmodified list is returned and the corpus is not touched."""
     from concurrent.futures import ThreadPoolExecutor
 
     import httpx
@@ -583,7 +603,11 @@ def _verify_links(db: DbSession, ranked: list) -> tuple[list, set]:
                 job, _m = pair
                 return job.dedup_key(), check_url(job.url, client)
             with ThreadPoolExecutor(max_workers=10) as pool:
-                verdicts = dict(pool.map(_one, head))
+                verdicts = {}
+                for i, (k, v) in enumerate(pool.map(_one, head), 1):
+                    verdicts[k] = v
+                    if beat is not None:
+                        beat(i, len(head))
     except Exception as exc:
         log.warning("Link verification skipped: %s", exc)
         return ranked, set()
@@ -594,7 +618,10 @@ def _verify_links(db: DbSession, ranked: list) -> tuple[list, set]:
     # (the wall really does hide the posting); unrecovered BLOCKED jobs are KEPT
     # but flagged 'unverified' (we couldn't confirm live OR gone — don't discard a
     # possibly-live job, but warn on the card).
-    recovered = 0
+    if beat is not None and beat.should_stop():
+        return ranked, set()
+    suspects = sum(1 for v in verdicts.values() if v in ("gated", "blocked"))
+    tried = recovered = 0
     unverified: set[str] = set()
     for job, _m in head:
         v = verdicts.get(job.dedup_key())
@@ -607,7 +634,12 @@ def _verify_links(db: DbSession, ranked: list) -> tuple[list, set]:
         if v == "blocked" and (src.startswith("ats:") or src.startswith("scrape:")):
             verdicts[job.dedup_key()] = "active"
             continue
+        if beat is not None and beat.should_stop():
+            return ranked, set()
         new_url = recover_apply_url(job.company, job.title)
+        tried += 1
+        if beat is not None:
+            beat(tried, suspects)
         if new_url:
             job.url = new_url
             verdicts[job.dedup_key()] = "active"
@@ -771,7 +803,7 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
 
 
 def _score_cached(db, matcher, jobs, profile, materials, feedback,
-                  company_profile, criteria, settings, progress=None):
+                  company_profile, criteria, settings, progress=None, should_stop=None):
     """Score only the jobs not already cached under an identical context.
 
     Cuts the dominant per-search cost on repeat/overlapping searches. A cache
@@ -787,7 +819,7 @@ def _score_cached(db, matcher, jobs, profile, materials, feedback,
     except Exception as exc:
         log.warning("Score cache unavailable, scoring all: %s", exc)
         return matcher.score(jobs, profile, materials, feedback, company_profile, criteria,
-                             progress=progress)
+                             progress=progress, should_stop=should_stop)
 
     hits, misses = [], []
     for j in jobs:
@@ -795,7 +827,7 @@ def _score_cached(db, matcher, jobs, profile, materials, feedback,
         (hits.append((j, m)) if m is not None else misses.append(j))
 
     fresh = (matcher.score(misses, profile, materials, feedback, company_profile, criteria,
-                           progress=progress)
+                           progress=progress, should_stop=should_stop)
              if misses else [])
     if fresh:
         score_cache.put_many(
@@ -816,12 +848,15 @@ def _cache_to_corpus(postings) -> None:
         cdb.close()
 
 
-def _enrich(jobs, db=None) -> None:
+def _enrich(jobs, db=None, beat=None) -> None:
     """Fill full JDs for the shortlist BEFORE scoring — the matcher can't judge fit
     from a snippet. First the structured ATS/LinkedIn path (empty bodies), then a
     generic fetch (JSON-LD JobPosting / main content) for anything still thin. What
     we fetch is persisted back to the corpus row, so it's fixed for everyone and
-    not re-fetched."""
+    not re-fetched.
+
+    `beat` (a `_Heartbeat`, R3-30) is called on this thread per finished job; if
+    it says stop, the queued fetches are cancelled and nothing is persisted."""
     from concurrent.futures import ThreadPoolExecutor
 
     from jbhntr_engine import enrich_description
@@ -844,7 +879,13 @@ def _enrich(jobs, db=None) -> None:
         return j
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        list(pool.map(_one, targets))
+        for i, _j in enumerate(pool.map(_one, targets), 1):
+            if beat is None:
+                continue
+            beat(i, len(targets))
+            if i < len(targets) and beat.should_stop():
+                pool.shutdown(wait=False, cancel_futures=True)
+                return
 
     # Persist the fuller descriptions to the corpus (best-effort, one commit).
     # Force-evaluate ALL (list, not a short-circuiting any()) so every row is saved.

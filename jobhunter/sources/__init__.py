@@ -6,7 +6,7 @@ import logging
 from typing import Callable, Optional
 
 from ..config import Profile, Settings, load_companies
-from ..models import JobPosting, ProgressFn, report_progress
+from ..models import JobPosting, ProgressFn, StopFn, report_progress, stop_requested
 from . import (
     adzuna, arbeitnow, ats, boards, custom_sites, keyed, linkedin, remoteok,
     remotive,
@@ -24,12 +24,15 @@ AGGREGATORS = {
 
 
 def collect_all(profile: Profile, settings: Settings,
-                progress: Optional[ProgressFn] = None) -> list[JobPosting]:
+                progress: Optional[ProgressFn] = None,
+                should_stop: Optional[StopFn] = None) -> list[JobPosting]:
     """Run every enabled source. A failing source never aborts the run.
 
     ``progress(done, total)`` (R3-29) reports finished sources out of the enabled
     ones, and keeps beating at that count while a long source (the ATS long tail)
     is still running, so the caller's heartbeat never goes silent for a whole stage.
+    ``should_stop()`` (R3-30) is asked before each source and inside the ATS long
+    tail; once True, no further source starts and the partial list is returned.
     """
     steps: list[tuple[str, Callable, bool]] = []   # (name, fetch, beats inside)
     for name in profile.aggregators:
@@ -60,8 +63,13 @@ def collect_all(profile: Profile, settings: Settings,
     jobs: list[JobPosting] = []
     total = len(steps)
     for done, (name, fn, beats_inside) in enumerate(steps):
+        if stop_requested(should_stop):
+            log.info("Collection stopped by caller after %d/%d sources", done, total)
+            break
         kw = ({"progress": lambda _d, _t, done=done: report_progress(progress, done, total)}
               if beats_inside else {})
+        if beats_inside and should_stop is not None:
+            kw["should_stop"] = should_stop
         jobs.extend(_safe(name, fn, profile, settings, **kw))
         report_progress(progress, done + 1, total)
 

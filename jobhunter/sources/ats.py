@@ -33,7 +33,7 @@ from typing import Callable, Optional
 from urllib.parse import urlparse
 
 from ..config import Profile, Settings, load_companies
-from ..models import JobPosting, ProgressFn, report_progress
+from ..models import JobPosting, ProgressFn, StopFn, report_progress, stop_requested
 from .base import http_client, strip_html
 
 log = logging.getLogger("jobhunter.sources.ats")
@@ -592,7 +592,8 @@ def enrich_description(job: JobPosting) -> bool:
 
 # --------------------------------------------------------------------------- #
 def fetch(profile: Profile, settings: Settings,
-          progress: Optional[ProgressFn] = None) -> list[JobPosting]:
+          progress: Optional[ProgressFn] = None,
+          should_stop: Optional[StopFn] = None) -> list[JobPosting]:
     companies = load_companies()
     if not companies:
         return []
@@ -628,6 +629,10 @@ def fetch(profile: Profile, settings: Settings,
                 failed += 1
                 log.warning("ATS %s/%s failed: %s", ats, name, exc)
             report_progress(progress, ok + failed, len(futures))   # caller's thread
+            if ok + failed < len(futures) and stop_requested(should_stop):  # R3-30
+                log.info("Career pages stopped by caller at %d/%d", ok + failed, len(futures))
+                pool.shutdown(wait=False, cancel_futures=True)
+                break
 
     log.info(
         "Career pages: %d postings from %d companies (%d failed)", len(jobs), ok, failed

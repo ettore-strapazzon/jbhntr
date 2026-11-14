@@ -153,3 +153,132 @@ def test_collect_all_survives_a_failing_progress_callback(monkeypatch):
 
     prof = Profile(raw={"sources": {"aggregators": ["a1"]}})
     assert len(sources.collect_all(prof, Settings(), progress=progress)) == 1
+
+
+# R3-30: cancellation hook. The long stages take an optional `should_stop()`; once
+# it says True the engine stops at the next job/source and returns what it has
+# (the caller discards it). It is checked on the caller's thread, and a failing
+# `should_stop` never stops a healthy stage. Raising instead would be swallowed by
+# `collect_all`'s per-source catch-all, so the hook is a return value, not an error.
+def _gated_calls(first_free):
+    """A thread-safe call counter whose calls after the first `first_free` block
+    until `release()` — so the work in flight when the caller says stop is exactly
+    known, with no timing luck. `release()` opens the gate shortly after (on a timer),
+    i.e. after the engine has had time to cancel the queue."""
+    import threading
+    lock, gate, calls = threading.Lock(), threading.Event(), {"n": 0}
+
+    def call():
+        with lock:
+            calls["n"] += 1
+            n = calls["n"]
+        if n > first_free:
+            gate.wait(5)
+
+    def release():
+        if not gate.is_set():
+            threading.Timer(0.2, gate.set).start()
+    return calls, call, release
+
+
+def test_score_stops_early_when_asked(monkeypatch):
+    import jobhunter.llm as llm
+    from jobhunter.matcher import SCORE_WORKERS
+    calls, call, release = _gated_calls(3)
+
+    class Client:
+        def json(self, **kw):
+            call()
+            return {"tier": 3, "tier_label": "Possible", "score": 50,
+                    "reasons": "ok", "tags": []}
+
+    monkeypatch.setattr(llm, "get_client", lambda s: Client())
+    seen = []
+
+    def should_stop():
+        if len(seen) >= 3:
+            release()
+            return True
+        return False
+
+    jobs = [JobPosting(source="x", title=f"j{i}") for i in range(60)]
+    out = Matcher(Settings()).score(jobs, Profile(raw={}), Materials(),
+                                    progress=lambda d, t: seen.append(d),
+                                    should_stop=should_stop)
+    assert len(out) == 3                            # partial results, not all 60
+    assert calls["n"] <= 3 + SCORE_WORKERS          # only the in-flight jobs ran
+
+
+def test_score_ignores_a_failing_should_stop(monkeypatch):
+    _ok_client(monkeypatch)
+
+    def should_stop():
+        raise RuntimeError("db hiccup")
+
+    jobs = [JobPosting(source="x", title=f"j{i}") for i in range(4)]
+    out = Matcher(Settings()).score(jobs, Profile(raw={}), Materials(),
+                                    should_stop=should_stop)
+    assert len(out) == 4
+
+
+def test_collect_all_stops_between_sources(monkeypatch):
+    from jobhunter import sources
+    called = []
+
+    def agg(name):
+        def fetch(profile, settings):
+            called.append(name)
+            return [JobPosting(source=name, title="t")]
+        return fetch
+
+    monkeypatch.setattr(sources, "AGGREGATORS", {n: agg(n) for n in ("a1", "a2", "a3")})
+    monkeypatch.setattr(sources, "load_companies", lambda: [])
+    monkeypatch.setattr(sources.keyed, "configured", lambda s: False)
+    prof = Profile(raw={"sources": {"aggregators": ["a1", "a2", "a3"]}})
+    jobs = sources.collect_all(prof, Settings(), should_stop=lambda: bool(called))
+    assert called == ["a1"] and len(jobs) == 1
+
+
+def test_collect_all_hands_should_stop_to_the_ats_long_tail(monkeypatch):
+    from jobhunter import sources
+    got = {}
+
+    def ats_fetch(profile, settings, progress=None, should_stop=None):
+        got["stop"] = should_stop
+        return []
+
+    monkeypatch.setattr(sources, "AGGREGATORS", {})
+    monkeypatch.setattr(sources.ats, "fetch", ats_fetch)
+    monkeypatch.setattr(sources, "load_companies", lambda: [{"name": "x"}])
+    monkeypatch.setattr(sources.keyed, "configured", lambda s: False)
+    flag = {"v": False}
+    sources.collect_all(Profile(raw={}), Settings(), should_stop=lambda: flag["v"])
+    assert got["stop"] is not None and got["stop"]() is False
+    flag["v"] = True
+    assert got["stop"]() is True
+
+
+def test_ats_fetch_stops_early_when_asked(monkeypatch):
+    from jobhunter.sources import ats
+    calls, call, release = _gated_calls(2)
+
+    def fake(name, token):
+        call()
+        return [JobPosting(source=f"ats:fake:{token}", title="t")]
+
+    monkeypatch.setattr(ats, "FETCHERS", {"fake": fake})
+    monkeypatch.setattr(ats, "load_companies",
+                        lambda: [{"name": f"c{i}", "ats": "fake", "token": f"c{i}"}
+                                 for i in range(80)])
+    done = []
+
+    def should_stop():
+        if len(done) >= 2:
+            release()
+            return True
+        return False
+
+    jobs = ats.fetch(Profile(raw={}), Settings(), progress=lambda d, t: done.append(d),
+                     should_stop=should_stop)
+    assert len(jobs) == 2
+    assert calls["n"] <= 2 + ats.MAX_WORKERS        # only the in-flight companies ran

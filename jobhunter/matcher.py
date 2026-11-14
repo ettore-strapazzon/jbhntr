@@ -15,7 +15,9 @@ from typing import Optional
 
 from . import llm
 from .config import Materials, Profile, Settings
-from .models import JobPosting, MatchResult, ProgressFn, report_progress
+from .models import (
+    JobPosting, MatchResult, ProgressFn, StopFn, report_progress, stop_requested,
+)
 
 log = logging.getLogger("jobhunter.matcher")
 
@@ -415,6 +417,7 @@ class Matcher:
         company_profile=None,
         criteria=None,
         progress: Optional[ProgressFn] = None,
+        should_stop: Optional[StopFn] = None,
     ) -> list[tuple[JobPosting, MatchResult]]:
         system = _system_prompt(
             profile, materials, feedback_examples or [], company_profile, criteria
@@ -435,6 +438,12 @@ class Matcher:
                 report_progress(progress, i, len(jobs))
                 if i % 20 == 0:
                     log.info("Scored %d/%d", i, len(jobs))
+                # Caller asked to stop (R3-30): drop the queued jobs, let the few
+                # in flight finish, hand back the partial list (caller discards it).
+                if i < len(jobs) and stop_requested(should_stop):
+                    log.info("Scoring stopped by caller at %d/%d", i, len(jobs))
+                    pool.shutdown(wait=False, cancel_futures=True)
+                    break
         # A silent partial run looks exactly like "few good jobs today", which
         # sent us hunting through the filters when the real cause was an
         # exhausted API balance. Say so loudly.

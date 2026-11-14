@@ -28,7 +28,8 @@ from typing import Any, Callable, Optional
 import httpx
 
 from jbhntr_engine.types import (
-    JobPosting, MatchResult, ProgressFn, RankedJob, report_progress, tier_for_score,
+    JobPosting, MatchResult, ProgressFn, RankedJob, StopFn, report_progress,
+    stop_requested, tier_for_score,
 )
 
 ENGINE_KIND = "demo"
@@ -212,7 +213,8 @@ class Matcher:
 
     def score(self, jobs, profile, materials, feedback_examples=None,
               company_profile=None, criteria=None,
-              progress: Optional[ProgressFn] = None):
+              progress: Optional[ProgressFn] = None,
+              should_stop: Optional[StopFn] = None):
         wanted = _words(" ".join(list(profile.search_terms) + list(profile.keywords_must)
                                  + list(profile.keywords_nice) + [profile.objective or ""]))
         out = []
@@ -234,6 +236,8 @@ class Matcher:
             )
             out.append((job, match))
             report_progress(progress, len(out), len(jobs))
+            if stop_requested(should_stop):
+                break
         return out
 
 
@@ -352,7 +356,10 @@ def _canned(source: str = "demo") -> list[JobPosting]:
 
 
 def collect_all_sources(profile, settings,
-                        progress: Optional[ProgressFn] = None) -> list[JobPosting]:
+                        progress: Optional[ProgressFn] = None,
+                        should_stop: Optional[StopFn] = None) -> list[JobPosting]:
+    if stop_requested(should_stop):          # the one canned "source" never starts
+        return []
     jobs = _canned()
     report_progress(progress, 1, 1)          # one canned "source"
     return jobs
