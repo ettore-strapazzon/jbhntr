@@ -187,6 +187,38 @@ def test_status_poll_reaps_only_my_own_stuck_search(client):
         db.close()
 
 
+def test_status_route_announces_step_changes_only(client):
+    """R3-33: the poll updates the live status line only when the rail step moves,
+    and announces the terminal state once (with the reload)."""
+    import re
+
+    from web.app.db import SessionLocal
+    from web.app.models import Search, User
+    OOB_RE = re.compile(r'<div id="scan-status" hx-swap-oob="innerHTML">([^<]*)</div>')
+    signup(client, email="r333-live@example.com")
+    db = SessionLocal()
+    try:
+        me = db.query(User).filter_by(email="r333-live@example.com").one()
+        s = Search(user_id=me.id, status="running", stage="Scoring 120/300")
+        db.add(s); db.commit()
+        same = client.get(f"/search/{s.id}/status?shown=2").text
+        assert "scan-status" not in same and "Scoring 120/300" in same
+        moved = client.get(f"/search/{s.id}/status?shown=1").text
+        assert [t.strip() for t in OOB_RE.findall(moved)] == [
+            "Step 3 of 4: Scoring each job"]
+        s.status, s.error = "failed", "Interrupted — please run the scan again."
+        db.commit()
+        end = client.get(f"/search/{s.id}/status?shown=2").text
+        assert [t.strip() for t in OOB_RE.findall(end)] == [
+            "Scan interrupted. Please run the scan again."]
+        assert 'hx-get="/matches" hx-target="body"' in end
+    finally:
+        db.rollback()
+        db.query(Search).filter(Search.user_id == me.id).delete()
+        db.commit()
+        db.close()
+
+
 def test_status_poll_leaves_a_young_running_scan_alone(client):
     signup(client, email="r324-young@example.com")
     from web.app.db import SessionLocal

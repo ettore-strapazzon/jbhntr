@@ -74,8 +74,9 @@ def import_from_url(request: Request, url: str = Form(...),
 
 @router.get("/search/{search_id}/status", response_class=HTMLResponse)
 def status(search_id: int, request: Request, user: User = Depends(require_user),
-           db: DbSession = Depends(get_session)):
-    """Polled by HTMX while a search runs."""
+           db: DbSession = Depends(get_session), shown: int | None = None):
+    """Polled by HTMX while a search runs. `shown` is the rail step the page already
+    shows: the live status line is updated only when the step moves (R3-33)."""
     search = db.get(Search, search_id)
     if not search or search.user_id != user.id:   # ownership check
         return HTMLResponse("", status_code=404)
@@ -87,11 +88,10 @@ def status(search_id: int, request: Request, user: User = Depends(require_user),
         if reap_stuck_search(db, search.id, user_id=user.id,
                              older_than_minutes=STUCK_SEARCH_MINUTES):
             db.refresh(search)
-    if search.status in ("done", "failed"):
-        # Tell HTMX to reload the page so results render.
-        return HTMLResponse('<div hx-get="/matches" hx-target="body" hx-trigger="load"></div>')
-    return templates.TemplateResponse(request, "partials/progress.html", {"request": request, "search": search}
-    )
+    # done/failed: the partial announces the end once, then tells HTMX to reload
+    # the page so results render.
+    return templates.TemplateResponse(request, "partials/progress.html", {
+        "request": request, "search": search, "poll": True, "shown": shown})
 
 
 # --------------------------------------------------------------------------- #

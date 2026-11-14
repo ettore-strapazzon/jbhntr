@@ -1,7 +1,26 @@
 {# Stage text -> rail step and the step labels: services/scan_stages.py (R3-31, R3-32b). #}
+{# R3-33: #progress is replaced on every poll, so it is NOT the live region (a
+   replaced or aria-busy region can go unannounced). The stable role="status"
+   line #scan-status sits beside it, is rendered once with the page, and is only
+   updated (hx-swap-oob, inner swap) when the rail STEP changes or the scan ends:
+   the poll sends `shown` (the step on screen) and gets an update only if it moved.
+   Counters ("Scoring 120/300") stay visual and never reach the live line. #}
+{% set rail = ["Reading your profile", "Finding jobs for you", "Scoring each job", "Checking links and saving"] %}
+{% if poll and search.status in ("done", "failed") %}
+  {# Terminal: the one and only final announcement, then reload so results render.
+     The short delay lets screen readers speak it before the page body is swapped. #}
+  <div hx-get="/matches" hx-target="body" hx-trigger="load delay:1s"></div>
+  <div id="scan-status" hx-swap-oob="innerHTML">
+    {%- if search.status == "done" -%}Scan finished. Loading your shortlist.
+    {%- elif (search.error or "").startswith("Interrupted") -%}Scan interrupted. Please run the scan again.
+    {%- else -%}The scan did not finish. It was not counted against your allowance.
+    {%- endif -%}
+  </div>
+{% else %}
 {% set active = scan_step(search.stage) or 0 %}
-<div id="progress" hx-get="/search/{{ search.id }}/status"
-     hx-trigger="every 3s" hx-swap="outerHTML" aria-live="polite" aria-busy="true">
+{% set step_text = "Step " ~ (active + 1) ~ " of " ~ rail|length ~ ": " ~ rail[active] %}
+<div id="progress" hx-get="/search/{{ search.id }}/status?shown={{ active }}"
+     hx-trigger="every 3s" hx-swap="outerHTML">
   <div class="notice ok">
     <b>Scanning the market…</b> {{ search.stage or "Starting" }}
     {% if search.raw_count %}<span class="small muted"> · {{ search.raw_count }} postings reviewed</span>{% endif %}
@@ -17,7 +36,7 @@
     </div>
     <ol class="stage-rail" style="margin-top:10px" aria-label="Scan steps">
       {# Labels mirror scan_stages.RAIL_STEPS; the test pins them equal. #}
-      {% for label in ["Reading your profile", "Finding jobs for you", "Scoring each job", "Checking links and saving"] %}
+      {% for label in rail %}
         <li class="stage{% if loop.index0 < active %} done{% elif loop.index0 == active %} on{% endif %}"{% if loop.index0 == active %} aria-current="step"{% endif %}>
           <i aria-hidden="true"></i><span>{{ label }}</span>
           {% if loop.index0 < active %}<span class="sr-only">(done)</span>{% endif %}
@@ -32,3 +51,9 @@
     </div>
   </div>
 </div>
+{% if not poll %}
+<div id="scan-status" role="status" aria-live="polite" aria-atomic="true" class="sr-only">{{ step_text }}</div>
+{% elif shown != active %}
+<div id="scan-status" hx-swap-oob="innerHTML">{{ step_text }}</div>
+{% endif %}
+{% endif %}

@@ -266,3 +266,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
 - **Spend:** none.
 - **Observations:** the CTO invoked 2 skills and the CPO invoked 5. The CPO skipped the task-observer session-start skill. The skill-observation review has still never run (6 open); the offer stands.
+
+## 2026-11-14 · cycle 21 (scan progress announced to screen readers)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 8/10.
+- **Dispatched (foreground):** CPO (R3-33, the only unblocked R3 task). CTO/CMO/CFO/GC idle: no unblocked task in R3 (R3-27 is gated on PMF; outward growth waits on R-009/R-013).
+- **Result (accepted):** CPO → **R3-33**. The old live region was the very element HTMX replaced every 3 s, and it was stuck on `aria-busy="true"`, so stage changes could go unannounced. The fix has four parts. (1) `#progress` is visual only. (2) A stable `#scan-status` status line sits beside it. (3) The poll sends `?shown=<step>`, and the response carries an out-of-band text update only when the step changes ("Step 3 of 4: Scoring each job", never "120/300"). (4) The status route now always renders the partial: done/failed/"Interrupted" each get one final line, then the reload, which is delayed 1 s so the line is spoken. `matches.html` lost its outer `#progress` wrapper, which had created a duplicate id and a second poller; the change was justified. `app.js` is untouched. 10 new tests, all of which failed before the fix.
+- **CEO review:** I read the full diff. The partial has one includer (matches) and one route. The terminal response has no poll attribute, so polling stops. `hx-swap-oob="innerHTML"` keeps the element. The rail labels now live in one template list, which the existing test pins to `RAIL_STEPS`. No fixes needed. Not checked with a real screen reader; worth a manual VoiceOver/NVDA check after deploy.
+- **Test gate (CEO, once):** **1214 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** none. R3 has no unblocked build work left; the next cycles idle unless the Founder answers R-009/R-013/R-014.
+- **Requests:** none new. R-009, R-013 and R-014 are still open.
+- **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
+- **Spend:** none.
+- **Observations:** the CPO invoked task-observer this time, plus 4 matching skills. The skill-observation review has still never run (6 open); the offer stands.

@@ -54,9 +54,8 @@
 {% endif %}
 
 {% if running %}
-  <div id="progress" hx-get="/search/{{ running.id }}/status" hx-trigger="every 3s" hx-swap="outerHTML">
-    {% with search = running %}{% include "partials/progress.html" %}{% endwith %}
-  </div>
+  {# The partial is the poller (#progress) plus the stable live line beside it (R3-33). #}
+  {% with search = running %}{% include "partials/progress.html" %}{% endwith %}
 {% elif last_failed %}
   <div class="notice err" role="alert">
     <b>That market scan did not finish.</b> It was not counted against your allowance.

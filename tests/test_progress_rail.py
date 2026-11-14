@@ -210,3 +210,76 @@ def test_current_step_is_announced_and_done_steps_are_not_colour_only():
     assert re.search(r'<li class="stage on" aria-current="step">', html)
     assert html.count('<span class="sr-only">(done)</span>') == 2
     assert '<ol class="stage-rail"' in html
+
+
+# --------------------------------------------------------------------------- #
+# R3-33: the live status line. The polled #progress block is replaced every 3 s
+# (outerHTML), so it must not be the live region. A separate, stable
+# role="status" element sits beside it and is only touched (hx-swap-oob, inner
+# swap) when the rail STEP changes; counters never reach it.
+LIVE_RE = re.compile(r'<div id="scan-status" role="status" aria-live="polite" '
+                     r'aria-atomic="true" class="sr-only">([^<]*)</div>')
+# The route-level counterpart lives in tests/test_web.py
+# (test_status_route_announces_step_changes_only): it needs that module's app env.
+OOB_RE = re.compile(r'<div id="scan-status" hx-swap-oob="innerHTML">([^<]*)</div>')
+
+
+def _render_poll(stage, shown, status="running", error=None) -> str:
+    from web.app.templating import templates
+    search = types.SimpleNamespace(id=1, stage=stage, raw_count=0, located_count=0,
+                                   ranked_count=0, status=status, error=error)
+    return templates.get_template("partials/progress.html").render(
+        search=search, poll=True, shown=shown)
+
+
+def _progress_block(html: str) -> str:
+    start = html.index('<div id="progress"')
+    return html[start:html.index('<div id="scan-status"', start)]
+
+
+def test_page_render_has_a_stable_live_status_outside_the_polled_block():
+    html = _render("Scoring 120/300")
+    m = LIVE_RE.search(html)
+    assert m, html
+    assert m.group(1).strip() == "Step 3 of 4: Scoring each job"
+    assert "120" not in m.group(1)                       # the counter is not announced
+    block = _progress_block(html)                        # live region follows the block
+    assert "aria-live" not in block and "role=\"status\"" not in block
+    assert 'aria-busy="true"' not in html
+    assert 'hx-get="/search/1/status?shown=2"' in block  # the poll reports what is shown
+
+
+def test_matches_page_does_not_wrap_the_partial_in_a_second_poller():
+    src = (Path(__file__).resolve().parent.parent / "web" / "app" / "templates"
+           / "matches.html").read_text(encoding="utf-8")
+    assert 'id="progress"' not in src     # one poller, from the partial; live region survives
+
+
+@pytest.mark.parametrize("stage", ["Scoring 120/300", "Scoring 121/300", "Scoring…"])
+def test_poll_on_the_same_step_does_not_touch_the_live_region(stage):
+    html = _render_poll(stage, shown=2)
+    assert "scan-status" not in html                     # nothing re-announced
+    assert "aria-live" not in html and 'aria-busy="true"' not in html
+    assert 'hx-swap="outerHTML"' in html and 'hx-trigger="every 3s"' in html
+    assert re.search(r'<li class="stage on" aria-current="step">', html)
+
+
+def test_poll_after_a_step_change_announces_the_new_step_once():
+    html = _render_poll("Checking links… 4/12", shown=2)
+    oob = OOB_RE.findall(html)
+    assert [t.strip() for t in oob] == ["Step 4 of 4: Checking links and saving"]
+    assert 'hx-get="/search/1/status?shown=3"' in html  # next poll will not repeat it
+
+
+@pytest.mark.parametrize("status,error,text", [
+    ("done", None, "Scan finished. Loading your shortlist."),
+    ("failed", "Interrupted — please run the scan again.",
+     "Scan interrupted. Please run the scan again."),
+    ("failed", "boom", "The scan did not finish. It was not counted against your allowance."),
+])
+def test_terminal_states_announce_once_and_reload(status, error, text):
+    html = _render_poll("Saving results…", shown=3, status=status, error=error)
+    assert [t.strip() for t in OOB_RE.findall(html)] == [text]
+    assert 'hx-get="/matches" hx-target="body"' in html
+    assert 'every 3s' not in html                        # polling stops: announced once
+
