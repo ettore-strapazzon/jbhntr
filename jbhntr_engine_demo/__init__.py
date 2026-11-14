@@ -327,8 +327,14 @@ class Seed:
         return f"{self.name} ({self.domain})" if self.domain else self.name
 
 
-def resolve_seeds(raw_seeds, enrich: bool = True, guess_domains: bool = False):
-    return [Seed(raw=s, name=s.strip()) for s in (raw_seeds or []) if (s or "").strip()]
+def resolve_seeds(raw_seeds, enrich: bool = True, guess_domains: bool = False,
+                  progress: Optional[ProgressFn] = None,
+                  should_stop: Optional[StopFn] = None):
+    if stop_requested(should_stop):          # no lookups to do: nothing to stop
+        return []
+    out = [Seed(raw=s, name=s.strip()) for s in (raw_seeds or []) if (s or "").strip()]
+    report_progress(progress, len(out), len(out))
+    return out
 
 
 _CATALOGUE = (

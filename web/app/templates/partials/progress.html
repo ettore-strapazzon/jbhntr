@@ -1,29 +1,32 @@
-{# Stage text -> rail step: explicit rules in services/scan_stages.py (R3-31). #}
+{# Stage text -> rail step and the step labels: services/scan_stages.py (R3-31, R3-32b). #}
 {% set active = scan_step(search.stage) or 0 %}
 <div id="progress" hx-get="/search/{{ search.id }}/status"
      hx-trigger="every 3s" hx-swap="outerHTML" aria-live="polite" aria-busy="true">
   <div class="notice ok">
     <b>Scanning the market…</b> {{ search.stage or "Starting" }}
     {% if search.raw_count %}<span class="small muted"> · {{ search.raw_count }} postings reviewed</span>{% endif %}
-    {% set counts = [search.raw_count, search.located_count, search.ranked_count, search.ranked_count] %}
-    {% set units = ["postings", "in your countries", "shortlisted", "to score"] %}
+    {# Per-step count once the step is reached (postings read are in the line above). #}
+    {% set counts = [None, search.located_count, search.ranked_count, None] %}
+    {% set units = ["", "in your locations", "to score", ""] %}
     {# Determinate bar: grows by stage (0-3). Caps below 100% until the run finishes
        and the page reloads, so it never looks "done" while scoring is still running. #}
     {% set pct = [15, 42, 68, 90][active] %}
-    <div class="loadbar" style="margin-top:10px" role="progressbar"
+    <div class="loadbar" style="margin-top:10px" role="progressbar" aria-label="Scan progress"
          aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}">
       <div class="loadbar-fill" style="width: {{ pct }}%"></div>
     </div>
-    <div class="stage-rail" style="margin-top:10px">
-      {% for label in ["Collecting", "Filtering by location", "Ranking by meaning", "Scoring the shortlist"] %}
-        <div class="stage {% if loop.index0 < active %}done{% elif loop.index0 == active %}on{% endif %}">
-          <i></i><span>{{ label }}</span>
+    <ol class="stage-rail" style="margin-top:10px" aria-label="Scan steps">
+      {# Labels mirror scan_stages.RAIL_STEPS; the test pins them equal. #}
+      {% for label in ["Reading your profile", "Finding jobs for you", "Scoring each job", "Checking links and saving"] %}
+        <li class="stage{% if loop.index0 < active %} done{% elif loop.index0 == active %} on{% endif %}"{% if loop.index0 == active %} aria-current="step"{% endif %}>
+          <i aria-hidden="true"></i><span>{{ label }}</span>
+          {% if loop.index0 < active %}<span class="sr-only">(done)</span>{% endif %}
           {% if counts[loop.index0] and loop.index0 <= active %}
             <span class="stage-n">{{ "{:,}".format(counts[loop.index0]) }} {{ units[loop.index0] }}</span>
           {% endif %}
-        </div>
+        </li>
       {% endfor %}
-    </div>
+    </ol>
     <div class="small muted" style="margin-top:8px">
       This continues if you close the tab. Return to your shortlist when it is ready.
     </div>

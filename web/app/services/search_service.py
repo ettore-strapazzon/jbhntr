@@ -335,8 +335,15 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
 
         profile = build_engine_profile(db, user)
         materials = build_engine_materials(db, user)
+        # Seed website lookup runs before the first "running" write and, on a cold
+        # cache, can take ~1 h for 100 seeds (serial 12 s-timeout fetches, up to
+        # 9 TLD guesses per name-only seed): beat it and stop before the paid AI
+        # calls if reaped (R3-32). "Starting…" already maps to rail step 0.
+        beat = _Heartbeat(db, search.id, "Starting…")
         labels = [s.label() for s in resolve_seeds(seed_values(db, user),
-                                                   guess_domains=True)]
+                                                   guess_domains=True, progress=beat,
+                                                   should_stop=beat.should_stop)]
+        beat.check()
 
         # Derive the candidate profile FIRST: keyword-based sources need real
         # job titles to query. Users who skip the optional "job titles" step

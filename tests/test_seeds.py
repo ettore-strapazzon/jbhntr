@@ -131,3 +131,52 @@ def test_suggest_skips_search_when_provider_cannot_search(monkeypatch):
 
     assert D.suggest(Profile(raw={}), Settings(), 5, [], [], web_search=True) == []
     assert fake.json_calls == 1
+
+
+# ---------------- R3-32: seed website lookup heartbeat + stop ---------------- #
+# Worst case before the first "running" write: step 1 fetches every website seed
+# SERIALLY (httpx timeout=12 s per phase, so ~12-24 s for a dead host); step 2
+# tries up to 9 TLDs per name-only seed SERIALLY inside 8 workers. With the 100
+# seeds the profile form allows that is ~20-40 min (step 1) + ceil(100/8) * 9 *
+# ~24 s ~ 47 min (step 2) on a cold cache — far past STUCK_SEARCH_MINUTES (15).
+def test_resolve_reports_progress_per_seed_on_the_callers_thread(tmp_path, monkeypatch):
+    import threading
+    monkeypatch.setattr(S, "SEED_CACHE", tmp_path / "seeds.json")
+    monkeypatch.setattr(S, "_scrape_blurb", lambda d: "blurb")
+    monkeypatch.setattr(S, "guess_domain", lambda name: (name.lower() + ".com", "b"))
+    me, seen = threading.get_ident(), []
+    out = S.resolve(["a.com", "b.com", "Acme", "Beta", "Gamma"], guess_domains=True,
+                    progress=lambda d, t: seen.append((d, t, threading.get_ident() == me)))
+    assert [s.domain for s in out] == ["a.com", "b.com", "acme.com", "beta.com", "gamma.com"]
+    assert [(d, t) for d, t, _ in seen] == [(1, 5), (2, 5), (3, 5), (4, 5), (5, 5)]
+    assert all(mine for *_, mine in seen)
+
+
+def test_resolve_stops_when_asked_and_caches_only_finished_lookups(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(S, "SEED_CACHE", tmp_path / "seeds.json")
+    fetched = []
+    monkeypatch.setattr(S, "_scrape_blurb", lambda d: fetched.append(d) or "blurb")
+    monkeypatch.setattr(S, "guess_domain", lambda name: pytest.fail("stopped: no guess"))
+    stop = {"now": False}
+
+    def progress(done, total):
+        stop["now"] = True                    # reaped after the first lookup
+    S.resolve(["a.com", "b.com", "Acme"], guess_domains=True,
+              progress=progress, should_stop=lambda: stop["now"])
+    assert fetched == ["a.com"]
+    cache = json.loads((tmp_path / "seeds.json").read_text())
+    # A lookup that never ran must not be cached as "no website" (a negative hit
+    # would stick for every future scan).
+    assert cache == {"a.com": "blurb"}
+
+
+def test_resolve_with_a_failing_hook_carries_on(tmp_path, monkeypatch):
+    monkeypatch.setattr(S, "SEED_CACHE", tmp_path / "seeds.json")
+    monkeypatch.setattr(S, "_scrape_blurb", lambda d: "blurb")
+    monkeypatch.setattr(S, "guess_domain", lambda name: ("acme.com", "b"))
+
+    def boom(*a):
+        raise RuntimeError("x")
+    out = S.resolve(["a.com", "Acme"], guess_domains=True, progress=boom, should_stop=boom)
+    assert [s.domain for s in out] == ["a.com", "acme.com"]

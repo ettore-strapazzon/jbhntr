@@ -21,9 +21,11 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 
 from .config import DATA_DIR
+from .models import ProgressFn, StopFn, report_progress, stop_requested
 
 log = logging.getLogger("jobhunter.seeds")
 
@@ -195,13 +197,22 @@ def guess_domain(name: str) -> tuple[str, str]:
 
 
 def resolve(
-    raw_seeds: list[str], enrich: bool = True, guess_domains: bool = False
+    raw_seeds: list[str], enrich: bool = True, guess_domains: bool = False,
+    progress: Optional[ProgressFn] = None, should_stop: Optional[StopFn] = None,
 ) -> list[Seed]:
     """Parse seeds and (optionally) fetch a description for each.
 
     With ``guess_domains`` we also try to find a website for seeds written as
     plain names — that's what gives the model real context for small companies
     it may not recognise.
+
+    Slow on a cold cache (R3-32): website seeds are fetched one by one (12 s
+    httpx timeout per phase, so ~12-24 s for a dead host) and a name-only seed
+    tries up to 9 TLDs in turn, 8 seeds at a time. With 100 seeds that is
+    ~20-40 min + ~47 min. So, like the other long stages, ``progress(done,
+    total)`` reports each finished network lookup (on the caller's thread) and
+    ``should_stop()`` is asked before each new one; once True no new lookup
+    starts and the partial seeds come back. Unfinished lookups are not cached.
     """
     seeds = [parse(s) for s in raw_seeds if (s or "").strip()]
     if not enrich:
@@ -210,6 +221,13 @@ def resolve(
     cache = _load_cache()
     changed = False
 
+    total = sum(1 for s in seeds if s.domain and s.domain not in cache)
+    if guess_domains:
+        total += sum(1 for s in seeds if not s.domain and
+                     "name:" + re.sub(r"[^a-z0-9]", "", s.name.lower()) not in cache)
+    done = 0
+    stopped = False
+
     # 1. Seeds that already carry a domain.
     for s in seeds:
         if not s.domain:
@@ -217,12 +235,17 @@ def resolve(
         if s.domain in cache:
             s.blurb = cache[s.domain] or ""
             continue
+        if stop_requested(should_stop):
+            stopped = True
+            break
         s.blurb = _scrape_blurb(s.domain)
         cache[s.domain] = s.blurb
         changed = True
+        done += 1
+        report_progress(progress, done, total)
 
     # 2. Name-only seeds: try to discover their website (in parallel).
-    if guess_domains:
+    if guess_domains and not stopped:
         todo = []
         for s in seeds:
             if s.domain:
@@ -235,16 +258,28 @@ def resolve(
                 continue
             todo.append((s, key))
 
-        if todo:
-            from concurrent.futures import ThreadPoolExecutor
+        if todo and not stop_requested(should_stop):
+            from concurrent.futures import ThreadPoolExecutor, as_completed
 
             log.info("Looking up websites for %d name-only seeds...", len(todo))
             with ThreadPoolExecutor(max_workers=8) as pool:
-                results = list(pool.map(lambda p: guess_domain(p[0].name), todo))
-            for (s, key), (domain, blurb) in zip(todo, results):
-                s.domain, s.blurb = domain, blurb
-                cache[key] = {"domain": domain, "blurb": blurb} if domain else None
-                changed = True
+                futures = {pool.submit(guess_domain, s.name): (s, key) for s, key in todo}
+                for fut in as_completed(futures):
+                    s, key = futures[fut]
+                    try:
+                        domain, blurb = fut.result()
+                    except Exception as exc:       # guess_domain swallows fetch errors
+                        log.warning("Website lookup for %r failed: %s", s.name, exc)
+                        domain, blurb = "", ""
+                    s.domain, s.blurb = domain, blurb
+                    cache[key] = {"domain": domain, "blurb": blurb} if domain else None
+                    changed = True
+                    done += 1
+                    report_progress(progress, done, total)       # caller's thread
+                    if done < total and stop_requested(should_stop):
+                        log.info("Seed lookup stopped by caller at %d/%d", done, total)
+                        pool.shutdown(wait=False, cancel_futures=True)
+                        break
 
     if changed:
         _save_cache(cache)

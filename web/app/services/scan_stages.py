@@ -1,11 +1,13 @@
-"""Scan stage text -> progress rail step (R3-31).
+"""Scan stage text -> progress rail step (R3-31, labels R3-32b).
 
 The worker (`search_service._run_search`) writes free-text stages, plus the
-heartbeat's "LABEL done/total" form. The rail in `partials/progress.html` has
-four steps: 0 Collecting, 1 Filtering by location, 2 Ranking by meaning,
-3 Scoring the shortlist. Every stage the worker writes has an explicit rule
-here; tests/test_progress_rail.py reads the worker's source and fails on any
-stage text without one, so a new message can't silently fall back to step 0.
+heartbeat's "LABEL done/total" form. The rail in `partials/progress.html` shows
+the four RAIL_STEPS below; each step is named for the activity of every stage
+mapped to it, so the bold step never contradicts the stage line above it, and
+every run path (corpus or live fetch) lights all four in order. Every stage the
+worker writes has an explicit rule here; tests/test_progress_rail.py reads the
+worker's source and fails on any stage text without one, on a stage filed under
+a label for a different activity, and on a step that goes backwards.
 """
 
 from __future__ import annotations
@@ -14,15 +16,23 @@ import logging
 
 log = logging.getLogger("jbhntr.search")
 
+# The rail's step labels, in run order. progress.html renders these.
+RAIL_STEPS: tuple[str, ...] = (
+    "Reading your profile",
+    "Finding jobs for you",
+    "Scoring each job",
+    "Checking links and saving",
+)
+
 # (lower-case prefix, rail step). Order matters only if prefixes overlap.
 STAGE_STEPS: tuple[tuple[str, int], ...] = (
     ("starting", 0),
     ("understanding your profile", 0),
-    ("searching the job corpus", 1),
-    ("collecting job postings", 1),
+    ("searching the job corpus", 1),   # corpus mode: read + location + rank in one go
+    ("collecting job postings", 1),    # live-fetch fallback ...
     ("filtering", 1),
-    ("shortlisting", 2),
-    ("scoring", 3),            # "Scoring N jobs…", "Scoring: reading…", "Scoring d/t"
+    ("shortlisting", 1),               # ... AI shortlist of the fetched jobs
+    ("scoring", 2),            # "Scoring N jobs…", "Scoring: reading…", "Scoring d/t"
     ("checking links", 3),     # after scoring: verifying the shortlist's links
     ("saving results", 3),
     ("done", 3),

@@ -266,3 +266,14 @@ def test_demo_triage_takes_progress_and_should_stop():
     def boom(*a):
         raise RuntimeError("x")
     assert len(demo.Matcher(None).triage(jobs, prof, progress=boom, should_stop=boom)) == 40
+
+
+def test_demo_resolve_seeds_takes_progress_and_should_stop():
+    """R3-32: seed website lookup joins the long stages on the contract; the demo
+    engine (no network) accepts the hooks, reports once, and honours a stop."""
+    import jbhntr_engine_demo as demo
+    seen = []
+    out = demo.resolve_seeds(["Acme", "Beta"], guess_domains=True,
+                             progress=lambda d, t: seen.append((d, t)))
+    assert [s.name for s in out] == ["Acme", "Beta"] and seen == [(2, 2)]
+    assert demo.resolve_seeds(["Acme"], should_stop=lambda: True) == []

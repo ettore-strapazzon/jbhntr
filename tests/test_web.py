@@ -1218,6 +1218,71 @@ def test_scan_reaped_during_the_opening_calls_makes_no_more_ai_calls(stub_engine
         db.close()
 
 
+# R3-32: the seed website lookup (`resolve_seeds(guess_domains=True)`) runs before
+# the first "running" write, on a cold cache up to ~1 h for 100 seeds (serial
+# 12 s-timeout fetches; up to 9 TLD guesses per name-only seed) — it beats too.
+def test_heartbeat_keeps_a_long_seed_lookup_alive(stub_engine, monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    seen = {}
+
+    def resolve_seeds(raw, guess_domains=False, progress=None, should_stop=None):
+        _r329_silence(s.id)                          # 20 min of website lookups
+        progress(3, 12)
+        seen["stage"] = _r329_stage(s.id)
+        seen["reaped"] = _r329_reap(s.id)
+        seen["stop"] = should_stop()
+        return []
+    monkeypatch.setattr(ss, "resolve_seeds", resolve_seeds)
+
+    db = SessionLocal()
+    try:
+        u = User(email="r332-seeds-alive@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"stage": "Starting… 3/12", "reaped": False, "stop": False}
+        assert db.get(Search, s.id).status == "done"
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_scan_reaped_during_the_seed_lookup_makes_no_ai_calls(stub_engine, monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    later, seen = [], {}
+
+    def resolve_seeds(raw, guess_domains=False, progress=None, should_stop=None):
+        assert _r329_reap(s.id, floor=False) is True
+        progress(1, 12)                              # lost claim
+        seen["stop"] = should_stop()                 # -> engine stops looking up
+        return []
+    monkeypatch.setattr(ss, "resolve_seeds", resolve_seeds)
+    monkeypatch.setattr(ss, "derive_candidate", lambda *a: later.append("cand"))
+
+    db = SessionLocal()
+    try:
+        u = User(email="r332-seeds-reaped@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"stop": True} and later == []   # no paid AI call
+        row = db.get(Search, s.id)
+        assert row.status == "failed" and row.error.startswith("Interrupted")
+        assert _refunds(db, debit) == 1
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
 def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     signup(client, email="f09@example.com")
     from web.app.db import SessionLocal

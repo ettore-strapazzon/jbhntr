@@ -161,7 +161,8 @@ def test_long_stages_take_the_progress_callback(backend):
     an optional keyword `progress(done, total)` on the long stages (R3-31: triage too),
     so the shell never needs to know which engine (or which engine internals) it runs."""
     mod = __import__(backend)
-    for fn in (mod.Matcher.score, mod.Matcher.triage, mod.collect_all_sources):
+    for fn in (mod.Matcher.score, mod.Matcher.triage, mod.collect_all_sources,
+               mod.resolve_seeds):                       # R3-32: seed website lookup
         p = inspect.signature(fn).parameters.get("progress")
         assert p is not None, f"{backend}.{fn.__qualname__} lacks `progress`"
         assert p.default is None, f"{backend}.{fn.__qualname__}: `progress` must be optional"
@@ -173,7 +174,8 @@ def test_long_stages_take_the_should_stop_hook(backend):
     optional keyword `should_stop()` on the long stages (R3-31: triage too), so the shell can stop
     a reaped scan mid-stage without knowing which engine it runs."""
     mod = __import__(backend)
-    for fn in (mod.Matcher.score, mod.Matcher.triage, mod.collect_all_sources):
+    for fn in (mod.Matcher.score, mod.Matcher.triage, mod.collect_all_sources,
+               mod.resolve_seeds):                       # R3-32: seed website lookup
         p = inspect.signature(fn).parameters.get("should_stop")
         assert p is not None, f"{backend}.{fn.__qualname__} lacks `should_stop`"
         assert p.default is None, f"{backend}.{fn.__qualname__}: `should_stop` must be optional"
