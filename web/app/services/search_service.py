@@ -10,6 +10,7 @@ import logging
 import threading
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session as DbSession
 
 from jbhntr_engine import Matcher, cap_per_company, collect_all_sources
@@ -27,9 +28,18 @@ from .profile_service import (
 
 log = logging.getLogger("jbhntr.search")
 
-# A real scan takes a few minutes; past this a 'running' search is treated as a
-# hung/killed worker and recovered by the status poller and the nightly sweep.
+# A real scan takes a few minutes; a 'running' search with no progress write
+# (heartbeat) for this long is treated as a hung/killed worker and recovered by
+# the status poller and the boot/nightly sweep.
 STUCK_SEARCH_MINUTES = 15
+
+
+def _silent_since(minutes: int):
+    """SQL filter: no worker progress write for `minutes`. Measured from the
+    heartbeat (`last_progress_at`), falling back to `started_at` while it is NULL
+    — a queued scan the worker never touched, or a row from before R3-28."""
+    return (func.coalesce(Search.last_progress_at, Search.started_at)
+            < utcnow() - timedelta(minutes=minutes))
 
 MAX_RESULTS_STORED = 60   # tier 1-3 shown; scoring already filters hard
 MAX_LONGSHOTS = 15        # tier-4 "long shots", shown in a collapsed section
@@ -120,14 +130,14 @@ def fail_stuck_searches(db: DbSession, older_than_minutes: int | None = None) ->
     A scan runs in a daemon thread inside the web process, so a deploy or restart
     kills it mid-run with no exception — stranding the Search row forever and the
     progress poller with it. Boot (app lifespan) and the nightly cron both call it
-    with the STUCK_SEARCH_MINUTES floor: boot can't tell its own orphans from a
-    live scan on another instance (R3-26), and the cron also catches a thread that
+    with the STUCK_SEARCH_MINUTES floor, measured from the last progress write
+    (R3-28): boot can't tell its own orphans from a live scan on another instance (R3-26), and the cron also catches a thread that
     hung without the process dying. `older_than_minutes=None` (no floor) is only
     safe with a single instance and no live workers. A user's status poll does
     NOT call this — it reaps only its own row via `reap_stuck_search` (R3-24). Returns the number of rows reaped."""
     q = db.query(Search.id).filter(Search.status.in_(("running", "queued")))
     if older_than_minutes is not None:
-        q = q.filter(Search.started_at < utcnow() - timedelta(minutes=older_than_minutes))
+        q = q.filter(_silent_since(older_than_minutes))
     n = sum(reap_stuck_search(db, sid, older_than_minutes=older_than_minutes)
             for (sid,) in q.all())
     if n:
@@ -153,7 +163,7 @@ def reap_stuck_search(db: DbSession, search_id: int, *, user_id: int | None = No
     if user_id is not None:
         q = q.filter(Search.user_id == user_id)
     if older_than_minutes is not None:
-        q = q.filter(Search.started_at < utcnow() - timedelta(minutes=older_than_minutes))
+        q = q.filter(_silent_since(older_than_minutes))
     claimed = q.update({Search.status: "failed", Search.stage: "",
                         Search.error: "Interrupted — please run the scan again.",
                         Search.finished_at: utcnow()}, synchronize_session=False)
@@ -187,7 +197,9 @@ class _ScanReaped(Exception):
 def _claim(db: DbSession, search_id: int, **fields) -> bool:
     """Write `fields` to the scan only while it is still running/queued, with the
     same conditional UPDATE the reaper uses, then commit. On a lost claim roll back
-    instead, so nothing staged with this write (e.g. the JobResult rows) lands."""
+    instead, so nothing staged with this write (e.g. the JobResult rows) lands.
+    Every write also stamps the heartbeat the stuck floor is measured from (R3-28)."""
+    fields = {"last_progress_at": utcnow(), **fields}
     n = (db.query(Search)
          .filter(Search.id == search_id, Search.status.in_(("running", "queued")))
          .update(fields, synchronize_session=False))

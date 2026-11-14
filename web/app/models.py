@@ -195,6 +195,11 @@ class Search(Base):
     notify_email: Mapped[bool] = mapped_column(Boolean, default=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Heartbeat: stamped by every worker progress/status write (`_claim`). The
+    # stuck-scan floor runs from here, falling back to started_at while NULL (a
+    # queued scan, or a row from before the column existed) — R3-28.
+    last_progress_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None)
     # Hash of the profile fields the engine reads, so an unchanged re-run within
     # 24h is free (PRICE-04) rather than teaching users not to refine.
     profile_hash: Mapped[str] = mapped_column(String(64), default="")

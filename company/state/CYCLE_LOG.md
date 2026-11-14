@@ -207,3 +207,14 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Requests:** none new. R-009, R-013, R-014 still open.
 - **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
 - **Spend:** none.
+
+## 2026-11-14 · cycle 16 (scan heartbeat: slow scans no longer reaped)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 3/10.
+- **Dispatched (foreground):** CTO (R3-28). CMO/CPO/CFO/GC idle: no unblocked task in R3 (R3-27 gated on PMF; outward growth waits on R-009/R-013).
+- **Result (accepted):** CTO → **R3-28**: new nullable `Search.last_progress_at` (tz-aware, added by the `db.py` migrator under the single `searches` key). `_claim` stamps it inside the same conditional UPDATE, so every progress write and the done/failed claims beat the heart, and a reaped scan never does. All reapers (status poll, boot sweep, nightly cron) use `_silent_since` = `COALESCE(last_progress_at, started_at)` older than 15 min. Behaviour change: a scan is cancelled only after 15 min with no progress, not 15 min after start; never-picked-up queued scans still time out from start. R3-24/25 claim semantics unchanged (existing tests untouched and green). 5 new tests, 3 failed before the fix.
+- **CEO review:** diff read (`models.py`, `db.py`, `search_service.py`, tests). Checked the migrator change is in the existing `searches` entry (no duplicate key), the stamp can't revive a reaped row, and the fallback covers pre-migration rows. No fixes needed.
+- **Test gate (CEO, once):** **1127 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-29 (in-stage heartbeat: scoring and live fetch don't write progress, so one stage >15 min can still be reaped).
+- **Requests:** none new. R-009, R-013, R-014 still open.
+- **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
+- **Spend:** none.

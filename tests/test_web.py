@@ -450,6 +450,125 @@ def test_boot_sweep_reaps_only_scans_older_than_the_stuck_floor():
         db.close()
 
 
+# R3-28: the 15-minute stuck floor runs from the last progress write (heartbeat),
+# not from the start, so a slow-but-healthy scan is never reaped mid-run.
+def _aged_search(db, user, started_ago, progress_ago):
+    import datetime as _dt
+
+    from web.app.models import utcnow
+    s, debit = _stuck_paid_search(db, user, minutes_ago=started_ago)
+    s.last_progress_at = (None if progress_ago is None
+                          else utcnow() - _dt.timedelta(minutes=progress_ago))
+    db.commit()
+    return s, debit
+
+
+def test_slow_scan_with_recent_heartbeat_survives_poll_sweep_and_cron(client):
+    signup(client, email="r328-slow@example.com")
+    from web.app.db import SessionLocal
+    from web.app.models import Search, User
+    from web.app.services import cron
+    from web.app.services.search_service import fail_stuck_searches
+    db = SessionLocal()
+    try:
+        me = db.query(User).filter_by(email="r328-slow@example.com").one()
+        s, debit = _aged_search(db, me, started_ago=60, progress_ago=1)
+        client.get(f"/search/{s.id}/status")                      # owner's poll
+        fail_stuck_searches(db, older_than_minutes=15)            # boot / cron sweep
+        cron._stage({}, "stuck_searches", cron._reap_stuck_searches)
+        with TestClient(app):                                     # boot lifespan
+            pass
+        db.expire_all()
+        assert db.get(Search, s.id).status == "running"
+        assert _refunds(db, debit) == 0
+    finally:
+        _drop_r324_rows(db, s)
+        db.close()
+
+
+def test_stale_heartbeat_is_reaped_by_poll_and_by_sweep(client):
+    signup(client, email="r328-other@example.com")
+    signup(client, email="r328-stale@example.com")
+    from web.app.db import SessionLocal
+    from web.app.models import Search, User
+    from web.app.services.search_service import fail_stuck_searches
+    db = SessionLocal()
+    try:
+        me = db.query(User).filter_by(email="r328-stale@example.com").one()
+        other = db.query(User).filter_by(email="r328-other@example.com").one()
+        # Started only 20 min ago but silent for 16: past the floor either way.
+        mine, my_debit = _aged_search(db, me, started_ago=20, progress_ago=16)
+        theirs, their_debit = _aged_search(db, other, started_ago=60, progress_ago=30)
+        client.get(f"/search/{mine.id}/status")
+        db.expire_all()
+        assert db.get(Search, mine.id).status == "failed" and _refunds(db, my_debit) == 1
+        assert db.get(Search, theirs.id).status == "running"
+        assert fail_stuck_searches(db, older_than_minutes=15) >= 1
+        db.expire_all()
+        assert db.get(Search, theirs.id).status == "failed"
+        assert _refunds(db, their_debit) == 1 and _refunds(db, my_debit) == 1
+    finally:
+        _drop_r324_rows(db, mine, theirs)
+        db.close()
+
+
+def test_null_heartbeat_falls_back_to_started_at():
+    """Rows from before the migration (or a queued scan the worker never touched)
+    have last_progress_at NULL: the floor then runs from started_at."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services.search_service import fail_stuck_searches, reap_stuck_search
+    init_db()
+    db = SessionLocal()
+    try:
+        u = User(email="r328-null@example.com"); db.add(u); db.commit()
+        old, old_debit = _aged_search(db, u, started_ago=60, progress_ago=None)
+        young, young_debit = _aged_search(db, u, started_ago=1, progress_ago=None)
+        assert reap_stuck_search(db, young.id, older_than_minutes=15) is False
+        assert fail_stuck_searches(db, older_than_minutes=15) >= 1
+        db.expire_all()
+        assert db.get(Search, old.id).status == "failed" and _refunds(db, old_debit) == 1
+        assert db.get(Search, young.id).status == "running"
+        assert _refunds(db, young_debit) == 0
+    finally:
+        _drop_r324_rows(db, old, young)
+        db.close()
+
+
+def test_worker_progress_writes_stamp_the_heartbeat(stub_engine):
+    import datetime as _dt
+
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User, aware, utcnow
+    from web.app.services.search_service import _run_search
+    init_db()
+    db = SessionLocal()
+    seen = {}
+    try:
+        u = User(email="r328-beat@example.com"); db.add(u); db.commit()
+        s, debit = _aged_search(db, u, started_ago=60, progress_ago=None)
+
+        def peek():                      # mid-scan, between progress writes
+            other = SessionLocal()
+            try:
+                seen["mid"] = other.get(Search, s.id).last_progress_at
+            finally:
+                other.close()
+        stub_engine["before_links"] = peek
+
+        _run_search(s.id, u.id, "paid")
+        db.expire_all()
+        row = db.get(Search, s.id)
+        assert row.status == "done"
+        assert seen["mid"] is not None
+        assert utcnow() - aware(seen["mid"]) < _dt.timedelta(minutes=1)
+        assert aware(row.last_progress_at) >= aware(seen["mid"])
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
 def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     signup(client, email="f09@example.com")
     from web.app.db import SessionLocal

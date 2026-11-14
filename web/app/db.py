@@ -168,7 +168,11 @@ def _add_missing_columns() -> None:
                      "ranked_count": ("INTEGER", "DEFAULT 0"),
                      "profile_hash": ("TEXT", "DEFAULT ''"),
                      "share_token": ("TEXT", ""),
-                     "share_anonymous": ("BOOLEAN", "DEFAULT true")},
+                     "share_anonymous": ("BOOLEAN", "DEFAULT true"),
+                     # R3-28 scan heartbeat. tz-aware like started_at, so the
+                     # reapers' COALESCE(last_progress_at, started_at) compares
+                     # like with like on Postgres.
+                     "last_progress_at": ("TIMESTAMP WITH TIME ZONE", "")},
         "job_results": {"fit_role": ("INTEGER", "DEFAULT 0"),
                         "fit_candidate": ("INTEGER", "DEFAULT 0"),
                         "dedup_key": ("TEXT", "DEFAULT ''"),
