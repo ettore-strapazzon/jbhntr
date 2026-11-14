@@ -218,3 +218,14 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Requests:** none new. R-009, R-013, R-014 still open.
 - **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
 - **Spend:** none.
+
+## 2026-11-14 · cycle 17 (in-stage heartbeat: long scoring/fetch stages no longer reaped)
+- **Recovery:** none ("doing": none). No new Founder orders. Cycles today: 4/10.
+- **Dispatched (foreground):** CTO (R3-29). CMO/CPO/CFO/GC idle: no unblocked task in R3 (R3-27 gated on PMF; outward growth waits on R-009/R-013).
+- **Result (accepted):** CTO → **R3-29**: the engine contract (`jbhntr_engine/types.py`) gains an optional `progress(done, total)` keyword on `Matcher.score` and `collect_all_sources`, plus `report_progress` (a failing callback is logged, never raised). The real engine reports per scored job (on the caller's thread, not the pool), per source and inside the ATS long tail; the demo engine reports too. Shell `_Heartbeat` throttles to one write per 30 s through `_claim`, so it stamps `last_progress_at` and can't revive a reaped row. On a lost claim it sets a flag and goes quiet; `beat.check()` raises `_ScanReaped` right after the stage (raising inside the engine would be swallowed by `collect_all`'s per-source catch-all and saves nothing in scoring). Other heartbeat errors are logged and the scan carries on; beats from other threads are dropped. 13 new tests, all failed before; one fake matcher gained `**k`.
+- **CEO review:** diff read (types, matcher, sources, ats, demo, search_service, tests). Checked `_Heartbeat` writes only via the conditional claim, the ATS beats come from the `as_completed` loop (caller's thread), the new kwarg defaults to None so other callers of `ats.fetch`/`collect_all` are unaffected, and no engine-internal name was added to the façade. No fixes needed.
+- **Test gate (CEO, once):** **1140 passed, 1 skipped, 0 failed.** Pushed.
+- **New backlog:** R3-30 (cancel a reaped scan mid-stage; heartbeat for the other slow steps if needed; low).
+- **Requests:** none new. R-009, R-013, R-014 still open.
+- **Blockers:** outward growth on R-009/R-013; split step 4 on Founder go + R-014.
+- **Spend:** none.

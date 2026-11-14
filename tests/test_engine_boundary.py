@@ -155,6 +155,18 @@ def test_demo_callables_are_call_compatible_with_the_real_engine():
     assert not problems, "\n".join(problems)
 
 
+@pytest.mark.parametrize("backend", sorted(BACKENDS))
+def test_long_stages_take_the_progress_callback(backend):
+    """R3-29: the in-stage heartbeat is part of the contract. Both backends accept
+    an optional keyword `progress(done, total)` on the two long stages, so the
+    shell never needs to know which engine (or which engine internals) it runs."""
+    mod = __import__(backend)
+    for fn in (mod.Matcher.score, mod.collect_all_sources):
+        p = inspect.signature(fn).parameters.get("progress")
+        assert p is not None, f"{backend}.{fn.__qualname__} lacks `progress`"
+        assert p.default is None, f"{backend}.{fn.__qualname__}: `progress` must be optional"
+
+
 def test_keyed_provider_names_match_between_backends():
     import jbhntr_engine_demo as demo
     import jbhntr_engine_real as real

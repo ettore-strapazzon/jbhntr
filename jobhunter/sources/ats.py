@@ -33,7 +33,7 @@ from typing import Callable, Optional
 from urllib.parse import urlparse
 
 from ..config import Profile, Settings, load_companies
-from ..models import JobPosting
+from ..models import JobPosting, ProgressFn, report_progress
 from .base import http_client, strip_html
 
 log = logging.getLogger("jobhunter.sources.ats")
@@ -591,7 +591,8 @@ def enrich_description(job: JobPosting) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-def fetch(profile: Profile, settings: Settings) -> list[JobPosting]:
+def fetch(profile: Profile, settings: Settings,
+          progress: Optional[ProgressFn] = None) -> list[JobPosting]:
     companies = load_companies()
     if not companies:
         return []
@@ -626,6 +627,7 @@ def fetch(profile: Profile, settings: Settings) -> list[JobPosting]:
             except Exception as exc:
                 failed += 1
                 log.warning("ATS %s/%s failed: %s", ats, name, exc)
+            report_progress(progress, ok + failed, len(futures))   # caller's thread
 
     log.info(
         "Career pages: %d postings from %d companies (%d failed)", len(jobs), ok, failed

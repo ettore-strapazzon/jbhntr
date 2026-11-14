@@ -9,11 +9,31 @@ modification: add optional fields, never change a field's meaning.
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from datetime import date
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+# In-stage progress (R3-29). The long engine stages (``Matcher.score``,
+# ``collect_all_sources``) take an optional keyword ``progress(done, total)``:
+# counts in the stage's own work units, called on the CALLER's thread (the shell
+# writes its heartbeat with a non-thread-safe DB session), as often as the engine
+# likes — throttling is the caller's job. It is an observer: the engine never
+# lets it change the stage's outcome, so it is invoked via ``report_progress``.
+ProgressFn = Callable[[int, int], None]
+
+
+def report_progress(progress: Optional[ProgressFn], done: int, total: int) -> None:
+    """Call ``progress(done, total)`` if given; a failing callback is logged, never raised."""
+    if progress is None:
+        return
+    try:
+        progress(done, total)
+    except Exception as exc:
+        logging.getLogger("jbhntr.engine").warning("progress callback failed: %s", exc)
+
 
 # Five bands give useful separation between "drop everything and apply" and
 # "worth a look", which a 3-tier scale collapsed together.

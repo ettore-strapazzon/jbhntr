@@ -569,6 +569,253 @@ def test_worker_progress_writes_stamp_the_heartbeat(stub_engine):
         db.close()
 
 
+# R3-29: in-stage heartbeat. Scoring and the live fetch report progress through a
+# throttled callback, so one long stage no longer looks hung to the reapers.
+def _r329_job():
+    from jbhntr_engine import JobPosting, MatchResult
+    return (JobPosting(source="t", title="Chief of Staff", company="Acme",
+                       url="https://example.com/r329"),
+            MatchResult(tier=1, score=90, reasons="r"))
+
+
+def _r329_silence(search_id, minutes=20):
+    """From another session: make the scan look silent for `minutes` (as if this
+    stage had been running that long with no progress write)."""
+    import datetime as _dt
+
+    from web.app.db import SessionLocal
+    from web.app.models import Search, utcnow
+    other = SessionLocal()
+    try:
+        row = other.get(Search, search_id)
+        row.started_at = row.last_progress_at = utcnow() - _dt.timedelta(minutes=minutes)
+        other.commit()
+    finally:
+        other.close()
+
+
+def _r329_reap(search_id, floor=True):
+    from web.app.db import SessionLocal
+    from web.app.services.search_service import STUCK_SEARCH_MINUTES, reap_stuck_search
+    other = SessionLocal()
+    try:
+        return reap_stuck_search(other, search_id,
+                                 older_than_minutes=STUCK_SEARCH_MINUTES if floor else None)
+    finally:
+        other.close()
+
+
+def _r329_stage(search_id):
+    from web.app.db import SessionLocal
+    from web.app.models import Search
+    other = SessionLocal()
+    try:
+        return other.get(Search, search_id).stage
+    finally:
+        other.close()
+
+
+def test_heartbeat_writes_at_most_once_per_interval():
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    db = SessionLocal()
+    s = None
+    try:
+        assert 30 <= ss.HEARTBEAT_SECONDS <= 60
+        u = User(email="r329-throttle@example.com"); db.add(u); db.commit()
+        s, _ = _stuck_paid_search(db, u, minutes_ago=0)
+        now = [1000.0]
+        hb = ss._Heartbeat(db, s.id, "Scoring", clock=lambda: now[0])
+        writes = []
+        real_claim = ss._claim
+        def spy(*a, **k):
+            writes.append(now[0])
+            return real_claim(*a, **k)
+        ss._claim, saved = spy, ss._claim
+        try:
+            for t in range(0, 125):            # 125 progress reports over ~2 minutes
+                now[0] = 1000.0 + t
+                hb(t + 1, 125)
+        finally:
+            ss._claim = saved
+        assert len(writes) == 4                # at +30, +60, +90, +120 s
+        assert all(b - a >= ss.HEARTBEAT_SECONDS for a, b in zip(writes, writes[1:]))
+        db.expire_all()
+        assert db.get(Search, s.id).stage == "Scoring 121/125"
+        assert hb.reaped is False
+    finally:
+        if s is not None:
+            _r325_cleanup(db, s)
+        db.close()
+
+
+def test_heartbeat_keeps_a_long_scoring_stage_alive(stub_engine, monkeypatch):
+    """A scoring stage silent for 20 min used to be reaped mid-flight and its
+    results lost; a progress report inside the stage now beats the heart."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    job, match = _r329_job()
+    seen = {}
+
+    def score(*a, progress=None, **k):
+        _r329_silence(s.id)                    # 20 min into the stage, no write yet
+        progress(1, 2)                         # the engine reports progress
+        seen["stage"] = _r329_stage(s.id)
+        seen["reaped"] = _r329_reap(s.id)      # poll / sweep / cron floor
+        return [(job, match)]
+    monkeypatch.setattr(ss, "_score_cached", score)
+
+    db = SessionLocal()
+    try:
+        u = User(email="r329-alive@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"stage": "Scoring 1/2", "reaped": False}
+        assert db.get(Search, s.id).status == "done"
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 1
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_heartbeat_keeps_a_long_live_fetch_alive(stub_engine, monkeypatch):
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    job, _ = _r329_job()
+    seen = {}
+
+    def collect(profile, settings, progress=None):
+        _r329_silence(s.id)
+        progress(3, 7)
+        seen["stage"] = _r329_stage(s.id)
+        seen["reaped"] = _r329_reap(s.id)
+        return [job]
+    monkeypatch.setattr(ss, "_corpus_candidates", lambda *a: (None, 0, 0))
+    monkeypatch.setattr(ss, "collect_all_sources", collect)
+    monkeypatch.setattr(ss, "_cache_to_corpus", lambda raw: None)
+    monkeypatch.setattr(ss, "prefilter", lambda j, p: True)
+    monkeypatch.setattr(ss, "cap_per_company", lambda jobs, terms=None: jobs)
+
+    db = SessionLocal()
+    try:
+        u = User(email="r329-fetch@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert seen == {"stage": "Collecting job postings… 3/7", "reaped": False}
+        assert db.get(Search, s.id).status == "done"
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+@pytest.mark.parametrize("stage", ["score", "fetch"])
+def test_heartbeat_never_revives_a_reaped_scan(stub_engine, monkeypatch, stage):
+    """Reaped mid-stage: later progress reports must not write to the row (it stays
+    'failed' with the reaper's message), must not raise into the engine, and the
+    worker stops at the end of the stage — no further stages, no results."""
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    job, match = _r329_job()
+    seen = {"after": [], "links": False, "scored": False}
+
+    def reap_then_report(progress):
+        assert _r329_reap(s.id, floor=False) is True
+        for i in (1, 2):
+            progress(i, 2)                     # must not raise, must not write
+            seen["after"].append(_r329_stage(s.id))
+
+    def score(*a, progress=None, **k):
+        seen["scored"] = True
+        if stage == "score":
+            reap_then_report(progress)
+        return [(job, match)]
+
+    def collect(profile, settings, progress=None):
+        reap_then_report(progress)
+        return [job]
+
+    def links(db, ranked):
+        seen["links"] = True
+        return ranked, set()
+    monkeypatch.setattr(ss, "_score_cached", score)
+    monkeypatch.setattr(ss, "_verify_links", links)
+    if stage == "fetch":
+        monkeypatch.setattr(ss, "_corpus_candidates", lambda *a: (None, 0, 0))
+        monkeypatch.setattr(ss, "collect_all_sources", collect)
+        monkeypatch.setattr(ss, "_cache_to_corpus", lambda raw: None)
+        monkeypatch.setattr(ss, "prefilter", lambda j, p: True)
+        monkeypatch.setattr(ss, "cap_per_company", lambda jobs, terms=None: jobs)
+
+    db = SessionLocal()
+    try:
+        u = User(email=f"r329-reaped-{stage}@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        row = db.get(Search, s.id)
+        assert row.status == "failed" and row.error.startswith("Interrupted")
+        assert seen["after"] == ["", ""]       # the reaper's stage, never overwritten
+        assert seen["links"] is False          # the worker stopped after the stage
+        assert seen["scored"] is (stage == "score")
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 0
+        assert _refunds(db, debit) == 1
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
+def test_heartbeat_failure_never_kills_a_healthy_scan(stub_engine, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+
+    from web.app.db import SessionLocal, init_db
+    from web.app.models import JobResult, Search, User
+    from web.app.services import search_service as ss
+    init_db()
+    monkeypatch.setattr(ss, "HEARTBEAT_SECONDS", 0)
+    job, match = _r329_job()
+
+    def score(*a, progress=None, **k):
+        real = ss._claim
+        def boom(*a, **k):
+            raise OperationalError("UPDATE search", {}, Exception("database is locked"))
+        ss._claim = boom
+        try:
+            progress(1, 2)                     # the heartbeat write blows up
+        finally:
+            ss._claim = real
+        progress(2, 2)                         # and the next one still works
+        return [(job, match)]
+    monkeypatch.setattr(ss, "_score_cached", score)
+
+    db = SessionLocal()
+    try:
+        u = User(email="r329-hiccup@example.com"); db.add(u); db.commit()
+        s, debit = _stuck_paid_search(db, u, minutes_ago=0)
+        ss._run_search(s.id, u.id, "paid")
+        db.expire_all()
+        assert db.get(Search, s.id).status == "done"
+        assert db.query(JobResult).filter_by(search_id=s.id).count() == 1
+        assert _refunds(db, debit) == 0
+    finally:
+        _r325_cleanup(db, s)
+        db.close()
+
+
 def test_f09_feedback_htmx_returns_partial_else_redirects(client):
     signup(client, email="f09@example.com")
     from web.app.db import SessionLocal
@@ -1455,7 +1702,7 @@ def test_score_cached_reuses_hits_and_scores_only_misses():
 
         class FakeMatcher:
             def __init__(self): self.calls = []
-            def score(self, js, *a):
+            def score(self, js, *a, **k):          # k: the R3-29 `progress` kwarg
                 self.calls.append(len(js))
                 return [(j, MatchResult(tier=3, score=50, reasons="ok")) for j in js]
 

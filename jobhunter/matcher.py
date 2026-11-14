@@ -15,7 +15,7 @@ from typing import Optional
 
 from . import llm
 from .config import Materials, Profile, Settings
-from .models import JobPosting, MatchResult
+from .models import JobPosting, MatchResult, ProgressFn, report_progress
 
 log = logging.getLogger("jobhunter.matcher")
 
@@ -414,6 +414,7 @@ class Matcher:
         feedback_examples: Optional[list[dict]] = None,
         company_profile=None,
         criteria=None,
+        progress: Optional[ProgressFn] = None,
     ) -> list[tuple[JobPosting, MatchResult]]:
         system = _system_prompt(
             profile, materials, feedback_examples or [], company_profile, criteria
@@ -430,6 +431,8 @@ class Matcher:
                     results.append((job, match))
                 else:
                     self.failures += 1
+                # On this (the caller's) thread, never a pool thread (R3-29).
+                report_progress(progress, i, len(jobs))
                 if i % 20 == 0:
                     log.info("Scored %d/%d", i, len(jobs))
         # A silent partial run looks exactly like "few good jobs today", which

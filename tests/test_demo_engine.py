@@ -64,6 +64,27 @@ def test_demo_engine_is_deterministic_and_offline():
     assert demo.resolve_countries(["Milan", "Remote"], None) == ["it", ""]
 
 
+def test_demo_engine_accepts_and_honours_the_progress_callback():
+    """R3-29: the demo engine takes the façade's `progress` callback too (the shell
+    passes it unconditionally) and reports (done, total) like the real engine."""
+    import jbhntr_engine_demo as demo
+    from jbhntr_engine import Materials, Profile
+
+    prof = Profile(raw={"sources": {"search_terms": ["chief of staff"]}})
+    fetched, scored = [], []
+    jobs = demo.collect_all_sources(prof, None, progress=lambda d, t: fetched.append((d, t)))
+    out = demo.Matcher(None).score(jobs, prof, Materials(),
+                                   progress=lambda d, t: scored.append((d, t)))
+    assert len(out) == len(jobs)
+    assert fetched and fetched[-1][0] == fetched[-1][1]
+    assert scored[-1] == (len(jobs), len(jobs))
+    # A failing observer never breaks the demo stage either.
+    def boom(d, t):
+        raise RuntimeError("x")
+    assert demo.collect_all_sources(prof, None, progress=boom)
+    assert len(demo.Matcher(None).score(jobs, prof, Materials(), progress=boom)) == len(jobs)
+
+
 def test_demo_generator_returns_real_shapes():
     import jbhntr_engine_demo as demo
     from jbhntr_engine import JobPosting, Materials, MatchResult, RankedJob

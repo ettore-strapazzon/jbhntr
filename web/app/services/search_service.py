@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
@@ -217,6 +218,63 @@ def _set(db: DbSession, search: Search, **fields) -> None:
         raise _ScanReaped(search.id)
 
 
+# In-stage heartbeat (R3-29): at most one progress write per this many seconds.
+# Far below STUCK_SEARCH_MINUTES, far above "a DB write per scored job".
+HEARTBEAT_SECONDS = 30
+
+
+class _Heartbeat:
+    """The throttled ``progress(done, total)`` callback handed to the engine's long
+    stages (scoring, live fetch), so a stage running past STUCK_SEARCH_MINUTES
+    keeps stamping `last_progress_at` and isn't reaped mid-flight (R3-29).
+
+    It writes through `_claim`, so a reaped row is never written (never revived).
+    On a lost claim it does NOT raise into the engine: the engine treats progress
+    as an observer (`report_progress` swallows errors, and `collect_all` runs each
+    source under a catch-all), and an exception out of the scoring loop would
+    still wait for the in-flight pool anyway — so a raise would be eaten or buy
+    nothing. Instead it sets `reaped`, goes quiet, and the worker calls `check()`
+    right after the stage, which raises `_ScanReaped` into the normal reaped path.
+    Any other failure (DB hiccup) is logged and swallowed: a missed beat must
+    never kill a healthy scan. Beats from a non-owner thread are dropped — the
+    worker's session is not thread-safe (the engine contract says caller's thread).
+    """
+
+    def __init__(self, db: DbSession, search_id: int, label: str, *,
+                 every: float | None = None, clock=time.monotonic):
+        self.db, self.search_id, self.label = db, search_id, label
+        self.every = HEARTBEAT_SECONDS if every is None else every
+        self.clock = clock
+        self.reaped = False
+        self._owner = threading.get_ident()
+        self._last = clock()          # the stage itself was just written by `_set`
+
+    def __call__(self, done: int, total: int) -> None:
+        if self.reaped or threading.get_ident() != self._owner:
+            return
+        now = self.clock()
+        if now - self._last < self.every:
+            return
+        self._last = now
+        try:
+            if not _claim(self.db, self.search_id, stage=f"{self.label} {done}/{total}"):
+                self.reaped = True
+                log.warning("Search %s reaped mid-stage; stopping after this stage",
+                            self.search_id)
+        except Exception as exc:
+            log.warning("Search %s heartbeat write failed (scan continues): %s",
+                        self.search_id, exc)
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+
+    def check(self) -> None:
+        """Call after the stage: stop the worker if the scan was reaped during it."""
+        if self.reaped:
+            raise _ScanReaped(self.search_id)
+
+
 def _trigger_discovery_if_changed(user_id: int) -> None:
     """Fire per-user similar-company discovery (occasions 1-3) in the background.
 
@@ -306,7 +364,9 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
 
         if jobs is None:
             _set(db, search, stage="Collecting job postings…")
-            raw = collect_all_sources(profile, settings)
+            beat = _Heartbeat(db, search.id, "Collecting job postings…")
+            raw = collect_all_sources(profile, settings, progress=beat)
+            beat.check()
             scanned = len(raw)
             # Write-through so this fetch also enriches the shared corpus.
             _cache_to_corpus(raw)
@@ -333,8 +393,10 @@ def _run_search(search_id: int, user_id: int, free_kind: str = "paid") -> None:
         _set(db, search, stage=f"Scoring {len(jobs)} jobs in detail…")
         _enrich(jobs, db)
         feedback = _feedback_examples(db, user)
+        beat = _Heartbeat(db, search.id, "Scoring")
         scored = _score_cached(db, matcher, jobs, profile, materials, feedback,
-                               company_profile, criteria, settings)
+                               company_profile, criteria, settings, progress=beat)
+        beat.check()
 
         # Hard location gate, now that the LLM has surfaced the real location for
         # postings that reached scoring with a blank location field. Location is a
@@ -709,7 +771,7 @@ def _corpus_candidates(db, profile, candidate, settings, terms):
 
 
 def _score_cached(db, matcher, jobs, profile, materials, feedback,
-                  company_profile, criteria, settings):
+                  company_profile, criteria, settings, progress=None):
     """Score only the jobs not already cached under an identical context.
 
     Cuts the dominant per-search cost on repeat/overlapping searches. A cache
@@ -724,14 +786,16 @@ def _score_cached(db, matcher, jobs, profile, materials, feedback,
         cached = score_cache.get_many(db, list(by_hash.values()))
     except Exception as exc:
         log.warning("Score cache unavailable, scoring all: %s", exc)
-        return matcher.score(jobs, profile, materials, feedback, company_profile, criteria)
+        return matcher.score(jobs, profile, materials, feedback, company_profile, criteria,
+                             progress=progress)
 
     hits, misses = [], []
     for j in jobs:
         m = cached.get(by_hash[j.dedup_key()])
         (hits.append((j, m)) if m is not None else misses.append(j))
 
-    fresh = (matcher.score(misses, profile, materials, feedback, company_profile, criteria)
+    fresh = (matcher.score(misses, profile, materials, feedback, company_profile, criteria,
+                           progress=progress)
              if misses else [])
     if fresh:
         score_cache.put_many(
