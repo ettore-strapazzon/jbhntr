@@ -2,7 +2,8 @@
 """JBHNTR Team Boardroom client (R3-35). Stdlib only.
 
   bridge.py peek                      -> prints the number of unhandled Founder messages
-  bridge.py pull                      -> writes them to $CHAT_FILE (JSON, mode 600), prints the count
+  bridge.py pull                      -> writes them to $CHAT_FILE (JSON, mode 600), prints the count; each
+                                         attachment is saved to $JBHNTR_TEAM/attachments/<msg-id>/ (R3-40)
   bridge.py reply [BODY]              -> posts a CEO chat reply (BODY or stdin)
   bridge.py log ROLE TASK STATUS SUMMARY CYCLE [--detail-file F]   -> one Live team row
 
@@ -22,6 +23,7 @@ from pathlib import Path
 
 TEAM = Path(os.environ.get("JBHNTR_TEAM") or Path.home() / ".jbhntr-team")
 DEFAULT_URL = "https://jbhntr.app"
+MAX_ATTACH = 10 * 1024 * 1024  # the server's per-message cap (R3-40)
 
 # key=value / key: value where the key names a secret; vendor token shapes; Basic/Bearer creds; URL userinfo;
 # long mixed-case+digit blobs (token_urlsafe-like). Lower-case hex (git shas) is left alone.
@@ -70,10 +72,14 @@ class Client:
         if not self.token:
             sys.exit("bridge: JBHNTR_ADMIN_TOKEN missing from the env file")
 
-    def call(self, method, path, payload=None):
+    def _req(self, method, path):
         req = urllib.request.Request(self.url + path, method=method)
         req.add_header("User-Agent", "jbhntr-team-bridge/1")  # the jbhntr.app edge 403s the default Python-urllib UA
         req.add_header("Authorization", "Basic " + base64.b64encode(f"admin:{self.token}".encode()).decode())
+        return req
+
+    def call(self, method, path, payload=None):
+        req = self._req(method, path)
         if payload is not None:
             req.data = json.dumps(payload).encode()
             req.add_header("Content-Type", "application/json")
@@ -87,6 +93,35 @@ class Client:
 
     def clean(self, s):
         return redact(s, (self.token,))
+
+    def save_attachments(self, msg):
+        """Download msg's attachments into TEAM/attachments/<msg-id>/ and replace the server metadata with
+        local {path,name,type,size,untrusted}. A failed download is listed with an error, never fatal: the
+        pull already consumed the message, so it must still reach CHAT_FILE."""
+        if not msg.get("attachments"):
+            return msg
+        out = []
+        for a in msg["attachments"]:
+            mid, aid = int(msg["id"]), int(a["id"])  # ids only: the URL and path are built here, not by the server
+            name = re.sub(r"[^A-Za-z0-9._-]", "_", str(a.get("name", ""))).lstrip(".")[-100:] or "file"
+            entry = {"name": name, "type": str(a.get("type", "")), "size": int(a.get("size") or 0), "untrusted": True}
+            d = TEAM / "attachments" / str(mid)
+            path = d / f"{aid}-{name}"
+            try:
+                with urllib.request.urlopen(self._req("GET", f"/boardroom/attachment/{aid}"), timeout=60) as r:
+                    raw = r.read(MAX_ATTACH + 1)
+                if len(raw) > MAX_ATTACH:
+                    raise ValueError("too large")
+                d.mkdir(parents=True, exist_ok=True, mode=0o700)
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, "wb") as f:
+                    f.write(raw)
+                entry = {"path": str(path), **entry, "size": len(raw)}
+            except (urllib.error.URLError, OSError, ValueError) as e:
+                entry["error"] = f"download failed: {type(e).__name__}"
+            out.append(entry)
+        msg["attachments"] = out
+        return msg
 
 
 def main(argv=None):
@@ -106,7 +141,7 @@ def main(argv=None):
     if a.cmd == "peek":
         print(int((c.call("GET", "/boardroom/peek") or {}).get("count", 0)))
     elif a.cmd == "pull":
-        msgs = c.call("GET", "/boardroom/pull") or []
+        msgs = [c.save_attachments(m) for m in (c.call("GET", "/boardroom/pull") or [])]
         dest = Path(os.environ.get("CHAT_FILE") or TEAM / "chat.json")
         tmp = dest.with_name(dest.name + f".tmp{os.getpid()}")
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

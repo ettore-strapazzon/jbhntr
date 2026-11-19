@@ -70,14 +70,18 @@
       <div class="msg msg-{{ m.role }}">
         <div class="msg-meta"><b>{{ m.role_label }}</b> <span class="muted">· {{ m.ts }}</span></div>
         <div class="msg-body">{{ m.body }}</div>
+        {% for a in m.attachments %}<div class="small"><a href="/boardroom/attachment/{{ a.id }}">{{ a.name }}</a></div>{% endfor %}
       </div>
       {% endfor %}
     </div>
     <p class="muted" id="thread-empty"{% if messages %} hidden{% endif %}>No messages yet — send the first one below.</p>
     <p class="muted" id="ceo-typing" hidden>CEO is replying…</p>
-    <form class="chat" method="post" action="/boardroom/send" id="chat-form">
+    <form class="chat" method="post" action="/boardroom/send" id="chat-form" enctype="multipart/form-data">
       <input type="hidden" name="csrf" value="{{ admin_csrf }}">
-      <textarea name="body" rows="3" placeholder="Message the company…" required></textarea>
+      <textarea name="body" rows="3" placeholder="Message the company…"></textarea>
+      <label class="small muted">Attach up to 5 files, 10 MB total (PNG, JPEG, GIF, WebP, PDF, TXT, MD, CSV)
+        <input type="file" name="files" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.csv"></label>
+      <p class="small" id="chat-error" role="alert" hidden></p>
       <button type="submit">Send</button>
     </form>
   </div>

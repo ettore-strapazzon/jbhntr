@@ -18,15 +18,15 @@ import re
 from pathlib import Path
 
 import markdown as md
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
-                               RedirectResponse)
+                               PlainTextResponse, RedirectResponse, Response)
 from sqlalchemy.orm import Session as DbSession
 
 from ..config import ROOT
 from ..db import get_session
-from ..models import BoardroomMessage, TeamLogEntry, aware
-from ..security import require_same_origin
+from ..models import BoardroomAttachment, BoardroomMessage, TeamLogEntry, aware
+from ..security import decrypt_bytes, encrypt_bytes, require_same_origin
 from ..templating import templates
 from .admin import (admin_csrf_token, require_admin,  # reuse the admin gate verbatim
                     require_admin_csrf)
@@ -36,6 +36,80 @@ router = APIRouter()
 STATE = ROOT / "company" / "state"
 UPDATES = ROOT / "company" / "updates"
 DOCS = ROOT / "company" / "docs"
+# R3-40: Founder chat attachments. Outside /static and git-ignored; reachable only
+# through the admin-gated download route. Ephemeral on Railway unless a volume is mounted.
+ATTACH_DIR = ROOT / "data" / "boardroom_attachments"
+MAX_FILES = 5
+MAX_TOTAL = 10 * 1024 * 1024
+# Leading-byte signature -> (mime, extensions the name may carry). The name never decides the type.
+_MAGIC = [(b"\x89PNG\r\n\x1a\n", "image/png", {".png"}),
+          (b"\xff\xd8\xff", "image/jpeg", {".jpg", ".jpeg"}),
+          (b"GIF87a", "image/gif", {".gif"}), (b"GIF89a", "image/gif", {".gif"}),
+          (b"%PDF-", "application/pdf", {".pdf"})]
+_TEXT_EXTS = {".txt", ".md", ".csv"}
+
+
+class AttachmentError(ValueError):
+    pass
+
+
+def _safe_name(filename: str) -> str:
+    """Basename only, [A-Za-z0-9._-], no leading dot, capped — never a path."""
+    base = re.split(r"[\\/]", filename or "")[-1]
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", base).lstrip(".")[-100:]
+    return name or "file"
+
+
+def _sniff(name: str, raw: bytes) -> str:
+    """Mime from the allowlist, or AttachmentError. Content AND extension must agree."""
+    ext = Path(name).suffix.lower()
+    for magic, mime, exts in _MAGIC:
+        if raw.startswith(magic):
+            if ext not in exts:
+                raise AttachmentError(f"{name}: content does not match its extension.")
+            return mime
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        if ext != ".webp":
+            raise AttachmentError(f"{name}: content does not match its extension.")
+        return "image/webp"
+    if ext in _TEXT_EXTS:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            raise AttachmentError(f"{name}: text files must be UTF-8.") from None
+        if "\x00" in text or re.match(r"\s*<(!doctype\s+html|html|script|svg)\b", text, re.I):
+            raise AttachmentError(f"{name}: not a plain-text file.")
+        return "text/plain; charset=utf-8"
+    raise AttachmentError(f"{name}: unsupported type (PNG, JPEG, GIF, WebP, PDF, TXT, MD, CSV only).")
+
+
+async def _read_attachments(files: list[UploadFile]) -> list[tuple[str, str, bytes]]:
+    """Validate the whole upload before anything is stored: count, total size, type."""
+    files = [f for f in files if f.filename]  # an empty <input type=file> posts one nameless part
+    if len(files) > MAX_FILES:
+        raise AttachmentError(f"At most {MAX_FILES} files per message.")
+    out, total = [], 0
+    for f in files:
+        raw = await f.read(MAX_TOTAL - total + 1)
+        total += len(raw)
+        if total > MAX_TOTAL:
+            raise AttachmentError("Attachments are limited to 10 MB per message.")
+        name = _safe_name(f.filename)
+        if not raw:
+            raise AttachmentError(f"{name}: file is empty.")
+        out.append((name, _sniff(name, raw), raw))
+    return out
+
+
+def _att_meta(db: DbSession, ids: list[int]) -> dict[int, list[dict]]:
+    """message id -> [{id, name, type, size}] for the given messages."""
+    out: dict[int, list[dict]] = {i: [] for i in ids}
+    if ids:
+        for a in (db.query(BoardroomAttachment)
+                  .filter(BoardroomAttachment.message_id.in_(ids))
+                  .order_by(BoardroomAttachment.id.asc())):
+            out[a.message_id].append({"id": a.id, "name": a.name, "type": a.mime, "size": a.size})
+    return out
 
 
 def _ts(m: BoardroomMessage) -> str:
@@ -197,9 +271,10 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
     # Conversation thread, oldest -> newest. Bodies render through Jinja's auto-
     # escaping (not | safe), so the chat is plain text and injects nothing.
     msgs = db.query(BoardroomMessage).order_by(BoardroomMessage.id.asc()).all()
+    atts = _att_meta(db, [m.id for m in msgs])
     messages = [{"role": m.role,
                  "role_label": "Founder" if m.role == "founder" else "CEO",
-                 "body": m.body,
+                 "body": m.body, "attachments": atts[m.id],
                  "ts": _ts(m)} for m in msgs]
     team_entries, team_agents, team_last_id = _team_feed(db)
     return templates.TemplateResponse(request, "boardroom.html", {
@@ -273,15 +348,43 @@ def boardroom_doc(path: str, request: Request, _: bool = Depends(require_admin))
 
 
 @router.post("/boardroom/send")
-def boardroom_send(_: bool = Depends(require_admin),
-                   _csrf: None = Depends(require_admin_csrf), body: str = Form(""),
-                   db: DbSession = Depends(get_session)):
-    """Founder posts a message from the browser form. Blank input is a no-op."""
+async def boardroom_send(_: bool = Depends(require_admin),
+                         _csrf: None = Depends(require_admin_csrf), body: str = Form(""),
+                         files: list[UploadFile] = File(default=[]),
+                         db: DbSession = Depends(get_session)):
+    """Founder posts a message (+ up to 5 files, 10 MB total; R3-40) from the browser
+    form. Blank input is a no-op; any bad file rejects the whole message (400)."""
     body = (body or "").strip()
-    if body:
-        db.add(BoardroomMessage(role="founder", body=body, handled=False))
+    try:
+        uploads = await _read_attachments(files)
+    except AttachmentError as e:
+        return PlainTextResponse(str(e), status_code=400)
+    if body or uploads:
+        m = BoardroomMessage(role="founder", body=body, handled=False)
+        db.add(m)
+        db.flush()
+        ATTACH_DIR.mkdir(parents=True, exist_ok=True)
+        for name, mime, raw in uploads:
+            a = BoardroomAttachment(message_id=m.id, name=name, mime=mime, size=len(raw))
+            db.add(a)
+            db.flush()
+            (ATTACH_DIR / str(a.id)).write_bytes(encrypt_bytes(raw))  # stored under its int id only
         db.commit()
     return RedirectResponse("/boardroom", status_code=303)
+
+
+@router.get("/boardroom/attachment/{att_id}")
+def boardroom_attachment(att_id: int, _: bool = Depends(require_admin),
+                         db: DbSession = Depends(get_session)):
+    """Download one chat attachment (read-only). Always a download, never rendered inline."""
+    a = db.get(BoardroomAttachment, att_id)
+    path = ATTACH_DIR / str(att_id)
+    if a is None or not path.is_file():
+        return PlainTextResponse("Not found", status_code=404)
+    return Response(decrypt_bytes(path.read_bytes()), media_type=a.mime, headers={
+        "Content-Disposition": f'attachment; filename="{a.name}"',
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store"})
 
 
 @router.get("/boardroom/messages.json")
@@ -292,9 +395,10 @@ def boardroom_messages(after: int = 0, _: bool = Depends(require_admin),
     rows = (db.query(BoardroomMessage)
             .filter(BoardroomMessage.id > after)
             .order_by(BoardroomMessage.id.asc()).all())
+    atts = _att_meta(db, [m.id for m in rows])
     return JSONResponse([{"id": m.id, "role": m.role,
                           "role_label": "Founder" if m.role == "founder" else "CEO",
-                          "body": m.body, "ts": _ts(m)} for m in rows])
+                          "body": m.body, "attachments": atts[m.id], "ts": _ts(m)} for m in rows])
 
 
 @router.get("/boardroom/peek")
@@ -321,7 +425,8 @@ def boardroom_pull(_: bool = Depends(require_admin),
             .filter(BoardroomMessage.role == "founder",
                     BoardroomMessage.handled.is_(False))
             .order_by(BoardroomMessage.id.asc()).all())
-    out = [{"id": m.id, "body": m.body,
+    atts = _att_meta(db, [m.id for m in rows])
+    out = [{"id": m.id, "body": m.body, "attachments": atts[m.id],
             "created_at": aware(m.created_at).isoformat() if aware(m.created_at) else None}
            for m in rows]
     for m in rows:

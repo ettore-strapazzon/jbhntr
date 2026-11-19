@@ -18,8 +18,8 @@ TOKEN = "Tk9-fake-ADMIN-token-for-tests-only-123456"
 class FakeBoardroom:
     """Records every request; answers like web/app/routes/boardroom.py."""
 
-    def __init__(self, inbox=()):
-        self.requests, self.inbox = [], list(inbox)
+    def __init__(self, inbox=(), files=None):
+        self.requests, self.inbox, self.files = [], list(inbox), dict(files or {})  # files: path -> raw bytes
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -48,6 +48,15 @@ class FakeBoardroom:
                 if self.path == "/boardroom/pull":
                     out, fake.inbox = fake.inbox, []
                     return self._send(out)
+                if self.path in fake.files:
+                    raw = fake.files[self.path]
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/octet-stream")
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.end_headers()
+                    return self.wfile.write(raw)
+                if self.path.startswith("/boardroom/attachment/"):
+                    return self._send({"detail": "Not found"}, 404)
                 return self._send({"ok": True, "id": len(fake.requests)})
 
             do_GET = do_POST = _handle
@@ -147,3 +156,30 @@ def test_redact_unit():
     keep = "sha 0b59e85c1d2e3f4a5b6c7d8e9f00112233445566 in R3-35, 1225 tests green"
     assert b.redact(keep, ()) == keep
     assert b.redact("secret word s3cr3tvalue", ("s3cr3tvalue",)) == "secret word [REDACTED]"
+
+
+def test_pull_downloads_attachments_as_untrusted_files(tmp_path):
+    """R3-40: attachments land in $JBHNTR_TEAM/attachments/<msg-id>/, CHAT_FILE lists them with untrusted=true;
+    a hostile server-side name cannot escape the dir, and a failed download is listed, not fatal."""
+    png = b"\x89PNG\r\n\x1a\n" + b"x" * 20
+    inbox = [{"id": 9, "body": "see files", "created_at": None, "attachments": [
+        {"id": 3, "name": "shot.png", "type": "image/png", "size": len(png)},
+        {"id": 4, "name": "../../evil.sh", "type": "text/plain; charset=utf-8", "size": 5},
+        {"id": 5, "name": "gone.pdf", "type": "application/pdf", "size": 1}]}]
+    fake = FakeBoardroom(inbox=inbox, files={"/boardroom/attachment/3": png, "/boardroom/attachment/4": b"hello"})
+    try:
+        (tmp_path / "env").write_text(f"JBHNTR_APP_URL={fake.url}\nJBHNTR_ADMIN_TOKEN={TOKEN}\n")
+        chat = tmp_path / "chat.json"
+        r = bridge(tmp_path, "pull", CHAT_FILE=str(chat))
+        assert r.returncode == 0 and r.stdout.strip() == "1", r.stderr
+        atts = json.loads(chat.read_text())[0]["attachments"]
+        d = tmp_path / "attachments" / "9"
+        assert atts[0] == {"path": str(d / "3-shot.png"), "name": "shot.png", "type": "image/png",
+                           "size": len(png), "untrusted": True}
+        assert (d / "3-shot.png").read_bytes() == png and (d / "3-shot.png").stat().st_mode & 0o777 == 0o600
+        assert atts[1]["path"] == str(d / "4-_.._evil.sh") and atts[1]["untrusted"] is True
+        assert sorted(p.name for p in tmp_path.rglob("*evil*")) == ["4-_.._evil.sh"]
+        assert "path" not in atts[2] and atts[2]["error"].startswith("download failed") and atts[2]["untrusted"]
+        assert all(q["auth"] and q["path"].startswith("/boardroom/") for q in fake.requests)
+    finally:
+        fake.close()

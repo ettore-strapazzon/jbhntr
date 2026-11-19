@@ -667,6 +667,22 @@ class BoardroomMessage(Base):
         DateTime(timezone=True), default=utcnow, index=True)
 
 
+class BoardroomAttachment(Base):
+    """A file on a Founder Boardroom message (R3-40). Metadata only: the bytes live
+    Fernet-encrypted at data/boardroom_attachments/<id>, outside /static, and are
+    served only by the admin-gated /boardroom/attachment/<id> route."""
+
+    __tablename__ = "boardroom_attachments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey("boardroom_messages.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))   # sanitised, display/download only
+    mime: Mapped[str] = mapped_column(String(64))    # from the magic-byte allowlist
+    size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class TeamLogEntry(Base):
     """Live per-agent activity feed, in the shared DB so the VM cycle posts each
     agent's start/finish AS it works and the Boardroom 'Live team' tab streams it in

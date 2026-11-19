@@ -171,6 +171,15 @@
     body.textContent = m.body;
     wrap.appendChild(meta);
     wrap.appendChild(body);
+    (m.attachments || []).forEach(function (a) {   // R3-40
+      var d = document.createElement("div");
+      d.className = "small";
+      var link = document.createElement("a");
+      link.href = "/boardroom/attachment/" + encodeURIComponent(a.id);
+      link.textContent = a.name;
+      d.appendChild(link);
+      wrap.appendChild(d);
+    });
     thread.appendChild(wrap);
     if (emptyMsg) emptyMsg.hidden = true;
   }
@@ -193,20 +202,25 @@
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       var ta = form.querySelector("textarea");
+      var fileInput = form.querySelector('input[type="file"]');
+      var err = document.getElementById("chat-error");
       var text = (ta.value || "").trim();
-      if (!text) return;
-      var body = new URLSearchParams();
+      var picked = fileInput ? Array.prototype.slice.call(fileInput.files) : [];
+      if (!text && !picked.length) return;
+      var body = new FormData();   // multipart: the browser sets the boundary header
       body.append("body", text);
       var tok = form.querySelector('input[name="csrf"]');
       body.append("csrf", tok ? tok.value : "");   // R3-19: send needs the admin CSRF token
-      fetch("/boardroom/send", {
-        method: "POST",
-        body: body,
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      })
+      picked.forEach(function (f) { body.append("files", f); });
+      if (err) err.hidden = true;
+      fetch("/boardroom/send", { method: "POST", body: body })
         .then(function (r) {
+          if (r.status === 400 && err) {   // a refused attachment: say why, keep the draft
+            return r.text().then(function (t) { err.textContent = t; err.hidden = false; });
+          }
           if (!r.ok) throw new Error("send " + r.status);   // don't clear a refused message
           ta.value = "";
+          if (fileInput) fileInput.value = "";
           if (typing) typing.hidden = false;
           poll();
         })

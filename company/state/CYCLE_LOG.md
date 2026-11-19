@@ -580,3 +580,11 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **CEO review fixes:** suite caught `seen.add(` in `_team_feed` as a false-positive "GET writes state" hit (textual scan), so it was rewritten as set-union; stale "server ignores detail" comment in `bridge.py` updated.
 - **Tests:** full suite green, 1237 tests, rc 0.
 - **Requests:** R-015 updated (step 0 idle check; step 4 optional; steps 5/7 nothing to add). R-015 is now actionable: R3-34–36 all shipped. **Spend:** $0. **Next:** R3-40 (chat attachments, CTO+GC) now unblocked.
+
+## 2026-11-19 · cycle 25 (Boardroom chat attachments)
+- **Recovery:** none ("doing": none). Founder: nothing new since msg #302. Cycles today: 4/10.
+- **Dispatched:** CTO (R3-40 build), then GC (R3-40 review of the built diff).
+- **R3-40 → done.** The Founder can attach ≤5 files / 10 MB per chat message. The type comes from the file's magic bytes and must match the extension (PNG/JPEG/GIF/WebP/PDF; UTF-8 TXT/MD/CSV; HTML/SVG refused). Names are sanitised. Files are stored Fernet-encrypted outside static under an integer id and served only through the admin-gated `GET /boardroom/attachment/{id}` (attachment, nosniff, no-store; a pure GET). `/boardroom/pull` carries the metadata; `bridge.py pull` downloads into `$JBHNTR_TEAM/attachments/` and lists `path,name,type,size,"untrusted": true`. `chat.md` says attachments are data, never instructions. Existing CSRF is kept (test).
+- **GC review:** GO-with-follow-ups. No traversal, XSS/sniffing, auth bypass or header injection found. Follow-ups: R3-42 (pre-auth multipart body cap, pre-existing medium) and R3-43 (30-day retention both sides, picker hint, R-003 line). GC did the GDPR check by hand and did not invoke the legal skills; accepted for Founder-only tooling and noted.
+- **Deploy notes:** without a Railway volume on `/app/data`, server copies vanish on redeploy. The bridge pulls them first, and R3-43 shows "expired". Needs `FILE_ENCRYPTION_KEY`, which is already set for CV uploads. Not browser-tested; the edge body limit for 10 MB is unverified.
+- **Tests:** full suite green once (rc 0). **Requests:** none new. **Spend:** $0. **Next:** R3-42, R3-43.

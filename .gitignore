@@ -50,3 +50,4 @@ Job Hunting Websites.md
 
 # Private engine wheel built by scripts/build_engine_wheel.py (repo-split step 3)
 dist/
+data/boardroom_attachments/
