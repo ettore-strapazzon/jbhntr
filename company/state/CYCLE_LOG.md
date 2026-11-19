@@ -606,3 +606,14 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
   - CTO → **R3-44**: chat thread scrolls to bottom on load / Main tab / send; poll sticks only when ≤80 px from end, else "↓ latest" button; image-load re-scroll hook for R3-50; node-run predicate test + page check.
 - **Review notes:** full suite green once after both (exit 0). Watch: the web app now imports `ops/team/bridge.py` at boot — fails loud if a deploy ever strips `ops/`. Scroll behaviour not browser-checked.
 - **Requests opened:** none. **Blockers:** R3-50 still waits R-016 (durable storage). **Spend:** none.
+
+## 2026-11-20 · cycle 28 (Boardroom §5: Founder's tasks grouping + local times)
+- **Gate:** no parked branches. Cap 2/10 today.
+- **Recovery:** none (no task left doing).
+- **Dispatched (foreground, parallel):** CTO ×2 — R3-45 (Pending grouping + stale-header check) · R3-49 (times in the Founder's zone). Both unblock R3-53. Other roles: no unblocked task in T1.
+- **Results (both accepted):**
+  - CTO → **R3-45**: Pending tab grouped Do now / Later / on hold / Recently closed (last 5), `<details>` per request with localStorage memory, pill counts Do now; status read from the header's last `·` field only; stale check extended to parked/on-hold and passes on the real REQUESTS.md.
+  - CTO → **R3-49**: ISO UTC from the server; one JS `fmt_time` renders every chat/Live team time in the browser zone (24 h, short zone, UTC tooltip); node-run port + no-raw-UTC scan.
+- **Review notes:** full suite green once after both (rc 0). Not browser-checked. Without JS, server-rendered times show raw ISO.
+- **Requests opened:** none. **Blockers:** R3-50 still waits R-016. **Spend:** none.
+- **Next:** R3-46, R3-48, R3-51, R3-52, R3-53 (now unblocked).

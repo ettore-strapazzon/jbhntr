@@ -3,6 +3,51 @@
 // Progressive enhancement — if this fails, the plain POST form still works.
 // CSP-safe: served from 'self', no inline handlers; bodies rendered via textContent.
 (function () {
+  // ---- Times (R3-49): the server sends ISO UTC; every timestamp shows in the browser's zone,
+  // 24 h, short zone name, UTC in the tooltip. Pure functions (tested in node) up to the end marker.
+  function parseTime(iso) {
+    if (iso == null || iso === "") return null;
+    var t = Date.parse(String(iso).replace(/(\.\d{3})\d+/, "$1"));   // Python sends microseconds; older Safari rejects them
+    return isNaN(t) ? null : new Date(t);
+  }
+  function zoneName(d, tz) {   // "CET"/"EST" where a short name exists, else "GMT+9"
+    function get(loc) {
+      try {
+        var ps = new Intl.DateTimeFormat(loc, { timeZone: tz, timeZoneName: "short" }).formatToParts(d);
+        for (var k = 0; k < ps.length; k++) if (ps[k].type === "timeZoneName") return ps[k].value;
+      } catch (e) {}
+      return "";
+    }
+    var z = get("en-GB"), u;
+    if (!z || /^GMT[+-]/.test(z)) { u = get("en-US"); if (u && !/^GMT[+-]/.test(u)) z = u; }
+    return z;
+  }
+  function fmt_time(iso, tz) {   // tz omitted = the browser's zone
+    var d = parseTime(iso);
+    if (!d) return iso == null || iso === "" ? "" : String(iso) + " UTC";
+    try {
+      var p = {};
+      new Intl.DateTimeFormat("en-GB", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+        .formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
+      return (p.year + "-" + p.month + "-" + p.day + " " + p.hour + ":" + p.minute + " " + zoneName(d, tz)).trim();
+    } catch (e) { return String(iso) + " UTC"; }
+  }
+  function utc_time(iso) { return fmt_time(iso, "UTC"); }
+  // ---- end times
+  function localise(t) {   // a <time datetime="ISO UTC"> → local text + UTC tooltip
+    var iso = t.getAttribute("datetime");
+    t.textContent = fmt_time(iso);
+    t.title = utc_time(iso);
+  }
+  function timeEl(iso) {
+    var t = document.createElement("time");
+    t.setAttribute("datetime", iso || "");
+    localise(t);
+    return t;
+  }
+  document.querySelectorAll("time[datetime]").forEach(localise);   // server-rendered first load
+
   // ---- Tabs ----
   var tabsNav = document.getElementById("tabs");
   var panels = document.querySelectorAll(".panel");
@@ -86,12 +131,12 @@
     var bits = [];
     if (e.status) bits.push(e.status);
     if (e.cycle) bits.push("cycle " + e.cycle);
-    if (e.ts) bits.push(e.ts);
     if (bits.length) {
       var rest = document.createElement("span");
       rest.textContent = " · " + bits.join(" · ");
       meta.appendChild(rest);
     }
+    if (e.ts) { meta.appendChild(document.createTextNode(" · ")); meta.appendChild(timeEl(e.ts)); }
     if (e.status === "started") {
       var wk = document.createElement("span");
       wk.className = "tl-working";
@@ -146,6 +191,22 @@
     setInterval(pollTeam, 3000);
   }
 
+  // ---- Founder's tasks (R3-45): keep only the Founder's deviations from the server default
+  // (open request = expanded, later/closed + groups = collapsed), per R id / group, in localStorage.
+  // Pure (tested via node): a toggle back to the default forgets the choice, so a status change gets the new default.
+  function reqToggle(mem, id, open, def) { if (open === def) delete mem[id]; else mem[id] = open; return mem; }
+  var REQ_KEY = "jbhntr:req-open", reqMem = {};
+  try { reqMem = JSON.parse(localStorage.getItem(REQ_KEY) || "{}") || {}; } catch (e) {}
+  document.querySelectorAll("details[data-req], details[data-group]").forEach(function (d) {
+    var id = d.getAttribute("data-req") || "group:" + d.getAttribute("data-group");
+    var def = d.hasAttribute("open");
+    if (typeof reqMem[id] === "boolean") d.open = reqMem[id];
+    d.addEventListener("toggle", function () {
+      reqToggle(reqMem, id, d.open, def);
+      try { localStorage.setItem(REQ_KEY, JSON.stringify(reqMem)); } catch (e) {}
+    });
+  });
+
   // ---- Live chat ----
   var thread = document.getElementById("thread");
   if (!thread) return;
@@ -181,7 +242,8 @@
     b.textContent = m.role_label;
     var sp = document.createElement("span");
     sp.className = "muted";
-    sp.textContent = " · " + m.ts;
+    sp.textContent = " · ";
+    sp.appendChild(timeEl(m.ts));
     meta.appendChild(b);
     meta.appendChild(sp);
     var body = document.createElement("div");

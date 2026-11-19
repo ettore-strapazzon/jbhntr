@@ -58,7 +58,7 @@
 
 <nav class="tabs" id="tabs">
   <button type="button" class="tab" data-tab="main">Main</button>
-  <button type="button" class="tab" data-tab="pending">Pending from me{% if requests_html %} ({{ requests_html|length }}){% endif %}</button>
+  <button type="button" class="tab" data-tab="pending">Pending from me{% if req_groups.now %} ({{ req_groups.now|length }}){% endif %}</button>
   <button type="button" class="tab" data-tab="docs">Documents</button>
   <button type="button" class="tab" data-tab="updates">Morning updates</button>
   <button type="button" class="tab" data-tab="team">Live team</button>
@@ -74,7 +74,7 @@
     <div class="thread" id="thread" data-last="{{ last_id }}">
       {% for m in messages %}
       <div class="msg msg-{{ m.role }}">
-        <div class="msg-meta"><b>{{ m.role_label }}</b> <span class="muted">· {{ m.ts }}</span></div>
+        <div class="msg-meta"><b>{{ m.role_label }}</b> <span class="muted">· <time datetime="{{ m.ts }}">{{ m.ts }}</time></span></div>
         <div class="msg-body">{{ m.body }}</div>
         {% for a in m.attachments %}<div class="small">{% if a.expired %}<span class="muted">{{ a.name }} (expired)</span>{% else %}<a href="/boardroom/attachment/{{ a.id }}">{{ a.name }}</a>{% endif %}</div>{% endfor %}
       </div>
@@ -103,9 +103,16 @@
 <section class="panel" data-panel="pending">
   <div class="card">
     <h2>Waiting on you</h2>
-    {% if requests_html %}
-      {% for r in requests_html %}<div class="req">{{ r | safe }}</div>{% endfor %}
-    {% else %}<p class="muted">Nothing is waiting on you right now.</p>{% endif %}
+    {# R3-45: one <details> per request; open ones expanded, later/closed collapsed (boardroom.js keeps
+       the Founder's per-id choices + group state). REQUESTS.md is first-party Markdown (_html). #}
+    {% macro req(r, cls) %}<details class="{{ cls }}" data-req="{{ r.id }}"{% if r.open %} open{% endif %}><summary>{{ r.head_html | safe }}</summary><div class="req-body">{{ r.body_html | safe }}</div></details>{% endmacro %}
+    <h3>Do now</h3>
+    {% for r in req_groups.now %}{{ req(r, "req") }}{% else %}<p class="muted">Nothing is waiting on you right now.</p>{% endfor %}
+    {% for key, title in (("later", "Later / on hold"), ("closed", "Recently closed")) if req_groups[key] %}
+    <details class="req-group" data-group="{{ key }}"><summary>{{ title }} ({{ req_groups[key]|length }})</summary>
+      {% for r in req_groups[key] %}{{ req(r, "req req-" ~ key) }}{% endfor %}
+    </details>
+    {% endfor %}
   </div>
 </section>
 
@@ -150,7 +157,7 @@
     <div id="team-log" data-last="{{ team_last_id }}">
       {% for e in team_entries %}
       <div class="tl" data-agent="{{ e.agent }}" data-key="{{ e.key }}">
-        <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · {{ e.ts }}{% endif %}{% if e.working %} <span class="tl-working">working now</span>{% endif %}</div>
+        <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · <time datetime="{{ e.ts }}">{{ e.ts }}</time>{% endif %}{% if e.working %} <span class="tl-working">working now</span>{% endif %}</div>
         {% if e.task %}<div><b>{{ e.task }}</b></div>{% endif %}
         {% if e.summary %}<div class="msg-body">{{ e.summary }}</div>{% endif %}
         {# detail_html is built by _safe_html (raw HTML + links disabled) #}

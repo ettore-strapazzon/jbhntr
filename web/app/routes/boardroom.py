@@ -117,7 +117,7 @@ def _att_meta(db: DbSession, ids: list[int]) -> dict[int, list[dict]]:
 
 def _ts(m: BoardroomMessage) -> str:
     dt = aware(m.created_at)
-    return dt.strftime("%Y-%m-%d %H:%M UTC") if dt else ""
+    return dt.isoformat() if dt else ""  # ISO UTC; boardroom.js fmt_time localises it (R3-49)
 
 
 def _read(p: Path) -> str:
@@ -206,19 +206,68 @@ def _request_blocks(requests_md: str) -> list[str]:
 
 
 def _header_status(block: str) -> str:
-    """Status word of `### R-NNN · title · <status> <date>` (last `·` field, 1st word)."""
-    last = block.split("\n", 1)[0].split("·")[-1].split()
-    return last[0].lower() if last else ""
+    """Status word of `### R-NNN · title · <status> <date>` (last `·` field, 1st word),
+    also behind an emoji or **markup** (`· ✅ answered`, `· **done**`); `on hold` is one word."""
+    last = re.sub(r"^[\W_]+", "", block.split("\n", 1)[0].split("·")[-1]).lower()
+    m = re.match(r"on hold\b|[a-z]+", last)
+    return m.group(0) if m else ""
 
 
-def _open_requests(requests_md: str) -> list[str]:
-    """Each `### R-###` block whose header status word is `open` (R3-39: header only)."""
+_CLOSED = {"done", "closed", "answered", "superseded", "approved", "cancelled", "withdrawn"}
+
+
+def _req_status(block: str) -> str:
+    """R3-45: `closed` / `later` (on hold, parked) / `open` — from the header only."""
+    s = _header_status(block)
+    return "closed" if s in _CLOSED else "later" if s in ("on hold", "parked") else "open"
+
+
+def _group_requests(requests_md: str) -> dict[str, list[str]]:
+    """R3-45: Do now (open, file order) / Later (on hold, parked) / last 5 closed, newest first."""
+    g: dict[str, list[str]] = {"open": [], "later": [], "closed": []}
+    for block in _request_blocks(requests_md):
+        # strip the trailing `---` separator that precedes the next request
+        g[_req_status(block)].append(re.sub(r"\n+---\s*$", "", block.strip()))
+    return {"now": g["open"], "later": g["later"], "closed": g["closed"][-5:][::-1]}
+
+
+# R3-45 (port of the stale-header check): a body that records the WHOLE request as resolved under an
+# open/parked header. A done part/step/line, "partial", "except", "still open/needed" or "only … left"
+# doesn't count; `>` reply templates and ``` commands are skipped.
+_RESOLVED = re.compile(r"✅[\s*]*(?:[Dd]one|[Aa]nswered|[Cc]losed)\b|\bDONE\b"
+                       r"|^[\s*_]*(?:[Cc]losed|CLOSED|[Ss]uperseded|SUPERSEDED)\b")
+_PARTIAL = re.compile(r"\bpartial\b|\bexcept\b|\bstill (?:open|needed)\b|\bonly\b[^.;]*\bleft\b"
+                      r"|\b(?:part|step|line|sitting|block)s?\s+[\w–-]+(?:\s*(?:\+|,|and|–|-)\s*\w+)*\s*"
+                      r"(?:is\s+|are\s+)?(?:already\s+)?(?:✅\s*)?(?:done|passed|answered|closed)\b", re.I)
+
+
+def _stale_requests(requests_md: str) -> list[tuple[str, str]]:
+    """(id, offending line) for each non-closed request whose body says it is resolved."""
     out = []
     for block in _request_blocks(requests_md):
-        if _header_status(block) == "open":
-            # strip the trailing `---` separator that precedes the next request
-            out.append(re.sub(r"\n+---\s*$", "", block.strip()))
+        lines = block.split("\n")
+        if _req_status(block) == "closed":
+            continue
+        rid = lines[0].split()[1]
+        own = re.compile(r"\b%s\s+(?:done|closed|complete|completed|superseded)\b" % re.escape(rid), re.I)
+        fence = False
+        for ln in lines[1:]:
+            if ln.lstrip().startswith("```"):
+                fence = not fence
+                continue
+            if fence or ln.lstrip().startswith(">"):
+                continue
+            if own.search(ln) or (_RESOLVED.search(ln) and not _PARTIAL.search(ln)):
+                out.append((rid, ln.strip()[:160]))
+                break
     return out
+
+
+def _req_item(block: str) -> dict:
+    """One Founder's-tasks `<details>`: header (inline Markdown) as summary, the rest as body."""
+    head, _, body = block.partition("\n")
+    return {"id": head.split()[1], "open": _req_status(head) == "open",
+            "head_html": re.sub(r"^<p>|</p>$", "", _html(head[4:].strip())), "body_html": _html(body)}
 
 
 def _update_files() -> list[Path]:
@@ -296,7 +345,8 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
         "sprint_name": sprint_name,
         "now_html": _html(_last_cycle(cycle_log)),
         "tasks_html": _html(sprint_table),
-        "requests_html": [_html(b) for b in _open_requests(_read(STATE / "REQUESTS.md"))],
+        "req_groups": {k: [_req_item(b) for b in v]
+                       for k, v in _group_requests(_read(STATE / "REQUESTS.md")).items()},
         "docs": _doc_index(),
         "updates": _all_updates(),
         "team_entries": team_entries,
