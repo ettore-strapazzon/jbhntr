@@ -16,6 +16,7 @@ from .config import ROOT, config
 from .db import SessionLocal, init_db
 from .engine_guard import enforce_engine
 from .models import PageView
+from .security import BodySizeLimit
 from .routes import (
     account, admin, alpha, applications, auth_routes, boardroom, documents,
     fields, invite, job, legal, market_read, marketing, matches, onboarding, profile,
@@ -87,6 +88,9 @@ app.add_middleware(
     max_age=3600,
     domain=_cookie_domain,
 )
+
+# Refuse oversized bodies before any route parses them (R3-42).
+app.add_middleware(BodySizeLimit)
 
 static_dir = ROOT / "web" / "app" / "static"
 static_dir.mkdir(parents=True, exist_ok=True)

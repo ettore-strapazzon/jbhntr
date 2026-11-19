@@ -22,6 +22,7 @@ log = logging.getLogger("jbhntr.cron")
 
 WEEKLY_DAY = 0   # Monday, in UTC
 PAGEVIEW_RETENTION_DAYS = 730   # 24 months — matches the Privacy Policy
+ATTACHMENT_RETENTION_DAYS = 30  # R3-43: Boardroom chat files (GC R-003)
 
 
 def _prune_pageviews(db, days: int = PAGEVIEW_RETENTION_DAYS) -> int:
@@ -32,6 +33,20 @@ def _prune_pageviews(db, days: int = PAGEVIEW_RETENTION_DAYS) -> int:
         synchronize_session=False)
     db.commit()
     return n
+
+
+def _prune_boardroom_attachments(db, days: int = ATTACHMENT_RETENTION_DAYS) -> int:
+    """Delete Boardroom attachment files + rows past the retention window. File
+    first, so a crash mid-way leaves an 'expired' row, never an orphaned file."""
+    from ..models import BoardroomAttachment, utcnow
+    from ..routes import boardroom
+    cutoff = utcnow() - datetime.timedelta(days=days)
+    rows = db.query(BoardroomAttachment).filter(BoardroomAttachment.created_at < cutoff).all()
+    for a in rows:
+        (boardroom.ATTACH_DIR / str(a.id)).unlink(missing_ok=True)
+        db.delete(a)
+    db.commit()
+    return len(rows)
 
 
 def _stage(out: dict, name: str, fn):
@@ -114,6 +129,7 @@ def nightly(today: datetime.date | None = None) -> dict:
     try:
         _stage(out, "digests", lambda: run_digests(db, is_weekly_day=is_weekly))
         _stage(out, "pageview_pruned", lambda: _prune_pageviews(db))
+        _stage(out, "attachments_pruned", lambda: _prune_boardroom_attachments(db))
         # Drop thin careerjet snippets that duplicate a full scraped job.
         _stage(out, "dedup_merged", lambda: merge_thin_duplicates(db))
     finally:

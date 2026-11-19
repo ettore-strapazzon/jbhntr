@@ -106,6 +106,13 @@ merge_parked() {
   export PARKED_BRANCHES
 }
 
+# R3-43: drop pulled Founder attachments ($TEAM/attachments/<msg-id>/) older than 30 days. Top-level entries only,
+# never followed out of the dir (find does not follow symlinks; rm -rf on a link removes the link). Missing dir: no-op.
+prune_attachments() {
+  [ -d "$TEAM/attachments" ] || return 0
+  find "$TEAM/attachments" -mindepth 1 -maxdepth 1 -mtime +30 -exec rm -rf -- {} + 2>>"$LOG"
+}
+
 # Prompt = committed ops/team/prompts/<mode>.md + the run's facts (no templating in the files).
 build_prompt() {
   local p
@@ -146,7 +153,7 @@ main() {
   [ -f "$MAIN/.venv/bin/activate" ] && . "$MAIN/.venv/bin/activate"
   sync || log "git sync failed, running on local state"
   PARKED_BRANCHES=""
-  [ "$MODE" = chat ] || merge_parked
+  [ "$MODE" = chat ] || { merge_parked; prune_attachments; }
   export PARKED_BRANCHES
 
   if [ "$MODE" = chat ]; then

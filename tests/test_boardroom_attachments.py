@@ -160,3 +160,47 @@ def test_messages_json_and_page_show_attachment_links(client):
     rows = client.get("/boardroom/messages.json", auth=AUTH).json()
     assert any(a["id"] == aid for m in rows for a in m["attachments"])
     assert f'href="/boardroom/attachment/{aid}"' in client.get("/boardroom", auth=AUTH).text
+
+
+# --- R3-43: retention + expired files -------------------------------------------------------
+
+def test_missing_file_is_410_and_shows_expired(client, tmp_path):
+    send(client, [("gone.png", PNG, "image/png")])
+    aid = pulled(client)[0]["attachments"][0]["id"]
+    (tmp_path / "att" / str(aid)).unlink()                  # redeploy without a volume
+    assert client.get(f"/boardroom/attachment/{aid}", auth=AUTH).status_code == 410
+    [a] = [a for m in client.get("/boardroom/messages.json", auth=AUTH).json()
+           for a in m["attachments"] if a["id"] == aid]
+    assert a["expired"] is True
+    page = client.get("/boardroom", auth=AUTH).text
+    assert f'href="/boardroom/attachment/{aid}"' not in page and "gone.png (expired)" in page
+
+
+def test_undecryptable_file_is_410_not_500(client, tmp_path):
+    send(client, [("k.png", PNG, "image/png")])
+    aid = pulled(client)[0]["attachments"][0]["id"]
+    (tmp_path / "att" / str(aid)).write_bytes(b"not-a-fernet-token")   # e.g. key rotated
+    assert client.get(f"/boardroom/attachment/{aid}", auth=AUTH).status_code == 410
+
+
+def test_file_picker_has_personal_data_hint(client):
+    assert "Don't attach user personal data." in client.get("/boardroom", auth=AUTH).text
+
+
+def test_nightly_prunes_old_attachments_keeps_new(client, tmp_path):
+    import datetime
+
+    from web.app.db import SessionLocal
+    from web.app.models import BoardroomAttachment, utcnow
+    from web.app.services import cron
+    send(client, [("old.png", PNG, "image/png"), ("new.png", PNG, "image/png")])
+    old, new = (a["id"] for a in pulled(client)[0]["attachments"])
+    db = SessionLocal()
+    try:
+        db.get(BoardroomAttachment, old).created_at = utcnow() - datetime.timedelta(days=31)
+        db.commit()
+        assert cron._prune_boardroom_attachments(db) == 1
+        assert db.get(BoardroomAttachment, old) is None and db.get(BoardroomAttachment, new) is not None
+    finally:
+        db.close()
+    assert not (tmp_path / "att" / str(old)).exists() and (tmp_path / "att" / str(new)).is_file()

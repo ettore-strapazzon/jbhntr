@@ -588,3 +588,11 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **GC review:** GO-with-follow-ups. No traversal, XSS/sniffing, auth bypass or header injection found. Follow-ups: R3-42 (pre-auth multipart body cap, pre-existing medium) and R3-43 (30-day retention both sides, picker hint, R-003 line). GC did the GDPR check by hand and did not invoke the legal skills; accepted for Founder-only tooling and noted.
 - **Deploy notes:** without a Railway volume on `/app/data`, server copies vanish on redeploy. The bridge pulls them first, and R3-43 shows "expired". Needs `FILE_ENCRYPTION_KEY`, which is already set for CV uploads. Not browser-tested; the edge body limit for 10 MB is unverified.
 - **Tests:** full suite green once (rc 0). **Requests:** none new. **Spend:** $0. **Next:** R3-42, R3-43.
+
+## 2026-11-19 · cycle 26 (request-body cap + attachment retention)
+- **Recovery:** none ("doing": none). Founder: nothing new. Cycles today: 5/10.
+- **Dispatched:** CTO ×2 in parallel (R3-42, R3-43 code), GC (R3-43 risk-register line).
+- **R3-42 → done.** An ASGI middleware refuses oversized request bodies with 413 before Starlette parses them or `require_admin` runs, so an anonymous client can no longer spool a huge multipart body to temp disk. Caps: 11 MB on `/boardroom/send`, 2 MB everywhere else (the CV upload limit is 1 MB). Chunked bodies are counted while they stream. A test keeps the caps above the route limits.
+- **R3-43 → done.** Boardroom attachments are deleted after 30 days on the server (nightly stage) and on the team VM (runner, cycle/morning). A missing file shows "(expired)" and the route returns 410 instead of a 500. There is a "Don't attach user personal data." hint. GC added the R-003 line (RISK_REGISTER v3.1) and found the 30-day window GDPR-sound. Its conditions: the deletion must reach backups, and agent output that quotes file contents is not covered.
+- **Not verified:** body limits at the edge (Cloudflare/Railway); behaviour in a browser.
+- **Tests:** full suite green once (rc 0). **Requests:** none new. **Spend:** $0. **Next:** Sprint T1 has no todo left. The next run is a planning cycle unless the Founder files work.
