@@ -157,7 +157,7 @@ Answer:
 
 Answer:
 
-### R-015 · Install the in-repo team runner (~15 min, no spend, after R3-34–R3-36 ship) · open
+### R-015 · Install the in-repo team runner (~15 min, no spend, after R3-34–R3-36 ship) · done 2026-11-19
 **What:** the team runner moves into the repo (`ops/team/`) so agents can fix it by commit, and chat gets its own clone so it can answer while a cycle runs. Installing it touches crontab, the `jbhntr-chat` systemd unit and the runtime dir, which agents must not do. Wait until the Boardroom shows R3-34, R3-35 and R3-36 as shipped. **Never touch anything named plainfleet** (its cron lines and `plainfleet-chat.service` stay as they are).
 
 **Steps (on the VM, as `ubuntu`):**
@@ -176,5 +176,7 @@ Answer:
 **Roll back:** put the two crontab paths back to `/home/ubuntu/run_cycle.sh`, revert the service loop, `sudo systemctl restart jbhntr-chat`.
 
 **Reply:** `runner installed` / `stuck at step N: <first error line>`.
+
+Answer (Founder, via Boardroom, 2026-11-19): installed: crontab cycle+morning lines now point to `~/.jbhntr-team/run_cycle.sh`, chat-daemon.sh edited + `jbhntr-chat` restarted, `jbhntr-chat` and `plainfleet-chat` both active; first new-runner cycle started 23:30.
 
 Answer:
