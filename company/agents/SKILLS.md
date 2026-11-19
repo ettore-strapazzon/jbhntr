@@ -8,6 +8,7 @@ Every agent works at the best of its ability by using the most effective skills 
 3. **If a capability needs a connector/MCP that isn't authorised**, don't fake it — file a one-line request for the Founder to authorise it (`REQUESTS.md`) and proceed with what is available.
 4. **End every deliverable with two lines:** `Skills used: …` and `Skills considered but not used: … (why)`. The CEO rejects a deliverable that ignored an obviously-matching skill.
 5. **Found a reusable workflow or a gap no skill covers?** Say so in your report so the CEO can note it; don't silently reinvent it each cycle.
+6. **Every Monday the CEO refreshes the per-role skill map below against the live skill list.**
 
 ## Per-role starting map (a starting point — always re-check the live list)
 | Role | Reach first for |

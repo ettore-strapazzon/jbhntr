@@ -166,7 +166,7 @@ Answer:
 3a. Seed the wrapper's fallback copy: `cp ops/team/run_cycle.sh ~/.jbhntr-team/run_cycle.good.sh`
 3. Install the wrapper by copy + move (never edit in place): `cp ops/team/run_wrapper.sh ~/.jbhntr-team/run_cycle.sh.tmp && chmod +x ~/.jbhntr-team/run_cycle.sh.tmp && mv -f ~/.jbhntr-team/run_cycle.sh.tmp ~/.jbhntr-team/run_cycle.sh`
 4. Chat clone: `git clone "$(git -C ~/jbhntr remote get-url origin)" ~/.jbhntr-team/chat-wt` (uses the VM's existing GitHub key; if it asks for credentials, stop and reply `clone needs key`).
-5. Env file: `nano ~/.jbhntr-team/env` and add only the non-secret lines the R3-36 CYCLE_LOG entry lists (repo path, chat-clone path, attachments dir). Keep `chmod 600 ~/.jbhntr-team/env`. Don't paste values into chat.
+5. Env file: `nano ~/.jbhntr-team/env` — `JBHNTR_REPO`, `JBHNTR_APP_URL` and `JBHNTR_ADMIN_TOKEN` are already there and are all R3-34/R3-35 need; add only the extra non-secret lines the R3-36 CYCLE_LOG entry lists (chat-clone path, attachments dir), if any. The machine needs `python3` (already present). Keep `chmod 600 ~/.jbhntr-team/env`. Don't paste values into chat.
 6. Crontab: `crontab -e`, change **only** the two lines containing `/home/ubuntu/run_cycle.sh` to `/home/ubuntu/.jbhntr-team/run_cycle.sh` (same times, same log).
 7. Chat service: `sudo systemctl edit --full jbhntr-chat` → set the loop to call `~/.jbhntr-team/run_cycle.sh chat` (or point `ExecStart` at `ops/team/chat-daemon.sh` if R3-36 ships one) → `sudo systemctl restart jbhntr-chat`. Do not restart or edit `plainfleet-chat`.
 

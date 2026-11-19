@@ -561,3 +561,13 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **R3-41 → done.** Documents tab (reuses `/boardroom/doc` + `_doc_index`), doc index removed from Pending.
 - **Tests:** full suite once, green (~1225, rc 0).
 - **Requests:** R-015 updated (step 3a). **Spend:** $0. **Blockers:** none; next = R3-35 (bridge.py), R3-37 (prompts as files), then R3-36/R3-38.
+
+## 2026-11-19 · cycle 23 (Boardroom bridge client + prompts as files)
+- **Recovery:** none ("doing": none). Founder: nothing new since msg #302. Cycles today: 2/10.
+- **Dispatched:** CTO ×1 — R3-35 + R3-37 together (both edit `ops/team/run_cycle.sh`; one agent avoids collisions).
+- **R3-35 → done.** `ops/team/bridge.py` (stdlib): `peek`, `pull` → `CHAT_FILE` (0600), `reply` (arg/stdin), `log ROLE TASK STATUS SUMMARY CYCLE [--detail-file]`; token+URL only from `$JBHNTR_TEAM/env` (process env/argv ignored, test); pattern redaction before every send. Runner calls it through its HEAD copy, no curl left; token `unset` from the agent's env. **CEO review caught a live bug:** first real post → HTTP 403 — the jbhntr.app edge blocks the default `Python-urllib` UA (curl passes). Fixed with an explicit UA; fake server now 403s that UA too, so the test catches a regression. Verified live: shipped row posted via bridge.
+- **R3-37 → done.** `ops/team/prompts/{cycle,chat,morning}.md`, read via `git show HEAD:` + runtime-context block; carries the §4 rules (gate/parked merge/`SKIPPED:`/10-day cap/planning cycle, ids incl. conflict branches, chat edit size, answer flow, cycle shape, no outward acts, env-only secrets) and keeps the current prompt's must-haves. SKILLS.md rule 6: Monday skill-map refresh.
+- **Behaviour changes accepted:** `SKIPPED:` runs post nothing and commit nothing (ends the half-hourly idle commits once R-015 installs it); missing prompt/bridge in HEAD → last good copy in `$TEAM/good/`, else exit with a log line.
+- **Known gaps:** `pull` marks messages read on fetch (a crashed chat run loses them, as before); redaction is pattern-based.
+- **Tests:** full suite green, 1234 passed (rc 0), run after the CEO fix.
+- **Requests:** R-015 step 5 clarified (existing env lines suffice). **Spend:** $0. **Next:** R3-36 (chat during cycle) and R3-38 (Live team detail + working-now), both now unblocked.

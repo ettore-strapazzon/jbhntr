@@ -46,6 +46,8 @@ def env(tmp_path, monkeypatch):
     subprocess.run(["git", "clone", "-q", str(origin), str(seed)], check=True, capture_output=True)
     (seed / "a.txt").write_text("1\n2\n3\n")
     (seed / "b.txt").write_text("x\n")
+    shutil.copytree(OPS / "prompts", seed / "ops" / "team" / "prompts")  # the runner reads these + bridge.py from HEAD
+    shutil.copy(OPS / "bridge.py", seed / "ops" / "team" / "bridge.py")
     git(seed, "add", "-A")
     git(seed, "commit", "-qm", "seed")
     git(seed, "push", "-q", "origin", "HEAD:main")
@@ -62,6 +64,7 @@ def env(tmp_path, monkeypatch):
     stub = tmp_path / "claude"
     # Records the env the agent sees; optional STUB_ACTION runs inside the repo (simulates the agent's commits).
     stub.write_text('#!/usr/bin/env bash\necho "PARKED=${PARKED_BRANCHES:-}" > "$JBHNTR_TEAM/agent.env"\n'
+                    'printf %s "$2" > "$JBHNTR_TEAM/prompt.txt"; echo "TOKEN=${JBHNTR_ADMIN_TOKEN:-}" > "$JBHNTR_TEAM/token.env"\n'
                     'eval "${STUB_ACTION:-}"\necho "thinking"\necho "BOARDROOM: all done"\n')
     stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
     monkeypatch.setenv("CLAUDE_BIN", str(stub))
@@ -217,3 +220,62 @@ def test_wrapper_runs_head_copy_then_falls_back(env):
     good.unlink()
     assert run("cycle", script=WRAPPER).returncode == 1  # nothing to run
     assert "no runner available" in (env["team"] / "cycle.log").read_text()
+
+
+# --- R3-35 / R3-37: Boardroom via bridge.py, prompts from the committed tree ---
+
+def test_prompt_files_exist_and_carry_the_rules():
+    for mode in ("cycle", "chat", "morning"):
+        text = (OPS / "prompts" / f"{mode}.md").read_text()
+        assert "BOARDROOM:" in text
+        assert "curl" not in text or "never call the Boardroom with curl" in text
+    cycle = (OPS / "prompts" / "cycle.md").read_text()
+    for rule in ("SKIPPED:", "10 full cycles", "keeping BOTH sides", "planning cycle", "origin/conflict/*",
+                 "bridge.py log", "started", "--detail-file", "python -m pytest -q .", "web/app/static/app.js",
+                 "No outward acts", "env file"):
+        assert rule in cycle, rule
+    chat = (OPS / "prompts" / "chat.md").read_text()
+    for rule in ("LINE-LEVEL", "CYCLE_RUNNING=1", "header status word", "DECISIONS.md", "ONE commit", "origin/conflict/*"):
+        assert rule in chat, rule
+    assert "Monday" in (OPS.parent.parent / "company" / "agents" / "SKILLS.md").read_text()
+
+
+def test_runner_uses_committed_prompt_and_posts_via_bridge(env):
+    from tests.test_team_bridge import TOKEN, FakeBoardroom
+    fake = FakeBoardroom()
+    try:
+        (env["team"] / "env").write_text(f"export JBHNTR_REPO={env['repo']}\nexport JBHNTR_APP_URL={fake.url}\n"
+                                         f"export JBHNTR_ADMIN_TOKEN={TOKEN}\n")
+        (env["repo"] / "ops/team/prompts/cycle.md").write_text("DIRTY working tree prompt\n")  # must be ignored
+        assert run("cycle").returncode == 0
+        prompt = (env["team"] / "prompt.txt").read_text()
+        assert "BOARDROOM:" in prompt and "DIRTY" not in prompt
+        assert f"Working dir: {env['repo']}" in prompt and "PARKED_BRANCHES: none" in prompt
+        assert (env["team"] / "token.env").read_text().strip() == "TOKEN="  # agent never sees the token
+        replies = [r["json"]["body"] for r in fake.requests if r["path"] == "/boardroom/reply"]
+        assert replies == ["all done"]
+
+        # a gate skip posts nothing to the chat
+        git(env["repo"], "checkout", "-q", "--", "ops/team/prompts/cycle.md")
+        assert run("cycle", STUB_ACTION='echo "SKIPPED: nothing unblocked"; exit 0').returncode == 0
+        assert [r for r in fake.requests if r["path"] == "/boardroom/reply"] == [fake.requests[0]]
+        assert "SKIPPED: nothing unblocked" in (env["team"] / "cycle.log").read_text()
+    finally:
+        fake.close()
+
+
+def test_chat_mode_pulls_inbox_into_prompt(env):
+    from tests.test_team_bridge import TOKEN, FakeBoardroom
+    fake = FakeBoardroom(inbox=[{"id": 3, "body": "what shipped?", "created_at": None}])
+    try:
+        (env["team"] / "env").write_text(f"export JBHNTR_REPO={env['repo']}\nexport JBHNTR_APP_URL={fake.url}\n"
+                                         f"export JBHNTR_ADMIN_TOKEN={TOKEN}\n")
+        assert run("chat").returncode == 0
+        prompt = (env["team"] / "prompt.txt").read_text()
+        assert "replying in real time" in prompt and "what shipped?" in prompt
+        assert [r["path"] for r in fake.requests] == ["/boardroom/peek", "/boardroom/pull", "/boardroom/reply"]
+        assert fake.requests[-1]["json"]["body"] == "all done"
+        n = len(fake.requests)
+        assert run("chat").returncode == 0 and len(fake.requests) == n + 1  # empty inbox: peek only, no Claude
+    finally:
+        fake.close()

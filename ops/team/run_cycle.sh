@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # JBHNTR Team runner. Modes: chat (real-time Founder replies) | cycle | morning.
 # Canonical copy (R3-34). The runtime's run_cycle.sh is ops/team/run_wrapper.sh, which runs the COMMITTED version of this file.
+# Boardroom calls go through ops/team/bridge.py (R3-35); agent prompts are ops/team/prompts/<mode>.md (R3-37), both read from HEAD.
 # The runner owns git sync: fetch -> rebase -> else merge -> else park local commits on origin/conflict/<mode>-<sha>.
 # It never force-pushes and never drops a commit.
 # Tests: RUN_CYCLE_LIB=1 sources the functions without running main; JBHNTR_TEAM / CLAUDE_BIN / JBHNTR_BRANCH override paths.
@@ -8,18 +9,29 @@ set -uo pipefail
 MODE="${1:-cycle}"
 TEAM="${JBHNTR_TEAM:-$HOME/.jbhntr-team}"
 set -a; . "$TEAM/env"; set +a
+unset JBHNTR_ADMIN_TOKEN   # only bridge.py needs it, and it reads the env file itself: keep it out of the agent's env
 REPO="${JBHNTR_REPO:-$HOME/jbhntr}"
-APP="${JBHNTR_APP_URL:-https://jbhntr.app}"
 BRANCH="${JBHNTR_BRANCH:-main}"
 CLAUDE="${CLAUDE_BIN:-claude}"
 LOG="$TEAM/cycle.log"
+export CHAT_FILE="${CHAT_FILE:-$TEAM/chat.json}"
 export PATH="$HOME/.local/bin:$PATH"
 
 log() { echo "$(date -Is) [$MODE] $*" >>"$LOG"; }
 ahead() { git rev-list --count "origin/$BRANCH..HEAD" 2>/dev/null || echo 0; }
-# Boardroom call; the token goes through curl's stdin config, never argv (visible in ps).
-bcurl() { printf 'user = "admin:%s"\n' "${JBHNTR_ADMIN_TOKEN:-}" | curl -s -K - "$@"; }
-post_reply() { bcurl "$APP/boardroom/reply" --data-urlencode "body=$1" >/dev/null 2>&1; }
+# A repo file as committed at HEAD (like the wrapper, so a cycle's working-tree edits never change this run);
+# missing from HEAD -> the last good copy kept in $TEAM/good/.
+committed() {
+  local s good="$TEAM/good/${1//\//_}"
+  s="$(git -C "$REPO" show "HEAD:$1" 2>/dev/null)"
+  if [ -n "$s" ]; then
+    mkdir -p "$TEAM/good"; printf '%s\n' "$s" | cmp -s - "$good" || printf '%s\n' "$s" > "$good"
+    printf '%s\n' "$s"
+  else log "HEAD:$1 missing; using last good copy"; cat "$good" 2>/dev/null; fi
+}
+# Boardroom client (token + URL read from $TEAM/env by bridge.py itself; never argv).
+bridge() { python3 <(committed ops/team/bridge.py) "$@"; }
+post_reply() { printf '%s' "$1" | bridge reply >/dev/null 2>>"$LOG"; }
 
 # Reply = everything after the last 'BOARDROOM:' line. Fallback (no marker): chat -> whole output, else last non-blank line.
 boardroom_reply() {
@@ -91,69 +103,15 @@ merge_parked() {
   export PARKED_BRANCHES
 }
 
-prompt_chat() {
-cat <<EOF
-You are the CEO of the JBHNTR Team, replying in real time to the Founder in the Boardroom.
-Working dir: $REPO. Founder message(s) just received (JSON): $INBOX
-
-Answer the Founder directly and concisely, in plain language. Read any company/ or code files
-you need to answer accurately. If the Founder gives an instruction or decision:
- - Small + about company docs (a decision, an answer to an R-### request, a priority change):
-   apply it now — edit the relevant company/state file, commit ONLY company/ files (the runner
-   pushes; never push or force-push yourself), and say you've done it.
- - Needs a full work cycle (building/changing product): append it to company/state/BACKLOG.md
-   (top sprint) or a DECISIONS/REQUESTS entry, commit company/, and say it's queued.
-Never take outward actions (post/email/accounts/OAuth/pay). Never touch product code or the
-three protected UI files. Never commit secrets.
-Output ONLY your reply to the Founder — no preamble.
-EOF
-}
-
-prompt_morning() {
-cat <<EOF
-You are the CEO of the JBHNTR Team. Working dir: $REPO.
-Read company/state/KPIS.md, LEDGER.csv, REQUESTS.md, CYCLE_LOG.md (last 24h),
-and company/updates/_TEMPLATE.md. Write company/updates/$(date +%F).md following the
-8-section template with REAL numbers only (— = not measured). Keep it short. Commit the
-company/ change (the runner pushes; never push yourself). Then output ONE line starting
-exactly 'BOARDROOM: ' summarising the update for the Founder.
-EOF
-}
-
-prompt_cycle() {
-cat <<EOF
-You are the CEO of the JBHNTR Team. Working dir: $REPO.
-(Founder conversation is handled live by the chat responder; any orders are already filed
-in BACKLOG/REQUESTS/DECISIONS — read them.)
-
-0. PARKED BRANCHES: ${PARKED_BRANCHES:-none}. If any are listed, merge each into $BRANCH FIRST
-   (git merge <branch>), resolving conflicts by keeping both sides (both rows/ids; renumber a
-   duplicate id), and commit the merge. The runner deletes them once they are on $BRANCH.
-1. Invoke the task-observer skill (session start), then read company/CHARTER.md,
-   company/agents/SKILLS.md, all of company/state/*, and company/docs/marketing/GTM.md.
-2. RECOVERY: resolve any task left "doing" in CYCLE_LOG.md/BACKLOG.md by a cut-off run.
-3. IDLE CHECK: if no unblocked task in the current (top) sprint of BACKLOG.md and nothing new
-   from the Founder, append a one-line CYCLE_LOG "idle, skipped" and STOP. Never run more than
-   10 full cycles in one calendar day (count today's ## entries in CYCLE_LOG.md).
-4. DISPATCH the 1-2 highest-leverage unblocked tasks per agent from the current top sprint
-   (respect deps/gates). Launch each as a FOREGROUND sub-agent (Agent tool), in parallel,
-   each told: "You are the <ROLE> of the JBHNTR Team. Read company/agents/<role>.md,
-   company/CHARTER.md, company/agents/SKILLS.md. Do BACKLOG <id>: <task + acceptance>. Follow
-   SKILLS.md: check the live skill list, invoke every matching skill, end with 'Skills used: …'.
-   Take NO outward action (post/email/account/OAuth/pay) — draft exact REQUESTS.md steps instead.
-   Return what you shipped, how it meets acceptance, any blocker."
-5. REVIEW each deliverable vs its acceptance criteria; send back if short.
-6. TEST once, after all sub-agents finish (never concurrently):
-   pip install -q -r requirements-dev.txt && python -m pytest -q . Must be green before commit.
-7. RECORD: update BACKLOG statuses, write a CYCLE_LOG entry, update DECISIONS/REQUESTS/KPIS.
-7b. LIVE LOG: \$JBHNTR_ADMIN_TOKEN and \$JBHNTR_APP_URL are set in your environment (use the variables; never print or write the token). The MOMENT you dispatch each sub-agent, run (do not batch, do not wait for the cycle to end): curl -s -u "admin:\$JBHNTR_ADMIN_TOKEN" "\$JBHNTR_APP_URL/boardroom/log" --data-urlencode agent=<CEO|CTO|CMO|CPO|CFO|GC> --data-urlencode "task=<backlog id + short title>" --data-urlencode status=started --data-urlencode cycle=<today's cycle number>. When you finish reviewing that agent, post again with status=shipped (or blocked) and --data-urlencode "summary=<one plain sentence>". Post in real time so the Boardroom Live team feed updates as you work.
-8. COMMIT company/ changes; commit product changes too only if the suite is green. Do NOT push
-   or force-push: the runner syncs and pushes after you finish. Never commit secrets. Do NOT
-   stage web/app/static/app.js, web/app/templates/matches.html, or
-   web/app/templates/partials/track_card.html unless the task is specifically about them.
-9. Output ONE final line starting exactly 'BOARDROOM: ' — a plain-language summary of what
-   this cycle shipped, for the Founder.
-EOF
+# Prompt = committed ops/team/prompts/<mode>.md + the run's facts (no templating in the files).
+build_prompt() {
+  local p
+  p="$(committed "ops/team/prompts/$MODE.md")"
+  [ -n "$p" ] || return 1
+  printf '%s\n\n## Runtime context\n- Working dir: %s\n- Branch: %s\n- Date: %s\n- PARKED_BRANCHES: %s\n- CYCLE_RUNNING: %s\n' \
+    "$p" "$REPO" "$BRANCH" "$(date +%F)" "${PARKED_BRANCHES:-none}" "${CYCLE_RUNNING:-0}"
+  [ "$MODE" = chat ] && printf -- '- CHAT_FILE: %s\n- Founder message(s) (JSON):\n%s\n' "$CHAT_FILE" "$INBOX"
+  return 0
 }
 
 main() {
@@ -162,7 +120,7 @@ main() {
 
   # Chat mode: cheap guard — if no Founder message is waiting, don't even start Claude.
   if [ "$MODE" = chat ]; then
-    N="$(bcurl "$APP/boardroom/peek" 2>/dev/null | grep -o '[0-9]\+' | head -1)"
+    N="$(bridge peek 2>>"$LOG")"
     { [ "${N:-0}" -eq 0 ]; } 2>/dev/null && exit 0
   fi
 
@@ -177,16 +135,18 @@ main() {
   export PARKED_BRANCHES
 
   if [ "$MODE" = chat ]; then
-    INBOX="$(bcurl "$APP/boardroom/pull" 2>/dev/null)"
-    { [ -z "$INBOX" ] || [ "$INBOX" = "[]" ]; } && exit 0
+    N="$(bridge pull 2>>"$LOG")"
+    { [ "${N:-0}" -gt 0 ]; } 2>/dev/null || exit 0
+    INBOX="$(cat "$CHAT_FILE")"
   fi
-  PROMPT="$("prompt_$MODE")"
+  PROMPT="$(build_prompt)" || { log "no prompt for $MODE (HEAD and last good copy missing)"; exit 1; }
 
   log start
   OUT="$(timeout "$T" "$CLAUDE" -p "$PROMPT" --permission-mode bypassPermissions 2>>"$LOG")"
   RC=$?; log "claude exit $RC"
   printf '%s\n' "$OUT" >>"$LOG"
   REPLY="$(boardroom_reply "$OUT")"
+  printf '%s\n' "$OUT" | grep -q '^SKIPPED:' && REPLY=""   # gate skip: log only, no chat message
   [ -n "$REPLY" ] && post_reply "$REPLY"
 
   [ -n "$(git status --porcelain)" ] && log "uncommitted changes left"
