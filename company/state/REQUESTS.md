@@ -180,3 +180,20 @@ Answer:
 Answer (Founder, via Boardroom, 2026-11-19): installed: crontab cycle+morning lines now point to `~/.jbhntr-team/run_cycle.sh`, chat-daemon.sh edited + `jbhntr-chat` restarted, `jbhntr-chat` and `plainfleet-chat` both active; first new-runner cycle started 23:30.
 
 Answer:
+
+---
+
+### R-016 · Durable private storage for Boardroom attachments (~5 min, small Railway volume fee) · open 2026-11-19
+**Why:** chat attachments (R3-40) are saved encrypted under `data/boardroom_attachments/` on the web container, which Railway wipes on every deploy, so links die. A Railway **volume** is our private bucket: not public, reachable only through the admin-only download route, no code change and **no new secret** (files stay encrypted with the app's existing key). R3-50 keeps attachments switched off until this is done.
+
+**Steps (Railway dashboard):**
+1. Open the JBHNTR project → the **web** service (start command `uvicorn web.app.main:app …`), not the cron service.
+2. Press `⌘K` / `Ctrl+K` → **New Volume** → attach it to the web service.
+3. Mount path: `/app/data/boardroom_attachments` (exactly). Leave the default size.
+4. Let Railway redeploy. Note: a service with a volume runs as one replica and has a few seconds of downtime per deploy.
+5. Verify: send a small PNG in the Boardroom, click its link (downloads), then **Deployments → Redeploy** the web service and click the link again — it must still download.
+
+**Don't:** make anything public, add a storage key or token to any file, or paste values into chat.
+
+**Reply:** `volume mounted` / `stuck at step N: <first error line>`.
+
