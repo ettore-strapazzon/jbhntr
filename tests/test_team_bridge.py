@@ -183,3 +183,15 @@ def test_pull_downloads_attachments_as_untrusted_files(tmp_path):
         assert all(q["auth"] and q["path"].startswith("/boardroom/") for q in fake.requests)
     finally:
         fake.close()
+
+
+def test_detail_is_redacted_then_clipped_to_8000(team, fake):
+    """R3-47: redaction runs on the whole file before the 8000-char clip, so a token straddling the cut never
+    leaks its first half (clip-first would leave a fragment too short for the 32+ char rule)."""
+    tok = "Zq7" + "aB3xY9kL2mN8pQ4r" * 2 + "Wv5T1"
+    detail = team / "d.md"
+    detail.write_text("x " * 3990 + tok + " tail" * 500)
+    r = bridge(team, "log", "CTO", "R3-47", "shipped", "s", "26", "--detail-file", str(detail))
+    assert r.returncode == 0, r.stderr
+    sent = fake.requests[-1]["json"]["detail"]
+    assert sent == "x " * 3990 + "[REDACTED]" + " tail tail" and len(sent) == 8000

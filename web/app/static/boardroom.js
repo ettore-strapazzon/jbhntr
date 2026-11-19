@@ -117,7 +117,7 @@
       var d = document.createElement("details");
       d.className = "tl-detail";
       var sm = document.createElement("summary");
-      sm.textContent = "Detail";
+      sm.textContent = "Details";
       d.appendChild(sm);
       var body = document.createElement("div");
       body.innerHTML = e.detail_html; // server-sanitised by _safe_html (no raw HTML, no links)
@@ -153,6 +153,24 @@
   var typing = document.getElementById("ceo-typing");
   var emptyMsg = document.getElementById("thread-empty");
   var form = document.getElementById("chat-form");
+  var toLatest = document.getElementById("to-latest");
+  var first = true;
+
+  // Pure: is the box within `slack` px (default 80) of its end? (R3-44; tested via node)
+  function nearBottom(box, slack) { return box.scrollHeight - box.scrollTop - box.clientHeight <= (slack == null ? 80 : slack); }
+  function toBottom() { thread.scrollTop = thread.scrollHeight; if (toLatest) toLatest.hidden = true; }
+  toBottom();
+  thread.addEventListener("scroll", function () { if (toLatest && nearBottom(thread)) toLatest.hidden = true; });
+  if (toLatest) toLatest.addEventListener("click", toBottom);
+  // A hidden panel has no height, so scroll again once Main is shown.
+  if (tabsNav) tabsNav.addEventListener("click", function (e) {
+    var btn = e.target.closest(".tab");
+    if (btn && btn.getAttribute("data-tab") === "main") toBottom();
+  });
+  // load doesn't bubble: capture it so any image in the thread (R3-50 thumbnails) re-sticks.
+  thread.addEventListener("load", function (e) {
+    if (e.target.tagName === "IMG" && nearBottom(thread, 200)) toBottom();
+  }, true);
 
   function addMsg(m) {
     var wrap = document.createElement("div");
@@ -193,11 +211,14 @@
     fetch("/boardroom/messages.json?after=" + last, { headers: { Accept: "application/json" } })
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (rows) {
+        var stick = first || nearBottom(thread);
+        first = false;
         rows.forEach(function (m) {
           if (m.id > last) last = m.id;
           addMsg(m);
           if (m.role === "ceo" && typing) typing.hidden = true;
         });
+        if (stick) toBottom(); else if (rows.length && toLatest) toLatest.hidden = false;
       })
       .catch(function () {});
   }
@@ -227,6 +248,7 @@
           ta.value = "";
           if (fileInput) fileInput.value = "";
           if (typing) typing.hidden = false;
+          toBottom();
           poll();
         })
         .catch(function () { form.submit(); });

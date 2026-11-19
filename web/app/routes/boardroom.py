@@ -14,6 +14,7 @@ admin_token => 404 (feature off), exactly like the operator dashboard.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from pathlib import Path
 
@@ -132,7 +133,13 @@ def _html(text: str) -> str:
     return md.markdown(text or "", extensions=["tables", "fenced_code"])
 
 
-DETAIL_CAP = 20_000  # chars; a work-notes blob, not a document store
+# R3-47: ONE redaction rule set, owned by the stdlib-only ops/team/bridge.py (run by the VM as a piped script,
+# so it can't import a sibling module) — load it by path rather than copy its patterns. The bridge's own-token
+# rule stays bridge-side (the server has no runtime token); the pattern rules apply here too.
+_spec = importlib.util.spec_from_file_location("jbhntr_team_bridge", ROOT / "ops" / "team" / "bridge.py")
+_bridge = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_bridge)
+DETAIL_CAP = _bridge.DETAIL_CAP  # 8000 chars; a work-notes blob, not a document store
 
 
 def _safe_html(text: str) -> str:
@@ -317,7 +324,7 @@ async def boardroom_log(request: Request, _: bool = Depends(require_admin),
                      status=(str(data.get("status", "")).strip())[:24],
                      summary=str(data.get("summary", "")).strip(),
                      cycle=(str(data.get("cycle", "")).strip())[:32],
-                     detail=str(data.get("detail", "")).strip()[:DETAIL_CAP])
+                     detail=_bridge.redact(str(data.get("detail", "")).strip())[:DETAIL_CAP])  # redact, then clip
     db.add(e)
     db.commit()
     return JSONResponse({"ok": True, "id": e.id})

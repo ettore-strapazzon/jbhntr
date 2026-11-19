@@ -596,3 +596,13 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **R3-43 → done.** Boardroom attachments are deleted after 30 days on the server (nightly stage) and on the team VM (runner, cycle/morning). A missing file shows "(expired)" and the route returns 410 instead of a 500. There is a "Don't attach user personal data." hint. GC added the R-003 line (RISK_REGISTER v3.1) and found the 30-day window GDPR-sound. Its conditions: the deletion must reach backups, and agent output that quotes file contents is not covered.
 - **Not verified:** body limits at the edge (Cloudflare/Railway); behaviour in a browser.
 - **Tests:** full suite green once (rc 0). **Requests:** none new. **Spend:** $0. **Next:** Sprint T1 has no todo left. The next run is a planning cycle unless the Founder files work.
+
+## 2026-11-20 · cycle 27 (Boardroom §5: server-side redaction + chat opens at latest)
+- **Gate:** merged parked `origin/conflict/cycle-4d71615` (cycle 26: R3-42/R3-43) — one DECISIONS conflict, both rows kept. Cap 1/10 today.
+- **Recovery:** none (no task left doing).
+- **Dispatched (foreground, parallel):** CTO ×2 — R3-47 (detail redact + 8000 clip) · R3-44 (chat opens at latest message). Other roles: no unblocked task in T1.
+- **Results (both accepted):**
+  - CTO → **R3-47**: `/boardroom/log` stores `bridge.redact(detail)[:8000]`, rules loaded from `ops/team/bridge.py` by path (no copy drift; bridge must stay a single piped script); bridge redacts then clips the same way; "Details" label; 3 tests.
+  - CTO → **R3-44**: chat thread scrolls to bottom on load / Main tab / send; poll sticks only when ≤80 px from end, else "↓ latest" button; image-load re-scroll hook for R3-50; node-run predicate test + page check.
+- **Review notes:** full suite green once after both (exit 0). Watch: the web app now imports `ops/team/bridge.py` at boot — fails loud if a deploy ever strips `ops/`. Scroll behaviour not browser-checked.
+- **Requests opened:** none. **Blockers:** R3-50 still waits R-016 (durable storage). **Spend:** none.

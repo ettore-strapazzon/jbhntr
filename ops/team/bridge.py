@@ -24,6 +24,7 @@ from pathlib import Path
 TEAM = Path(os.environ.get("JBHNTR_TEAM") or Path.home() / ".jbhntr-team")
 DEFAULT_URL = "https://jbhntr.app"
 MAX_ATTACH = 10 * 1024 * 1024  # the server's per-message cap (R3-40)
+DETAIL_CAP = 8000  # Live team detail chars (R3-47); the web side imports this and redact() from here
 
 # key=value / key: value where the key names a secret; vendor token shapes; Basic/Bearer creds; URL userinfo;
 # long mixed-case+digit blobs (token_urlsafe-like). Lower-case hex (git shas) is left alone.
@@ -158,7 +159,7 @@ def main(argv=None):
         row = {"agent": a.role, "task": c.clean(a.task), "status": a.status,
                "summary": c.clean(a.summary), "cycle": a.cycle}
         if a.detail_file:  # rendered as safe Markdown in Live team (R3-38)
-            row["detail"] = c.clean(Path(a.detail_file).read_text(encoding="utf-8"))
+            row["detail"] = c.clean(Path(a.detail_file).read_text(encoding="utf-8"))[:DETAIL_CAP]  # redact, then clip
         c.call("POST", "/boardroom/log", row)
 
 

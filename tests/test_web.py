@@ -3190,11 +3190,11 @@ def test_boardroom_team_detail_and_working_badge(client, monkeypatch):
     assert "<strong>bold</strong>" in d and "<code>a&lt;b</code>" in d
     assert "<script" not in d and "<img" not in d and "href" not in d
     assert "&lt;script&gt;" in d
-    assert rows[1]["detail_html"].count("y") == DETAIL_CAP  # capped
+    assert DETAIL_CAP == 8000 and rows[1]["detail_html"].count("y") == DETAIL_CAP  # capped (R3-47)
     assert rows[2]["detail_html"] == ""
 
     page = client.get("/boardroom", auth=auth).text
-    assert '<details class="tl-detail"><summary>Detail</summary>' in page
+    assert '<details class="tl-detail"><summary>Details</summary>' in page
     assert "<script>alert(1)" not in page and "onerror=alert(2)>" not in page
 
     def working(text, key):
@@ -3207,6 +3207,52 @@ def test_boardroom_team_detail_and_working_badge(client, monkeypatch):
         "agent": "CTO", "task": "R3-38 Boardroom detail", "status": "shipped"})
     page = client.get("/boardroom", auth=auth).text
     assert not working(page, "R3-38") and working(page, "budget pass")
+
+
+def _logged_detail(client, auth, detail):
+    from web.app.db import SessionLocal
+    from web.app.models import TeamLogEntry
+    rid = client.post("/boardroom/log", auth=auth, json={"agent": "CTO", "task": "R3-47", "detail": detail}).json()["id"]
+    db = SessionLocal()
+    try:
+        return db.get(TeamLogEntry, rid).detail
+    finally:
+        db.close()
+
+
+def test_boardroom_log_detail_is_redacted_then_clipped(client, monkeypatch):
+    """R3-47: the server redacts the whole detail BEFORE clipping to 8000, so a secret
+    straddling the cut is replaced whole instead of leaking its first half."""
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    tok = "Zq7" + "aB3xY9kL2mN8pQ4r" * 2 + "Wv5T1"  # 40 chars, mixed case + digits
+    detail = "x " * 3990 + tok + " tail" * 500       # token spans chars 7980..8020
+    stored = _logged_detail(client, ("op", "s3cret"), detail)
+    assert len(stored) == 8000 and "[REDACTED]" in stored
+    assert tok[:12] not in stored and tok[-12:] not in stored
+    assert stored == "x " * 3990 + "[REDACTED]" + " tail tail"
+    # clip-first would have kept 20 chars of the token (too short for the 32+ rule) — prove that is the risk
+    assert tok[:20] in detail[:8000]
+
+
+def test_boardroom_log_redact_same_output_as_bridge(client, monkeypatch):
+    """R3-47: one shared redact() — the same fixtures through /boardroom/log and
+    ops/team/bridge.py give byte-identical output (the bridge's own-token rule aside)."""
+    import importlib.util
+    from web.app.config import ROOT, config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    spec = importlib.util.spec_from_file_location("bridge_ref", ROOT / "ops" / "team" / "bridge.py")
+    b = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(b)
+    fixtures = [
+        "api_key=abc123 ok", "password: hunter2, done", "https://user:pw123@host/x",
+        "Authorization: Bearer abcDEF123456789xyz", "Basic configuration is unchanged.",
+        "AKIAABCDEFGHIJKLMNOP and ghp_abcdefghijklmnopqrstuvwxyz0123 and sk-ant-abcdefghijklmnopqrstuv",
+        "x " + "Ab1" * 12, "sha 0b59e85c1d2e3f4a5b6c7d8e9f00112233445566 in R3-35, 1225 tests green",
+        "-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----",
+    ]
+    for f in fixtures:
+        assert _logged_detail(client, ("op", "s3cret"), f) == b.redact(f), f
 
 
 def test_boardroom_doc_viewer_gated_and_path_safe(client, monkeypatch):

@@ -13,7 +13,12 @@
   .board details > summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
   .board .req { border-top: 1px solid var(--line, #D8DFE5); padding-top: 4px; margin-top: 8px; }
   .board .req:first-child { border-top: 0; margin-top: 0; }
-  .board .thread { margin: 0 0 14px; }
+  .board .thread-wrap { position: relative; margin: 0 0 14px; }
+  .board .thread { max-height: 55vh; overflow-y: auto; }
+  .board .to-latest { position: absolute; right: 12px; bottom: 12px; font: inherit; font-size: 13px;
+                      font-weight: 600; padding: 4px 12px; cursor: pointer; border: 0; border-radius: 999px;
+                      background: var(--accent, #2f6df6); color: #fff; }
+  .board .to-latest[hidden] { display: none; }
   .board .msg { padding: 8px 0; border-top: 1px solid var(--line, #D8DFE5); }
   .board .msg:first-child { border-top: 0; }
   .board .msg-meta { font-size: 13px; margin-bottom: 2px; }
@@ -65,6 +70,7 @@
   <div class="card">
     <h2>Conversation</h2>
     <p class="small muted">Chat with the team in real time — replies land in a few seconds, no refresh needed.</p>
+    <div class="thread-wrap">
     <div class="thread" id="thread" data-last="{{ last_id }}">
       {% for m in messages %}
       <div class="msg msg-{{ m.role }}">
@@ -73,6 +79,8 @@
         {% for a in m.attachments %}<div class="small">{% if a.expired %}<span class="muted">{{ a.name }} (expired)</span>{% else %}<a href="/boardroom/attachment/{{ a.id }}">{{ a.name }}</a>{% endif %}</div>{% endfor %}
       </div>
       {% endfor %}
+    </div>
+    <button type="button" class="to-latest" id="to-latest" hidden>↓ latest</button>
     </div>
     <p class="muted" id="thread-empty"{% if messages %} hidden{% endif %}>No messages yet — send the first one below.</p>
     <p class="muted" id="ceo-typing" hidden>CEO is replying…</p>
@@ -146,7 +154,7 @@
         {% if e.task %}<div><b>{{ e.task }}</b></div>{% endif %}
         {% if e.summary %}<div class="msg-body">{{ e.summary }}</div>{% endif %}
         {# detail_html is built by _safe_html (raw HTML + links disabled) #}
-        {% if e.detail_html %}<details class="tl-detail"><summary>Detail</summary>{{ e.detail_html | safe }}</details>{% endif %}
+        {% if e.detail_html %}<details class="tl-detail"><summary>Details</summary>{{ e.detail_html | safe }}</details>{% endif %}
       </div>
       {% endfor %}
     </div>
