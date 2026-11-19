@@ -98,15 +98,21 @@ def _current_sprint(backlog: str) -> tuple[str, str]:
     return name, ("\n".join(kept) if len(kept) > 2 else "")
 
 
+def _request_blocks(requests_md: str) -> list[str]:
+    return [b for b in re.split(r"(?m)^(?=### R-)", requests_md) if b.startswith("### R-")]
+
+
+def _header_status(block: str) -> str:
+    """Status word of `### R-NNN · title · <status> <date>` (last `·` field, 1st word)."""
+    last = block.split("\n", 1)[0].split("·")[-1].split()
+    return last[0].lower() if last else ""
+
+
 def _open_requests(requests_md: str) -> list[str]:
-    """Each `### R-###` block whose Answer is empty / not ANSWERED."""
+    """Each `### R-###` block whose header status word is `open` (R3-39: header only)."""
     out = []
-    for block in re.split(r"(?m)^(?=### R-)", requests_md):
-        if not block.startswith("### R-"):
-            continue
-        m = re.search(r"(?mi)^Answer:\s*(.*)$", block)
-        answer = m.group(1).strip() if m else ""
-        if "ANSWERED" not in answer.upper():
+    for block in _request_blocks(requests_md):
+        if _header_status(block) == "open":
             # strip the trailing `---` separator that precedes the next request
             out.append(re.sub(r"\n+---\s*$", "", block.strip()))
     return out
@@ -128,7 +134,7 @@ def _all_updates() -> list[dict]:
 
 
 def _doc_index() -> list[dict]:
-    """Linkable index of company/docs, grouped by top folder — for the Pending tab."""
+    """Linkable index of company/docs, grouped by top folder — for the Documents tab."""
     out = []
     for p in sorted(DOCS.rglob("*")):
         if not p.is_file() or p.suffix.lower() not in (".md", ".pdf", ".csv"):

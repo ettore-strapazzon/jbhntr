@@ -3,7 +3,7 @@
 Owner: CEO. Each request is self-contained (every step inline). `open | answered | done`. Oldest first.
 
 ---
-### R-001 · Launch the company + confirm the runner · open
+### R-001 · Launch the company + confirm the runner · answered 2026-10-26
 **What:** start the JBHNTR Team cycles. Same model as copytrade-co/Plainfleet.
 
 **Note as you go** (values to confirm in your reply): (a) runner choice; (b) whether the CEO may auto-push tested, green product changes to `main` or must file each push; (c) the push-notification channel for the 08:00 update.
@@ -19,7 +19,7 @@ Owner: CEO. Each request is self-contained (every step inline). `open | answered
 Answer: **(2026-10-26) ANSWERED.** Runner = same as copytrade-co. **auto-push: YES** (CEO pushes tested-green product changes; still reviews the diff + runs the suite first). Notification channel: default (email mt.helikon@gmail.com). Offered: CEO to wire a local Windows scheduled task for the 30-min + 08:00 cadence — Founder to confirm local vs manual-for-now.
 
 ---
-### R-002 · Public open-core licence · open
+### R-002 · Public open-core licence · answered 2026-10-26
 **What:** the public `jbhntr/jbhntr` shell needs a source-available licence.
 **Recommendation (cycle 1 — GC and CTO concur): BSL 1.1 → Apache-2.0 at a +3yr Change Date.** Both licences block a competitor re-hosting us and the engine stays private regardless, so this only governs the shell; BSL wins on open-core goodwill (precise "no competing hosted service" carve-out), a credible "not fake open source" signal (auto-conversion, which Elastic 2.0 lacks), and strong precedent (MariaDB/Sentry/HashiCorp). Everything already public under MIT stays MIT. Licensor must be the incorporated entity (ties to R-010). Detail: `company/docs/legal/LICENCE_RECOMMENDATION.md`.
 **Reply:** `licence: BSL` to confirm, or `licence: Elastic` to override.
@@ -41,7 +41,7 @@ Answer:
 Answer:
 
 ---
-### R-005 · Incorporation vehicle + timing · open
+### R-005 · Incorporation vehicle + timing · answered 2026-10-26
 **What:** GDPR needs a named controller (your name is fine during private beta). Incorporation is a liability + payments decision, recommended before Phase 2 (paid credits) and ideally before the data-drop/Show-HN spikes (weeks 7–8). GC recommends a one-hour session with an Italian lawyer before public launch (see the GTM §12 / the legal setup doc).
 **Reply:** when to calendar it + whether you want GC to prepare a vehicle-options memo first.
 
@@ -64,7 +64,7 @@ Answer: **(2026-10-26) Founder will confirm later.** Budget figures stay estimat
 Answer: **(2026-10-26) Deferred to the public cut-over.** Not needed for repo-split steps 1–3 (in-repo). CEO will re-surface this when steps 4–7 (public snapshot) are ready. Still open.
 
 ---
-### R-008 · Approve repo-split steps 1–3 (next cycle) · open
+### R-008 · Approve repo-split steps 1–3 (next cycle) · answered 2026-10-26
 **What:** let the CTO execute the **in-repo, reversible** part next cycle: build the `jbhntr_engine` façade (funnel the 78 import sites), add the demo engine + boot guard, carve the private package. Tests stay green; nothing goes public. Steps 4–7 (public snapshot + cut-over) come back for a **separate** go.
 **Reply:** `repo-split 1-3: go` or hold.
 
@@ -163,6 +163,7 @@ Answer:
 **Steps (on the VM, as `ubuntu`):**
 1. `cd ~/jbhntr && git pull --ff-only`
 2. Back up the old runner: `cp ~/run_cycle.sh ~/.jbhntr-team/run_cycle.old.sh`
+3a. Seed the wrapper's fallback copy: `cp ops/team/run_cycle.sh ~/.jbhntr-team/run_cycle.good.sh`
 3. Install the wrapper by copy + move (never edit in place): `cp ops/team/run_wrapper.sh ~/.jbhntr-team/run_cycle.sh.tmp && chmod +x ~/.jbhntr-team/run_cycle.sh.tmp && mv -f ~/.jbhntr-team/run_cycle.sh.tmp ~/.jbhntr-team/run_cycle.sh`
 4. Chat clone: `git clone "$(git -C ~/jbhntr remote get-url origin)" ~/.jbhntr-team/chat-wt` (uses the VM's existing GitHub key; if it asks for credentials, stop and reply `clone needs key`).
 5. Env file: `nano ~/.jbhntr-team/env` and add only the non-secret lines the R3-36 CYCLE_LOG entry lists (repo path, chat-clone path, attachments dir). Keep `chmod 600 ~/.jbhntr-team/env`. Don't paste values into chat.

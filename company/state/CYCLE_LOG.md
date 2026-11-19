@@ -552,3 +552,12 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - 2026-11-19 20:00 · idle, skipped — no unblocked R3 task (R3-27 gated on PMF; R3-03 go-live waits on R-013; growth waits on R-009/R-013/R-014), no new Founder orders. Cycles today: 0/10.
 - 2026-11-19 20:30 · idle, skipped — no unblocked R3 task (R3-27 gated on PMF; R3-03 go-live waits on R-013; growth waits on R-009/R-013/R-014), no new Founder orders. Cycles today: 0/10.
 - 2026-11-19 21:00 · idle, skipped — no unblocked R3 task (R3-27 gated on PMF; R3-03 go-live waits on R-013; growth waits on R-009/R-013/R-014), no new Founder orders. Cycles today: 0/10.
+
+## 2026-11-19 · cycle 22 (team runner in the repo + Boardroom header check + Documents tab)
+- **Recovery:** none ("doing": none). Founder order: Sprint T1 (msg #302, filed c-chat). Cycles today: 1/10.
+- **Dispatched:** CTO ×2 in parallel — R3-34 (runner + conflict parking); R3-39 + R3-41 (Boardroom).
+- **R3-34 → done.** `ops/team/run_cycle.sh` ports `~/run_cycle.sh` (same env file/paths/modes, sourceable via `RUN_CYCLE_LIB=1`, overrides `JBHNTR_TEAM/REPO/BRANCH`, `CLAUDE_BIN`); sync = fetch → rebase → merge → `park()` to `origin/conflict/<mode>-<sha>` (no force-push; origin in tests denies non-FF); `merge_parked` before cycle/morning, leftovers in `PARKED_BRANCHES`; timeouts 3h/1h/20m; reply = tail after last `BOARDROOM:`. `run_wrapper.sh` runs `HEAD:` copy from memory, falls back to `run_cycle.good.sh`. Security fix: admin token no longer pasted into the prompt/argv (named var; curl reads it from stdin). 8 tests. Gap: chat mode not driven by a test (R3-36 owns chat). R-015 gains step 3a (seed `run_cycle.good.sh`); R3-34 needs no new env lines.
+- **R3-39 → done.** Pending tab reads only the header status word; new suite test fails on an answered-but-`open` header. It caught R-001/002/005/008 (answered 2026-10-26) → CEO set headers to `answered 2026-10-26`.
+- **R3-41 → done.** Documents tab (reuses `/boardroom/doc` + `_doc_index`), doc index removed from Pending.
+- **Tests:** full suite once, green (~1225, rc 0).
+- **Requests:** R-015 updated (step 3a). **Spend:** $0. **Blockers:** none; next = R3-35 (bridge.py), R3-37 (prompts as files), then R3-36/R3-38.

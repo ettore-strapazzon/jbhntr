@@ -51,6 +51,7 @@
 <nav class="tabs" id="tabs">
   <button type="button" class="tab" data-tab="main">Main</button>
   <button type="button" class="tab" data-tab="pending">Pending from me{% if requests_html %} ({{ requests_html|length }}){% endif %}</button>
+  <button type="button" class="tab" data-tab="docs">Documents</button>
   <button type="button" class="tab" data-tab="updates">Morning updates</button>
   <button type="button" class="tab" data-tab="team">Live team</button>
   <button type="button" class="tab" data-tab="kpis">KPIs</button>
@@ -90,6 +91,9 @@
       {% for r in requests_html %}<div class="req">{{ r | safe }}</div>{% endfor %}
     {% else %}<p class="muted">Nothing is waiting on you right now.</p>{% endif %}
   </div>
+</section>
+
+<section class="panel" data-panel="docs">
   <div class="card">
     <h2>Documents</h2>
     <p class="small muted">Open any company document here.</p>

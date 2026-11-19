@@ -5,6 +5,7 @@ config is read at import time.
 """
 
 import os
+import re
 import tempfile
 
 import pytest
@@ -3181,6 +3182,44 @@ def test_boardroom_doc_viewer_gated_and_path_safe(client, monkeypatch):
     assert client.get("/boardroom/doc?path=../../web/app/main.py",
                       auth=auth).status_code == 404
     assert client.get("/boardroom/doc?path=nope.md", auth=auth).status_code == 404
+
+
+def test_boardroom_pending_reads_only_header_status():
+    """R3-39: a request is pending iff its header status word is `open`; the
+    Answer line is ignored by the parser."""
+    from web.app.routes.boardroom import _open_requests
+    md_ = ("# Requests\n\n---\n"
+           "### R-001 · Alpha · open\nAnswer: **ANSWERED.** but header still open\n\n---\n"
+           "### R-002 · Beta · answered 2026-11-19\nAnswer:\n\n---\n"
+           "### R-003 · Gamma · done 2026-11-18\nAnswer: done\n\n---\n"
+           "### R-004 · Delta · open (rewritten 2026-11-13)\nAnswer:\n")
+    out = _open_requests(md_)
+    assert [b.split(" · ")[0] for b in out] == ["### R-001", "### R-004"]
+    assert not any(b.rstrip().endswith("---") for b in out)
+
+
+def test_requests_md_answered_entries_not_left_open():
+    """R3-39: the Pending tab trusts the header, so an entry the Founder answered
+    (an `Answer (Founder…` line, or the legacy `Answer: … ANSWERED`) must not keep
+    `open` as its header status word."""
+    from web.app.routes.boardroom import STATE, _header_status, _request_blocks
+    answered = re.compile(r"(?m)^Answer\s*\(Founder|^Answer:.*\bANSWERED\b")
+    stale = [b.split("\n", 1)[0] for b in _request_blocks(
+                 (STATE / "REQUESTS.md").read_text(encoding="utf-8"))
+             if answered.search(b) and _header_status(b) == "open"]
+    assert not stale, "answered but header still `open`: " + "; ".join(stale)
+
+
+def test_boardroom_documents_tab(client, monkeypatch):
+    """R3-41: the doc index has its own Documents tab and left the Pending tab."""
+    from web.app.config import config
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    page = client.get("/boardroom", auth=("op", "s3cret")).text
+    assert 'data-tab="docs"' in page
+    docs = page.split('data-panel="docs"', 1)[1].split("</section>", 1)[0]
+    pending = page.split('data-panel="pending"', 1)[1].split("</section>", 1)[0]
+    assert "/boardroom/doc?path=README.md" in docs
+    assert "/boardroom/doc?path=" not in pending
 
 
 def test_admin_shows_waitlist_and_csv(client, monkeypatch):
