@@ -156,3 +156,23 @@ Answer:
 **Reply:** `cron debug=false confirmed` / `was missing, set` / `run failed: <first error line>`.
 
 Answer:
+
+### R-015 · Install the in-repo team runner (~15 min, no spend, after R3-34–R3-36 ship) · open
+**What:** the team runner moves into the repo (`ops/team/`) so agents can fix it by commit, and chat gets its own clone so it can answer while a cycle runs. Installing it touches crontab, the `jbhntr-chat` systemd unit and the runtime dir, which agents must not do. Wait until the Boardroom shows R3-34, R3-35 and R3-36 as shipped. **Never touch anything named plainfleet** (its cron lines and `plainfleet-chat.service` stay as they are).
+
+**Steps (on the VM, as `ubuntu`):**
+1. `cd ~/jbhntr && git pull --ff-only`
+2. Back up the old runner: `cp ~/run_cycle.sh ~/.jbhntr-team/run_cycle.old.sh`
+3. Install the wrapper by copy + move (never edit in place): `cp ops/team/run_wrapper.sh ~/.jbhntr-team/run_cycle.sh.tmp && chmod +x ~/.jbhntr-team/run_cycle.sh.tmp && mv -f ~/.jbhntr-team/run_cycle.sh.tmp ~/.jbhntr-team/run_cycle.sh`
+4. Chat clone: `git clone "$(git -C ~/jbhntr remote get-url origin)" ~/.jbhntr-team/chat-wt` (uses the VM's existing GitHub key; if it asks for credentials, stop and reply `clone needs key`).
+5. Env file: `nano ~/.jbhntr-team/env` and add only the non-secret lines the R3-36 CYCLE_LOG entry lists (repo path, chat-clone path, attachments dir). Keep `chmod 600 ~/.jbhntr-team/env`. Don't paste values into chat.
+6. Crontab: `crontab -e`, change **only** the two lines containing `/home/ubuntu/run_cycle.sh` to `/home/ubuntu/.jbhntr-team/run_cycle.sh` (same times, same log).
+7. Chat service: `sudo systemctl edit --full jbhntr-chat` → set the loop to call `~/.jbhntr-team/run_cycle.sh chat` (or point `ExecStart` at `ops/team/chat-daemon.sh` if R3-36 ships one) → `sudo systemctl restart jbhntr-chat`. Do not restart or edit `plainfleet-chat`.
+
+**Verify:** send "ping" in the Boardroom → CEO reply within ~1 min; `tail ~/.jbhntr-team/cycle.log` shows the next `[cycle]` run with no `[wrapper]` warning; `systemctl status plainfleet-chat` still active.
+
+**Roll back:** put the two crontab paths back to `/home/ubuntu/run_cycle.sh`, revert the service loop, `sudo systemctl restart jbhntr-chat`.
+
+**Reply:** `runner installed` / `stuck at step N: <first error line>`.
+
+Answer:
