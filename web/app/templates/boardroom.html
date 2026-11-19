@@ -70,7 +70,7 @@
       <div class="msg msg-{{ m.role }}">
         <div class="msg-meta"><b>{{ m.role_label }}</b> <span class="muted">· {{ m.ts }}</span></div>
         <div class="msg-body">{{ m.body }}</div>
-        {% for a in m.attachments %}<div class="small"><a href="/boardroom/attachment/{{ a.id }}">{{ a.name }}</a></div>{% endfor %}
+        {% for a in m.attachments %}<div class="small">{% if a.expired %}<span class="muted">{{ a.name }} (expired)</span>{% else %}<a href="/boardroom/attachment/{{ a.id }}">{{ a.name }}</a>{% endif %}</div>{% endfor %}
       </div>
       {% endfor %}
     </div>
@@ -81,6 +81,7 @@
       <textarea name="body" rows="3" placeholder="Message the company…"></textarea>
       <label class="small muted">Attach up to 5 files, 10 MB total (PNG, JPEG, GIF, WebP, PDF, TXT, MD, CSV)
         <input type="file" name="files" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.csv"></label>
+      <p class="small muted">Don't attach user personal data.</p>
       <p class="small" id="chat-error" role="alert" hidden></p>
       <button type="submit">Send</button>
     </form>

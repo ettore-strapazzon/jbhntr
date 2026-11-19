@@ -102,13 +102,15 @@ async def _read_attachments(files: list[UploadFile]) -> list[tuple[str, str, byt
 
 
 def _att_meta(db: DbSession, ids: list[int]) -> dict[int, list[dict]]:
-    """message id -> [{id, name, type, size}] for the given messages."""
+    """message id -> [{id, name, type, size, expired}] for the given messages. expired = the row
+    outlived its file (redeploy without a volume, or nightly retention ran first)."""
     out: dict[int, list[dict]] = {i: [] for i in ids}
     if ids:
         for a in (db.query(BoardroomAttachment)
                   .filter(BoardroomAttachment.message_id.in_(ids))
                   .order_by(BoardroomAttachment.id.asc())):
-            out[a.message_id].append({"id": a.id, "name": a.name, "type": a.mime, "size": a.size})
+            out[a.message_id].append({"id": a.id, "name": a.name, "type": a.mime, "size": a.size,
+                                        "expired": not (ATTACH_DIR / str(a.id)).is_file()})
     return out
 
 
@@ -379,9 +381,13 @@ def boardroom_attachment(att_id: int, _: bool = Depends(require_admin),
     """Download one chat attachment (read-only). Always a download, never rendered inline."""
     a = db.get(BoardroomAttachment, att_id)
     path = ATTACH_DIR / str(att_id)
-    if a is None or not path.is_file():
+    if a is None:
         return PlainTextResponse("Not found", status_code=404)
-    return Response(decrypt_bytes(path.read_bytes()), media_type=a.mime, headers={
+    try:
+        raw = decrypt_bytes(path.read_bytes())
+    except (OSError, RuntimeError):  # file gone, or unreadable under the current key
+        return PlainTextResponse("This attachment has expired.", status_code=410)
+    return Response(raw, media_type=a.mime, headers={
         "Content-Disposition": f'attachment; filename="{a.name}"',
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, no-store"})

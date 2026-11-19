@@ -320,3 +320,21 @@ def test_chat_runs_in_own_clone_while_cycle_holds_run_lock(env):
         assert len(parked) == 1 and git(env["origin"], "show", f"{parked[0]}:a.txt") == "1\nMINE\n3"
     finally:
         fake.close()
+
+
+def test_prune_attachments_deletes_only_old_entries_inside_dir(tmp_path):
+    team, outside = tmp_path / "team", tmp_path / "outside"
+    old, new = team / "attachments" / "1", team / "attachments" / "2"
+    for d in (old, new, outside):
+        d.mkdir(parents=True)
+        (d / "f.png").write_text("x")
+    (old / "link").symlink_to(outside)             # a link out of the dir must not be followed
+    for p in (old / "f.png", old, outside / "f.png", outside):
+        os.utime(p, (0, 0), follow_symlinks=False)  # 1970: far past 30 days
+    (team / "env").write_text("")
+    cmd = f'RUN_CYCLE_LIB=1 . {RUNNER} && prune_attachments'
+    e = {**os.environ, "JBHNTR_TEAM": str(team)}
+    assert subprocess.run(["bash", "-c", cmd], env=e).returncode == 0
+    assert not old.exists() and (new / "f.png").is_file() and (outside / "f.png").is_file()
+    shutil.rmtree(team / "attachments")             # missing dir: a no-op, not an error
+    assert subprocess.run(["bash", "-c", cmd], env=e).returncode == 0

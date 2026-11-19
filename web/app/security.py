@@ -186,3 +186,40 @@ def require_same_origin(request: Request) -> None:
 
 def new_secret(length: int = 48) -> str:
     return secrets.token_urlsafe(length)
+
+
+# R3-42: cap request bodies before Starlette parses them — multipart is spooled to
+# temp disk before require_admin runs, so this must sit outside routing.
+BODY_LIMIT_DEFAULT = 2 * 1024 * 1024                  # > the 1 MB CV upload + multipart overhead
+BODY_LIMITS = {"/boardroom/send": 11 * 1024 * 1024}   # 5 files / 10 MB attachments + text
+
+
+class BodySizeLimit:
+    """Pure ASGI middleware: 413 on an over-cap Content-Length up front; bodies without
+    one (chunked) are counted as they stream and cut off once over the cap."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        limit = BODY_LIMITS.get(scope["path"], BODY_LIMIT_DEFAULT)
+        length = dict(scope["headers"]).get(b"content-length", b"").decode("latin-1")
+        if length and (not length.isdigit() or int(length) > limit):
+            from starlette.responses import PlainTextResponse
+            return await PlainTextResponse("Request body too large.", 413)(scope, receive, send)
+
+        seen = 0
+
+        async def capped_receive():
+            nonlocal seen
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > limit:
+                    # Handled by Starlette's ExceptionMiddleware (and passed through by FastAPI).
+                    raise HTTPException(status_code=413, detail="Request body too large.")
+            return message
+
+        await self.app(scope, capped_receive, send)

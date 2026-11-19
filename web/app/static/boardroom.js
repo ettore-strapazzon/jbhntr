@@ -174,10 +174,15 @@
     (m.attachments || []).forEach(function (a) {   // R3-40
       var d = document.createElement("div");
       d.className = "small";
-      var link = document.createElement("a");
-      link.href = "/boardroom/attachment/" + encodeURIComponent(a.id);
-      link.textContent = a.name;
-      d.appendChild(link);
+      if (a.expired) {   // R3-43: file gone, no dead link
+        d.className = "small muted";
+        d.textContent = a.name + " (expired)";
+      } else {
+        var link = document.createElement("a");
+        link.href = "/boardroom/attachment/" + encodeURIComponent(a.id);
+        link.textContent = a.name;
+        d.appendChild(link);
+      }
       wrap.appendChild(d);
     });
     thread.appendChild(wrap);
