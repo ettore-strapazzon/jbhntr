@@ -279,3 +279,44 @@ def test_chat_mode_pulls_inbox_into_prompt(env):
         assert run("chat").returncode == 0 and len(fake.requests) == n + 1  # empty inbox: peek only, no Claude
     finally:
         fake.close()
+
+
+# --- R3-36: chat answers from its own clone while a cycle holds run.lock ---
+
+def test_chat_runs_in_own_clone_while_cycle_holds_run_lock(env):
+    import fcntl
+    from tests.test_team_bridge import TOKEN, FakeBoardroom
+    fake = FakeBoardroom(inbox=[{"id": 1, "body": "decide X", "created_at": None}])
+    team, chat_wt = env["team"], env["team"] / "chat-wt"
+    act = ('echo "CR=$CYCLE_RUNNING PWD=$PWD" > "$JBHNTR_TEAM/chat.env"; '
+           'printf "decided\\n" > d.txt; git add d.txt; git commit -qm "chat: decision"')
+    try:
+        (team / "env").write_text(f"export JBHNTR_REPO={env['repo']}\nexport JBHNTR_APP_URL={fake.url}\n"
+                                  f"export JBHNTR_ADMIN_TOKEN={TOKEN}\n")
+        main_head = git(env["repo"], "rev-parse", "HEAD")
+        with open(team / "run.lock", "w") as lock:  # the fake cycle
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            assert run("chat", STUB_ACTION=act).returncode == 0
+            assert run("cycle").returncode == 0 and "[cycle] busy, skip" in (team / "cycle.log").read_text()
+        assert (team / "chat.env").read_text().strip() == f"CR=1 PWD={chat_wt}"  # agent saw the running cycle
+        assert "CYCLE_RUNNING: 1" in (team / "prompt.txt").read_text()
+        assert f"Working dir: {chat_wt}" in (team / "prompt.txt").read_text()
+        assert git(env["origin"], "show", "main:d.txt") == "decided"  # chat commit synced to origin
+        assert git(env["repo"], "rev-parse", "HEAD") == main_head  # main clone untouched
+        assert [r["json"]["body"] for r in fake.requests if r["path"] == "/boardroom/reply"] == ["all done"]
+
+        # no cycle running -> CYCLE_RUNNING=0; a chat commit that truly conflicts is parked like any other mode
+        fake.inbox = [{"id": 2, "body": "change a", "created_at": None}]
+        git(env["other"], "pull", "-q", "--ff-only", "origin", "main")
+        commit(env["other"], "a.txt", "1\nTHEIRS\n3\n", "their edit")  # pushed while the chat agent works
+        act2 = ('echo "CR=$CYCLE_RUNNING" > "$JBHNTR_TEAM/chat.env"; printf "1\\nMINE\\n3\\n" > a.txt; '
+                f'git commit -qam "chat: edit a"; git -C {env["other"]} push -q origin HEAD:main')
+        theirs = git(env["other"], "rev-parse", "HEAD")
+        r = run("chat", STUB_ACTION=act2)
+        assert r.returncode == 0
+        assert (team / "chat.env").read_text().strip() == "CR=0"
+        assert origin_main(env) == theirs
+        parked = [b for b in remote_branches(env) if b.startswith("conflict/chat-")]
+        assert len(parked) == 1 and git(env["origin"], "show", f"{parked[0]}:a.txt") == "1\nMINE\n3"
+    finally:
+        fake.close()

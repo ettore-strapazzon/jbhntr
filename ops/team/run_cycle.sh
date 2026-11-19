@@ -4,6 +4,8 @@
 # Boardroom calls go through ops/team/bridge.py (R3-35); agent prompts are ops/team/prompts/<mode>.md (R3-37), both read from HEAD.
 # The runner owns git sync: fetch -> rebase -> else merge -> else park local commits on origin/conflict/<mode>-<sha>.
 # It never force-pushes and never drops a commit.
+# Locks (R3-36): cycle/morning hold $TEAM/run.lock in the main clone; chat holds $TEAM/chat.lock in its own clone
+# (JBHNTR_CHAT_REPO, default $TEAM/chat-wt, cloned on first use) and only probes run.lock to set CYCLE_RUNNING.
 # Tests: RUN_CYCLE_LIB=1 sources the functions without running main; JBHNTR_TEAM / CLAUDE_BIN / JBHNTR_BRANCH override paths.
 set -uo pipefail
 MODE="${1:-cycle}"
@@ -11,6 +13,7 @@ TEAM="${JBHNTR_TEAM:-$HOME/.jbhntr-team}"
 set -a; . "$TEAM/env"; set +a
 unset JBHNTR_ADMIN_TOKEN   # only bridge.py needs it, and it reads the env file itself: keep it out of the agent's env
 REPO="${JBHNTR_REPO:-$HOME/jbhntr}"
+CHAT_REPO="${JBHNTR_CHAT_REPO:-$TEAM/chat-wt}"
 BRANCH="${JBHNTR_BRANCH:-main}"
 CLAUDE="${CLAUDE_BIN:-claude}"
 LOG="$TEAM/cycle.log"
@@ -124,11 +127,23 @@ main() {
     { [ "${N:-0}" -eq 0 ]; } 2>/dev/null && exit 0
   fi
 
-  exec 9>"$TEAM/cycle.lock"
-  flock -n 9 || { log "busy, skip"; exit 0; }
+  local MAIN="$REPO"
+  if [ "$MODE" = chat ]; then
+    exec 9>"$TEAM/chat.lock"
+    flock -n 9 || { log "busy, skip"; exit 0; }
+    # Probe, never hold: a cycle keeps running in the main clone while chat answers from its own clone.
+    if flock -n "$TEAM/run.lock" true; then CYCLE_RUNNING=0; else CYCLE_RUNNING=1; fi
+    export CYCLE_RUNNING
+    [ -d "$CHAT_REPO/.git" ] || git clone -q "$(git -C "$MAIN" remote get-url origin)" "$CHAT_REPO" 2>>"$LOG" \
+      || { log "no chat clone at $CHAT_REPO"; exit 1; }
+    REPO="$CHAT_REPO"
+  else
+    exec 9>"$TEAM/run.lock"
+    flock -n 9 || { log "busy, skip"; exit 0; }
+  fi
 
   cd "$REPO" || { log "no repo"; exit 1; }
-  [ -f .venv/bin/activate ] && . .venv/bin/activate
+  [ -f "$MAIN/.venv/bin/activate" ] && . "$MAIN/.venv/bin/activate"
   sync || log "git sync failed, running on local state"
   PARKED_BRANCHES=""
   [ "$MODE" = chat ] || merge_parked

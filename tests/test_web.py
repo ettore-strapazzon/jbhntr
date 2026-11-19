@@ -3161,6 +3161,54 @@ def test_boardroom_team_log_live_feed(client, monkeypatch):
     assert [e["status"] for e in tail] == ["shipped"]
 
 
+def test_boardroom_team_detail_and_working_badge(client, monkeypatch):
+    """R3-38: `detail` is stored size-capped and rendered as escaped Markdown in an
+    expandable <details>; a `started` row is "working now" until a later row with
+    the same task id (leading backlog id, else the full task) lands."""
+    from web.app.config import config
+    from web.app.routes.boardroom import DETAIL_CAP, _task_key
+
+    monkeypatch.setattr(config, "admin_token", "s3cret")
+    auth = ("op", "s3cret")
+    base = client.get("/boardroom/team.json", auth=auth).json()
+    base_id = base[-1]["id"] if base else 0
+
+    assert _task_key("R3-38 live detail") == "R3-38" and _task_key("idle check") == "idle check"
+
+    evil = ("**bold** `a<b`\n\n<script>alert(1)</script>\n\n<img src=x onerror=alert(2)>"
+            "\n\n[x](javascript:alert(3))")
+    client.post("/boardroom/log", auth=auth, json={
+        "agent": "CTO", "task": "R3-38 live detail", "status": "started", "detail": evil})
+    client.post("/boardroom/log", auth=auth, data={
+        "agent": "CMO", "task": "R3-38z other", "status": "started",
+        "detail": "y" * (DETAIL_CAP + 500)})
+    client.post("/boardroom/log", auth=auth, data={
+        "agent": "CFO", "task": "budget pass", "status": "started"})
+
+    rows = client.get(f"/boardroom/team.json?after={base_id}", auth=auth).json()
+    d = rows[0]["detail_html"]
+    assert "<strong>bold</strong>" in d and "<code>a&lt;b</code>" in d
+    assert "<script" not in d and "<img" not in d and "href" not in d
+    assert "&lt;script&gt;" in d
+    assert rows[1]["detail_html"].count("y") == DETAIL_CAP  # capped
+    assert rows[2]["detail_html"] == ""
+
+    page = client.get("/boardroom", auth=auth).text
+    assert '<details class="tl-detail"><summary>Detail</summary>' in page
+    assert "<script>alert(1)" not in page and "onerror=alert(2)>" not in page
+
+    def working(text, key):
+        row = text.split(f'data-key="{key}"', 1)[1].split('class="tl"', 1)[0]
+        return "tl-working" in row
+
+    assert working(page, "R3-38") and working(page, "budget pass")
+    # A later row for R3-38 (different wording) turns that badge off; others stay on.
+    client.post("/boardroom/log", auth=auth, data={
+        "agent": "CTO", "task": "R3-38 Boardroom detail", "status": "shipped"})
+    page = client.get("/boardroom", auth=auth).text
+    assert not working(page, "R3-38") and working(page, "budget pass")
+
+
 def test_boardroom_doc_viewer_gated_and_path_safe(client, monkeypatch):
     """The doc viewer is admin-gated, renders a real company doc, and refuses any
     path that escapes company/docs (traversal) or does not exist."""

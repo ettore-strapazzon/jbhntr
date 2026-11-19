@@ -122,7 +122,7 @@ def main(argv=None):
     else:
         row = {"agent": a.role, "task": c.clean(a.task), "status": a.status,
                "summary": c.clean(a.summary), "cycle": a.cycle}
-        if a.detail_file:  # server ignores `detail` until R3-38 lands; sending it early is harmless
+        if a.detail_file:  # rendered as safe Markdown in Live team (R3-38)
             row["detail"] = c.clean(Path(a.detail_file).read_text(encoding="utf-8"))
         c.call("POST", "/boardroom/log", row)
 

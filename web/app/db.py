@@ -191,6 +191,7 @@ def _add_missing_columns() -> None:
         "page_views": {"visitor": ("TEXT", "")},
         "referral_rewards": {"held_at": ("TIMESTAMP", "")},
         "gate_answers": {"surface": ("TEXT", "")},           # R3-18
+        "team_log": {"detail": ("TEXT", "DEFAULT ''")},      # R3-38
     }
     import logging
 

@@ -56,6 +56,26 @@ def _html(text: str) -> str:
     return md.markdown(text or "", extensions=["tables", "fenced_code"])
 
 
+DETAIL_CAP = 20_000  # chars; a work-notes blob, not a document store
+
+
+def _safe_html(text: str) -> str:
+    """Markdown → HTML for agent-written (untrusted) text: raw HTML and links/images
+    are disabled, so tags render as escaped text and no javascript: URL can form."""
+    m = md.Markdown(extensions=["tables", "fenced_code"])
+    m.preprocessors.deregister("html_block")
+    for p in ("html", "reference", "link", "image_link", "image_reference",
+              "short_reference", "short_image_ref", "autolink", "automail"):
+        m.inlinePatterns.deregister(p)
+    return m.convert(text or "")
+
+
+def _task_key(task: str) -> str:
+    """Leading backlog id (`R3-38 …` → `R3-38`), else the whole task string."""
+    m = re.match(r"\s*([A-Za-z][A-Za-z0-9]*-\d+)\b", task or "")
+    return m.group(1) if m else (task or "")
+
+
 def _last_cycle(cycle_log: str) -> str:
     """The most recent `## ` entry (what the agents just did)."""
     parts = re.split(r"(?m)^## ", cycle_log)
@@ -149,7 +169,8 @@ def _doc_index() -> list[dict]:
 
 def _entry_dict(e: TeamLogEntry) -> dict:
     return {"id": e.id, "agent": e.agent, "task": e.task, "status": e.status,
-            "summary": e.summary, "cycle": e.cycle, "ts": _ts(e)}
+            "summary": e.summary, "cycle": e.cycle, "ts": _ts(e),
+            "key": _task_key(e.task), "detail_html": _safe_html(e.detail) if e.detail else ""}
 
 
 def _team_feed(db: DbSession, limit: int = 100) -> tuple[list[dict], list[str], int]:
@@ -158,6 +179,10 @@ def _team_feed(db: DbSession, limit: int = 100) -> tuple[list[dict], list[str], 
     rows = (db.query(TeamLogEntry)
             .order_by(TeamLogEntry.id.desc()).limit(limit).all())
     entries = [_entry_dict(e) for e in rows]
+    seen: set[str] = set()
+    for e in entries:  # newest first: a `started` row is live until a later row shares its key
+        e["working"] = e["status"] == "started" and e["key"] not in seen
+        seen |= {e["key"]}  # set-union, not the add method: the public-GET write scan is textual
     agents = sorted({e["agent"] for e in entries if e["agent"]})
     last_id = rows[0].id if rows else 0
     return entries, agents, last_id
@@ -204,7 +229,7 @@ async def boardroom_log(request: Request, _: bool = Depends(require_admin),
                         _xs: None = Depends(require_same_origin),
                         db: DbSession = Depends(get_session)):
     """The VM cycle posts one per-agent activity entry AS it works (form or JSON:
-    agent, task, status, summary, cycle). Powers the live 'Live team' feed."""
+    agent, task, status, summary, cycle, optional Markdown `detail`). Powers the live 'Live team' feed."""
     ctype = request.headers.get("content-type", "")
     data = await request.json() if "application/json" in ctype else await request.form()
     agent = (str(data.get("agent", "")).strip())[:16]
@@ -214,7 +239,8 @@ async def boardroom_log(request: Request, _: bool = Depends(require_admin),
                      task=(str(data.get("task", "")).strip())[:200],
                      status=(str(data.get("status", "")).strip())[:24],
                      summary=str(data.get("summary", "")).strip(),
-                     cycle=(str(data.get("cycle", "")).strip())[:32])
+                     cycle=(str(data.get("cycle", "")).strip())[:32],
+                     detail=str(data.get("detail", "")).strip()[:DETAIL_CAP])
     db.add(e)
     db.commit()
     return JSONResponse({"ok": True, "id": e.id})

@@ -161,14 +161,15 @@ Answer:
 **What:** the team runner moves into the repo (`ops/team/`) so agents can fix it by commit, and chat gets its own clone so it can answer while a cycle runs. Installing it touches crontab, the `jbhntr-chat` systemd unit and the runtime dir, which agents must not do. Wait until the Boardroom shows R3-34, R3-35 and R3-36 as shipped. **Never touch anything named plainfleet** (its cron lines and `plainfleet-chat.service` stay as they are).
 
 **Steps (on the VM, as `ubuntu`):**
+0. Pick a moment when no cycle is running: `flock -n ~/.jbhntr-team/cycle.lock true && echo free` must print `free` (the new runner locks `run.lock`, so an old cycle that is still running would not block it).
 1. `cd ~/jbhntr && git pull --ff-only`
 2. Back up the old runner: `cp ~/run_cycle.sh ~/.jbhntr-team/run_cycle.old.sh`
 3a. Seed the wrapper's fallback copy: `cp ops/team/run_cycle.sh ~/.jbhntr-team/run_cycle.good.sh`
 3. Install the wrapper by copy + move (never edit in place): `cp ops/team/run_wrapper.sh ~/.jbhntr-team/run_cycle.sh.tmp && chmod +x ~/.jbhntr-team/run_cycle.sh.tmp && mv -f ~/.jbhntr-team/run_cycle.sh.tmp ~/.jbhntr-team/run_cycle.sh`
-4. Chat clone: `git clone "$(git -C ~/jbhntr remote get-url origin)" ~/.jbhntr-team/chat-wt` (uses the VM's existing GitHub key; if it asks for credentials, stop and reply `clone needs key`).
-5. Env file: `nano ~/.jbhntr-team/env` — `JBHNTR_REPO`, `JBHNTR_APP_URL` and `JBHNTR_ADMIN_TOKEN` are already there and are all R3-34/R3-35 need; add only the extra non-secret lines the R3-36 CYCLE_LOG entry lists (chat-clone path, attachments dir), if any. The machine needs `python3` (already present). Keep `chmod 600 ~/.jbhntr-team/env`. Don't paste values into chat.
+4. Chat clone (optional since R3-36, which creates it on first chat run if missing): `git clone "$(git -C ~/jbhntr remote get-url origin)" ~/.jbhntr-team/chat-wt` (uses the VM's existing GitHub key; if it asks for credentials, stop and reply `clone needs key`).
+5. Env file: `nano ~/.jbhntr-team/env` — `JBHNTR_REPO`, `JBHNTR_APP_URL` and `JBHNTR_ADMIN_TOKEN` are already there and are all R3-34/R3-35 need; nothing to add for R3-36 (chat clone defaults to `~/.jbhntr-team/chat-wt`). The machine needs `python3` (already present). Keep `chmod 600 ~/.jbhntr-team/env`. Don't paste values into chat.
 6. Crontab: `crontab -e`, change **only** the two lines containing `/home/ubuntu/run_cycle.sh` to `/home/ubuntu/.jbhntr-team/run_cycle.sh` (same times, same log).
-7. Chat service: `sudo systemctl edit --full jbhntr-chat` → set the loop to call `~/.jbhntr-team/run_cycle.sh chat` (or point `ExecStart` at `ops/team/chat-daemon.sh` if R3-36 ships one) → `sudo systemctl restart jbhntr-chat`. Do not restart or edit `plainfleet-chat`.
+7. Chat service: `sudo systemctl edit --full jbhntr-chat` → set the loop to call `~/.jbhntr-team/run_cycle.sh chat` (R3-36 ships no daemon script) → `sudo systemctl restart jbhntr-chat`. Do not restart or edit `plainfleet-chat`.
 
 **Verify:** send "ping" in the Boardroom → CEO reply within ~1 min; `tail ~/.jbhntr-team/cycle.log` shows the next `[cycle]` run with no `[wrapper]` warning; `systemctl status plainfleet-chat` still active.
 

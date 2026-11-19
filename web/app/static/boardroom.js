@@ -69,6 +69,14 @@
     var row = document.createElement("div");
     row.className = "tl";
     row.setAttribute("data-agent", e.agent || "");
+    row.setAttribute("data-key", e.key || "");
+    // A later row for the same task ends any earlier "working now" badge.
+    Array.prototype.forEach.call(teamLog.querySelectorAll(".tl"), function (r) {
+      if (r.getAttribute("data-key") === (e.key || "")) {
+        var w = r.querySelector(".tl-working");
+        if (w) w.remove();
+      }
+    });
     var meta = document.createElement("div");
     meta.className = "tl-meta";
     var ag = document.createElement("span");
@@ -84,6 +92,13 @@
       rest.textContent = " · " + bits.join(" · ");
       meta.appendChild(rest);
     }
+    if (e.status === "started") {
+      var wk = document.createElement("span");
+      wk.className = "tl-working";
+      wk.textContent = "working now";
+      meta.appendChild(document.createTextNode(" "));
+      meta.appendChild(wk);
+    }
     row.appendChild(meta);
     if (e.task) {
       var t = document.createElement("div");
@@ -97,6 +112,17 @@
       s.className = "msg-body";
       s.textContent = e.summary;
       row.appendChild(s);
+    }
+    if (e.detail_html) {
+      var d = document.createElement("details");
+      d.className = "tl-detail";
+      var sm = document.createElement("summary");
+      sm.textContent = "Detail";
+      d.appendChild(sm);
+      var body = document.createElement("div");
+      body.innerHTML = e.detail_html; // server-sanitised by _safe_html (no raw HTML, no links)
+      d.appendChild(body);
+      row.appendChild(d);
     }
     if (teamFilter && (e.agent || "") !== teamFilter) row.hidden = true;
     teamLog.insertBefore(row, teamLog.firstChild);

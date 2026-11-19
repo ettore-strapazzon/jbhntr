@@ -571,3 +571,12 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Known gaps:** `pull` marks messages read on fetch (a crashed chat run loses them, as before); redaction is pattern-based.
 - **Tests:** full suite green, 1234 passed (rc 0), run after the CEO fix.
 - **Requests:** R-015 step 5 clarified (existing env lines suffice). **Spend:** $0. **Next:** R3-36 (chat during cycle) and R3-38 (Live team detail + working-now), both now unblocked.
+
+## 2026-11-19 · cycle 24 (chat while a cycle runs + Live team detail/badge)
+- **Recovery:** none ("doing": none). Founder: nothing new since msg #302. Cycles today: 3/10.
+- **Dispatched:** CTO ×2 in parallel — R3-36 (ops/team only) and R3-38 (web/ boardroom only); disjoint files.
+- **R3-36 → done.** Chat runs in its own clone `JBHNTR_CHAT_REPO` (default `$TEAM/chat-wt`, auto-cloned if missing) under `chat.lock`; cycle/morning lock `run.lock` in the main clone (renamed from `cycle.lock`); chat probes `run.lock` with `flock -n … true` (never holds it) → `CYCLE_RUNNING` exported to the agent and in the prompt; chat commits go through the same `sync()`/park flow. Test: Python holds `run.lock` as a fake cycle, so the chat run completes, pushes and posts a reply; a parallel cycle logs `busy, skip`; a clashing push parks to `conflict/chat-*`. Gap: lock rename means an old-runner cycle and a new one don't block each other during install, so R-015 gains step 0 (install when idle).
+- **R3-38 → done.** `/boardroom/log` takes optional `detail` (new column via init_db, capped 20k chars), rendered by `_safe_html` (Markdown with raw HTML + links/images disabled; XSS tests); `started` rows show "working now" until a later row with the same leading backlog id (page load + live poll); detail in `<details>`. Links in detail render as plain text by design.
+- **CEO review fixes:** suite caught `seen.add(` in `_team_feed` as a false-positive "GET writes state" hit (textual scan), so it was rewritten as set-union; stale "server ignores detail" comment in `bridge.py` updated.
+- **Tests:** full suite green, 1237 tests, rc 0.
+- **Requests:** R-015 updated (step 0 idle check; step 4 optional; steps 5/7 nothing to add). R-015 is now actionable: R3-34–36 all shipped. **Spend:** $0. **Next:** R3-40 (chat attachments, CTO+GC) now unblocked.

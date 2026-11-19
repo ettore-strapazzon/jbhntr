@@ -680,6 +680,7 @@ class TeamLogEntry(Base):
     status: Mapped[str] = mapped_column(String(24), default="")  # started|shipped|blocked|…
     summary: Mapped[str] = mapped_column(Text, default="")
     cycle: Mapped[str] = mapped_column(String(32), default="")
+    detail: Mapped[str] = mapped_column(Text, default="")        # Markdown (R3-38)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True)
 

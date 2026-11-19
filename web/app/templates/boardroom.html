@@ -41,6 +41,9 @@
   .board .tl:first-child { border-top: 0; }
   .board .tl-meta { font-size: 13px; color: var(--text-secondary, #526273); margin-bottom: 2px; }
   .board .tl-agent { font-weight: 600; color: var(--text, #1b2733); }
+  .board .tl-working { font: 700 10px/1 var(--mono, monospace); letter-spacing: .08em; text-transform: uppercase;
+    padding: 3px 6px; border-radius: 4px; background: var(--action-primary, #1b2733); color: var(--action-primary-ink, #fff); }
+  .board .tl-detail summary { cursor: pointer; font-size: 13px; }
   .board .doclist { list-style: none; padding: 0; margin: 4px 0 16px; }
   .board .doclist li { padding: 3px 0; }
 </style>
@@ -133,10 +136,12 @@
     <p class="muted" id="team-empty"{% if team_entries %} hidden{% endif %}>No team activity yet — this lights up the moment the next cycle dispatches an agent.</p>
     <div id="team-log" data-last="{{ team_last_id }}">
       {% for e in team_entries %}
-      <div class="tl" data-agent="{{ e.agent }}">
-        <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · {{ e.ts }}{% endif %}</div>
+      <div class="tl" data-agent="{{ e.agent }}" data-key="{{ e.key }}">
+        <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · {{ e.ts }}{% endif %}{% if e.working %} <span class="tl-working">working now</span>{% endif %}</div>
         {% if e.task %}<div><b>{{ e.task }}</b></div>{% endif %}
         {% if e.summary %}<div class="msg-body">{{ e.summary }}</div>{% endif %}
+        {# detail_html is built by _safe_html (raw HTML + links disabled) #}
+        {% if e.detail_html %}<details class="tl-detail"><summary>Detail</summary>{{ e.detail_html | safe }}</details>{% endif %}
       </div>
       {% endfor %}
     </div>
