@@ -370,8 +370,9 @@ def _latest_update() -> str:
 
 
 def _all_updates() -> list[dict]:
-    """Every morning update, newest first, rendered — for the Updates tab."""
-    return [{"date": p.stem, "html": _html(_read(p))} for p in _update_files()]
+    """Every morning update, newest first — only the newest is rendered; older ones load their
+    body on first expand via /boardroom/doc (R3-53), so the first render stays small."""
+    return [{"date": p.stem, "html": _html(_read(p)) if i == 0 else ""} for i, p in enumerate(_update_files())]
 
 
 # R3-51: the Documents tab and viewer read any company/ file whose relative path passes this rule:
@@ -427,12 +428,34 @@ def _team_feed(db: DbSession, limit: int = 100) -> tuple[list[dict], list[str], 
     return entries, agents, last_id
 
 
-@router.get("/boardroom", response_class=HTMLResponse)
-def boardroom(request: Request, _: bool = Depends(require_admin),
-              db: DbSession = Depends(get_session)):
+def _company_ctx() -> dict:
+    """The file-backed (company/) panels, re-read on every call — shared by the page and the
+    120 s snapshot refresh (R3-53). snapshot_at is ISO UTC; boardroom.js localises it (R3-49)."""
     cycle_log = _read(STATE / "CYCLE_LOG.md")
     goal, budget = _charter_bits(_read(ROOT / "company" / "CHARTER.md"))
     sprint_name, sprint_table = _current_sprint(_read(STATE / "BACKLOG.md"))
+    return {
+        "snapshot_at": datetime.now(timezone.utc).isoformat(),
+        "goal_html": _html(goal),
+        "budget_html": _html(budget),
+        "sprint_name": sprint_name,
+        "now_html": _html(_last_cycle(cycle_log)),
+        "tasks_html": _html(sprint_table),
+        "req_groups": {k: [_req_item(b) for b in v]
+                       for k, v in _group_requests(_read(STATE / "REQUESTS.md")).items()},
+        "docs": _doc_index(),
+        "updates": _all_updates(),
+        "kpis_html": _html(_read(STATE / "KPIS.md")),
+        "roadmap_html": _html(_read(STATE / "BACKLOG.md")),
+        "epics": _parse_epics(_read(DOCS / "strategy" / "ROADMAP.md"), _read(STATE / "BACKLOG.md")),
+        "timeline_html": _html(_read(DOCS / "strategy" / "TIMELINE.md")),
+        "history_html": _html(cycle_log),
+    }
+
+
+@router.get("/boardroom", response_class=HTMLResponse)
+def boardroom(request: Request, _: bool = Depends(require_admin),
+              db: DbSession = Depends(get_session)):
     # Conversation thread, oldest -> newest. Bodies render through Jinja's auto-
     # escaping (not | safe), so the chat is plain text and injects nothing.
     msgs = db.query(BoardroomMessage).order_by(BoardroomMessage.id.asc()).all()
@@ -447,24 +470,20 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
         "admin_csrf": admin_csrf_token(),
         "messages": messages,
         "last_id": msgs[-1].id if msgs else 0,
-        "goal_html": _html(goal),
-        "budget_html": _html(budget),
-        "sprint_name": sprint_name,
-        "now_html": _html(_last_cycle(cycle_log)),
-        "tasks_html": _html(sprint_table),
-        "req_groups": {k: [_req_item(b) for b in v]
-                       for k, v in _group_requests(_read(STATE / "REQUESTS.md")).items()},
-        "docs": _doc_index(),
-        "updates": _all_updates(),
         "team_entries": team_entries,
         "team_agents": team_agents,
         "team_last_id": team_last_id,
-        "kpis_html": _html(_read(STATE / "KPIS.md")),
-        "roadmap_html": _html(_read(STATE / "BACKLOG.md")),
-        "epics": _parse_epics(_read(DOCS / "strategy" / "ROADMAP.md"), _read(STATE / "BACKLOG.md")),
-        "timeline_html": _html(_read(DOCS / "strategy" / "TIMELINE.md")),
-        "history_html": _html(cycle_log),
+        **_company_ctx(),
     })
+
+
+@router.get("/boardroom/snapshot", response_class=HTMLResponse)
+def boardroom_snapshot(request: Request, _: bool = Depends(require_admin)):
+    """R3-53: just the company panels (`[data-snap]` regions), re-read from the files, for the page's
+    120 s refresh. Read-only; no chat or team data (those have their own polls)."""
+    return templates.TemplateResponse(request, "boardroom.html", {
+        "request": request, "snapshot_only": True, **_company_ctx(),
+    }, headers={"Cache-Control": "private, no-store"})
 
 
 @router.post("/boardroom/log")

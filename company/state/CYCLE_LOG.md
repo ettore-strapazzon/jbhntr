@@ -640,3 +640,13 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Review notes:** full suite green (rc 0); it was run twice, the second time only to print the summary line. Not browser-checked. The viewer's own Markdown is simpler than the server's (marked `shortcut:` in code). The two agents briefly broke each other's page render mid-work; it was fine at the end.
 - **Requests opened:** none. **Blockers:** R3-50 still waits R-016. **Spend:** none.
 - **Next:** R3-53 (snapshot refresh + lazy morning updates), then T1 is down to R3-50 (blocked on R-016).
+
+## 2026-11-20 · cycle 31 (Boardroom §5: snapshot refresh + lazy morning updates)
+- **Gate:** no parked branches. Cap 5/10 today.
+- **Recovery:** none (no task left doing).
+- **Dispatched (foreground):** CTO — R3-53 (snapshot refresh + lazy morning updates). Other roles: no unblocked task in T1 (R3-50 waits R-016).
+- **Results (accepted):**
+  - CTO → **R3-53**: admin-gated, no-store `GET /boardroom/snapshot` renders only the company panels from one shared `_company_ctx()` (page and refresh can't drift); JS swaps `[data-snap]` regions every 120 s (skips hidden tabs, keeps last snapshot on error), so tab, open `<details>` and docs filter survive; header "snapshot <time>" via `fmt_time`; older morning updates are empty in the first render and load via `/boardroom/doc?raw=1` on first expand (retry message on failure). 4 tests in `tests/test_boardroom_snapshot.py`.
+- **Review notes:** CEO read the diff (DOMParser/adoptNode + textContent only, no innerHTML, CSP unchanged). Full suite green once (rc 0). Not browser-checked (headless Chromium can't start on the VM): first look after deploy. Older updates use the viewer's simpler Markdown renderer.
+- **Requests opened:** none. **Blockers:** R3-50 still waits R-016. **Spend:** none.
+- **Next:** T1 now has only R3-50 left, and it is blocked on R-016 (Railway volume). Until the Founder answers R-016, cycles will skip.

@@ -74,10 +74,14 @@
 
 <div class="board">
 <h1>JBHNTR Team — Boardroom</h1>
+{# R3-53: boardroom.js re-fetches /boardroom/snapshot every 120 s and swaps each [data-snap] region's
+   children (open <details> + current tab kept). /boardroom/snapshot renders this template with
+   snapshot_only, so the chat thread and team feed are left out of the refresh. #}
+<p class="small muted" data-snap="stamp">snapshot <time datetime="{{ snapshot_at }}">{{ snapshot_at }}</time></p>
 
 <nav class="tabs" id="tabs">
   <button type="button" class="tab" data-tab="main">Main</button>
-  <button type="button" class="tab" data-tab="pending">Pending from me{% if req_groups.now %} ({{ req_groups.now|length }}){% endif %}</button>
+  <button type="button" class="tab" data-tab="pending" data-snap="pending-tab">Pending from me{% if req_groups.now %} ({{ req_groups.now|length }}){% endif %}</button>
   <button type="button" class="tab" data-tab="docs">Documents</button>
   <button type="button" class="tab" data-tab="updates">Morning updates</button>
   <button type="button" class="tab" data-tab="team">Live team</button>
@@ -86,6 +90,7 @@
 </nav>
 
 <section class="panel" data-panel="main">
+  {% if not snapshot_only %}
   <div class="card">
     <h2>Conversation</h2>
     <p class="small muted">Chat with the team in real time — replies land in a few seconds, no refresh needed.</p>
@@ -113,14 +118,15 @@
       <button type="submit">Send</button>
     </form>
   </div>
-  <div class="card">
+  {% endif %}
+  <div class="card" data-snap="now">
     <h2>Now / recent</h2>
     {{ now_html | safe }}
   </div>
 </section>
 
 <section class="panel" data-panel="pending">
-  <div class="card">
+  <div class="card" data-snap="pending">
     <h2>Waiting on you</h2>
     {# R3-45: one <details> per request; open ones expanded, later/closed collapsed (boardroom.js keeps
        the Founder's per-id choices + group state). REQUESTS.md is first-party Markdown (_html). #}
@@ -155,19 +161,21 @@
   </div>
 </section>
 
-<section class="panel" data-panel="updates">
+<section class="panel" data-panel="updates" data-snap="updates">
   {% if updates %}
+    {# R3-53: only the newest body is rendered; boardroom.js loads an older one on its first expand #}
     {% for u in updates %}
     <div class="card">
-      <details {% if loop.first %}open{% endif %}>
+      <details {% if loop.first %}open {% endif %}data-update="{{ u.date }}">
         <summary>{{ u.date }}</summary>
-        {{ u.html | safe }}
+        <div class="update-body">{{ u.html | safe }}</div>
       </details>
     </div>
     {% endfor %}
   {% else %}<div class="card"><p class="muted">No morning update filed yet.</p></div>{% endif %}
 </section>
 
+{% if not snapshot_only %}
 <section class="panel" data-panel="team">
   <div class="card">
     <h2>Live team</h2>
@@ -191,7 +199,8 @@
   </div>
 </section>
 
-<section class="panel" data-panel="kpis">
+{% endif %}
+<section class="panel" data-panel="kpis" data-snap="kpis">
   <div class="card">
     <h2>Goal &amp; budget</h2>
     {{ goal_html | safe }}
@@ -205,7 +214,7 @@
   </div>
 </section>
 
-<section class="panel" data-panel="roadmap">
+<section class="panel" data-panel="roadmap" data-snap="roadmap">
   {# R3-52 epic cards; styles kept here so the Roadmap stays self-contained #}
   <style>
     .board .epic { border-top: 1px solid var(--line, #D8DFE5); padding: 12px 0; }

@@ -374,15 +374,18 @@
   function reqToggle(mem, id, open, def) { if (open === def) delete mem[id]; else mem[id] = open; return mem; }
   var REQ_KEY = "jbhntr:req-open", reqMem = {};
   try { reqMem = JSON.parse(localStorage.getItem(REQ_KEY) || "{}") || {}; } catch (e) {}
-  document.querySelectorAll("details[data-req], details[data-group]").forEach(function (d) {
-    var id = d.getAttribute("data-req") || "group:" + d.getAttribute("data-group");
-    var def = d.hasAttribute("open");
-    if (typeof reqMem[id] === "boolean") d.open = reqMem[id];
-    d.addEventListener("toggle", function () {
-      reqToggle(reqMem, id, d.open, def);
-      try { localStorage.setItem(REQ_KEY, JSON.stringify(reqMem)); } catch (e) {}
+  function bindReq(root) {   // also run on each snapshot swap (R3-53)
+    root.querySelectorAll("details[data-req], details[data-group]").forEach(function (d) {
+      var id = d.getAttribute("data-req") || "group:" + d.getAttribute("data-group");
+      var def = d.hasAttribute("open");
+      if (typeof reqMem[id] === "boolean") d.open = reqMem[id];
+      d.addEventListener("toggle", function () {
+        reqToggle(reqMem, id, d.open, def);
+        try { localStorage.setItem(REQ_KEY, JSON.stringify(reqMem)); } catch (e) {}
+      });
     });
-  });
+  }
+  bindReq(document);
 
   // ---- Documents tab + viewer (R3-51) ----
   var docsTree = document.getElementById("docs-tree"), docsFilter = document.getElementById("docs-filter"),
@@ -435,6 +438,57 @@
     viewer.addEventListener("click", function (e) { if (e.target === viewer) closeDoc(); });   // backdrop
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !viewer.hidden) closeDoc(); });
   }
+
+  // ---- Snapshot (R3-53): every 120 s re-fetch the company panels and swap each [data-snap] region's
+  // children in place (panels and tabs untouched, so the current tab stays). Open <details> are kept:
+  // requests/groups/epics via localStorage (bindReq), morning updates by date. Older morning updates load
+  // their body on first expand. DOMParser + adoptNode — our own admin-gated page, no string-to-HTML sinks.
+  document.addEventListener("toggle", function (e) {   // toggle doesn't bubble: capture it
+    var d = e.target, date = d.getAttribute && d.getAttribute("data-update"), body = date && d.querySelector(".update-body");
+    if (!body || !d.open || body.getAttribute("data-state") || (body.childNodes.length && !body.hasAttribute("data-failed"))) return;
+    var p = "updates/" + date + ".md";
+    body.setAttribute("data-state", "loading"); body.textContent = ""; body.appendChild(docEl("p", "muted", "Loading…"));
+    fetch("/boardroom/doc?raw=1&path=" + encodeURIComponent("updates/" + date + ".md"))
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+      .then(function (t) { body.textContent = ""; body.removeAttribute("data-failed"); body.appendChild(docBody(t, p)); },
+            function () { body.textContent = ""; body.setAttribute("data-failed", ""); body.appendChild(docEl("p", "muted", "This update could not be loaded — close and reopen to retry.")); })
+      .then(function () { body.removeAttribute("data-state"); });
+  }, true);
+  function refreshSnapshot() {
+    if (document.hidden) return;   // a background tab catches up on the next tick it is visible
+    fetch("/boardroom/snapshot", { headers: { Accept: "text/html" } })
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+      .then(function (html) {
+        var fresh = new DOMParser().parseFromString(html, "text/html"), upd = {};
+        document.querySelectorAll("details[data-update]").forEach(function (d) {
+          var b = d.querySelector(".update-body");
+          upd[d.getAttribute("data-update")] = { open: d.open, body: b && b.childNodes.length && !b.getAttribute("data-state") && !b.hasAttribute("data-failed") ? b : null };
+        });
+        fresh.querySelectorAll("[data-snap]").forEach(function (n) {
+          var cur = document.querySelector('[data-snap="' + n.getAttribute("data-snap") + '"]');
+          if (!cur) return;
+          cur.textContent = "";
+          while (n.firstChild) cur.appendChild(document.adoptNode(n.firstChild));
+          cur.querySelectorAll("time[datetime]").forEach(localise);
+          bindReq(cur);
+          cur.querySelectorAll("details[data-update]").forEach(function (d) {
+            var old = upd[d.getAttribute("data-update")], b = d.querySelector(".update-body");
+            if (!old) return;
+            if (old.body && b && !b.childNodes.length) d.replaceChild(old.body, b);   // keep a loaded older body
+            d.open = old.open;
+          });
+        });
+        var np = fresh.getElementById("docs-tree");
+        if (np && docsTree && docsFilter && np.getAttribute("data-paths") !== docsTree.getAttribute("data-paths")) {
+          docsTree.setAttribute("data-paths", np.getAttribute("data-paths"));
+          try { docPaths = JSON.parse(np.getAttribute("data-paths") || "[]"); } catch (e) {}
+          renderDocs();
+        }
+      })
+      .catch(function () {});   // offline / signed out: keep the last snapshot on screen
+  }
+  setInterval(refreshSnapshot, 120000);
+  // ---- end snapshot
 
   // ---- Live chat ----
   var thread = document.getElementById("thread");
