@@ -54,8 +54,22 @@
   .board .tl-working { font: 700 10px/1 var(--mono, monospace); letter-spacing: .08em; text-transform: uppercase;
     padding: 3px 6px; border-radius: 4px; background: var(--action-primary, #1b2733); color: var(--action-primary-ink, #fff); }
   .board .tl-detail summary { cursor: pointer; font-size: 13px; }
-  .board .doclist { list-style: none; padding: 0; margin: 4px 0 16px; }
-  .board .doclist li { padding: 3px 0; }
+  .board .docs-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 12px; }
+  .board #docs-filter { flex: 1; min-width: 200px; font: inherit; padding: 6px 8px;
+                        border: 1px solid var(--line, #D8DFE5); border-radius: 6px; }
+  .board .docs-group { border-top: 1px solid var(--line, #D8DFE5); padding: 6px 0; }
+  .board .docs-group > summary { margin-bottom: 4px; }
+  .board .docs-group .n { font-weight: 400; color: var(--text-secondary, #526273); margin-left: 6px; }
+  .board .docs-group .dir { font-size: 13px; color: var(--text-secondary, #526273); margin: 6px 0 2px 12px; }
+  .board .docs-group a { display: block; padding: 2px 0 2px 12px; }
+  .board .docs-group a.sub { padding-left: 24px; }
+  .board .doc-viewer { position: fixed; inset: 0; z-index: 50; background: rgba(27, 39, 51, .45); overflow-y: auto; }
+  .board .doc-viewer[hidden] { display: none; }
+  .board .doc-viewer-box { max-width: 920px; margin: 5vh auto; padding: 16px 20px; border-radius: 8px;
+                           background: var(--surface-raised, #fff); color: var(--text, #1b2733); }
+  .board .doc-viewer-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .board .doc-viewer-head h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
+  .board #viewer-body pre { overflow-x: auto; white-space: pre-wrap; font: 13px/1.4 var(--mono, monospace); }
 </style>
 
 <div class="board">
@@ -124,16 +138,20 @@
 <section class="panel" data-panel="docs">
   <div class="card">
     <h2>Documents</h2>
-    <p class="small muted">Open any company document here.</p>
-    {% for section, items in docs | groupby('section') %}
-      <h3>{{ section }}</h3>
-      <ul class="doclist">
-        {% for d in items %}
-        <li><a href="/boardroom/doc?path={{ d.rel | urlencode }}">{{ d.name }}</a>
-          {% if d.kind != 'md' %}<span class="muted">· {{ d.kind }}</span>{% endif %}</li>
-        {% endfor %}
-      </ul>
-    {% endfor %}
+    <p class="small muted">Every company file. Type to filter by name or path (every word must match); click to read.</p>
+    <div class="docs-bar">
+      <input type="search" id="docs-filter" aria-label="Filter documents by name or path" placeholder="Filter, e.g. docs tech">
+      <span class="small muted" id="docs-count" aria-live="polite">{{ docs|length }} of {{ docs|length }} files</span>
+    </div>
+    {# R3-51: boardroom.js builds the grouped tree from these company/-relative paths (tojson escapes ' < > &) #}
+    <div id="docs-tree" data-paths='{{ docs|tojson }}'></div>
+  </div>
+  <div class="doc-viewer" id="viewer" role="dialog" aria-modal="true" aria-labelledby="viewer-title" hidden>
+    <div class="doc-viewer-box">
+      <div class="doc-viewer-head"><h2 id="viewer-title"></h2>
+        <button type="button" id="viewer-close" aria-label="Close document">Close</button></div>
+      <div id="viewer-body"></div>
+    </div>
   </div>
 </section>
 
@@ -188,17 +206,53 @@
 </section>
 
 <section class="panel" data-panel="roadmap">
+  {# R3-52 epic cards; styles kept here so the Roadmap stays self-contained #}
+  <style>
+    .board .epic { border-top: 1px solid var(--line, #D8DFE5); padding: 12px 0; }
+    .board .epic:first-of-type { border-top: 0; }
+    .board .epic-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+    .board .epic-head h3 { margin: 0; }
+    .board .epic-live { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+                        border: 1px solid var(--line, #D8DFE5); color: var(--text, #1b2733); }
+    .board .epic-live-live { background: var(--accent, #2f6df6); border-color: var(--accent, #2f6df6); color: #fff; }
+    .board .epic-live-partly { border-color: var(--accent, #2f6df6); }
+    .board .epic-live-paused, .board .epic-live-notlive { color: var(--text-secondary, #526273); }
+    .board .epic-meter { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+    .board .epic-bar { flex: 1; max-width: 420px; height: 8px; border-radius: 4px; overflow: hidden;
+                       background: var(--line, #D8DFE5); }
+    .board .epic-bar i { display: block; height: 100%; background: var(--accent, #2f6df6); }
+    .board .epic-num { font-size: 13px; font-variant-numeric: tabular-nums; }
+    .board .epic-list { margin: 4px 0; padding-left: 18px; font-size: 14px; }
+    .board .epic-st { font: 600 12px/1 var(--mono, monospace); }
+  </style>
+  {% from "partials/epic_card.html" import epic_card %}
+  <div class="card">
+    <h2>Epics</h2>
+    <p class="small muted">One bar per epic: Built % = done tasks ÷ tasks tagged [E#] in the active sprint
+      (cancelled/superseded/withdrawn not counted). Source: company/docs/strategy/ROADMAP.md + company/state/BACKLOG.md.</p>
+    {% for e in epics.epics %}{{ epic_card(e) }}
+    {% else %}<p class="muted">No epic table in company/docs/strategy/ROADMAP.md.</p>{% endfor %}
+    {% if epics.other.tasks %}{{ epic_card(epics.other) }}{% endif %}
+  </div>
   <div class="card">
     <h2>Pending &amp; future tasks (current sprint)</h2>
     {% if tasks_html %}{{ tasks_html | safe }}
     {% else %}<p class="muted">No open tasks in the current sprint.</p>{% endif %}
   </div>
   <div class="card">
-    <h2>Full roadmap</h2>
-    {{ roadmap_html | safe }}
+    <details data-group="roadmap-backlog">
+      <summary>Full backlog</summary>
+      {{ roadmap_html | safe }}
+    </details>
   </div>
   <div class="card">
-    <details>
+    <details data-group="roadmap-timeline">
+      <summary>Timeline</summary>
+      {{ timeline_html | safe }}
+    </details>
+  </div>
+  <div class="card">
+    <details data-group="roadmap-log">
       <summary>Full history — every cycle</summary>
       {{ history_html | safe }}
     </details>

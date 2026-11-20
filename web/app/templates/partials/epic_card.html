@@ -1,0 +1,28 @@
+{# R3-52: one Roadmap card per epic (data from _parse_epics in routes/boardroom.py). Autoescaped text;
+   roadblocks_html is first-party ROADMAP.md Markdown. The tasks <details> is collapsed by default and
+   its open state is kept across refresh by boardroom.js (data-group → localStorage). #}
+{% macro epic_card(e) -%}
+{%- set label = (e.id ~ " " if e.id else "") ~ e.name -%}
+<div class="epic" data-epic="{{ e.id or 'other' }}">
+  <div class="epic-head">
+    <h3>{{ e.id ~ " · " ~ e.name if e.id else e.name }}</h3>
+    {% if e.live %}<span class="epic-live epic-live-{{ e.live_kind }}">{{ e.live }}</span>{% endif %}
+  </div>
+  {% if e.outcome %}<p class="muted">{{ e.outcome }}</p>{% endif %}
+  <div class="epic-meter">
+    <div class="epic-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ e.pct }}"
+         aria-label="{{ label }}: {{ e.done }} of {{ e.total }} tasks done ({{ e.pct }}%)"><i style="width:{{ e.pct }}%"></i></div>
+    <span class="epic-num">{{ e.done }}/{{ e.total }} done · {{ e.pct }}%</span>
+  </div>
+  {% set meta = [("Owner: " ~ e.owner) if e.owner, ("Expected live: " ~ e.expected_live) if e.expected_live] | select | join(" · ") %}
+  {% if meta %}<p class="small">{{ meta }}</p>{% endif %}
+  {% if e.roadblocks %}<p class="small"><b>Roadblocks:</b> {{ e.roadblocks_html | safe }}</p>{% endif %}
+  <details class="epic-tasks" data-group="epic-{{ e.id or 'other' }}">
+    <summary>Tasks ({{ e.tasks | length }})</summary>
+    <ul class="epic-list">
+      {% for t in e.tasks %}<li><b>{{ t.id }}</b> <span class="epic-st">{{ t.status or "?" }}</span> <span class="muted">{{ t.owner }}</span> <span>{{ t.title }}</span></li>
+      {% else %}<li class="muted">No tasks tagged yet.</li>{% endfor %}
+    </ul>
+  </details>
+</div>
+{%- endmacro %}

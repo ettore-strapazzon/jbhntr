@@ -3268,11 +3268,11 @@ def test_boardroom_doc_viewer_gated_and_path_safe(client, monkeypatch):
     assert client.get("/boardroom/doc?path=README.md").status_code == 401  # no creds
 
     # A real doc renders inline.
-    r = client.get("/boardroom/doc?path=README.md", auth=auth)
+    r = client.get("/boardroom/doc?path=docs/README.md", auth=auth)  # R3-51: paths are company/-relative
     assert r.status_code == 200 and "Back to Boardroom" in r.text
 
     # Traversal and unknown paths are rejected.
-    assert client.get("/boardroom/doc?path=../CHARTER.md", auth=auth).status_code == 404
+    assert client.get("/boardroom/doc?path=../README.md", auth=auth).status_code == 404
     assert client.get("/boardroom/doc?path=../../web/app/main.py",
                       auth=auth).status_code == 404
     assert client.get("/boardroom/doc?path=nope.md", auth=auth).status_code == 404
@@ -3312,8 +3312,8 @@ def test_boardroom_documents_tab(client, monkeypatch):
     assert 'data-tab="docs"' in page
     docs = page.split('data-panel="docs"', 1)[1].split("</section>", 1)[0]
     pending = page.split('data-panel="pending"', 1)[1].split("</section>", 1)[0]
-    assert "/boardroom/doc?path=README.md" in docs
-    assert "/boardroom/doc?path=" not in pending
+    assert '"docs/README.md"' in docs  # R3-51: the tree is built by boardroom.js from data-paths
+    assert "docs-tree" not in pending and "/boardroom/doc?path=" not in pending
 
 
 def test_admin_shows_waitlist_and_csv(client, monkeypatch):

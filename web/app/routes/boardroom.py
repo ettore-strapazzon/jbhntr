@@ -37,6 +37,7 @@ router = APIRouter()
 
 STATE = ROOT / "company" / "state"
 UPDATES = ROOT / "company" / "updates"
+COMPANY = ROOT / "company"
 DOCS = ROOT / "company" / "docs"
 # R3-40: Founder chat attachments. Outside /static and git-ignored; reachable only
 # through the admin-gated download route. Ephemeral on Railway unless a volume is mounted.
@@ -212,6 +213,83 @@ def _current_sprint(backlog: str) -> tuple[str, str]:
     return name, ("\n".join(kept) if len(kept) > 2 else "")
 
 
+# ---- R3-52 Roadmap: one progress card per epic. Epics = the 7-column table in docs/strategy/ROADMAP.md
+# (#, Epic, Outcome, Owner, Live, Top roadblocks, Expected live); tasks = active-sprint BACKLOG rows
+# (id | owner | task | … | status) whose task starts with [E#]. Built % = done ÷ counted, computed here.
+_NOT_COUNTED = {"cancelled", "canceled", "superseded", "withdrawn"}
+_LIVE_KINDS = {"live", "notlive", "paused", "partly"}
+
+
+def _cells(row: str) -> list[str]:
+    """Markdown table row → stripped cells; a `|` inside `code` never splits a cell."""
+    out, cur, code = [], "", False
+    for ch in row.strip().removeprefix("|").removesuffix("|"):
+        code ^= ch == "`"
+        if ch == "|" and not code:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    return out + [cur.strip()]
+
+
+def _plain(s: str) -> str:
+    """Inline Markdown → one plain line (links, bold, code, italics stripped)."""
+    s = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", s)
+    s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
+    s = re.sub(r"`([^`]*)`", r"\1", s)
+    s = re.sub(r"\*([^*\s][^*]*)\*", r"\1", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _active_sprint(backlog: str) -> str:
+    """The top `## Sprint` section only; everything from the next `## Sprint` heading on is cut."""
+    m = re.search(r"(?ms)^## Sprint.*?(?=^## Sprint|\Z)", backlog or "")
+    return m.group(0) if m else ""
+
+
+def _tally(g: dict) -> dict:
+    g["done"] = sum(t["status"] == "done" for t in g["tasks"])
+    g["total"] = len(g["tasks"])
+    g["pct"] = round(g["done"] * 100 / g["total"]) if g["total"] else 0
+    return g
+
+
+def _parse_epics(roadmap: str, backlog: str) -> dict:
+    epics, by_id, in_table = [], {}, False
+    for ln in (roadmap or "").splitlines():
+        if not re.match(r"^\s*\|.*\|\s*$", ln):
+            in_table = False
+            continue
+        c = _cells(ln) + [""] * 7
+        if c[0] == "#" and c[1].lower().startswith("epic"):
+            in_table = not epics  # the first epic table only
+            continue
+        if in_table and re.fullmatch(r"E\d+", c[0]):
+            live = _plain(c[4])
+            e = {"id": c[0], "name": _plain(c[1]), "outcome": _plain(c[2]), "owner": _plain(c[3]),
+                 "live": live, "roadblocks": c[5], "expected_live": _plain(c[6]), "tasks": [],
+                 "roadblocks_html": re.sub(r"^<p>|</p>$", "", _html(c[5])),  # first-party ROADMAP.md
+                 "live_kind": k if (k := re.sub(r"[^a-z]", "", live.lower())) in _LIVE_KINDS else "other"}
+            epics.append(e)
+            by_id[e["id"]] = e
+    other = {"id": "", "name": "Other", "tasks": []}
+    for ln in _active_sprint(backlog).splitlines():
+        if not re.match(r"^\|\s*[A-Za-z][A-Za-z0-9]*-\w+\s*\|", ln):
+            continue  # header, separator, prose
+        c = _cells(ln)
+        st = (re.search(r"[A-Za-z]+", c[-1]) or [""])[0].lower()
+        if st in _NOT_COUNTED or len(c) < 3:
+            continue
+        tag = re.match(r"\[(E\d+)\]\s*", c[2])
+        g = by_id.get(tag.group(1)) if tag else None
+        title = _plain(c[2][tag.end():] if g else c[2])
+        if len(title) > 140:
+            title = title[:139].strip() + "…"
+        (g or other)["tasks"].append({"id": c[0], "owner": _plain(c[1]), "title": title, "status": st})
+    return {"epics": [_tally(e) for e in epics], "other": _tally(other)}
+
+
 def _request_blocks(requests_md: str) -> list[str]:
     return [b for b in re.split(r"(?m)^(?=### R-)", requests_md) if b.startswith("### R-")]
 
@@ -296,18 +374,30 @@ def _all_updates() -> list[dict]:
     return [{"date": p.stem, "html": _html(_read(p))} for p in _update_files()]
 
 
-def _doc_index() -> list[dict]:
-    """Linkable index of company/docs, grouped by top folder — for the Documents tab."""
-    out = []
-    for p in sorted(DOCS.rglob("*")):
-        if not p.is_file() or p.suffix.lower() not in (".md", ".pdf", ".csv"):
-            continue
-        rel = p.relative_to(DOCS)
-        parts = rel.parts
-        out.append({"rel": rel.as_posix(), "name": p.name,
-                    "section": parts[0] if len(parts) > 1 else "general",
-                    "kind": p.suffix.lower().lstrip(".")})
-    return out
+# R3-51: the Documents tab and viewer read any company/ file whose relative path passes this rule:
+# plain segments (no leading dot, so no `..`, `.env`, `.github`), no absolute/backslash/empty segment,
+# a document extension, nothing secret-looking. _doc_target() then also refuses symlink escapes.
+_SAFE_DOC = re.compile(r"(?:[A-Za-z0-9_-][A-Za-z0-9._-]*/)*[A-Za-z0-9_-][A-Za-z0-9._-]*\.(?:md|txt|csv|pdf)")
+_SECRETISH = re.compile(r"secret|token|credential|password|passwd|private|\.env\b|apikey|api_key", re.I)
+
+
+def _safe_doc_path(path: str | None) -> bool:
+    return bool(path) and len(path) <= 300 and bool(_SAFE_DOC.fullmatch(path)) and not _SECRETISH.search(path)
+
+
+def _doc_target(path: str | None) -> Path | None:
+    """company/-relative path → the real file, or None (bad name, missing, or resolves outside company/)."""
+    if not _safe_doc_path(path):
+        return None
+    base = COMPANY.resolve()
+    target = (base / path).resolve()
+    return target if base in target.parents and target.is_file() else None
+
+
+def _doc_index() -> list[str]:
+    """Every readable company/ file (company/-relative, sorted) — the Documents tree (R3-51)."""
+    return sorted(rel for p in COMPANY.rglob("*")
+                  if _doc_target(rel := p.relative_to(COMPANY).as_posix()))
 
 
 def _entry_dict(e: TeamLogEntry) -> dict:
@@ -371,6 +461,8 @@ def boardroom(request: Request, _: bool = Depends(require_admin),
         "team_last_id": team_last_id,
         "kpis_html": _html(_read(STATE / "KPIS.md")),
         "roadmap_html": _html(_read(STATE / "BACKLOG.md")),
+        "epics": _parse_epics(_read(DOCS / "strategy" / "ROADMAP.md"), _read(STATE / "BACKLOG.md")),
+        "timeline_html": _html(_read(DOCS / "strategy" / "TIMELINE.md")),
         "history_html": _html(cycle_log),
     })
 
@@ -408,13 +500,17 @@ def boardroom_team(after: int = 0, _: bool = Depends(require_admin),
 
 
 @router.get("/boardroom/doc", response_class=HTMLResponse)
-def boardroom_doc(path: str, request: Request, _: bool = Depends(require_admin)):
-    """Read a single company/docs file in the Boardroom. Path is confined to DOCS
-    (traversal rejected): Markdown renders inline, other types download."""
-    base = DOCS.resolve()
-    target = (base / path).resolve()
-    if base not in target.parents or not target.is_file():
+def boardroom_doc(path: str, request: Request, raw: bool = False,
+                  _: bool = Depends(require_admin)):
+    """Read one company/ file (path relative to company/, confined by _doc_target: no traversal,
+    no symlink escape, no secret-looking names). `raw=1` returns the text for the tab's viewer
+    (R3-51); otherwise Markdown renders as a page and other types download."""
+    target = _doc_target(path)
+    if target is None:
         return HTMLResponse("Not found", status_code=404)
+    if raw and target.suffix.lower() != ".pdf":
+        return PlainTextResponse(_read(target), headers={"X-Content-Type-Options": "nosniff",
+                                                         "Cache-Control": "private, no-store"})
     if target.suffix.lower() == ".md":
         return templates.TemplateResponse(request, "boardroom_doc.html", {
             "request": request, "title": target.name,

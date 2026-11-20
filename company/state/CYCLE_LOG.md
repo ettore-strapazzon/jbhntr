@@ -628,3 +628,15 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Review notes:** full suite green once after both (rc 0). Not browser-checked. Restarting a task twice in one cycle can show two badges. Inline-code copy buttons left out (not in acceptance).
 - **Requests opened:** none. **Blockers:** R3-50 still waits R-016. **Spend:** none.
 - **Next:** R3-51, R3-52, R3-53.
+
+## 2026-11-20 · cycle 30 (Boardroom §5: Documents tree/viewer + Roadmap epic cards)
+- **Gate:** no parked branches. Cap 4/10 today.
+- **Recovery:** none (no task left doing).
+- **CEO part of R3-52:** wrote `company/docs/strategy/ROADMAP.md` (7-column epic table, E1–E5 from the CHARTER steps + the team runtime), tagged the active sprint rows `[E5]`, indexed it in `docs/README.md`.
+- **Dispatched (parallel):** CTO ×2 — R3-51 (Documents tree, filter, viewer) · R3-52 (Roadmap epic cards). They were launched in the background rather than the foreground. Both finished before review and testing. Other roles: no unblocked task in T1.
+- **Results (both accepted):**
+  - CTO → **R3-51**: tree over all of `company/` in fixed groups, AND filter + live "N of M files", modal viewer (Close/backdrop/Escape), relative links resolved + confined, external → new tab, other schemes plain; `/boardroom/doc` now confined to `company/` (no dotfiles, secret-looking names, symlink escape), admin-only, `raw=1`; 40 tests.
+  - CTO → **R3-52**: server-side epic parser (backtick-safe, active sprint only, Other, not-counted, computed %), progressbar cards with aria label, tasks `<details>` remembered; backlog/timeline/cycle log collapsed below; 7 tests incl. real files. Today E5 = 16/20 (80%), E1–E4 0/0 until tagged.
+- **Review notes:** full suite green (rc 0); it was run twice, the second time only to print the summary line. Not browser-checked. The viewer's own Markdown is simpler than the server's (marked `shortcut:` in code). The two agents briefly broke each other's page render mid-work; it was fine at the end.
+- **Requests opened:** none. **Blockers:** R3-50 still waits R-016. **Spend:** none.
+- **Next:** R3-53 (snapshot refresh + lazy morning updates), then T1 is down to R3-50 (blocked on R-016).

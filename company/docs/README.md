@@ -8,6 +8,7 @@ Every doc is listed here with its owner and last-updated date. Update docs **in 
 | [strategy/ONE_PAGER.md](strategy/ONE_PAGER.md) | What JBHNTR is, in one page | CEO | 2026-10-25 |
 | [marketing/GTM.md](marketing/GTM.md) | The Phase-1 go-to-market strategy | CEO+CMO | 2026-10-25 |
 | [strategy/TIMELINE.md](strategy/TIMELINE.md) | Roadmap + Gantt to the 1,000-user target | CEO | 2026-10-25 |
+| [strategy/ROADMAP.md](strategy/ROADMAP.md) | Epic table read by the Boardroom Roadmap tab | CEO | 2026-11-20 |
 | [strategy/KPI_TRACKER.md](strategy/KPI_TRACKER.md) | KPIs vs target, readable view of `state/KPIS.md` | CEO+CTO | 2026-10-25 |
 | [product/PRD.md](product/PRD.md) | Product requirements — what we build and why | CPO | 2026-10-25 |
 

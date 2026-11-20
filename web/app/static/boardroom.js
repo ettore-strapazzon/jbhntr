@@ -113,6 +113,93 @@
     clearTimeout(b._t); b._t = setTimeout(function () { b.textContent = "copy"; }, 1500);
   }
   // ---- end code
+  // ---- Documents (R3-51): every company/ file in fixed-order groups (CHARTER, state, updates, agents, docs,
+  // other folders, top-level files), a filter that needs every typed term in the path, and a viewer whose
+  // relative links stay inside company/. DOM + textContent only. Tested in node up to the end marker.
+  var DOC_GROUPS = ["CHARTER", "state", "updates", "agents", "docs"];
+  function docEl(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function docGroup(p) { return p.indexOf("/") < 0 ? (p === "CHARTER.md" ? "CHARTER" : "root") : p.split("/")[0]; }
+  function docTree(paths, q) {   // -> { total, shown, groups: [{ name, files }] }
+    var terms = String(q || "").toLowerCase().split(/\s+/).filter(Boolean), by = {}, shown = 0;
+    paths.slice().sort().forEach(function (p) {
+      var lp = p.toLowerCase();
+      if (!terms.every(function (t) { return lp.indexOf(t) >= 0; })) return;
+      var g = docGroup(p); (by[g] = by[g] || []).push(p); shown++;
+    });
+    function rank(g) { var i = DOC_GROUPS.indexOf(g); return i >= 0 ? i : g === "root" ? 99 : 50; }
+    var names = Object.keys(by).sort(function (a, b) { return rank(a) - rank(b) || (a < b ? -1 : a > b ? 1 : 0); });
+    return { total: paths.length, shown: shown, groups: names.map(function (g) { return { name: g, files: by[g] }; }) };
+  }
+  function resolveDoc(href, from) {   // [x](y.md) seen in company/<from> -> company/-relative path, or null
+    var h = String(href || "").split(/[?#]/)[0];
+    if (!h || /^[a-z][a-z0-9+.-]*:/i.test(h) || !/\.(md|txt|csv)$/i.test(h)) return null;
+    var segs = (h.charAt(0) === "/" ? h : String(from || "").split("/").slice(0, -1).join("/") + "/" + h).split("/"), out = [];
+    for (var i = 0; i < segs.length; i++) {
+      if (segs[i] === "..") { if (!out.length) return null; out.pop(); }   // climbing out of company/ is refused
+      else if (segs[i] && segs[i] !== ".") out.push(segs[i]);
+    }
+    return out.join("/");
+  }
+  function docLink(label, href, from) {   // http(s) -> new tab; company doc -> viewer; anything else -> plain text
+    var a;
+    if (/^https?:\/\//i.test(href)) { a = docEl("a", null, label); a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
+    var t = resolveDoc(href, from);
+    if (!t) return docEl("span", null, label);
+    a = docEl("a", null, label); a.href = "/boardroom/doc?path=" + encodeURIComponent(t); a.setAttribute("data-doc", t);
+    return a;
+  }
+  function docInline(parent, s, from) {   // **bold**, `code`, [label](href), *em*; the rest stays text nodes
+    var re = /\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|\*([^*\s][^*]*)\*/g, m, last = 0;
+    s = String(s);
+    while ((m = re.exec(s))) {
+      if (m.index > last) parent.appendChild(document.createTextNode(s.slice(last, m.index)));
+      if (m[1] != null) parent.appendChild(docEl("strong", null, m[1]));
+      else if (m[2] != null) parent.appendChild(docEl("code", null, m[2]));
+      else if (m[3] != null) parent.appendChild(docLink(m[3], m[4], from));
+      else parent.appendChild(docEl("em", null, m[5]));
+      last = re.lastIndex;
+    }
+    if (last < s.length) parent.appendChild(document.createTextNode(s.slice(last)));
+    return parent;
+  }
+  function docMd(src, from) {   // the Markdown our docs use: fences, headings, tables, rules, quotes, lists, paragraphs
+    var root = docEl("div"), lines = String(src).replace(/\r/g, "").split("\n"), i = 0, list = null, l, m;
+    var ROW = /^\s*\|.*\|\s*$/, BLOCK = /^\s*(```|#{1,6}\s|\||>|(?:[-*+]|\d+[.)])\s|(?:---|\*\*\*|___)\s*$)/;
+    while (i < lines.length) {
+      l = lines[i];
+      if (!/^\s*(?:[-*+]|\d+[.)])\s/.test(l)) list = null;
+      if (/^\s*```/.test(l)) {
+        var code = []; i++;
+        while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]);
+        i++; var pre = docEl("pre"); pre.appendChild(docEl("code", null, code.join("\n"))); root.appendChild(pre);
+      } else if ((m = /^(#{1,6})\s+(.*)$/.exec(l))) {
+        root.appendChild(docInline(docEl("h" + Math.min(m[1].length + 2, 6)), m[2], from)); i++;   // h2 is the viewer title
+      } else if (ROW.test(l)) {
+        var t = docEl("table"), k = 0;   // shortcut: a `|` inside backticks splits the cell; fine for our tables
+        while (i < lines.length && ROW.test(lines[i])) {
+          var r = lines[i++].trim();
+          if (/^\|[\s:|-]+\|$/.test(r)) continue;
+          var tr = docEl("tr"), cell = k++ ? "td" : "th";
+          r.slice(1, -1).split("|").forEach(function (c) { tr.appendChild(docInline(docEl(cell), c.trim(), from)); });
+          t.appendChild(tr);
+        }
+        root.appendChild(t);
+      } else if (/^\s*(?:---|\*\*\*|___)\s*$/.test(l)) { root.appendChild(docEl("hr")); i++; }
+      else if (/^>\s?/.test(l)) { root.appendChild(docInline(docEl("blockquote"), l.replace(/^>\s?/, ""), from)); i++; }
+      else if ((m = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/.exec(l))) {
+        if (!list) { list = docEl(/^\s*\d/.test(l) ? "ol" : "ul"); root.appendChild(list); }
+        list.appendChild(docInline(docEl("li"), m[1], from)); i++;
+      } else if (!l.trim()) i++;
+      else {
+        var p = docInline(docEl("p"), l, from); i++;
+        while (i < lines.length && lines[i].trim() && !BLOCK.test(lines[i])) { p.appendChild(document.createTextNode(" ")); docInline(p, lines[i++], from); }
+        root.appendChild(p);
+      }
+    }
+    return root;
+  }
+  function docBody(text, path) { return /\.(txt|csv)$/i.test(path || "") ? docEl("pre", "doc-txt", String(text)) : docMd(text, path); }
+  // ---- end documents
   function localise(t) {   // a <time datetime="ISO UTC"> → local text + UTC tooltip
     var iso = t.getAttribute("datetime");
     t.textContent = fmt_time(iso);
@@ -296,6 +383,58 @@
       try { localStorage.setItem(REQ_KEY, JSON.stringify(reqMem)); } catch (e) {}
     });
   });
+
+  // ---- Documents tab + viewer (R3-51) ----
+  var docsTree = document.getElementById("docs-tree"), docsFilter = document.getElementById("docs-filter"),
+      docsCount = document.getElementById("docs-count"), viewer = document.getElementById("viewer"), docPaths = [], docFrom = null;
+  try { docPaths = JSON.parse(docsTree.getAttribute("data-paths") || "[]"); } catch (e) {}
+  function renderDocs() {
+    var q = docsFilter.value.trim(), t = docTree(docPaths, q);
+    docsTree.textContent = "";
+    docsCount.textContent = t.shown + " of " + t.total + " files";
+    if (!t.shown) docsTree.appendChild(docEl("p", "muted", t.total ? "No file matches “" + q + "”." : "No documents yet."));
+    t.groups.forEach(function (g) {
+      var d = docEl("details", "docs-group"), lastDir = null;
+      d.open = !!q || g.name === "CHARTER";
+      var sum = docEl("summary", null, g.name === "root" ? "Top-level files" : g.name === "CHARTER" ? "CHARTER" : g.name + "/");
+      sum.appendChild(docEl("span", "n", String(g.files.length)));
+      d.appendChild(sum);
+      g.files.forEach(function (p) {
+        var dir = p.split("/").slice(1, -1).join("/"), a = docEl("a", dir ? "sub" : null, p.split("/").pop());
+        if (dir && dir !== lastDir) d.appendChild(docEl("div", "dir", dir + "/"));
+        lastDir = dir;
+        a.href = "/boardroom/doc?path=" + encodeURIComponent(p); a.title = p;
+        if (!/\.pdf$/i.test(p)) a.setAttribute("data-doc", p);   // a PDF downloads; text opens in the viewer
+        d.appendChild(a);
+      });
+      docsTree.appendChild(d);
+    });
+  }
+  function openDoc(p) {
+    var body = document.getElementById("viewer-body");
+    if (viewer.hidden) docFrom = document.activeElement;
+    document.getElementById("viewer-title").textContent = p;
+    body.textContent = ""; body.appendChild(docEl("p", "muted", "Loading…"));
+    viewer.hidden = false; viewer.scrollTop = 0;
+    document.getElementById("viewer-close").focus();
+    fetch("/boardroom/doc?raw=1&path=" + encodeURIComponent(p))
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+      .then(function (t) { body.textContent = ""; body.appendChild(docBody(t, p)); },
+            function () { body.textContent = ""; body.appendChild(docEl("p", "muted", "This document could not be opened (moved, deleted or not readable here).")); });
+  }
+  function closeDoc() { viewer.hidden = true; if (docFrom && docFrom.focus) docFrom.focus(); }
+  if (docsTree && docsFilter && docsCount && viewer) {
+    renderDocs();
+    docsFilter.addEventListener("input", renderDocs);
+    document.addEventListener("click", function (e) {
+      var a = e.target.closest("a[data-doc]");
+      if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;   // modified click: the href opens a full page
+      e.preventDefault(); openDoc(a.getAttribute("data-doc"));
+    });
+    document.getElementById("viewer-close").addEventListener("click", closeDoc);
+    viewer.addEventListener("click", function (e) { if (e.target === viewer) closeDoc(); });   // backdrop
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !viewer.hidden) closeDoc(); });
+  }
 
   // ---- Live chat ----
   var thread = document.getElementById("thread");
