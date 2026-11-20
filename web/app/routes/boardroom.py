@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import markdown as md
@@ -157,6 +158,16 @@ def _task_key(task: str) -> str:
     """Leading backlog id (`R3-38 …` → `R3-38`), else the whole task string."""
     m = re.match(r"\s*([A-Za-z][A-Za-z0-9]*-\d+)\b", task or "")
     return m.group(1) if m else (task or "")
+
+
+WORKING_MAX_H = 6                          # an older `started` row means the run died (R3-46)
+WORK_END = ("shipped", "blocked", "review")
+
+
+def _elapsed(seconds: float) -> str:
+    """'12 min' / '1 h 5 min' — mirrors elapsed() in boardroom.js."""
+    m = max(0, int(seconds // 60))
+    return f"{m} min" if m < 60 else f"{m // 60} h {m % 60} min"
 
 
 def _last_cycle(cycle_log: str) -> str:
@@ -311,10 +322,16 @@ def _team_feed(db: DbSession, limit: int = 100) -> tuple[list[dict], list[str], 
     rows = (db.query(TeamLogEntry)
             .order_by(TeamLogEntry.id.desc()).limit(limit).all())
     entries = [_entry_dict(e) for e in rows]
-    seen: set[str] = set()
-    for e in entries:  # newest first: a `started` row is live until a later row shares its key
-        e["working"] = e["status"] == "started" and e["key"] not in seen
-        seen |= {e["key"]}  # set-union, not the add method: the public-GET write scan is textual
+    now, ended = datetime.now(timezone.utc), set()
+    # R3-46, same rule as workingNow() in boardroom.js: newest first, a `started` row works until a
+    # later shipped/blocked/review row for its task id in the same cycle, and only for WORKING_MAX_H.
+    for r, e in zip(rows, entries):
+        age = (now - aware(r.created_at)).total_seconds() if r.created_at else None
+        live = e["status"] == "started" and (e["key"], e["cycle"]) not in ended \
+            and age is not None and age < WORKING_MAX_H * 3600
+        e["working"] = _elapsed(age) if live else ""
+        if e["status"] in WORK_END:
+            ended |= {(e["key"], e["cycle"])}  # set-union, not the add method: the public-GET write scan is textual
     agents = sorted({e["agent"] for e in entries if e["agent"]})
     last_id = rows[0].id if rows else 0
     return entries, agents, last_id

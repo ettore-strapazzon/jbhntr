@@ -617,3 +617,14 @@ Newest last. One `##` entry per cycle. Sub-bullets: **Recovery / Dispatched / Re
 - **Review notes:** full suite green once after both (rc 0). Not browser-checked. Without JS, server-rendered times show raw ISO.
 - **Requests opened:** none. **Blockers:** R3-50 still waits R-016. **Spend:** none.
 - **Next:** R3-46, R3-48, R3-51, R3-52, R3-53 (now unblocked).
+
+## 2026-11-20 · cycle 29 (Boardroom §5: working-now badge expiry + chat code blocks)
+- **Gate:** no parked branches. Cap 3/10 today.
+- **Recovery:** none (no task left doing).
+- **Dispatched (foreground, parallel):** CTO ×2 — R3-46 (working-now badge expiry + elapsed) · R3-48 (chat code vs prose). Other roles: no unblocked task in T1.
+- **Results (both accepted):**
+  - CTO → **R3-46**: one rule on server and in JS — a `started` row works until a shipped/blocked/review row for the same task id in the same cycle, max 6 h; badge "working now · N min", refreshed every poll + 30 s; test checks server badges = node-run JS.
+  - CTO → **R3-48**: commands and fenced blocks in chat render as their own code block with a Copy button (Clipboard API, textarea fallback, "copied" 1.5 s); DOM/textContent only, CSP unchanged; no-JS first load still shows the plain body.
+- **Review notes:** full suite green once after both (rc 0). Not browser-checked. Restarting a task twice in one cycle can show two badges. Inline-code copy buttons left out (not in acceptance).
+- **Requests opened:** none. **Blockers:** R3-50 still waits R-016. **Spend:** none.
+- **Next:** R3-51, R3-52, R3-53.

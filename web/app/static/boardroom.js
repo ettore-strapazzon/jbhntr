@@ -35,6 +35,84 @@
   }
   function utc_time(iso) { return fmt_time(iso, "UTC"); }
   // ---- end times
+  // ---- Working (R3-46): rows newest first ({key, status, cycle, iso}) → per row "12 min" if that
+  // `started` row is still working, else "". Same rule as _team_feed() on the server. Pure (tested in node).
+  var WORKING_MAX_H = 6, WORK_END = ["shipped", "blocked", "review"];
+  function elapsed(ms) {
+    var m = Math.max(0, Math.floor(ms / 60000));
+    return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60) + " min";
+  }
+  function workingNow(rows, now) {
+    var ended = {};
+    return rows.map(function (r) {
+      var k = JSON.stringify([r.key, r.cycle]), d = parseTime(r.iso), out = "";
+      if (r.status === "started" && !ended[k] && d && now - d < WORKING_MAX_H * 36e5) out = elapsed(now - d);
+      if (WORK_END.indexOf(r.status) >= 0) ended[k] = true;
+      return out;
+    });
+  }
+  // ---- end working
+  // ---- Code vs prose (R3-48): each shell command in a chat message gets its own block with a copy
+  // button. A command = first word is a shell/PowerShell command (or ./x, ~/x, $var=, a Verb-Noun cmdlet),
+  // on an indented line, after "Verify:/Run:/Then:/Check:", or inside a ``` fence. Tested in node up to the end marker.
+  var CMD = /^(?:(?:git|python3?|py|pip3?|node|npm|npx|ssh|scp|sudo|cd|ls|cat|tail|head|grep|cut|awk|sed|curl(?:\.exe)?|wget|crontab|systemctl|journalctl|date|echo|export|source|bash|sh|mkdir|cp|mv|chmod|tar|docker|psql|railway|gh|uv|nano|ps|uptime|which|winget|powershell|pytest|alembic|uvicorn|[A-Z][a-z]+-[A-Z][A-Za-z]+)(?=\s|$)|exit$|\.\/\S|~\/\S|\$\w+\s*=|\$env:)/;
+  // English words that are also commands: "  date is fine." / "  cat the logs" stay prose.
+  var PROSE = /^(?:cat|date|head|tail|cut|source|export|echo|which|cd|cp|mv|ps|sh)\s+[A-Za-z]+(?:\s+[A-Za-z,']+)+[.!?]?$/;
+  function isCommand(s) { s = String(s).trim(); return CMD.test(s) && !/[a-z]{2}\.$/.test(s) && !PROSE.test(s); }
+  function cmdLine(l) {   // indented command line, or "Verify: <command>" -> { label, cmd }; anything else -> null
+    var m = /^(\s*)(?:(Verify|Run|Then|Check):\s+)?(\S.*?)\s*$/.exec(l);
+    if (!m || (!m[2] && m[1].length < 2) || !isCommand(m[3])) return null;
+    return { label: m[2] ? m[1] + m[2] + ":" : "", cmd: m[3] };
+  }
+  function fenceBlocks(code) {   // a fence of single-line commands -> one block each; any other fence stays whole
+    var ls = code.filter(function (x) { return x.trim(); });
+    var split = ls.length > 1 && ls.every(function (x) { return isCommand(x) && !/[\\`^]$/.test(x.trim()); });
+    return split ? ls.map(function (x) { return x.trim(); }) : [code.join("\n")];
+  }
+  function parts(src) {   // chat text -> [{k:"text"|"block", v}]
+    var lines = String(src).replace(/\r/g, "").split("\n"), out = [], buf = [], i = 0;
+    function flush() { if (buf.length) out.push({ k: "text", v: buf.join("\n") }); buf = []; }
+    function block(v) { flush(); out.push({ k: "block", v: v }); }
+    while (i < lines.length) {
+      var l = lines[i];
+      if (/^\s*```/.test(l)) { var code = []; i++; while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]); i++; fenceBlocks(code).forEach(block); continue; }
+      var c = cmdLine(l);
+      if (c) { if (c.label) buf.push(c.label); block(c.cmd); i++; continue; }
+      buf.push(l); i++;
+    }
+    flush();
+    return out;
+  }
+  function rich(box, body) {   // fill box with text nodes + code blocks (DOM + textContent only)
+    box.textContent = "";
+    parts(body).forEach(function (p) {
+      if (p.k !== "block") { box.appendChild(document.createTextNode(p.v)); return; }
+      var w = document.createElement("div"), pre = document.createElement("pre"), code = document.createElement("code"),
+          b = document.createElement("button");
+      w.className = "cb"; code.textContent = p.v; pre.appendChild(code); w.appendChild(pre);
+      b.type = "button"; b.className = "copy"; b.textContent = "copy"; b.setAttribute("aria-label", "Copy command");
+      w.appendChild(b); box.appendChild(w);
+    });
+    return box;
+  }
+  function copyText(t) {   // Clipboard API on https, else a hidden-textarea fallback
+    function legacy() {
+      var ta = document.createElement("textarea"); ta.value = t; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.top = "0"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+      return ok ? Promise.resolve() : Promise.reject(new Error("copy"));
+    }
+    return navigator.clipboard && window.isSecureContext ? navigator.clipboard.writeText(t).catch(legacy) : legacy();
+  }
+  function onCopy(e) {
+    var b = e.target.closest("button.copy"); if (!b) return;
+    var code = b.parentNode.querySelector("code"); if (!code) return;
+    copyText(code.textContent).then(function () { b.textContent = "copied"; }, function () { b.textContent = "select + Ctrl+C"; });
+    clearTimeout(b._t); b._t = setTimeout(function () { b.textContent = "copy"; }, 1500);
+  }
+  // ---- end code
   function localise(t) {   // a <time datetime="ISO UTC"> → local text + UTC tooltip
     var iso = t.getAttribute("datetime");
     t.textContent = fmt_time(iso);
@@ -115,13 +193,8 @@
     row.className = "tl";
     row.setAttribute("data-agent", e.agent || "");
     row.setAttribute("data-key", e.key || "");
-    // A later row for the same task ends any earlier "working now" badge.
-    Array.prototype.forEach.call(teamLog.querySelectorAll(".tl"), function (r) {
-      if (r.getAttribute("data-key") === (e.key || "")) {
-        var w = r.querySelector(".tl-working");
-        if (w) w.remove();
-      }
-    });
+    row.setAttribute("data-status", e.status || "");
+    row.setAttribute("data-cycle", e.cycle || "");
     var meta = document.createElement("div");
     meta.className = "tl-meta";
     var ag = document.createElement("span");
@@ -137,13 +210,6 @@
       meta.appendChild(rest);
     }
     if (e.ts) { meta.appendChild(document.createTextNode(" · ")); meta.appendChild(timeEl(e.ts)); }
-    if (e.status === "started") {
-      var wk = document.createElement("span");
-      wk.className = "tl-working";
-      wk.textContent = "working now";
-      meta.appendChild(document.createTextNode(" "));
-      meta.appendChild(wk);
-    }
     row.appendChild(meta);
     if (e.task) {
       var t = document.createElement("div");
@@ -175,6 +241,27 @@
     if (teamEmpty) teamEmpty.hidden = true;
   }
 
+  // Badge text, not colour only: "working now · 12 min", recomputed from the DOM rows.
+  function refreshWorking() {
+    var rows = Array.prototype.slice.call(teamLog.querySelectorAll(".tl"));
+    var live = workingNow(rows.map(function (r) {
+      var t = r.querySelector("time[datetime]");
+      return { key: r.getAttribute("data-key") || "", status: r.getAttribute("data-status") || "",
+               cycle: r.getAttribute("data-cycle") || "", iso: t ? t.getAttribute("datetime") : "" };
+    }), Date.now());
+    rows.forEach(function (r, i) {
+      var w = r.querySelector(".tl-working"), meta = r.querySelector(".tl-meta");
+      if (!live[i]) { if (w) w.remove(); return; }
+      if (!w && meta) {
+        w = document.createElement("span");
+        w.className = "tl-working";
+        meta.appendChild(document.createTextNode(" "));
+        meta.appendChild(w);
+      }
+      if (w) w.textContent = "working now · " + live[i];
+    });
+  }
+
   if (teamLog) {
     var teamLast = parseInt(teamLog.getAttribute("data-last") || "0", 10) || 0;
     var pollTeam = function () {
@@ -185,10 +272,13 @@
             if (e.id > teamLast) teamLast = e.id;
             addTeam(e);
           });
+          refreshWorking();
         })
         .catch(function () {});
     };
     setInterval(pollTeam, 3000);
+    refreshWorking();
+    setInterval(refreshWorking, 30000);
   }
 
   // ---- Founder's tasks (R3-45): keep only the Founder's deviations from the server default
@@ -216,6 +306,8 @@
   var form = document.getElementById("chat-form");
   var toLatest = document.getElementById("to-latest");
   var first = true;
+  document.querySelectorAll("#thread .msg-body").forEach(function (b) { rich(b, b.textContent); });   // server-rendered first load (R3-48)
+  thread.addEventListener("click", onCopy);
 
   // Pure: is the box within `slack` px (default 80) of its end? (R3-44; tested via node)
   function nearBottom(box, slack) { return box.scrollHeight - box.scrollTop - box.clientHeight <= (slack == null ? 80 : slack); }
@@ -248,7 +340,7 @@
     meta.appendChild(sp);
     var body = document.createElement("div");
     body.className = "msg-body";
-    body.textContent = m.body;
+    rich(body, m.body);
     wrap.appendChild(meta);
     wrap.appendChild(body);
     (m.attachments || []).forEach(function (a) {   // R3-40

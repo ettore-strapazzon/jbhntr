@@ -23,6 +23,11 @@
   .board .msg:first-child { border-top: 0; }
   .board .msg-meta { font-size: 13px; margin-bottom: 2px; }
   .board .msg-body { white-space: pre-wrap; }
+  .board .cb { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; padding: 6px 8px;
+                border-radius: 6px; background: #EAF2FF; color: #1b2733; }
+  .board .cb pre { flex: 1; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.4 var(--mono, monospace); }
+  .board .copy { font: inherit; font-size: 12px; padding: 2px 8px; cursor: pointer; border: 1px solid var(--line, #D8DFE5);
+                 border-radius: 4px; background: #fff; color: #1b2733; }
   .board form.chat { display: flex; flex-direction: column; gap: 8px; }
   .board form.chat textarea { width: 100%; box-sizing: border-box; font: inherit;
                               padding: 8px; border: 1px solid var(--line, #D8DFE5);
@@ -156,8 +161,8 @@
     <p class="muted" id="team-empty"{% if team_entries %} hidden{% endif %}>No team activity yet — this lights up the moment the next cycle dispatches an agent.</p>
     <div id="team-log" data-last="{{ team_last_id }}">
       {% for e in team_entries %}
-      <div class="tl" data-agent="{{ e.agent }}" data-key="{{ e.key }}">
-        <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · <time datetime="{{ e.ts }}">{{ e.ts }}</time>{% endif %}{% if e.working %} <span class="tl-working">working now</span>{% endif %}</div>
+      <div class="tl" data-agent="{{ e.agent }}" data-key="{{ e.key }}" data-status="{{ e.status }}" data-cycle="{{ e.cycle }}">
+        <div class="tl-meta"><span class="tl-agent">{{ e.agent }}</span>{% if e.status %} · {{ e.status }}{% endif %}{% if e.cycle %} · cycle {{ e.cycle }}{% endif %}{% if e.ts %} · <time datetime="{{ e.ts }}">{{ e.ts }}</time>{% endif %}{% if e.working %} <span class="tl-working">working now · {{ e.working }}</span>{% endif %}</div>
         {% if e.task %}<div><b>{{ e.task }}</b></div>{% endif %}
         {% if e.summary %}<div class="msg-body">{{ e.summary }}</div>{% endif %}
         {# detail_html is built by _safe_html (raw HTML + links disabled) #}
